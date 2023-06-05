@@ -3188,6 +3188,68 @@
 <a href="#3188" id="3188">3188</a>
 <a href="#3189" id="3189">3189</a>
 <a href="#3190" id="3190">3190</a>
+<a href="#3191" id="3191">3191</a>
+<a href="#3192" id="3192">3192</a>
+<a href="#3193" id="3193">3193</a>
+<a href="#3194" id="3194">3194</a>
+<a href="#3195" id="3195">3195</a>
+<a href="#3196" id="3196">3196</a>
+<a href="#3197" id="3197">3197</a>
+<a href="#3198" id="3198">3198</a>
+<a href="#3199" id="3199">3199</a>
+<a href="#3200" id="3200">3200</a>
+<a href="#3201" id="3201">3201</a>
+<a href="#3202" id="3202">3202</a>
+<a href="#3203" id="3203">3203</a>
+<a href="#3204" id="3204">3204</a>
+<a href="#3205" id="3205">3205</a>
+<a href="#3206" id="3206">3206</a>
+<a href="#3207" id="3207">3207</a>
+<a href="#3208" id="3208">3208</a>
+<a href="#3209" id="3209">3209</a>
+<a href="#3210" id="3210">3210</a>
+<a href="#3211" id="3211">3211</a>
+<a href="#3212" id="3212">3212</a>
+<a href="#3213" id="3213">3213</a>
+<a href="#3214" id="3214">3214</a>
+<a href="#3215" id="3215">3215</a>
+<a href="#3216" id="3216">3216</a>
+<a href="#3217" id="3217">3217</a>
+<a href="#3218" id="3218">3218</a>
+<a href="#3219" id="3219">3219</a>
+<a href="#3220" id="3220">3220</a>
+<a href="#3221" id="3221">3221</a>
+<a href="#3222" id="3222">3222</a>
+<a href="#3223" id="3223">3223</a>
+<a href="#3224" id="3224">3224</a>
+<a href="#3225" id="3225">3225</a>
+<a href="#3226" id="3226">3226</a>
+<a href="#3227" id="3227">3227</a>
+<a href="#3228" id="3228">3228</a>
+<a href="#3229" id="3229">3229</a>
+<a href="#3230" id="3230">3230</a>
+<a href="#3231" id="3231">3231</a>
+<a href="#3232" id="3232">3232</a>
+<a href="#3233" id="3233">3233</a>
+<a href="#3234" id="3234">3234</a>
+<a href="#3235" id="3235">3235</a>
+<a href="#3236" id="3236">3236</a>
+<a href="#3237" id="3237">3237</a>
+<a href="#3238" id="3238">3238</a>
+<a href="#3239" id="3239">3239</a>
+<a href="#3240" id="3240">3240</a>
+<a href="#3241" id="3241">3241</a>
+<a href="#3242" id="3242">3242</a>
+<a href="#3243" id="3243">3243</a>
+<a href="#3244" id="3244">3244</a>
+<a href="#3245" id="3245">3245</a>
+<a href="#3246" id="3246">3246</a>
+<a href="#3247" id="3247">3247</a>
+<a href="#3248" id="3248">3248</a>
+<a href="#3249" id="3249">3249</a>
+<a href="#3250" id="3250">3250</a>
+<a href="#3251" id="3251">3251</a>
+<a href="#3252" id="3252">3252</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -3728,6 +3790,13 @@
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = event.transaction.value() {
         shared_tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), transaction_name.to_owned());
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_method) = http_method_from_transaction_name(transaction_name) {
+            shared_tags.insert(
+                <span class="string">&quot;transaction.method&quot;</span>.to_owned(),
+                transaction_method.to_owned(),
+            );
+        }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = get_trace_context(event) {
@@ -3896,7 +3965,7 @@
     extract_captured_substring(query, <span class="kw-2">&amp;</span>SQL_ACTION_EXTRACTOR_REGEX)
 }
 
-<span class="doccomment">/// Regex with a capture group tot extract the table from a database query,
+<span class="doccomment">/// Regex with a capture group to extract the table from a database query,
 /// based on `FROM` and `INTO` keywords.
 </span><span class="kw">static </span>SQL_TABLE_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(<span class="string">r#&quot;(?i)(from|into)(\s|&quot;|&#39;|\()+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|&quot;|&#39;|\))+&quot;#</span>).unwrap()
@@ -3907,6 +3976,16 @@
 /// If multiple tables exist, only the first one is returned.
 </span><span class="kw">fn </span>sql_table_from_query(query: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
     extract_captured_substring(query, <span class="kw-2">&amp;</span>SQL_TABLE_EXTRACTOR_REGEX)
+}
+
+<span class="doccomment">/// Regex with a capture group to extract the HTTP method from a string.
+</span><span class="kw">static </span>HTTP_METHOD_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;(?i)^(?P&lt;method&gt;(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\s&quot;#</span>)
+        .unwrap()
+});
+
+<span class="kw">fn </span>http_method_from_transaction_name(name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    extract_captured_substring(name, <span class="kw-2">&amp;</span>HTTP_METHOD_EXTRACTOR_REGEX)
 }
 
 <span class="doccomment">/// Returns the captured substring in `string` with the capture group in `pattern`.
@@ -4063,7 +4142,7 @@
             &quot;release&quot;: &quot;1.2.3&quot;,
             &quot;dist&quot;: &quot;foo &quot;,
             &quot;environment&quot;: &quot;fake_environment&quot;,
-            &quot;transaction&quot;: &quot;mytransaction&quot;,
+            &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
             &quot;transaction_info&quot;: {&quot;source&quot;: &quot;custom&quot;},
             &quot;user&quot;: {
                 &quot;id&quot;: &quot;user123&quot;,
@@ -4366,7 +4445,7 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
@@ -4389,7 +4468,7 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
@@ -4411,7 +4490,7 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
@@ -4433,7 +4512,7 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
@@ -4455,7 +4534,7 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
@@ -4469,7 +4548,8 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.op&quot;: &quot;react.mount&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4482,7 +4562,8 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.op&quot;: &quot;react.mount&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4495,7 +4576,8 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.op&quot;: &quot;react.mount&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4513,7 +4595,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4531,7 +4614,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4549,7 +4633,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4567,7 +4652,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4585,7 +4671,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4603,7 +4690,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4622,7 +4710,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4641,7 +4730,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4660,7 +4750,8 @@
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.status_code&quot;: &quot;200&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4679,7 +4770,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4698,7 +4790,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4717,7 +4810,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4735,7 +4829,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4753,7 +4848,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4771,7 +4867,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4789,7 +4886,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4807,7 +4905,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4825,7 +4924,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4843,7 +4943,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4861,7 +4962,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4879,7 +4981,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4896,7 +4999,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4913,7 +5017,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4930,7 +5035,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4948,7 +5054,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4966,7 +5073,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -4984,7 +5092,8 @@
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5002,7 +5111,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5020,7 +5130,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5038,7 +5149,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5057,7 +5169,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5076,7 +5189,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5095,7 +5209,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5112,7 +5227,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5129,7 +5245,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5146,7 +5263,8 @@
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
                     &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5162,7 +5280,8 @@
                     &quot;span.module&quot;: &quot;cache&quot;,
                     &quot;span.op&quot;: &quot;cache.get_item&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5178,7 +5297,8 @@
                     &quot;span.module&quot;: &quot;cache&quot;,
                     &quot;span.op&quot;: &quot;cache.get_item&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5194,7 +5314,8 @@
                     &quot;span.module&quot;: &quot;cache&quot;,
                     &quot;span.op&quot;: &quot;cache.get_item&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5209,7 +5330,8 @@
                     &quot;span.description&quot;: &quot;http://domain/static/myscript-*.js&quot;,
                     &quot;span.op&quot;: &quot;resource.script&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5224,7 +5346,8 @@
                     &quot;span.description&quot;: &quot;http://domain/static/myscript-*.js&quot;,
                     &quot;span.op&quot;: &quot;resource.script&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
@@ -5239,7 +5362,8 @@
                     &quot;span.description&quot;: &quot;http://domain/static/myscript-*.js&quot;,
                     &quot;span.op&quot;: &quot;resource.script&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;mytransaction&quot;,
+                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
             },
