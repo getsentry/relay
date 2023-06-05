@@ -13,6 +13,7 @@
 **Features**:
 
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
+- Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
 
 ## 23.5.1
 
