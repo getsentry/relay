@@ -152,30 +152,19 @@ mod tests {
         );
 
         let metadata = extract_transaction_metadata(&event.0.unwrap());
-
-        assert_eq!(
-            metadata,
-            BTreeMap::from([
-                ("release".to_owned(), "myrelease".to_owned()),
-                ("dist".to_owned(), "mydist".to_owned()),
-                ("environment".to_owned(), "myenvironment".to_owned()),
-                ("transaction".to_owned(), "mytransaction".to_owned()),
-                ("transaction.status".to_owned(), "ok".to_owned()),
-                ("transaction.op".to_owned(), "myop".to_owned()),
-                ("http.method".to_owned(), "GET".to_owned()),
-                (
-                    "transaction.start".to_owned(),
-                    "2011-05-02T17:40:36.000000000+00:00".to_owned()
-                ),
-                (
-                    "transaction.end".to_owned(),
-                    "2011-05-02T17:41:36.000000000+00:00".to_owned()
-                ),
-                (
-                    "app.identifier".to_owned(),
-                    "io.sentry.myexample".to_owned()
-                ),
-            ])
-        );
+        insta::assert_debug_snapshot!(metadata, @r###"
+        {
+            "app.identifier": "io.sentry.myexample",
+            "dist": "mydist",
+            "environment": "myenvironment",
+            "http.method": "GET",
+            "release": "myrelease",
+            "transaction": "mytransaction",
+            "transaction.end": "2011-05-02T17:41:36.000000000+00:00",
+            "transaction.op": "myop",
+            "transaction.start": "2011-05-02T17:40:36.000000000+00:00",
+            "transaction.status": "ok",
+        }
+        "###);
     }
 }
