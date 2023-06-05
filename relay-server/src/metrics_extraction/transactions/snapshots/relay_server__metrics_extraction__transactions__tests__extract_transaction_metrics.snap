@@ -77,7 +77,10 @@ expression: event.value().unwrap().spans
                 "ui.react.render",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -186,6 +189,9 @@ expression: event.value().unwrap().spans
             "span.action": String(
                 "POST",
             ),
+            "span.category": String(
+                "http",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
             ),
@@ -248,6 +254,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.domain": String(
                 "*.domain.tld:targetport",

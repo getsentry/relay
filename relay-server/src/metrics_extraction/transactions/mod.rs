@@ -1544,7 +1544,8 @@ mod tests {
                     "environment": "fake_environment",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1558,7 +1559,8 @@ mod tests {
                     "environment": "fake_environment",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1572,7 +1574,8 @@ mod tests {
                     "environment": "fake_environment",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
-                    "transaction": "mytransaction",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1645,6 +1648,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1664,6 +1668,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1683,6 +1688,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1702,6 +1708,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1721,6 +1728,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1740,6 +1748,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
