@@ -322,7 +322,7 @@ fn queue_envelope(
 ///
 /// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or
 /// implicitly through an item that will create an event during ingestion.
-#[tracing::instrument(name = "function", skip_all)]
+#[tracing::instrument(name = "function", level = "debug", skip_all)]
 pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,

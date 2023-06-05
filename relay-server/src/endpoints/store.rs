@@ -49,7 +49,7 @@ fn decode_bytes(body: Bytes, limit: usize) -> Result<Bytes, io::Error> {
 /// Parses an event body into an `Envelope`.
 ///
 /// If the body is encoded with base64 or zlib, it will be transparently decoded.
-#[tracing::instrument(name = "function", skip_all, fields(?meta))]
+#[tracing::instrument(name = "function", level = "debug", skip_all, fields(?meta))]
 fn parse_event(
     mut body: Bytes,
     meta: RequestMeta,

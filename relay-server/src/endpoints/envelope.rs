@@ -79,7 +79,7 @@ where
 {
     type Rejection = BadEnvelopeParams;
 
-    #[tracing::instrument(name = "middleware.axum.extractor", skip_all)]
+    #[tracing::instrument(name = "middleware.axum.extractor", level = "trace", skip_all)]
     async fn from_request(
         mut request: Request<B>,
         state: &ServiceState,

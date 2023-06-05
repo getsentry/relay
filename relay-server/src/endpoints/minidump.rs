@@ -82,7 +82,7 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
     Ok(None)
 }
 
-#[tracing::instrument(name = "function", skip_all)]
+#[tracing::instrument(name = "function", level = "debug", skip_all)]
 async fn extract_multipart(
     config: &Config,
     InstrumentedMultipart(multipart): InstrumentedMultipart,
@@ -113,7 +113,7 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-#[tracing::instrument(name = "function", skip_all)]
+#[tracing::instrument(name = "function", level = "debug", skip_all)]
 fn extract_raw_minidump(
     InstrumentedBytes(data): InstrumentedBytes,
     meta: RequestMeta,

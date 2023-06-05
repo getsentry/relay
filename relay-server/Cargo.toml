@@ -80,7 +80,7 @@ zstd = { version = "0.12.3", optional = true }
 
 
 # TODO(ja): Here
-tracing = "0.1"
+tracing = { version = "0.1", features = ["release_max_level_info"] }
 
 [dev-dependencies]
 insta = { version = "1.19.0", features = ["json"] }

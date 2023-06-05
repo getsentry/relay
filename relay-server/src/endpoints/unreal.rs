@@ -29,7 +29,7 @@ struct UnrealParams {
 }
 
 impl UnrealParams {
-    #[tracing::instrument(name = "function", skip_all)]
+    #[tracing::instrument(name = "function", level = "debug", skip_all)]
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 

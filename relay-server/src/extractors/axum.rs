@@ -22,7 +22,7 @@ where
 {
     type Rejection = <Bytes as FromRequest<S, B>>::Rejection;
 
-    #[tracing::instrument(name = "middleware.axum.extractor", skip_all)]
+    #[tracing::instrument(name = "middleware.axum.extractor", level = "trace", skip_all)]
     async fn from_request(req: axum::http::Request<B>, state: &S) -> Result<Self, Self::Rejection> {
         Ok(Self(Bytes::from_request(req, state).await?))
     }
@@ -63,7 +63,7 @@ where
 {
     type Rejection = MultipartError;
 
-    #[tracing::instrument(name = "middleware.axum.extractor", skip_all)]
+    #[tracing::instrument(name = "middleware.axum.extractor", level = "trace", skip_all)]
     async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
         let header = req
             .headers()
