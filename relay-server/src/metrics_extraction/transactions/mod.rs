@@ -741,7 +741,7 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
 }
 
 /// Returns the category of a span from its operation. The mapping is available in:
-/// https://develop.sentry.dev/sdk/performance/span-operations/
+/// <https://develop.sentry.dev/sdk/performance/span-operations/>
 fn span_op_to_category(op: &str) -> Option<&str> {
     Some({
         // General
