@@ -1462,7 +1462,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "span.category": "ui",
+                    "span.category": "ui.react",
                     "span.op": "ui.react.render",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
@@ -1476,7 +1476,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "span.category": "ui",
+                    "span.category": "ui.react",
                     "span.op": "ui.react.render",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",
@@ -1490,7 +1490,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "span.category": "ui",
+                    "span.category": "ui.react",
                     "span.op": "ui.react.render",
                     "transaction": "mytransaction",
                     "transaction.op": "myop",

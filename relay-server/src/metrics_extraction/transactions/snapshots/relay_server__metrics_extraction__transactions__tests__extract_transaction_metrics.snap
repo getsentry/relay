@@ -68,7 +68,7 @@ expression: event.value().unwrap().spans
                 "fake_environment",
             ),
             "span.category": String(
-                "ui",
+                "ui.react",
             ),
             "span.op": String(
                 "ui.react.render",
