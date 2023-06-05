@@ -481,13 +481,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     metrics_extracted: bool,
 
-    /// Internal flag to signal that the profile has been counted toward `DataCategory::Profile`.
-    ///
-    /// If `true`, outcomes for this item should be reported as `DataCategory::ProfileIndexed`
-    /// instead.
-    #[serde(skip)]
-    profile_counted_as_processed: bool,
-
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -514,7 +507,6 @@ impl Item {
                 timestamp: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
-                profile_counted_as_processed: false,
             },
             payload: Bytes::new(),
         }
@@ -558,9 +550,7 @@ impl Item {
             ItemType::Metrics | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
-            // For profiles, do not used the `indexed` flag, because it depends
-            // on whether metrics were extracted from the _event_.
-            ItemType::Profile => Some(if self.headers.profile_counted_as_processed {
+            ItemType::Profile => Some(if indexed {
                 DataCategory::ProfileIndexed
             } else {
                 DataCategory::Profile
@@ -661,21 +651,6 @@ impl Item {
     /// Returns the metrics extracted flag.
     pub fn metrics_extracted(&self) -> bool {
         self.headers.metrics_extracted
-    }
-
-    /// Returns `true` if the profiles in the envelope have been counted towards `DataCategory::Profile`.
-    ///
-    /// If so, count them towards `DataCategory::ProfileIndexed` instead.
-    pub fn profile_counted_as_processed(&self) -> bool {
-        self.headers.profile_counted_as_processed
-    }
-
-    /// Mark the item as "counted towards `DataCategory::Profile`".
-    #[cfg(feature = "processing")]
-    pub fn set_profile_counted_as_processed(&mut self) {
-        if self.ty() == &ItemType::Profile {
-            self.headers.profile_counted_as_processed = true;
-        }
     }
 
     /// Sets the metrics extracted flag.

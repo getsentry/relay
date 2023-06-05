@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Make counting of total profiles consistent with total transactions. ([#2163](https://github.com/getsentry/relay/pull/2163))
+
 **Features**:
 
 - Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
