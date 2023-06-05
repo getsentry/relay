@@ -23,7 +23,6 @@ pipelines:
         stage: promote-to-pops
 
     stages:
-      # checks aren't needed because it's implied by pipeline-deploy-relay-completed.
       - checks:
           approval:
             type: manual
