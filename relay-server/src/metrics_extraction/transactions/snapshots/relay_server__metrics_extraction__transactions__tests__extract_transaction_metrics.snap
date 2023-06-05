@@ -158,7 +158,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -221,7 +224,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
@@ -470,6 +476,9 @@ expression: event.value().unwrap().spans
             ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "a31d8fd4438bc382",
             ),
             "span.module": String(
                 "db",
