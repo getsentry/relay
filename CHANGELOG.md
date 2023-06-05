@@ -15,7 +15,7 @@
 
 **Internal**:
 
-- Extract app identifier from app context. ([#2172](https://github.com/getsentry/relay/pull/2172))
+- Extract app identifier from app context for profiles. ([#2172](https://github.com/getsentry/relay/pull/2172))
 
 ## 23.5.2
 
