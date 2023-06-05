@@ -52,6 +52,50 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
+        description: "<SomeUiRendering>",
+        op: "ui.react.render",
+        span_id: SpanId(
+            "bd429c44b67a3eb4",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: ~,
+        tags: ~,
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "span.category": String(
+                "ui.react",
+            ),
+            "span.op": String(
+                "ui.react.render",
+            ),
+            "transaction": String(
+                "GET /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
         description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
         op: "http.client",
         span_id: SpanId(
@@ -75,6 +119,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.domain": String(
                 "*.domain.tld:targetport",
@@ -142,6 +189,9 @@ expression: event.value().unwrap().spans
             "span.action": String(
                 "POST",
             ),
+            "span.category": String(
+                "http",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
             ),
@@ -204,6 +254,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.domain": String(
                 "*.domain.tld:targetport",
@@ -266,6 +319,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.domain": String(
                 "targetdomain.tld:targetport",
@@ -331,6 +387,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.description": String(
                 "POST http://targetdomain:targetport/api/id/*",
@@ -406,6 +465,9 @@ expression: event.value().unwrap().spans
             "span.action": String(
                 "SELECT",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.description": String(
                 "SELECT column FROM table WHERE id IN (%s)",
             ),
@@ -471,6 +533,9 @@ expression: event.value().unwrap().spans
             "span.action": String(
                 "SELECT",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.description": String(
                 "SELECT column FROM table WHERE id IN (%s)",
             ),
@@ -536,6 +601,9 @@ expression: event.value().unwrap().spans
             "span.action": String(
                 "INSERT",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.domain": String(
                 "table",
             ),
@@ -598,6 +666,9 @@ expression: event.value().unwrap().spans
             "span.action": String(
                 "INSERT",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.domain": String(
                 "from_date",
             ),
@@ -653,6 +724,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "INSERT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "table",
@@ -712,6 +786,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "SELECT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "table",
@@ -774,6 +851,9 @@ expression: event.value().unwrap().spans
             ),
             "span.action": String(
                 "SELECT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "table",
@@ -840,6 +920,9 @@ expression: event.value().unwrap().spans
             "span.action": String(
                 "SELECT",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.description": String(
                 "SELECT %s.%s FROM %s WHERE %s.%s = %s",
             ),
@@ -905,6 +988,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.description": String(
                 "SAVEPOINT %s",
             ),
@@ -967,6 +1053,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "span.category": String(
+                "cache",
+            ),
             "span.description": String(
                 "GET cache:user:*",
             ),
@@ -1022,6 +1111,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "span.category": String(
+                "resource",
             ),
             "span.description": String(
                 "http://domain/static/myscript-*.js",

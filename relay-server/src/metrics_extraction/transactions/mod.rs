@@ -16,8 +16,8 @@ use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
 use crate::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
-    TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
+    TransactionMeasurementTags, TransactionMetric,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -343,17 +343,21 @@ pub fn extract_transaction_metrics(
     event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
+    has_profile: bool,
     project_metrics: &mut Vec<Metric>,  // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
     extract_transaction_metrics_inner(
-        aggregator_config,
-        config,
-        event,
-        transaction_from_dsc,
-        sampling_result,
+        ExtractInput {
+            aggregator_config,
+            config,
+            event,
+            transaction_from_dsc,
+            sampling_result,
+            has_profile,
+        },
         project_metrics,
         sampling_metrics,
     )?;
@@ -367,15 +371,21 @@ pub fn extract_transaction_metrics(
     Ok(!added_slice.is_empty())
 }
 
+struct ExtractInput<'a> {
+    aggregator_config: &'a AggregatorConfig,
+    config: &'a TransactionMetricsConfig,
+    event: &'a Event,
+    transaction_from_dsc: Option<&'a str>,
+    sampling_result: &'a SamplingResult,
+    has_profile: bool,
+}
+
 fn extract_transaction_metrics_inner(
-    aggregator_config: &AggregatorConfig,
-    config: &TransactionMetricsConfig,
-    event: &Event,
-    transaction_from_dsc: Option<&str>,
-    sampling_result: &SamplingResult,
+    input: ExtractInput<'_>,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
+    let event = input.event;
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
@@ -393,12 +403,16 @@ fn extract_transaction_metrics_inner(
     // Validate the transaction event against the metrics timestamp limits. If the metric is too
     // old or too new, we cannot extract the metric and also need to drop the transaction event
     // for consistency between metrics and events.
-    if !aggregator_config.timestamp_range().contains(&timestamp) {
+    if !input
+        .aggregator_config
+        .timestamp_range()
+        .contains(&timestamp)
+    {
         relay_log::debug!("event timestamp is out of the valid range for metrics");
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-    let tags = extract_universal_tags(event, config);
+    let tags = extract_universal_tags(event, input.config);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -468,20 +482,23 @@ fn extract_transaction_metrics_inner(
         TransactionMetric::Duration {
             unit: DurationUnit::MilliSecond,
             value: relay_common::chrono_to_positive_millis(end - start),
-            tags: tags.clone(),
+            tags: TransactionDurationTags {
+                has_profile: input.has_profile,
+                universal_tags: tags.clone(),
+            },
         }
         .into_metric(timestamp),
     );
 
     let root_counter_tags = {
         let mut universal_tags = CommonTags(BTreeMap::default());
-        if let Some(transaction_from_dsc) = transaction_from_dsc {
+        if let Some(transaction_from_dsc) = input.transaction_from_dsc {
             universal_tags
                 .0
                 .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
         }
         TransactionCPRTags {
-            decision: match sampling_result {
+            decision: match input.sampling_result {
                 SamplingResult::Keep => "keep".to_owned(),
                 SamplingResult::Drop(_) => "drop".to_owned(),
             },
@@ -586,6 +603,10 @@ fn extract_span_metrics(
 
             if let Some(span_op) = span.op.value() {
                 span_tags.insert("span.op".to_owned(), span_op.to_owned());
+
+                if let Some(category) = span_op_to_category(span_op) {
+                    span_tags.insert("span.category".to_owned(), category.to_owned());
+                }
 
                 let span_module = if span_op.starts_with("http") {
                     Some("http")
@@ -766,6 +787,134 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
     None
 }
 
+/// Returns the category of a span from its operation. The mapping is available in:
+/// <https://develop.sentry.dev/sdk/performance/span-operations/>
+fn span_op_to_category(op: &str) -> Option<&str> {
+    let category =
+        // General
+        if op.starts_with("mark") {
+            "mark"
+        }
+        //
+        // Browser
+        // `ui*` mapped in JS frameworks
+        else if op.starts_with("pageload") {
+            "pageload"
+        } else if op.starts_with("navigation") {
+            "navigation"
+        } else if op.starts_with("resource") {
+            "resource"
+        } else if op.starts_with("browser") {
+            "browser"
+        } else if op.starts_with("measure") {
+            "measure"
+        } else if op.starts_with("http") {
+            "http"
+        } else if op.starts_with("serialize") {
+            "serialize"
+        }
+        //
+        // JS frameworks
+        else if op.starts_with("ui") {
+            if op.starts_with("ui.react") {
+                "ui.react"
+            } else if op.starts_with("ui.vue") {
+                "ui.vue"
+            } else if op.starts_with("ui.svelte") {
+                "ui.svelte"
+            } else if op.starts_with("ui.angular") {
+                "ui.angular"
+            } else if op.starts_with("ui.ember") {
+                "ui.ember"
+            } else {
+                "ui"
+            }
+        }
+        //
+        // Web server
+        // `http*` mapped in Browser
+        // `serialize*` mapped in Browser
+        else if op.starts_with("websocket") {
+            "websocket"
+        } else if op.starts_with("rpc") {
+            "rpc"
+        } else if op.starts_with("grpc") {
+            "grpc"
+        } else if op.starts_with("graphql") {
+            "graphql"
+        } else if op.starts_with("subprocess") {
+            "subprocess"
+        } else if op.starts_with("middleware") {
+            "middleware"
+        } else if op.starts_with("view") {
+            "view"
+        } else if op.starts_with("template") {
+            "template"
+        } else if op.starts_with("event") {
+            "event"
+        } else if op.starts_with("function") {
+            if op.starts_with("function.nextjs") {
+                "function.nextjs"
+            } else if op.starts_with("function.remix") {
+                "function.remix"
+            } else if op.starts_with("function.gpc") {
+                "function.grpc"
+            } else if op.starts_with("function.aws") {
+                "function.aws"
+            } else if op.starts_with("function.azure") {
+                "function.azure"
+            } else {
+                "function"
+            }
+        } else if op.starts_with("console") {
+            "console"
+        } else if op.starts_with("file") {
+            "file"
+        } else if op.starts_with("app") {
+            "app"
+        }
+        //
+        // Database
+        else if op.starts_with("db") {
+            "db"
+        } else if op.starts_with("cache") {
+            "cache"
+        }
+        //
+        // Serverless
+        // `http*` marked in Browser
+        // `grpc*` marked in Web server
+        // `function*` marked in Web server
+        //
+        // Mobile
+        // `app*` marked in Web server
+        // `ui*` marked in Browser
+        // `navigation*` marked in Browser
+        // `file*` marked in Web server
+        // `serialize*` marked in Web server
+        // `http*` marked in Browser
+
+        // Desktop
+        // `app*` marked in Web server
+        // `ui*` marked in Browser
+        // `serialize*` marked in Web server
+        // `http*` marked in Browser
+
+        // Messages / queues
+        else if op.starts_with("topic") {
+            "topic"
+        } else if op.starts_with("queue") {
+            "queue"
+        }
+        //
+        // Unknown
+        else {
+            return None;
+        };
+
+    Some(category)
+}
+
 fn domain_from_http_url(url: &str) -> Option<String> {
     match url.split_once(' ') {
         Some((_method, url)) => {
@@ -937,6 +1086,15 @@ mod tests {
                 {
                     "description": "<OrganizationContext>",
                     "op": "react.mount",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "<SomeUiRendering>",
+                    "op": "ui.react.render",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
@@ -1213,6 +1371,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1383,7 +1542,53 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "ui.react",
+                    "span.op": "ui.react.render",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.category": "ui.react",
+                    "span.op": "ui.react.render",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.category": "ui.react",
+                    "span.op": "ui.react.render",
+                    "transaction": "GET /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1403,6 +1608,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1422,6 +1628,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1441,6 +1648,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1460,6 +1668,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1479,6 +1688,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1498,6 +1708,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1517,6 +1728,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1536,6 +1748,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1555,6 +1768,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1574,6 +1788,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1593,6 +1808,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
@@ -1612,6 +1828,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
                     "span.group": "ca77233e5cdb864b",
@@ -1633,6 +1850,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
                     "span.group": "ca77233e5cdb864b",
@@ -1654,6 +1872,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
                     "span.group": "ca77233e5cdb864b",
@@ -1675,6 +1894,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
                     "span.group": "a31d8fd4438bc382",
@@ -1696,6 +1916,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
                     "span.group": "a31d8fd4438bc382",
@@ -1717,6 +1938,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
                     "span.group": "a31d8fd4438bc382",
@@ -1738,6 +1960,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
                     "span.group": "a31d8fd4438bc382",
@@ -1758,6 +1981,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
                     "span.group": "a31d8fd4438bc382",
@@ -1778,6 +2002,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
                     "span.group": "a31d8fd4438bc382",
@@ -1798,6 +2023,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -1817,6 +2043,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -1836,6 +2063,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -1855,6 +2083,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "from_date",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -1874,6 +2103,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "from_date",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -1893,6 +2123,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "from_date",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -1912,6 +2143,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
@@ -1930,6 +2162,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
@@ -1948,6 +2181,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
@@ -1966,6 +2200,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -1985,6 +2220,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -2004,6 +2240,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
@@ -2023,6 +2260,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
@@ -2042,6 +2280,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
@@ -2061,6 +2300,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
@@ -2080,6 +2320,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
                     "span.group": "c55478a060a56db3",
@@ -2101,6 +2342,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
                     "span.group": "c55478a060a56db3",
@@ -2122,6 +2364,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
                     "span.group": "c55478a060a56db3",
@@ -2142,6 +2385,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "db",
                     "span.description": "SAVEPOINT %s",
                     "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
@@ -2161,6 +2405,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "db",
                     "span.description": "SAVEPOINT %s",
                     "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
@@ -2180,6 +2425,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "db",
                     "span.description": "SAVEPOINT %s",
                     "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
@@ -2199,6 +2445,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "cache",
                     "span.description": "GET cache:user:*",
                     "span.group": "325fa5feb926f121",
                     "span.module": "cache",
@@ -2217,6 +2464,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "cache",
                     "span.description": "GET cache:user:*",
                     "span.group": "325fa5feb926f121",
                     "span.module": "cache",
@@ -2235,6 +2483,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "cache",
                     "span.description": "GET cache:user:*",
                     "span.group": "325fa5feb926f121",
                     "span.module": "cache",
@@ -2253,6 +2502,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
                     "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
@@ -2270,6 +2520,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
                     "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
@@ -2287,6 +2538,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
                     "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
@@ -2340,6 +2592,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2433,6 +2686,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2513,6 +2767,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2589,6 +2844,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2700,6 +2956,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2788,6 +3045,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2838,6 +3096,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2878,6 +3137,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2927,6 +3187,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         );
@@ -2953,6 +3214,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2993,6 +3255,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("root_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -3367,6 +3630,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
