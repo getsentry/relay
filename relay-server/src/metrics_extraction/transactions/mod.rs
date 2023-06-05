@@ -565,9 +565,7 @@ fn extract_span_metrics(
                 );
 
                 let mut span_group = format!("{:?}", md5::compute(scrubbed_description));
-                if span_group.len() > 16 {
-                    span_group = span_group[..16].to_owned();
-                }
+                span_group.truncate(16);
                 span_tags.insert("span.group".to_owned(), span_group);
             }
 
