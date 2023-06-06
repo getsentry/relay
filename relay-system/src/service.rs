@@ -748,6 +748,18 @@ impl<I: Interface> Addr<I> {
             inner: Box::new(self),
         }
     }
+
+    /// Dummy address used for testing.
+    pub fn custom() -> (Self, mpsc::UnboundedReceiver<I>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (
+            Addr {
+                tx,
+                queue_size: Default::default(),
+            },
+            rx,
+        )
+    }
 }
 
 impl<I: Interface> fmt::Debug for Addr<I> {
