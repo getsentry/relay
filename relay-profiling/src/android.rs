@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::measurements::Measurement;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
-use crate::ProfileError;
+use crate::{ProfileError, MAX_PROFILE_DURATION};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProfileMetadata {
@@ -181,6 +181,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
 
     if profile.profile.events.is_empty() {
         return Err(ProfileError::NotEnoughSamples);
+    }
+
+    if profile.profile.elapsed_time > MAX_PROFILE_DURATION {
+        return Err(ProfileError::DurationIsTooLong);
     }
 
     Ok(profile)
