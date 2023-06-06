@@ -99,7 +99,10 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
 fn http_status_code_from_span_data(span: &Span) -> Option<String> {
     span.data
         .value()
-        .and_then(|v| v.get("status_code"))
+        .and_then(|v| {
+            v.get("http.response.status_code")
+                .or_else(|| v.get("status_code"))
+        })
         .and_then(|v| v.as_str())
         .map(|v| v.to_string())
 }
@@ -2990,6 +2993,76 @@ mod tests {
             BTreeMap::from([
                 ("transaction.status".to_string(), "unknown".to_string()),
                 ("platform".to_string(), "other".to_string())
+            ])
+        );
+    }
+
+    #[test]
+    fn test_span_tags() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "spans": [
+                {
+                    "description": "<OrganizationContext>",
+                    "op": "react.mount",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "http.response.status_code": "200"
+                    }
+                }
+            ]
+        }
+        "#;
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            false,
+            event.value_mut().as_mut().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
+            false,
+            &mut metrics,
+            &mut sampling_metrics,
+        )
+        .unwrap();
+
+        assert_eq!(metrics.len(), 1, "{metrics:?}");
+
+        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            metrics[0].tags,
+            BTreeMap::from([
+                ("transaction.status".to_string(), "unknown".to_string()),
+                ("platform".to_string(), "other".to_string()),
+                ("http.status_code".to_string(), "200".to_string())
             ])
         );
     }
