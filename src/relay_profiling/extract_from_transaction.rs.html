@@ -101,12 +101,79 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>chrono::SecondsFormat;
 
 <span class="kw">use </span>relay_common::SpanStatus;
-<span class="kw">use </span>relay_general::protocol::{AsPair, Context, ContextInner, Event, TraceContext};
+<span class="kw">use </span>relay_general::protocol::{AppContext, AsPair, Context, ContextInner, Event, TraceContext};
 <span class="kw">use </span>relay_general::types::Annotated;
 
 <span class="kw">pub fn </span>extract_transaction_metadata(event: <span class="kw-2">&amp;</span>Event) -&gt; BTreeMap&lt;String, String&gt; {
@@ -118,14 +185,11 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = event.dist.as_str() {
         tags.insert(<span class="string">&quot;dist&quot;</span>.to_owned(), dist.to_owned());
     }
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(dist) = event.dist.value() {
-        tags.insert(<span class="string">&quot;dist&quot;</span>.to_owned(), dist.clone());
-    }
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
         tags.insert(<span class="string">&quot;environment&quot;</span>.to_owned(), environment.to_owned());
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = event.transaction.value() {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = event.transaction.as_str() {
         tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), transaction.to_owned());
     }
 
@@ -158,6 +222,12 @@
                 .into_inner()
                 .to_rfc3339_opts(SecondsFormat::Nanos, <span class="bool-val">false</span>),
         );
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(app_context) = get_app_context(event) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(app_identifier) = app_context.app_identifier.value() {
+            tags.insert(<span class="string">&quot;app.identifier&quot;</span>.to_owned(), app_identifier.to_owned());
+        }
     }
 
     tags
@@ -197,11 +267,75 @@
 
 <span class="kw">fn </span>get_trace_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TraceContext&gt; {
     <span class="kw">let </span>contexts = event.contexts.value()<span class="question-mark">?</span>;
-    <span class="kw">let </span>trace = contexts.get(<span class="string">&quot;trace&quot;</span>).and_then(Annotated::value);
+    <span class="kw">let </span>trace = contexts
+        .get(TraceContext::default_key())
+        .and_then(Annotated::value);
     <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(trace_context))) = trace {
         <span class="kw">return </span><span class="prelude-val">Some</span>(trace_context.as_ref());
     }
 
     <span class="prelude-val">None
 </span>}
+
+<span class="kw">fn </span>get_app_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AppContext&gt; {
+    <span class="kw">let </span>contexts = event.contexts.value()<span class="question-mark">?</span>;
+    <span class="kw">let </span>app = contexts
+        .get(AppContext::default_key())
+        .and_then(Annotated::value);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::App(app_context))) = app {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(app_context.as_ref());
+    }
+
+    <span class="prelude-val">None
+</span>}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span>relay_general::protocol::Event;
+    <span class="kw">use </span>relay_general::types::FromValue;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_extract_transaction_metadata() {
+        <span class="kw">let </span>event = Event::from_value(
+            <span class="macro">serde_json::json!</span>({
+                <span class="string">&quot;release&quot;</span>: <span class="string">&quot;myrelease&quot;</span>,
+                <span class="string">&quot;dist&quot;</span>: <span class="string">&quot;mydist&quot;</span>,
+                <span class="string">&quot;environment&quot;</span>: <span class="string">&quot;myenvironment&quot;</span>,
+                <span class="string">&quot;transaction&quot;</span>: <span class="string">&quot;mytransaction&quot;</span>,
+                <span class="string">&quot;contexts&quot;</span>: {
+                    <span class="string">&quot;app&quot;</span>: {
+                        <span class="string">&quot;app_identifier&quot;</span>: <span class="string">&quot;io.sentry.myexample&quot;</span>,
+                    },
+                    <span class="string">&quot;trace&quot;</span>: {
+                        <span class="string">&quot;status&quot;</span>: <span class="string">&quot;ok&quot;</span>,
+                        <span class="string">&quot;op&quot;</span>: <span class="string">&quot;myop&quot;</span>,
+                    },
+                },
+                <span class="string">&quot;request&quot;</span>: {
+                    <span class="string">&quot;method&quot;</span>: <span class="string">&quot;GET&quot;</span>,
+                },
+                <span class="string">&quot;timestamp&quot;</span>: <span class="string">&quot;2011-05-02T17:41:36Z&quot;</span>,
+                <span class="string">&quot;start_timestamp&quot;</span>: <span class="string">&quot;2011-05-02T17:40:36Z&quot;</span>,
+            })
+            .into(),
+        );
+
+        <span class="kw">let </span>metadata = extract_transaction_metadata(<span class="kw-2">&amp;</span>event.<span class="number">0</span>.unwrap());
+        <span class="macro">insta::assert_debug_snapshot!</span>(metadata, @<span class="string">r###&quot;
+        {
+            &quot;app.identifier&quot;: &quot;io.sentry.myexample&quot;,
+            &quot;dist&quot;: &quot;mydist&quot;,
+            &quot;environment&quot;: &quot;myenvironment&quot;,
+            &quot;http.method&quot;: &quot;GET&quot;,
+            &quot;release&quot;: &quot;myrelease&quot;,
+            &quot;transaction&quot;: &quot;mytransaction&quot;,
+            &quot;transaction.end&quot;: &quot;2011-05-02T17:41:36.000000000+00:00&quot;,
+            &quot;transaction.op&quot;: &quot;myop&quot;,
+            &quot;transaction.start&quot;: &quot;2011-05-02T17:40:36.000000000+00:00&quot;,
+            &quot;transaction.status&quot;: &quot;ok&quot;,
+        }
+        &quot;###</span>);
+    }
+}
 </code></pre></div></section></main></body></html>
