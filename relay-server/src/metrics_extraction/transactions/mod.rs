@@ -554,6 +554,10 @@ fn extract_span_metrics(
         shared_tags.insert("environment".to_owned(), environment.to_owned());
     }
 
+    if let Some(release) = event.release.as_str() {
+        shared_tags.insert("release".to_owned(), release.to_owned());
+    }
+
     if let Some(transaction_name) = event.transaction.value() {
         shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
 
