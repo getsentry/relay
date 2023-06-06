@@ -2852,6 +2852,14 @@ expression: "relay_general::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
+            "api_target": {
+              "description": " The API target/specification that made the request.\n\n Values can be `graphql`, `rest`, etc.\n\n The data field should contain the request and response bodies based on its target specification.\n\n This information can be used for better data scrubbing and normalization.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "body_size": {
               "description": " HTTP request body size.",
               "default": null,
@@ -2875,7 +2883,7 @@ expression: "relay_general::protocol::event_json_schema()"
               ]
             },
             "data": {
-              "description": " Request data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as string or\n structural data of any format.",
+              "description": " Request data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as a string or\n structural data of any format.",
               "default": null
             },
             "env": {
@@ -2991,7 +2999,7 @@ expression: "relay_general::protocol::event_json_schema()"
       ]
     },
     "ResponseContext": {
-      "description": " Response interface that contains information on a HTTP response related to the event.",
+      "description": " Response interface that contains information on a HTTP response related to the event.\n\n The data variable should only contain the response body. It can either be\n a dictionary (for standard HTTP responses) or a raw response body.",
       "anyOf": [
         {
           "type": "object",
@@ -3018,6 +3026,10 @@ expression: "relay_general::protocol::event_json_schema()"
                 }
               ]
             },
+            "data": {
+              "description": " Response data in any format that makes sense.\n\n SDKs should discard large and binary bodies by default. Can be given as a string or\n structural data of any format.",
+              "default": null
+            },
             "headers": {
               "description": " A dictionary of submitted headers.\n\n If a header appears multiple times it, needs to be merged according to the HTTP standard\n for header merging. Header names are treated case-insensitively by Sentry.",
               "default": null,
@@ -3028,6 +3040,14 @@ expression: "relay_general::protocol::event_json_schema()"
                 {
                   "type": "null"
                 }
+              ]
+            },
+            "inferred_content_type": {
+              "description": " The inferred content type of the response payload.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
               ]
             },
             "status_code": {

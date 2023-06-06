@@ -1770,9 +1770,9 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "1.26.0"
+version = "1.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6f0f08b46e4379744de2ab67aa8f7de3ffd1da3e275adc41fcc82053ede46ff"
+checksum = "9a28d25139df397cbca21408bb742cf6837e04cdbebf1b07b760caf971d6a972"
 dependencies = [
  "console",
  "lazy_static",
@@ -2090,6 +2090,12 @@ dependencies = [
  "memmap2",
  "serde",
 ]
+
+[[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
@@ -3224,6 +3230,7 @@ dependencies = [
  "android_trace_log",
  "chrono",
  "data-encoding",
+ "insta",
  "relay-common",
  "relay-general",
  "serde",
@@ -3310,6 +3317,7 @@ dependencies = [
  "insta",
  "itertools",
  "json-forensics",
+ "md5",
  "mime",
  "minidump",
  "multer",
