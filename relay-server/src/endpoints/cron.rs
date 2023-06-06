@@ -1,6 +1,6 @@
 use axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
 use axum::response::IntoResponse;
-use axum::routing::{post, MethodRouter};
+use axum::routing::{on, MethodFilter, MethodRouter};
 use relay_common::Uuid;
 use relay_config::Config;
 use relay_general::protocol::EventId;
@@ -81,5 +81,6 @@ where
     B::Data: Send,
     B::Error: Into<axum::BoxError>,
 {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
+    on(MethodFilter::GET | MethodFilter::POST, handle)
+        .route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
