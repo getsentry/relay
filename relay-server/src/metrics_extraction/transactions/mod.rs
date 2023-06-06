@@ -674,9 +674,8 @@ fn extract_span_metrics(
                 span_tags.insert("span.status".to_owned(), span_status.to_string());
             }
 
-            if let Some(status_code) = http_status_code_from_span_data(span) {
-                span_tags.insert("span.status_code".to_owned(), status_code);
-            }
+            // XXX(iker): extract status code, when its cardinality doesn't
+            // represent a risk for the indexers.
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
             span.data.get_or_insert_with(BTreeMap::new).extend(
