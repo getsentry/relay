@@ -60,7 +60,7 @@ fn extract_os_name(event: &Event) -> Option<String> {
     None
 }
 
-/// Extract the GEO country code from the [`User`] context.
+/// Extract the GEO country code from the [`relay_general::protocol::User`] context.
 fn extract_geo_country_code(event: &Event) -> Option<String> {
     if let Some(user) = event.user.value() {
         if let Some(geo) = user.geo.value() {
