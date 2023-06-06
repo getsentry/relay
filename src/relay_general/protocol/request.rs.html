@@ -981,6 +981,17 @@
 <a href="#981" id="981">981</a>
 <a href="#982" id="982">982</a>
 <a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter::{FromIterator, IntoIterator};
 
 <span class="kw">use </span>cookie::Cookie;
@@ -1428,7 +1439,7 @@
 
     <span class="doccomment">/// Request data in any format that makes sense.
     ///
-    /// SDKs should discard large and binary bodies by default. Can be given as string or
+    /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Value&gt;,
@@ -1479,6 +1490,15 @@
     <span class="doccomment">/// The inferred content type of the request payload.
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
     </span><span class="kw">pub </span>inferred_content_type: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// The API target/specification that made the request.
+    ///
+    /// Values can be `graphql`, `rest`, etc.
+    ///
+    /// The data field should contain the request and response bodies based on its target specification.
+    ///
+    /// This information can be used for better data scrubbing and normalization.
+    </span><span class="kw">pub </span>api_target: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties, pii = <span class="string">&quot;true&quot;</span>)]
@@ -1650,6 +1670,7 @@
     &quot;REMOTE_ADDR&quot;: &quot;213.47.147.207&quot;
   },
   &quot;inferred_content_type&quot;: &quot;application/json&quot;,
+  &quot;api_target&quot;: &quot;graphql&quot;,
   &quot;other&quot;: &quot;value&quot;
 }&quot;#</span>;
 
@@ -1692,6 +1713,7 @@
                 map
             }),
             inferred_content_type: Annotated::new(<span class="string">&quot;application/json&quot;</span>.to_string()),
+            api_target: Annotated::new(<span class="string">&quot;graphql&quot;</span>.to_string()),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(

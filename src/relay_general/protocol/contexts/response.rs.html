@@ -141,10 +141,37 @@
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{Cookies, Headers};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
 
 <span class="doccomment">/// Response interface that contains information on a HTTP response related to the event.
+///
+/// The data variable should only contain the response body. It can either be
+/// a dictionary (for standard HTTP responses) or a raw response body.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>ResponseContext {
@@ -168,6 +195,17 @@
 
     <span class="doccomment">/// HTTP response body size.
     </span><span class="kw">pub </span>body_size: Annotated&lt;u64&gt;,
+
+    <span class="doccomment">/// Response data in any format that makes sense.
+    ///
+    /// SDKs should discard large and binary bodies by default. Can be given as a string or
+    /// structural data of any format.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>, bag_size = <span class="string">&quot;large&quot;</span>)]
+    </span><span class="kw">pub </span>data: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// The inferred content type of the response payload.
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>inferred_content_type: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     /// These fields are retained (`retain = &quot;true&quot;`) to keep supporting the format that the Dio integration sends:
@@ -218,6 +256,10 @@
   ],
   &quot;status_code&quot;: 500,
   &quot;body_size&quot;: 1000,
+  &quot;data&quot;: {
+    &quot;some&quot;: 1
+  },
+  &quot;inferred_content_type&quot;: &quot;application/json&quot;,
   &quot;arbitrary_field&quot;: &quot;arbitrary&quot;,
   &quot;type&quot;: &quot;response&quot;
 }&quot;#</span>;
@@ -233,6 +275,12 @@
             headers: Annotated::new(Headers(PairList(headers))),
             status_code: Annotated::new(<span class="number">500</span>),
             body_size: Annotated::new(<span class="number">1000</span>),
+            data: {
+                <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
+                map.insert(<span class="string">&quot;some&quot;</span>.to_string(), Annotated::new(Value::I64(<span class="number">1</span>)));
+                Annotated::new(Value::Object(map))
+            },
+            inferred_content_type: Annotated::new(<span class="string">&quot;application/json&quot;</span>.to_string()),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
