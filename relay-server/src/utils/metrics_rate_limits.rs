@@ -173,3 +173,85 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
         self.metrics
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use relay_common::{ProjectId, ProjectKey};
+    use relay_metrics::{Metric, MetricValue};
+    use relay_quotas::{Quota, QuotaScope};
+    use smallvec::smallvec;
+
+    use super::*;
+
+    #[test]
+    fn profiles_limits_are_reported() {
+        let metrics = vec![
+            Metric {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: Default::default(),
+                value: MetricValue::Distribution(123.0),
+            },
+            Metric {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: Default::default(),
+                value: MetricValue::Distribution(123.0),
+            },
+            Metric {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: MetricValue::Distribution(456.0),
+            },
+            Metric {
+                // unrelated metric
+                timestamp: UnixTimestamp::now(),
+                name: "something_else".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: MetricValue::Distribution(123.0),
+            },
+        ];
+        let quotas = vec![Quota {
+            id: None,
+            categories: smallvec![DataCategory::Transaction],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+        }];
+        let (outcome_sink, mut rx) = Addr::custom();
+
+        let mut limiter = MetricsLimiter::create(
+            metrics,
+            quotas,
+            Scoping {
+                organization_id: 1,
+                project_id: ProjectId::new(1),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: None,
+            },
+        )
+        .unwrap();
+
+        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+
+        rx.close();
+
+        let outcomes: Vec<_> = (0..)
+            .map(|_| rx.blocking_recv())
+            .take_while(|o| o.is_some())
+            .flatten()
+            .map(|o| (o.category, o.quantity))
+            .collect();
+
+        assert_eq!(
+            outcomes,
+            vec![(DataCategory::Transaction, 3), (DataCategory::Profile, 1)]
+        );
+    }
+}
