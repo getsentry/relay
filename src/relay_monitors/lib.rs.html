@@ -299,7 +299,7 @@
 <span class="doccomment">///
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">&quot;snake_case&quot;</span>)]
-</span><span class="kw">enum </span>CheckInStatus {
+</span><span class="kw">pub enum </span>CheckInStatus {
     <span class="doccomment">/// Check-in had no issues during execution.
     </span><span class="prelude-val">Ok</span>,
     <span class="doccomment">/// Check-in failed or otherwise had some issues.
@@ -341,7 +341,7 @@
 
 <span class="doccomment">/// The monitor configuration playload for upserting monitors during check-in
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
-</span><span class="kw">struct </span>MonitorConfig {
+</span><span class="kw">pub struct </span>MonitorConfig {
     <span class="doccomment">/// The monitor schedule configuration
     </span>schedule: Schedule,
 
@@ -362,28 +362,28 @@
 
 <span class="doccomment">/// The monitor check-in payload.
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
-</span><span class="kw">struct </span>CheckIn {
+</span><span class="kw">pub struct </span>CheckIn {
     <span class="doccomment">/// Unique identifier of this check-in.
     </span><span class="attr">#[serde(serialize_with = <span class="string">&quot;uuid_simple&quot;</span>)]
-    </span>check_in_id: Uuid,
+    </span><span class="kw">pub </span>check_in_id: Uuid,
 
     <span class="doccomment">/// Identifier of the monitor for this check-in.
-    </span>monitor_slug: String,
+    </span><span class="kw">pub </span>monitor_slug: String,
 
     <span class="doccomment">/// Status of this check-in. Defaults to `&quot;unknown&quot;`.
-    </span>status: CheckInStatus,
+    </span><span class="kw">pub </span>status: CheckInStatus,
 
     <span class="doccomment">/// The environment to associate the check-in with
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// Duration of this check since it has started in seconds.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+    </span><span class="kw">pub </span>duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
 
     <span class="doccomment">/// monitor configuration to support upserts.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>monitor_config: <span class="prelude-ty">Option</span>&lt;MonitorConfig&gt;,
+    </span><span class="kw">pub </span>monitor_config: <span class="prelude-ty">Option</span>&lt;MonitorConfig&gt;,
 }
 
 <span class="doccomment">/// Normalizes a monitor check-in payload.
