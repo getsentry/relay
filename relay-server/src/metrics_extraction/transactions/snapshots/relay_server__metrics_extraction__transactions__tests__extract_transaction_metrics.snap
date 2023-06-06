@@ -135,9 +135,6 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
-            "span.status_code": String(
-                "200",
-            ),
             "status_code": String(
                 "200",
             ),
@@ -199,9 +196,6 @@ expression: event.value().unwrap().spans
             ),
             "span.status": String(
                 "ok",
-            ),
-            "span.status_code": String(
-                "200",
             ),
             "status_code": String(
                 "200",
@@ -273,9 +267,6 @@ expression: event.value().unwrap().spans
             ),
             "span.status": String(
                 "ok",
-            ),
-            "span.status_code": String(
-                "200",
             ),
             "status_code": String(
                 "200",
