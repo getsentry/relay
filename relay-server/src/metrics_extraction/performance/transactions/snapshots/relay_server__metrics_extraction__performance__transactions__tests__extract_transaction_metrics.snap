@@ -1,5 +1,5 @@
 ---
-source: relay-server/src/metrics_extraction/transactions/mod.rs
+source: relay-server/src/metrics_extraction/performance/transactions/mod.rs
 expression: event.value().unwrap().spans
 ---
 [
