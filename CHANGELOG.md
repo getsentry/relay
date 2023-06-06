@@ -25,6 +25,8 @@
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
 - Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
 
+- Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
+
 ## 23.5.1
 
 **Bug Fixes**:
