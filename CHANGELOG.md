@@ -14,6 +14,10 @@
 - Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
 - Change default topic for transaction metrics to `ingest-performance-metrics`. ([#2180](https://github.com/getsentry/relay/pull/2180))
 
+**Internal**:
+
+- Extract app identifier from app context for profiles. ([#2172](https://github.com/getsentry/relay/pull/2172))
+
 ## 23.5.2
 
 **Features**:
