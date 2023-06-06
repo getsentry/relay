@@ -63,9 +63,9 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
+use crate::metrics_extraction::performance::transactions::extract_transaction_metrics;
+use crate::metrics_extraction::performance::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::sessions::extract_session_metrics;
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
@@ -2746,7 +2746,7 @@ mod tests {
 
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
-    use crate::metrics_extraction::transactions::types::{
+    use crate::metrics_extraction::performance::transactions::types::{
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
