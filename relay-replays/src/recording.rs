@@ -385,7 +385,7 @@ impl<'a> RecordingScrubber<'a> {
             return Err(ParseRecordingError::Message("no data found"));
         }
 
-        // The output variable contains the header bytes but we describe it as "output" because
+        // The "output" variable contains the header bytes but we describe it as "output" because
         // we're going to re-use the address and append to it as an output buffer.
         let (mut output, body) = split_headers_from_body(bytes.to_owned())?;
 

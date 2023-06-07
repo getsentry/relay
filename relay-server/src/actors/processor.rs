@@ -1301,8 +1301,8 @@ impl EnvelopeProcessorService {
                         split_headers_from_body(replay_recording_item.payload().into())
                             .expect("This is pre-validated and should not fail.");
 
-                    // We need to use this value twice. Once for memory pre-allocation and once
-                    // for serialization. Hence the variable.
+                    // We need to use this value twice. Once for pre-allocating memory and once
+                    // for serialization.
                     let replay_event = replay_event_item.payload();
 
                     // Pre-allocate capacity in the buffer. The buffer will use the full size of
