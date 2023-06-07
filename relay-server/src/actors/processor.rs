@@ -1328,10 +1328,12 @@ impl EnvelopeProcessorService {
                 {
                     let mut data = Vec::new();
                     let mut combined_item_payload = BTreeMap::new();
+
                     combined_item_payload.insert("replay_event", replay_event_item.payload());
                     combined_item_payload
                         .insert("replay_recording", replay_recording_item.payload());
                     rmp_serde::encode::write(&mut data, &combined_item_payload).expect("msg");
+
                     let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
 
                     combined_item.set_payload(ContentType::MsgPack, data);
@@ -2466,7 +2468,7 @@ impl EnvelopeProcessorService {
         self.process_sessions(state);
         self.process_client_reports(state);
         self.process_user_reports(state);
-        self.process_replays(state)?;
+        self.process_replays(state);
         if_processing!({ self.process_replays_combine_items(state)? });
 
         self.filter_profiles(state);

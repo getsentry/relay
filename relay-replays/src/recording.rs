@@ -11,6 +11,7 @@
 //! identified by `type: 5`. The scrubber skips all other node types and does not perform any
 //! validation beyond JSON parsing.
 
+// use bytes::Bytes;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt;

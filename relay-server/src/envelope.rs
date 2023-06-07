@@ -108,6 +108,7 @@ pub enum ItemType {
     /// Replay Recording data.
     ReplayRecording,
     /// Combined Replay metadata and Recording Payload
+    #[cfg(feature = "processing")]
     CombinedReplayEventAndRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
@@ -777,7 +778,7 @@ impl Item {
             ItemType::RawSecurity => true,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
-            ItemType::ReplayEvent => true,
+            ItemType::ReplayEvent => false,
             ItemType::Session => false,
             ItemType::Sessions => false,
             ItemType::Metrics => false,
