@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::protocol::{TransactionInfo, TransactionSource};
+use crate::protocol::{OperationType, TransactionInfo, TransactionSource};
 use crate::utils::Glob;
 
 /// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
@@ -56,17 +56,23 @@ where
 
 /// Contains transaction attribute the rule must only be applied to.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct RuleScope {
+pub struct TransactionNameRuleScope {
     /// The source of the transaction.
     pub source: TransactionSource,
 }
 
-impl Default for RuleScope {
+impl Default for TransactionNameRuleScope {
     fn default() -> Self {
         Self {
             source: TransactionSource::Url,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
+pub struct SpanDescriptionRuleScope {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub op: OperationType,
 }
 
 /// Default value for substitution in [`RedactionRule`].
@@ -95,14 +101,15 @@ impl Default for RedactionRule {
 }
 
 /// The rule describes how span descriptions should be changed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpanDescriptionRule {
     /// The pattern which will be applied to the span description.
+    #[serde(deserialize_with = "deserialize_glob_pattern")]
     pub pattern: LazyGlob,
     /// Date time when the rule expires and it should not be applied anymore.
     pub expiry: DateTime<Utc>,
     /// Object containing transaction attributes the rules must only be applied to.
-    pub scope: RuleScope,
+    pub scope: SpanDescriptionRuleScope,
     /// Object describing what to do with the matched pattern.
     pub redaction: RedactionRule,
 }
@@ -112,13 +119,16 @@ impl From<&TransactionNameRule> for SpanDescriptionRule {
         SpanDescriptionRule {
             pattern: LazyGlob::new(format!("**{}", value.pattern.raw)),
             expiry: value.expiry,
-            scope: value.scope.clone(),
+            scope: SpanDescriptionRuleScope::default(),
             redaction: value.redaction.clone(),
         }
     }
 }
 
 impl SpanDescriptionRule {
+    /// Applies the span description rule to the given string, if it matches the pattern.
+    ///
+    /// TODO(iker): we should check the rule's domain, similar to transaction name rules.
     pub fn match_and_apply(&self, mut string: Cow<String>) -> Option<String> {
         let slash_is_present = string.ends_with('/');
         if !slash_is_present {
@@ -168,7 +178,7 @@ pub struct TransactionNameRule {
     pub expiry: DateTime<Utc>,
     /// Object containing transaction attributes the rules must only be applied to.
     #[serde(default)]
-    pub scope: RuleScope,
+    pub scope: TransactionNameRuleScope,
     /// Object describing what to do with the matched pattern.
     pub redaction: RedactionRule,
 }

@@ -2,6 +2,7 @@ use relay_common::EventType;
 use relay_general::protocol::Event;
 use relay_general::types::{Annotated, RemarkType};
 
+use crate::metrics_extraction::transactions::extract_http_status_code;
 use crate::statsd::RelayCounters;
 
 /// Log statsd metrics about transaction name modifications.
@@ -51,9 +52,7 @@ where
     };
 
     let new_source = inner.get_transaction_source();
-    let is_404 = inner
-        .get_tag_value("http.status_code")
-        .map_or(false, |s| s == "404");
+    let is_404 = extract_http_status_code(inner).map_or(false, |s| s == "404");
 
     relay_statsd::metric!(
         counter(RelayCounters::TransactionNameChanges) += 1,

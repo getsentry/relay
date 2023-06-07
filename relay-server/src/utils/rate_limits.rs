@@ -144,11 +144,6 @@ pub struct EnvelopeSummary {
     /// Whether the envelope contains an event which already had the metrics extracted.
     pub event_metrics_extracted: bool,
 
-    /// Whether profiles in the envelope have been counted towards `DataCategory::Profile`.
-    ///
-    /// If `true`, count them towards `DataCategory::ProfileIndexed` instead.
-    pub profile_counted_as_processed: bool,
-
     /// The payload size of this envelope.
     pub payload_size: usize,
 }
@@ -173,10 +168,6 @@ impl EnvelopeSummary {
 
             if *item.ty() == ItemType::Transaction && item.metrics_extracted() {
                 summary.event_metrics_extracted = true;
-            }
-
-            if *item.ty() == ItemType::Profile && item.profile_counted_as_processed() {
-                summary.profile_counted_as_processed = true;
             }
 
             // If the item has been rate limited before, the quota has been consumed and outcomes
@@ -520,13 +511,15 @@ where
 
             // It makes no sense to store profiles without transactions, so if the event
             // is rate limited, rate limit profiles as well.
-            let profile_category = if summary.profile_counted_as_processed {
-                DataCategory::ProfileIndexed
-            } else {
-                DataCategory::Profile
-            };
-            enforcement.profiles =
-                CategoryLimit::new(profile_category, summary.profile_quantity, longest);
+            enforcement.profiles = CategoryLimit::new(
+                if summary.event_metrics_extracted {
+                    DataCategory::ProfileIndexed
+                } else {
+                    DataCategory::Profile
+                },
+                summary.profile_quantity,
+                longest,
+            );
 
             rate_limits.merge(event_limits);
         }
@@ -563,7 +556,7 @@ where
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                if summary.profile_counted_as_processed {
+                if summary.event_metrics_extracted {
                     DataCategory::ProfileIndexed
                 } else {
                     DataCategory::Profile

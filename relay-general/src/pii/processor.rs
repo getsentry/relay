@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 
 use once_cell::sync::OnceCell;
@@ -11,8 +12,10 @@ use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, IpAddr, NativeImagePath, PairList, Replay, User};
-use crate::types::{Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
+use crate::protocol::{AsPair, Context, Event, IpAddr, NativeImagePath, PairList, Replay, User};
+use crate::types::{
+    Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
+};
 
 /// A processor that performs PII stripping.
 pub struct PiiProcessor<'a> {
@@ -194,6 +197,86 @@ impl<'a> Processor for PiiProcessor<'a> {
     ) -> ProcessingResult {
         replay.process_child_values(self, state)?;
         Ok(())
+    }
+
+    fn process_event(
+        &mut self,
+        event: &mut Event,
+        _meta: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        scrub_graphql(event);
+
+        event.process_child_values(self, state)?;
+
+        Ok(())
+    }
+}
+
+/// Scrubs GraphQL variables from the event.
+fn scrub_graphql(event: &mut Event) {
+    let mut keys: BTreeSet<&str> = BTreeSet::new();
+
+    let mut is_graphql = false;
+
+    // Collect the variables keys and scrub them out.
+    if let Some(request) = event.request.value_mut() {
+        if let Some(Value::Object(data)) = request.data.value_mut() {
+            if let Some(api_target) = request.api_target.value() {
+                if api_target.eq_ignore_ascii_case("graphql") {
+                    is_graphql = true;
+                }
+            }
+
+            if is_graphql {
+                if let Some(Annotated(Some(Value::Object(variables)), _)) =
+                    data.get_mut("variables")
+                {
+                    for (key, value) in variables.iter_mut() {
+                        keys.insert(key);
+                        value.set_value(Some(Value::String("[Filtered]".to_string())));
+                    }
+                }
+            }
+        }
+    }
+
+    if !is_graphql {
+        return;
+    }
+
+    // Scrub PII from the data object if they match the variables keys.
+    if let Some(contexts) = event.contexts.value_mut() {
+        if let Some(Context::Response(response)) = contexts.get_context_mut("response") {
+            if let Some(Value::Object(data)) = response.data.value_mut() {
+                if let Some(Annotated(Some(Value::Object(graphql_data)), _)) = data.get_mut("data")
+                {
+                    if !keys.is_empty() {
+                        scrub_graphql_data(&keys, graphql_data);
+                    } else {
+                        // If we don't have the variable keys, we scrub the whole data object
+                        // because the query or mutation weren't parameterized.
+                        data.remove("data");
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Scrubs values from the data object to `[Filtered]`.
+fn scrub_graphql_data(keys: &BTreeSet<&str>, data: &mut BTreeMap<String, Annotated<Value>>) {
+    for (key, value) in data.iter_mut() {
+        match value.value_mut() {
+            Some(Value::Object(item_data)) => {
+                scrub_graphql_data(keys, item_data);
+            }
+            _ => {
+                if keys.contains(key.as_str()) {
+                    value.set_value(Some(Value::String("[Filtered]".to_string())));
+                }
+            }
+        }
     }
 }
 
@@ -1280,5 +1363,133 @@ mod tests {
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut breadcrumb, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(breadcrumb);
+    }
+
+    #[test]
+    fn test_scrub_graphql_response_data_with_variables() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+              "request": {
+                "data": {
+                  "query": "{\n  viewer {\n    login\n  }\n}",
+                  "variables": {
+                    "login": "foo"
+                  }
+                },
+                "api_target": "graphql"
+              },
+              "contexts": {
+                "response": {
+                  "type": "response",
+                  "data": {
+                    "data": {
+                      "viewer": {
+                        "login": "foo"
+                      }
+                    }
+                  }
+                }
+              }
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_debug_snapshot!(&data);
+    }
+
+    #[test]
+    fn test_scrub_graphql_response_data_without_variables() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+              "request": {
+                "data": {
+                  "query": "{\n  viewer {\n    login\n  }\n}"
+                },
+                "api_target": "graphql"
+              },
+              "contexts": {
+                "response": {
+                  "type": "response",
+                  "data": {
+                    "data": {
+                      "viewer": {
+                        "login": "foo"
+                      }
+                    }
+                  }
+                }
+              }
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_debug_snapshot!(&data);
+    }
+
+    #[test]
+    fn test_does_not_scrub_if_no_graphql() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+              "request": {
+                "data": {
+                  "query": "{\n  viewer {\n    login\n  }\n}",
+                  "variables": {
+                    "login": "foo"
+                  }
+                },
+              },
+              "contexts": {
+                "response": {
+                  "type": "response",
+                  "data": {
+                    "data": {
+                      "viewer": {
+                        "login": "foo"
+                      }
+                    }
+                  }
+                }
+              }
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_debug_snapshot!(&data);
     }
 }
