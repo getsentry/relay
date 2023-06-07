@@ -96,7 +96,7 @@ def test_replay_event_with_processing(
     # Assert the tags and requests objects were normalized to lists of doubles.
     assert parsed_replay["tags"] == [["transaction", replay["tags"]["transaction"]]]
     assert parsed_replay["request"] == {
-        "headers": [["User-Agent", replay["request"]["headers"]["user-Agent"]]]
+        "headers": [["User-Agent", replay["request"]["headers"]["User-Agent"]]]
     }
 
     # Assert contexts object was pulled out.

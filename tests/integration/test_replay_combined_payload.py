@@ -78,23 +78,42 @@ def test_replay_combined_with_processing(
     assert replay_event["replay_id"] == "515539018c9b4260a6f999572f1661ee"
 
     assert payload["replay_recording"] == replay_recording_bytes
-    # breakpoint()
 
 
-# def test_replay_events_without_processing(mini_sentry, relay_chain):
+# TODO: figure out behavior for this test
+# def test_replay_combined_without_processing(
+#     mini_sentry, relay_chain, replay_recordings_consumer
+# ):
 #     relay = relay_chain(min_relay_version="latest")
+#     replay_recordings_consumer = replay_recordings_consumer(timeout=10)
+#     replay_recording_bytes = b"{}\n[]"
 
-#     project_id = 42
 #     mini_sentry.add_basic_project_config(
-#         project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+#         42,
+#         extra={
+#             "config": {
+#                 "features": [
+#                     "organizations:session-replay",
+#                     "organizations:session-replay-combined-envelope-items",
+#                 ]
+#             }
+#         },
 #     )
 
-#     replay_item = generate_replay_sdk_event()
+#     replay_id = "515539018c9b4260a6f999572f1661ee"
 
-#     relay.send_replay_event(42, replay_item)
+#     replay_event = generate_replay_sdk_event(replay_id=replay_id)
+
+#     envelope = Envelope(headers=[["event_id", replay_id]])
+#     envelope.add_item(
+#         Item(payload=PayloadRef(bytes=replay_recording_bytes), type="replay_recording")
+#     )
+#     envelope.add_item(Item(payload=PayloadRef(json=replay_event), type="replay_event"))
+
+#     relay.send_envelope(42, envelope)
 
 #     envelope = mini_sentry.captured_events.get(timeout=20)
 #     assert len(envelope.items) == 1
 
 #     replay_event = envelope.items[0]
-#     assert replay_event.type == "replay_event"
+#     assert replay_event.type == "replay_recording_not_chunked"

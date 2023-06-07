@@ -1332,7 +1332,14 @@ impl EnvelopeProcessorService {
                         .insert("replay_event", replay_event_item.payload().to_vec());
                     combined_item_payload
                         .insert("replay_recording", replay_recording_item.payload().to_vec());
-                    rmp_serde::encode::write(&mut data, &combined_item_payload).expect("msg");
+
+                    if let Err(e) = rmp_serde::encode::write(&mut data, &combined_item_payload) {
+                        relay_log::error!(
+                            "failed to serialize combined replay event and recording: {}",
+                            e
+                        );
+                        // TODO: what to do here? Drop + emit outcome?
+                    }
 
                     let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
 
@@ -3276,7 +3283,7 @@ mod tests {
                 "request": {
                     "url": null,
                     "headers": {
-                        "user-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15"
                     }
                 },
                 "contexts": {
