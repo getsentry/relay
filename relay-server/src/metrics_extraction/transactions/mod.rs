@@ -1094,7 +1094,7 @@ mod tests {
                 },
                 {
                     "description": "<SomeUiRendering>",
-                    "op": "ui.react.render",
+                    "op": "UI.React.Render",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
@@ -1111,7 +1111,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "http.method": "POST",
+                        "http.method": "PoSt",
                         "status_code": "200"
                     }
                 },

@@ -53,7 +53,7 @@ expression: event.value().unwrap().spans
         ),
         exclusive_time: 2000.0,
         description: "<SomeUiRendering>",
-        op: "ui.react.render",
+        op: "UI.React.Render",
         span_id: SpanId(
             "bd429c44b67a3eb4",
         ),
@@ -115,7 +115,7 @@ expression: event.value().unwrap().spans
                 "fake_environment",
             ),
             "http.method": String(
-                "POST",
+                "PoSt",
             ),
             "span.action": String(
                 "POST",
