@@ -44,13 +44,15 @@ def processing_config(get_topic_name):
                 # {'name': 'batch.size', 'value': '0'}  # do not batch messages
             ]
         if processing.get("topics") is None:
+            metrics_topic = get_topic_name("metrics")
             processing["topics"] = {
                 "events": get_topic_name("events"),
                 "attachments": get_topic_name("attachments"),
                 "transactions": get_topic_name("transactions"),
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
-                "metrics": get_topic_name("metrics"),
+                "metrics": metrics_topic,
+                "metrics_transactions": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
@@ -283,7 +285,9 @@ def metrics_consumer(kafka_consumer):
 
 @pytest.fixture
 def replay_recordings_consumer(kafka_consumer):
-    return lambda: ReplayRecordingsConsumer(*kafka_consumer("replay_recordings"))
+    return lambda timeout=None: ReplayRecordingsConsumer(
+        timeout=timeout, *kafka_consumer("replay_recordings")
+    )
 
 
 @pytest.fixture

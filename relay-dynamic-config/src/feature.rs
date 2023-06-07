@@ -30,6 +30,9 @@ impl<'de> Deserialize<'de> for Feature {
         let feature_name = Cow::<str>::deserialize(deserializer)?;
         Ok(match feature_name.as_ref() {
             "organizations:session-replay" => Feature::SessionReplay,
+            "organizations:session-replay-combined-envelope-items" => {
+                Feature::SessionReplayCombinedEnvelopeItems
+            }
             "organizations:session-replay-recording-scrubbing" => {
                 Feature::SessionReplayRecordingScrubbing
             }

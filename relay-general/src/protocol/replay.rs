@@ -288,7 +288,6 @@ impl Replay {
         } else {
             &user_agent_info
         };
-
         let contexts = self.contexts.get_or_insert_with(|| Contexts::new());
         user_agent::normalize_user_agent_info_generic(contexts, &self.platform, user_agent_info);
     }

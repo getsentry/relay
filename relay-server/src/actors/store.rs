@@ -197,9 +197,9 @@ impl StoreService {
                 ItemType::CombinedReplayEventAndRecording => self
                     .produce_combined_replay_event_and_recording(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.organization_id,
-                        scoping.project_id,
+                        scoping,
                         retention,
+                        start_time,
                         item,
                     )?,
                 ItemType::CheckIn => self.produce_check_in(
@@ -692,6 +692,7 @@ impl StoreService {
                     received: UnixTimestamp::from_instant(start_time).as_secs(),
                     retention_days: retention,
                     payload: item.payload(),
+                    version: None,
                 });
 
             self.produce(
@@ -792,25 +793,32 @@ impl StoreService {
     fn produce_combined_replay_event_and_recording(
         &self,
         replay_id: EventId,
-        organization_id: u64,
-        project_id: ProjectId,
+        scoping: Scoping,
         retention_days: u16,
+        start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let message = KafkaMessage::CombinedReplayEventAndRecording(
-            CombinedReplayEventAndRecordingKafkaMessage {
+        let message =
+            KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
                 replay_id,
-                project_id,
+                project_id: scoping.project_id,
+                org_id: scoping.organization_id,
+                key_id: scoping.key_id,
                 retention_days,
+                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                version: Some(1),
                 payload: item.payload(),
-            },
-        );
+            });
 
-        self.produce(KafkaTopic::ReplayRecordings, organization_id, message)?;
+        self.produce(
+            KafkaTopic::ReplayRecordings,
+            scoping.organization_id,
+            message,
+        )?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
-            event_type = "combined_replay_event_and_recording"
+            event_type = "replay_recording_not_chunked"
         );
         Ok(())
     }
@@ -993,6 +1001,11 @@ struct CombinedReplayEventAndRecordingKafkaMessage {
     replay_id: EventId,
     /// The project id for the current event.
     project_id: ProjectId,
+    /// The project id for the current event.
+    org_id: u64,
+    /// The timestamp of when the recording was Received by relay
+    received: u64,
+    version: u8,
     // Number of days to retain.
     retention_days: u16,
 }
@@ -1037,6 +1050,7 @@ struct ReplayRecordingNotChunkedKafkaMessage {
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
+    version: Option<u8>,
     payload: Bytes,
 }
 
@@ -1125,7 +1139,6 @@ enum KafkaMessage {
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     ReplayRecording(ReplayRecordingKafkaMessage),
     ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
-    CombinedReplayEventAndRecording(CombinedReplayEventAndRecordingKafkaMessage),
     CheckIn(CheckInKafkaMessage),
 }
 
@@ -1143,9 +1156,6 @@ impl Message for KafkaMessage {
             KafkaMessage::ReplayRecording(_) => "replay_recording",
             KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
-            KafkaMessage::CombinedReplayEventAndRecording(_) => {
-                "combined_replay_event_and_recording"
-            }
             KafkaMessage::CheckIn(_) => "check_in",
         }
     }
@@ -1164,7 +1174,6 @@ impl Message for KafkaMessage {
             Self::ReplayRecording(message) => message.replay_id.0,
             Self::ReplayRecordingChunk(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
-            Self::CombinedReplayEventAndRecording(_message) => Uuid::nil(), // Ensure random partitioning.
             Self::CheckIn(_message) => Uuid::nil(),
         };
 
