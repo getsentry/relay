@@ -387,14 +387,14 @@ impl<'a> RecordingScrubber<'a> {
 
         // The output variable contains the header bytes but we describe it as "output" because
         // we're going to re-use the address and append to it as an output buffer.
-        let (mut output, body) = split_headers_from_body(bytes)?;
+        let (mut output, body) = split_headers_from_body(bytes.to_owned())?;
 
         output.push(b'\n');
         // Data scrubbing usually does not change the size of the output by much. We can preallocate
         // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
         // Benchmarks have NOT shown a big difference, however.
         output.reserve(body.len());
-        self.transcode_replay(body, &mut output)?;
+        self.transcode_replay(&body, &mut output)?;
 
         Ok(output)
     }
@@ -408,7 +408,7 @@ impl<'a> RecordingScrubber<'a> {
 /// will return errors if:
 ///  - Headers or the body are missing.
 ///  - Headers and the body are not separated by exactly one UNIX newline (`\n`).
-pub fn split_headers_from_body(bytes: &[u8]) -> Result<(Vec<u8>, &[u8]), ParseRecordingError> {
+pub fn split_headers_from_body(bytes: Vec<u8>) -> Result<(Vec<u8>, Vec<u8>), ParseRecordingError> {
     let mut split = bytes.splitn(2, |b| b == &b'\n');
 
     let headers = split
@@ -420,7 +420,7 @@ pub fn split_headers_from_body(bytes: &[u8]) -> Result<(Vec<u8>, &[u8]), ParseRe
         Some(body) => body,
     };
 
-    Ok((headers.to_vec(), body))
+    Ok((headers.to_vec(), body.to_vec()))
 }
 
 #[cfg(test)]
