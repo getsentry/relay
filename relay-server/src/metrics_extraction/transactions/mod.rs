@@ -563,14 +563,14 @@ fn extract_span_metrics(
         if let Some(transaction_method) = http_method_from_transaction_name(transaction_name) {
             shared_tags.insert(
                 "transaction.method".to_owned(),
-                transaction_method.to_ascii_uppercase(),
+                transaction_method.to_uppercase(),
             );
         }
     }
 
     if let Some(trace_context) = get_trace_context(event) {
         if let Some(op) = extract_transaction_op(trace_context) {
-            shared_tags.insert("transaction.op".to_owned(), op.to_ascii_lowercase());
+            shared_tags.insert("transaction.op".to_owned(), op.to_lowercase());
         }
     }
 
@@ -597,7 +597,7 @@ fn extract_span_metrics(
             }
 
             if let Some(unsanitized_span_op) = span.op.value() {
-                let span_op = unsanitized_span_op.to_owned().to_ascii_lowercase();
+                let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
                 span_tags.insert("span.op".to_owned(), span_op.to_owned());
 
@@ -629,19 +629,19 @@ fn extract_span_metrics(
                         // TODO(iker): some SDKs extract this as method
                         .and_then(|v| v.get("http.method"))
                         .and_then(|method| method.as_str())
-                        .map(|s| s.to_ascii_uppercase()),
+                        .map(|s| s.to_uppercase()),
                     Some("db") => {
                         let action_from_data = span
                             .data
                             .value()
                             .and_then(|v| v.get("db.operation"))
                             .and_then(|db_op| db_op.as_str())
-                            .map(|s| s.to_ascii_uppercase());
+                            .map(|s| s.to_uppercase());
                         action_from_data.or_else(|| {
                             span.description
                                 .value()
                                 .and_then(|d| sql_action_from_query(d))
-                                .map(|a| a.to_ascii_uppercase())
+                                .map(|a| a.to_uppercase())
                         })
                     }
                     _ => None,
@@ -655,12 +655,12 @@ fn extract_span_metrics(
                     span.description
                         .value()
                         .and_then(|url| domain_from_http_url(url))
-                        .map(|d| d.to_ascii_lowercase())
+                        .map(|d| d.to_lowercase())
                 } else if span_op.starts_with("db") {
                     span.description
                         .value()
                         .and_then(|query| sql_table_from_query(query))
-                        .map(|t| t.to_ascii_lowercase())
+                        .map(|t| t.to_lowercase())
                 } else {
                     None
                 };
@@ -676,7 +676,7 @@ fn extract_span_metrics(
                 .and_then(|v| v.get("db.system"))
                 .and_then(|system| system.as_str());
             if let Some(sys) = system {
-                span_tags.insert("span.system".to_owned(), sys.to_ascii_lowercase());
+                span_tags.insert("span.system".to_owned(), sys.to_lowercase());
             }
 
             if let Some(span_status) = span.status.value() {
