@@ -197,9 +197,7 @@ impl StoreService {
                 ItemType::CombinedReplayEventAndRecording => self
                     .produce_combined_replay_event_and_recording(
                         event_id.ok_or(StoreError::NoEventId)?,
-                        scoping.organization_id,
-                        scoping.project_id,
-                        scoping.key_id,
+                        scoping,
                         retention,
                         start_time,
                         item,
@@ -795,9 +793,7 @@ impl StoreService {
     fn produce_combined_replay_event_and_recording(
         &self,
         replay_id: EventId,
-        organization_id: u64,
-        project_id: ProjectId,
-        key_id: Option<u64>,
+        scoping: Scoping,
         retention_days: u16,
         start_time: Instant,
         item: &Item,
@@ -805,16 +801,20 @@ impl StoreService {
         let message =
             KafkaMessage::ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage {
                 replay_id,
-                project_id,
-                org_id: organization_id,
-                key_id,
+                project_id: scoping.project_id,
+                org_id: scoping.organization_id,
+                key_id: scoping.key_id,
                 retention_days,
                 received: UnixTimestamp::from_instant(start_time).as_secs(),
                 version: Some(1),
                 payload: item.payload(),
             });
 
-        self.produce(KafkaTopic::ReplayRecordings, organization_id, message)?;
+        self.produce(
+            KafkaTopic::ReplayRecordings,
+            scoping.organization_id,
+            message,
+        )?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
