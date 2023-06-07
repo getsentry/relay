@@ -1,5 +1,6 @@
 var sourcesIndex = JSON.parse('{\
 "document_metrics":["",[],["main.rs"]],\
+"document_pii":["",[],["item_collector.rs","main.rs","pii_finder.rs"]],\
 "generate_schema":["",[],["main.rs"]],\
 "process_event":["",[],["main.rs"]],\
 "relay":["",[],["cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]],\

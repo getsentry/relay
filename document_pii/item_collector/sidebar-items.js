@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["add_file_stem_to_module_path","crate_name_from_file","flatten_use_tree","is_file_declared_from_mod_file","is_file_declared_from_other_file","is_file_module","module_name_from_file","normalize_type_path","usetree_to_paths"],"struct":["AstItemCollector","TypesAndScopedPaths"]};
