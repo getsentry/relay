@@ -563,18 +563,18 @@ fn extract_span_metrics(
         if let Some(transaction_method) = http_method_from_transaction_name(transaction_name) {
             shared_tags.insert(
                 "transaction.method".to_owned(),
-                transaction_method.to_owned(),
+                transaction_method.to_uppercase(),
             );
         }
     }
 
     if let Some(trace_context) = get_trace_context(event) {
         if let Some(op) = extract_transaction_op(trace_context) {
-            shared_tags.insert("transaction.op".to_owned(), op);
+            shared_tags.insert("transaction.op".to_owned(), op.to_lowercase());
         }
     }
 
-    let Some(spans) = event.spans.value_mut() else { return Ok(())};
+    let Some(spans) = event.spans.value_mut() else { return Ok(()) };
 
     for annotated_span in spans {
         if let Some(span) = annotated_span.value_mut() {
@@ -596,10 +596,12 @@ fn extract_span_metrics(
                 span_tags.insert("span.group".to_owned(), span_group);
             }
 
-            if let Some(span_op) = span.op.value() {
+            if let Some(unsanitized_span_op) = span.op.value() {
+                let span_op = unsanitized_span_op.to_owned().to_lowercase();
+
                 span_tags.insert("span.op".to_owned(), span_op.to_owned());
 
-                if let Some(category) = span_op_to_category(span_op) {
+                if let Some(category) = span_op_to_category(&span_op) {
                     span_tags.insert("span.category".to_owned(), category.to_owned());
                 }
 
@@ -626,35 +628,39 @@ fn extract_span_metrics(
                         .value()
                         // TODO(iker): some SDKs extract this as method
                         .and_then(|v| v.get("http.method"))
-                        .and_then(|method| method.as_str()),
+                        .and_then(|method| method.as_str())
+                        .map(|s| s.to_uppercase()),
                     Some("db") => {
                         let action_from_data = span
                             .data
                             .value()
                             .and_then(|v| v.get("db.operation"))
-                            .and_then(|db_op| db_op.as_str());
+                            .and_then(|db_op| db_op.as_str())
+                            .map(|s| s.to_uppercase());
                         action_from_data.or_else(|| {
                             span.description
                                 .value()
                                 .and_then(|d| sql_action_from_query(d))
+                                .map(|a| a.to_uppercase())
                         })
                     }
                     _ => None,
                 };
 
                 if let Some(act) = action {
-                    span_tags.insert("span.action".to_owned(), act.to_owned());
+                    span_tags.insert("span.action".to_owned(), act);
                 }
 
                 let domain = if span_op == "http.client" {
                     span.description
                         .value()
                         .and_then(|url| domain_from_http_url(url))
+                        .map(|d| d.to_lowercase())
                 } else if span_op.starts_with("db") {
                     span.description
                         .value()
                         .and_then(|query| sql_table_from_query(query))
-                        .map(|s| s.to_owned())
+                        .map(|t| t.to_lowercase())
                 } else {
                     None
                 };
@@ -670,7 +676,7 @@ fn extract_span_metrics(
                 .and_then(|v| v.get("db.system"))
                 .and_then(|system| system.as_str());
             if let Some(sys) = system {
-                span_tags.insert("span.system".to_owned(), sys.to_owned());
+                span_tags.insert("span.system".to_owned(), sys.to_lowercase());
             }
 
             if let Some(span_status) = span.status.value() {
@@ -1046,7 +1052,7 @@ mod tests {
             "release": "1.2.3",
             "dist": "foo ",
             "environment": "fake_environment",
-            "transaction": "GET /api/:version/users/",
+            "transaction": "gEt /api/:version/users/",
             "transaction_info": {"source": "custom"},
             "user": {
                 "id": "user123",
@@ -1066,7 +1072,7 @@ mod tests {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "span_id": "bd429c44b67a3eb4",
-                    "op": "myop",
+                    "op": "mYOp",
                     "status": "ok"
                 },
                 "browser": {
@@ -1088,7 +1094,7 @@ mod tests {
                 },
                 {
                     "description": "<SomeUiRendering>",
-                    "op": "ui.react.render",
+                    "op": "UI.React.Render",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd429c44b67a3eb4",
                     "start_timestamp": 1597976300.0000000,
@@ -1105,7 +1111,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "http.method": "POST",
+                        "http.method": "PoSt",
                         "status_code": "200"
                     }
                 },
@@ -1138,7 +1144,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
+                    "description": "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
                     "op": "db.sql.query",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -1152,7 +1158,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
+                    "description": "select column FROM table WHERE id IN (1, 2, 3)",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -1228,7 +1234,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT 'table'.'col' FROM 'table' WHERE 'table'.'col' = %s",
+                    "description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -1359,8 +1365,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "GET /api/:version/users/",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1382,8 +1388,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "GET /api/:version/users/",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1404,8 +1410,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "GET /api/:version/users/",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1426,8 +1432,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "GET /api/:version/users/",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1448,8 +1454,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "GET /api/:version/users/",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1462,7 +1468,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1476,7 +1482,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1490,7 +1496,7 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1505,7 +1511,7 @@ mod tests {
                     "environment": "fake_environment",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1520,7 +1526,7 @@ mod tests {
                     "environment": "fake_environment",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1535,7 +1541,7 @@ mod tests {
                     "environment": "fake_environment",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1554,7 +1560,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1573,7 +1579,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1592,7 +1598,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1611,7 +1617,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1630,7 +1636,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1649,7 +1655,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1670,7 +1676,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1691,7 +1697,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1712,7 +1718,7 @@ mod tests {
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1727,14 +1733,14 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
                     "span.domain": "table",
-                    "span.group": "a31d8fd4438bc382",
+                    "span.group": "f4a7fef06db3d88e",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1749,14 +1755,14 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
                     "span.domain": "table",
-                    "span.group": "a31d8fd4438bc382",
+                    "span.group": "f4a7fef06db3d88e",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1771,14 +1777,14 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
                     "span.domain": "table",
-                    "span.group": "a31d8fd4438bc382",
+                    "span.group": "f4a7fef06db3d88e",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1793,13 +1799,13 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.description": "select column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
-                    "span.group": "a31d8fd4438bc382",
+                    "span.group": "4f9711d2d09963b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1814,13 +1820,13 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.description": "select column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
-                    "span.group": "a31d8fd4438bc382",
+                    "span.group": "4f9711d2d09963b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1835,13 +1841,13 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.description": "select column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
-                    "span.group": "a31d8fd4438bc382",
+                    "span.group": "4f9711d2d09963b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1860,8 +1866,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1880,8 +1886,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1900,8 +1906,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1920,8 +1926,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1940,8 +1946,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1960,8 +1966,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1980,7 +1986,7 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -1999,7 +2005,7 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2018,7 +2024,7 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2037,8 +2043,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2057,8 +2063,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2077,8 +2083,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2097,8 +2103,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2117,8 +2123,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2137,8 +2143,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2159,8 +2165,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2181,8 +2187,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2203,8 +2209,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2223,8 +2229,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2243,8 +2249,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2263,8 +2269,8 @@ mod tests {
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "GET /api/:version/users/",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2283,7 +2289,7 @@ mod tests {
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2302,7 +2308,7 @@ mod tests {
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2321,7 +2327,7 @@ mod tests {
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2339,7 +2345,7 @@ mod tests {
                     "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2357,7 +2363,7 @@ mod tests {
                     "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
@@ -2375,7 +2381,7 @@ mod tests {
                     "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
-                    "transaction": "GET /api/:version/users/",
+                    "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
