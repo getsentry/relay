@@ -596,10 +596,12 @@ fn extract_span_metrics(
                 span_tags.insert("span.group".to_owned(), span_group);
             }
 
-            if let Some(span_op) = span.op.value() {
-                span_tags.insert("span.op".to_owned(), span_op.to_ascii_lowercase());
+            if let Some(unsanitized_span_op) = span.op.value() {
+                let span_op = unsanitized_span_op.to_owned().to_ascii_lowercase();
 
-                if let Some(category) = span_op_to_category(span_op) {
+                span_tags.insert("span.op".to_owned(), span_op.to_owned());
+
+                if let Some(category) = span_op_to_category(&span_op) {
                     span_tags.insert("span.category".to_owned(), category.to_owned());
                 }
 
