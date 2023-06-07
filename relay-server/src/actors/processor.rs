@@ -14,6 +14,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
 use relay_profiling::ProfileError;
+use serde::Serialize;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
@@ -1288,27 +1289,66 @@ impl EnvelopeProcessorService {
                 if let Some(replay_recording_item) =
                     envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
                 {
+                    // Split the headers from the body so they can be stored on separate keys.
+                    // This was previously done in another processing step (`process_replays`). To
+                    // be here we know it must have been successful otherwise the envelope would
+                    // have been dropped.
+                    //
+                    // TODO: Should we handle this possible error state more gracefully?
+                    // Potentially following the error pattern established in the msgpack
+                    // serialization step below?
                     let (headers, body) =
                         split_headers_from_body(replay_recording_item.payload().into())
                             .expect("This is pre-validated and should not fail.");
 
-                    let mut combined_item_payload = BTreeMap::new();
-                    combined_item_payload.insert("replay_event", replay_event_item.payload());
-                    combined_item_payload.insert("replay_recording_headers", headers.into());
-                    combined_item_payload.insert("replay_recording", body.into());
+                    // We need to use this value twice. Once for memory pre-allocation and once
+                    // for serialization. Hence the variable.
+                    let replay_event = replay_event_item.payload();
 
-                    if let Err(e) = rmp_serde::encode::write(&mut data, &combined_item_payload) {
-                        relay_log::error!(
-                            "failed to serialize combined replay event and recording: {}",
-                            e
-                        );
-                        // TODO: what to do here? Drop + emit outcome?
+                    // Pre-allocate capacity in the buffer. The buffer will use the full size of
+                    // each of the three keys' values. As well as the size of the keys themselves
+                    // (52 bytes) plus some overhead of unknown size. 64 was used as a safe guess
+                    // for the combined sizes of the keys and msgpack bytes.
+                    //
+                    // Pre-allocating capacity makes pushing into the buffer essintially free.
+                    let capacity = replay_event.len() + headers.len() + body.len() + 64;
+                    let mut buffer: Vec<u8> = Vec::with_capacity(capacity);
+
+                    // Msgpack serialization step. We take all of the data we've extracted and
+                    // serialize it into a single payload.
+                    //
+                    // TODO: For now I've inlined the Payload definition. We can argue over its
+                    // best location in code review.
+                    #[derive(Debug, Serialize)]
+                    struct Payload {
+                        replay_event: Vec<u8>,
+                        replay_recording_headers: Vec<u8>,
+                        replay_recording: Vec<u8>,
                     }
 
-                    let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
+                    let payload = Payload {
+                        replay_event: replay_event.into(),
+                        replay_recording_headers: headers,
+                        replay_recording: body,
+                    };
 
-                    combined_item.set_payload(ContentType::MsgPack, data);
-                    envelope.add_item(combined_item);
+                    if let Err(e) = rmp_serde::encode::write(&mut buffer, &payload) {
+                        // Log so we can monitor failures.
+                        relay_log::error!("replay envelope merge failure: {e}");
+
+                        // If the merging process fails we need to re-append the old envelopes
+                        // back into the stream so they can be processed in the version 0
+                        // style.
+                        envelope.add_item(replay_event_item);
+                        envelope.add_item(replay_recording_item);
+                    } else {
+                        // If the operation was successful we can create our new combined envelope
+                        // items and append it to the envelope stream.
+                        let mut combined_item =
+                            Item::new(ItemType::CombinedReplayEventAndRecording);
+                        combined_item.set_payload(ContentType::MsgPack, buffer);
+                        envelope.add_item(combined_item);
+                    }
                 } else {
                     envelope.add_item(replay_event_item)
                 }
