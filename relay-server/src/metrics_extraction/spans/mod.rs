@@ -3,7 +3,6 @@ use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
 use itertools::Itertools;
-use md5;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_common::{DurationUnit, EventType, MetricUnit, UnixTimestamp};
