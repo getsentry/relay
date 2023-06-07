@@ -10,12 +10,12 @@ use relay_general::types::Annotated;
 use relay_metrics::{AggregatorConfig, Metric};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
-use crate::metrics_extraction::performance::spans::extract_span_metrics;
-use crate::metrics_extraction::performance::transactions::types::{
+use crate::metrics_extraction::spans::extract_span_metrics;
+use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
     TransactionMeasurementTags, TransactionMetric,
 };
-use crate::metrics_extraction::performance::utils::{
+use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
 use crate::metrics_extraction::IntoMetric;

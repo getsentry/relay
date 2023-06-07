@@ -1,5 +1,5 @@
-use crate::metrics_extraction::performance::transactions::types::ExtractMetricsError;
-use crate::metrics_extraction::performance::utils::{
+use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
 use itertools::Itertools;
