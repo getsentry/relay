@@ -38,7 +38,7 @@ use relay_general::user_agent::RawUserAgentInfo;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
-use relay_replays::recording::RecordingScrubber;
+use relay_replays::recording::{split_headers_from_body, RecordingScrubber};
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -1326,11 +1326,16 @@ impl EnvelopeProcessorService {
                 if let Some(replay_recording_item) =
                     envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
                 {
-                    let mut data = Vec::new();
+                    let (headers, body) =
+                        split_headers_from_body(replay_recording_item.payload().into())
+                            .expect("This is pre-validated and should not fail.");
+
                     let mut combined_item_payload = BTreeMap::new();
                     combined_item_payload.insert("replay_event", replay_event_item.payload());
-                    combined_item_payload
-                        .insert("replay_recording", replay_recording_item.payload());
+                    combined_item_payload.insert("replay_recording_headers", headers.into());
+                    combined_item_payload.insert("replay_recording", body.into());
+
+                    let mut data = Vec::new();
                     rmp_serde::encode::write(&mut data, &combined_item_payload).expect("msg");
                     let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
 
