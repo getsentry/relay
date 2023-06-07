@@ -3597,6 +3597,12 @@
 <a href="#3597" id="3597">3597</a>
 <a href="#3598" id="3598">3598</a>
 <a href="#3599" id="3599">3599</a>
+<a href="#3600" id="3600">3600</a>
+<a href="#3601" id="3601">3601</a>
+<a href="#3602" id="3602">3602</a>
+<a href="#3603" id="3603">3603</a>
+<a href="#3604" id="3604">3604</a>
+<a href="#3605" id="3605">3605</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>md5;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -4162,18 +4168,18 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_method) = http_method_from_transaction_name(transaction_name) {
             shared_tags.insert(
                 <span class="string">&quot;transaction.method&quot;</span>.to_owned(),
-                transaction_method.to_owned(),
+                transaction_method.to_uppercase(),
             );
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = get_trace_context(event) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
-            shared_tags.insert(<span class="string">&quot;transaction.op&quot;</span>.to_owned(), op);
+            shared_tags.insert(<span class="string">&quot;transaction.op&quot;</span>.to_owned(), op.to_lowercase());
         }
     }
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(())};
+    <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
 
     <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() {
@@ -4195,10 +4201,12 @@
                 span_tags.insert(<span class="string">&quot;span.group&quot;</span>.to_owned(), span_group);
             }
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(span_op) = span.op.value() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(unsanitized_span_op) = span.op.value() {
+                <span class="kw">let </span>span_op = unsanitized_span_op.to_owned().to_lowercase();
+
                 span_tags.insert(<span class="string">&quot;span.op&quot;</span>.to_owned(), span_op.to_owned());
 
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = span_op_to_category(span_op) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = span_op_to_category(<span class="kw-2">&amp;</span>span_op) {
                     span_tags.insert(<span class="string">&quot;span.category&quot;</span>.to_owned(), category.to_owned());
                 }
 
@@ -4225,35 +4233,39 @@
                         .value()
                         <span class="comment">// TODO(iker): some SDKs extract this as method
                         </span>.and_then(|v| v.get(<span class="string">&quot;http.method&quot;</span>))
-                        .and_then(|method| method.as_str()),
+                        .and_then(|method| method.as_str())
+                        .map(|s| s.to_uppercase()),
                     <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>) =&gt; {
                         <span class="kw">let </span>action_from_data = span
                             .data
                             .value()
                             .and_then(|v| v.get(<span class="string">&quot;db.operation&quot;</span>))
-                            .and_then(|db_op| db_op.as_str());
+                            .and_then(|db_op| db_op.as_str())
+                            .map(|s| s.to_uppercase());
                         action_from_data.or_else(|| {
                             span.description
                                 .value()
                                 .and_then(|d| sql_action_from_query(d))
+                                .map(|a| a.to_uppercase())
                         })
                     }
                     <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
                 };
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action {
-                    span_tags.insert(<span class="string">&quot;span.action&quot;</span>.to_owned(), act.to_owned());
+                    span_tags.insert(<span class="string">&quot;span.action&quot;</span>.to_owned(), act);
                 }
 
                 <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>{
                     span.description
                         .value()
                         .and_then(|url| domain_from_http_url(url))
+                        .map(|d| d.to_lowercase())
                 } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
                     span.description
                         .value()
                         .and_then(|query| sql_table_from_query(query))
-                        .map(|s| s.to_owned())
+                        .map(|t| t.to_lowercase())
                 } <span class="kw">else </span>{
                     <span class="prelude-val">None
                 </span>};
@@ -4269,7 +4281,7 @@
                 .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
                 .and_then(|system| system.as_str());
             <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
-                span_tags.insert(<span class="string">&quot;span.system&quot;</span>.to_owned(), sys.to_owned());
+                span_tags.insert(<span class="string">&quot;span.system&quot;</span>.to_owned(), sys.to_lowercase());
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(span_status) = span.status.value() {
@@ -4645,7 +4657,7 @@
             &quot;release&quot;: &quot;1.2.3&quot;,
             &quot;dist&quot;: &quot;foo &quot;,
             &quot;environment&quot;: &quot;fake_environment&quot;,
-            &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+            &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
             &quot;transaction_info&quot;: {&quot;source&quot;: &quot;custom&quot;},
             &quot;user&quot;: {
                 &quot;id&quot;: &quot;user123&quot;,
@@ -4665,7 +4677,7 @@
                 &quot;trace&quot;: {
                     &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
                     &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
-                    &quot;op&quot;: &quot;myop&quot;,
+                    &quot;op&quot;: &quot;mYOp&quot;,
                     &quot;status&quot;: &quot;ok&quot;
                 },
                 &quot;browser&quot;: {
@@ -4687,7 +4699,7 @@
                 },
                 {
                     &quot;description&quot;: &quot;&lt;SomeUiRendering&gt;&quot;,
-                    &quot;op&quot;: &quot;ui.react.render&quot;,
+                    &quot;op&quot;: &quot;UI.React.Render&quot;,
                     &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
                     &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
                     &quot;start_timestamp&quot;: 1597976300.0000000,
@@ -4704,7 +4716,7 @@
                     &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
                     &quot;status&quot;: &quot;ok&quot;,
                     &quot;data&quot;: {
-                        &quot;http.method&quot;: &quot;POST&quot;,
+                        &quot;http.method&quot;: &quot;PoSt&quot;,
                         &quot;status_code&quot;: &quot;200&quot;
                     }
                 },
@@ -4737,7 +4749,7 @@
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT column FROM table WHERE id IN (1, 2, 3)&quot;,
+                    &quot;description&quot;: &quot;SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)&quot;,
                     &quot;op&quot;: &quot;db.sql.query&quot;,
                     &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
                     &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
@@ -4751,7 +4763,7 @@
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT column FROM table WHERE id IN (1, 2, 3)&quot;,
+                    &quot;description&quot;: &quot;select column FROM table WHERE id IN (1, 2, 3)&quot;,
                     &quot;op&quot;: &quot;db&quot;,
                     &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
                     &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
@@ -4827,7 +4839,7 @@
                     }
                 },
                 {
-                    &quot;description&quot;: &quot;SELECT &#39;table&#39;.&#39;col&#39; FROM &#39;table&#39; WHERE &#39;table&#39;.&#39;col&#39; = %s&quot;,
+                    &quot;description&quot;: &quot;SELECT &#39;TABLE&#39;.&#39;col&#39; FROM &#39;TABLE&#39; WHERE &#39;TABLE&#39;.&#39;col&#39; = %s&quot;,
                     &quot;op&quot;: &quot;db&quot;,
                     &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
                     &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
@@ -4958,8 +4970,8 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
             },
@@ -4981,8 +4993,8 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
             },
@@ -5003,8 +5015,8 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
             },
@@ -5025,8 +5037,8 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
             },
@@ -5047,8 +5059,8 @@
                     &quot;os.name&quot;: &quot;Windows&quot;,
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;release&quot;: &quot;1.2.3&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
-                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.op&quot;: &quot;mYOp&quot;,
                     &quot;transaction.status&quot;: &quot;ok&quot;,
                 },
             },
@@ -5061,7 +5073,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.op&quot;: &quot;react.mount&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5075,7 +5087,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.op&quot;: &quot;react.mount&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5089,7 +5101,7 @@
                 tags: {
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.op&quot;: &quot;react.mount&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5104,7 +5116,7 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.category&quot;: &quot;ui.react&quot;,
                     &quot;span.op&quot;: &quot;ui.react.render&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5119,7 +5131,7 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.category&quot;: &quot;ui.react&quot;,
                     &quot;span.op&quot;: &quot;ui.react.render&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5134,7 +5146,7 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.category&quot;: &quot;ui.react&quot;,
                     &quot;span.op&quot;: &quot;ui.react.render&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5153,7 +5165,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5172,7 +5184,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5191,7 +5203,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5210,7 +5222,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5229,7 +5241,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5248,7 +5260,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5269,7 +5281,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5290,7 +5302,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5311,7 +5323,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5326,14 +5338,14 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (%s)&quot;,
+                    &quot;span.description&quot;: &quot;SeLeCt column FROM tAbLe WHERE id IN (%s)&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;a31d8fd4438bc382&quot;,
+                    &quot;span.group&quot;: &quot;f4a7fef06db3d88e&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5348,14 +5360,14 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (%s)&quot;,
+                    &quot;span.description&quot;: &quot;SeLeCt column FROM tAbLe WHERE id IN (%s)&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;a31d8fd4438bc382&quot;,
+                    &quot;span.group&quot;: &quot;f4a7fef06db3d88e&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5370,14 +5382,14 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (%s)&quot;,
+                    &quot;span.description&quot;: &quot;SeLeCt column FROM tAbLe WHERE id IN (%s)&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;a31d8fd4438bc382&quot;,
+                    &quot;span.group&quot;: &quot;f4a7fef06db3d88e&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5392,13 +5404,13 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (%s)&quot;,
+                    &quot;span.description&quot;: &quot;select column FROM table WHERE id IN (%s)&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;a31d8fd4438bc382&quot;,
+                    &quot;span.group&quot;: &quot;4f9711d2d09963b9&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5413,13 +5425,13 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (%s)&quot;,
+                    &quot;span.description&quot;: &quot;select column FROM table WHERE id IN (%s)&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;a31d8fd4438bc382&quot;,
+                    &quot;span.group&quot;: &quot;4f9711d2d09963b9&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5434,13 +5446,13 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT column FROM table WHERE id IN (%s)&quot;,
+                    &quot;span.description&quot;: &quot;select column FROM table WHERE id IN (%s)&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;a31d8fd4438bc382&quot;,
+                    &quot;span.group&quot;: &quot;4f9711d2d09963b9&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5459,8 +5471,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5479,8 +5491,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5499,8 +5511,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5519,8 +5531,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5539,8 +5551,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5559,8 +5571,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5579,7 +5591,7 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5598,7 +5610,7 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5617,7 +5629,7 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5636,8 +5648,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5656,8 +5668,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5676,8 +5688,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db.sql.query&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5696,8 +5708,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5716,8 +5728,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5736,8 +5748,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5758,8 +5770,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5780,8 +5792,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5802,8 +5814,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5822,8 +5834,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5842,8 +5854,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5862,8 +5874,8 @@
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;span.system&quot;: &quot;MyDatabase&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;span.system&quot;: &quot;mydatabase&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5882,7 +5894,7 @@
                     &quot;span.module&quot;: &quot;cache&quot;,
                     &quot;span.op&quot;: &quot;cache.get_item&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5901,7 +5913,7 @@
                     &quot;span.module&quot;: &quot;cache&quot;,
                     &quot;span.op&quot;: &quot;cache.get_item&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5920,7 +5932,7 @@
                     &quot;span.module&quot;: &quot;cache&quot;,
                     &quot;span.op&quot;: &quot;cache.get_item&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5938,7 +5950,7 @@
                     &quot;span.group&quot;: &quot;022f81fdf31228bf&quot;,
                     &quot;span.op&quot;: &quot;resource.script&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5956,7 +5968,7 @@
                     &quot;span.group&quot;: &quot;022f81fdf31228bf&quot;,
                     &quot;span.op&quot;: &quot;resource.script&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
@@ -5974,7 +5986,7 @@
                     &quot;span.group&quot;: &quot;022f81fdf31228bf&quot;,
                     &quot;span.op&quot;: &quot;resource.script&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
-                    &quot;transaction&quot;: &quot;GET /api/:version/users/&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
                 },
