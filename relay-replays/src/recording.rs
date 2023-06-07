@@ -385,17 +385,10 @@ impl<'a> RecordingScrubber<'a> {
             return Err(ParseRecordingError::Message("no data found"));
         }
 
-        let mut split = bytes.splitn(2, |b| b == &b'\n');
-        let header = split
-            .next()
-            .ok_or(ParseRecordingError::Message("no headers found"))?;
+        // The output variable contains the header bytes but we describe it as "output" because
+        // we're going to re-use the address and append to it as an output buffer.
+        let (mut output, body) = split_headers_from_body(bytes)?;
 
-        let body = match split.next() {
-            Some(b"") | None => return Err(ParseRecordingError::Message("no body found")),
-            Some(body) => body,
-        };
-
-        let mut output = header.to_owned();
         output.push(b'\n');
         // Data scrubbing usually does not change the size of the output by much. We can preallocate
         // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
@@ -405,6 +398,29 @@ impl<'a> RecordingScrubber<'a> {
 
         Ok(output)
     }
+}
+
+/// Splits the headers bytes from the body bytes.
+///
+/// # Errors
+///
+/// This function requires a full recording payload including headers and body. This function
+/// will return errors if:
+///  - Headers or the body are missing.
+///  - Headers and the body are not separated by exactly one UNIX newline (`\n`).
+pub fn split_headers_from_body(bytes: &[u8]) -> Result<(Vec<u8>, &[u8]), ParseRecordingError> {
+    let mut split = bytes.splitn(2, |b| b == &b'\n');
+
+    let headers = split
+        .next()
+        .ok_or(ParseRecordingError::Message("no headers found"))?;
+
+    let body = match split.next() {
+        Some(b"") | None => return Err(ParseRecordingError::Message("no body found")),
+        Some(body) => body,
+    };
+
+    Ok((headers.to_vec(), body))
 }
 
 #[cfg(test)]
