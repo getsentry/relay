@@ -83,9 +83,10 @@
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
 <span class="kw">use </span>axum::response::IntoResponse;
-<span class="kw">use </span>axum::routing::{post, MethodRouter};
+<span class="kw">use </span>axum::routing::{on, MethodFilter, MethodRouter};
 <span class="kw">use </span>relay_common::Uuid;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::EventId;
@@ -166,6 +167,7 @@
     B::Data: Send,
     B::Error: Into&lt;axum::BoxError&gt;,
 {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_event_size()))
+    on(MethodFilter::GET | MethodFilter::POST, handle)
+        .route_layer(DefaultBodyLimit::max(config.max_event_size()))
 }
 </code></pre></div></section></main></body></html>
