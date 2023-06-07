@@ -108,7 +108,6 @@ pub enum ItemType {
     /// Replay Recording data.
     ReplayRecording,
     /// Combined Replay metadata and Recording Payload
-    #[cfg(feature = "processing")]
     CombinedReplayEventAndRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
