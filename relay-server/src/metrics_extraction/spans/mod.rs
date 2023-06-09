@@ -1,3 +1,4 @@
+use crate::metrics_extraction::transactions::extract_http_status_code;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
@@ -65,6 +66,10 @@ pub(crate) fn extract_span_metrics(
         if let Some(op) = extract_transaction_op(trace_context) {
             shared_tags.insert("transaction.op".to_owned(), op.to_lowercase());
         }
+    }
+
+    if let Some(transaction_http_status_code) = extract_http_status_code(event) {
+        shared_tags.insert("http.status_code".to_owned(), transaction_http_status_code);
     }
 
     let Some(spans) = event.spans.value_mut() else { return Ok(()) };
