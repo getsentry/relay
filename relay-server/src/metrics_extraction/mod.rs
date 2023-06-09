@@ -6,7 +6,7 @@ pub mod sessions;
 mod spans;
 pub mod transactions;
 
-mod utils;
+pub mod utils;
 
 pub trait IntoMetric {
     fn into_metric(self, timestamp: UnixTimestamp) -> Metric;

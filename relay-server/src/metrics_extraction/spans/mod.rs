@@ -1,5 +1,5 @@
-use crate::metrics_extraction::transactions::http_status_code_from_span;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::utils::http_status_code_from_span;
 use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
