@@ -1,0 +1,37 @@
+{
+   "format_version": 10,
+   "pipelines": {
+      "deploy-relay-next": {
+         "group": "relay-next",
+         "lock_behavior": "unlockWhenFinished",
+         "materials": {
+            "relay_repo": {
+               "branch": "master",
+               "destination": "relay",
+               "git": "git@github.com:getsentry/relay.git",
+               "shallow_clone": true
+            }
+         },
+         "stages": [
+            {
+               "pipeline-complete": {
+                  "approval": {
+                     "type": "manual"
+                  },
+                  "jobs": {
+                     "pipeline-complete": {
+                        "tasks": [
+                           {
+                              "exec": {
+                                 "command": true
+                              }
+                           }
+                        ]
+                     }
+                  }
+               }
+            }
+         ]
+      }
+   }
+}
