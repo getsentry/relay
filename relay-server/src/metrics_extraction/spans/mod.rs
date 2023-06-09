@@ -1,3 +1,4 @@
+use crate::metrics_extraction::transactions::http_status_code_from_span;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
@@ -176,8 +177,9 @@ pub(crate) fn extract_span_metrics(
                 span_tags.insert("span.status".to_owned(), span_status.to_string());
             }
 
-            // XXX(iker): extract status code, when its cardinality doesn't
-            // represent a risk for the indexers.
+            if let Some(status_code) = http_status_code_from_span(span) {
+                span_tags.insert("span.status_code".to_owned(), status_code);
+            }
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
             span.data.get_or_insert_with(BTreeMap::new).extend(
