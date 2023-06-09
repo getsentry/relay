@@ -44,6 +44,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -90,6 +93,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -156,6 +162,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -220,6 +229,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -294,6 +306,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -372,6 +387,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -440,6 +458,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -507,6 +528,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -576,6 +600,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -634,6 +661,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -703,6 +733,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -770,6 +803,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -848,6 +884,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -916,6 +955,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -981,6 +1023,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -1039,6 +1084,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
