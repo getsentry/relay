@@ -438,6 +438,19 @@
 <a href="#438" id="438">438</a>
 <a href="#439" id="439">439</a>
 <a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
@@ -481,6 +494,13 @@
     </span><span class="kw">if </span>!aggregator_config.timestamp_range().contains(<span class="kw-2">&amp;</span>timestamp) {
         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;event timestamp is out of the valid range for metrics&quot;</span>);
         <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
+    }
+
+    <span class="comment">// Collect data for the databag that isn&#39;t metrics
+    </span><span class="kw">let </span><span class="kw-2">mut </span>databag = BTreeMap::new();
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
+        databag.insert(<span class="string">&quot;release&quot;</span>.to_owned(), release.to_owned());
     }
 
     <span class="comment">// Collect the shared tags for all the metrics and spans on this transaction.
@@ -620,12 +640,18 @@
             // represent a risk for the indexers.
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
-            </span>span.data.get_or_insert_with(BTreeMap::new).extend(
-                span_tags
+            </span>span.data.get_or_insert_with(BTreeMap::new).extend({
+                <span class="kw">let </span>it = span_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
-            );
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v))));
+                it.chain(
+                    databag
+                        .clone()
+                        .into_iter()
+                        .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+                )
+            });
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
