@@ -29,6 +29,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.op": String(
                 "react.mount",
             ),
@@ -69,6 +72,9 @@ expression: event.value().unwrap().spans
         data: {
             "environment": String(
                 "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.category": String(
                 "ui.react",
@@ -116,6 +122,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "PoSt",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "POST",
@@ -178,6 +187,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "POST",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "POST",
@@ -243,6 +255,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "POST",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "POST",
@@ -318,6 +333,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "SELECT",
             ),
@@ -385,6 +403,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -454,6 +475,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "INSERT",
             ),
@@ -519,6 +543,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "INSERT",
             ),
@@ -577,6 +604,9 @@ expression: event.value().unwrap().spans
         data: {
             "environment": String(
                 "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "INSERT",
@@ -639,6 +669,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -704,6 +737,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -772,6 +808,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -844,6 +883,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.category": String(
                 "db",
             ),
@@ -909,6 +951,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.category": String(
                 "cache",
             ),
@@ -967,6 +1012,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.category": String(
                 "resource",
