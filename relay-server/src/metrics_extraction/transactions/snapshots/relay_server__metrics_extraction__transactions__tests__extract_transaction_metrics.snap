@@ -36,7 +36,7 @@ expression: event.value().unwrap().spans
                 "react.mount",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -56,7 +56,7 @@ expression: event.value().unwrap().spans
         ),
         exclusive_time: 2000.0,
         description: "<SomeUiRendering>",
-        op: "ui.react.render",
+        op: "UI.React.Render",
         span_id: SpanId(
             "bd429c44b67a3eb4",
         ),
@@ -83,7 +83,7 @@ expression: event.value().unwrap().spans
                 "ui.react.render",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -121,7 +121,7 @@ expression: event.value().unwrap().spans
                 "fake_environment",
             ),
             "http.method": String(
-                "POST",
+                "PoSt",
             ),
             "release": String(
                 "1.2.3",
@@ -144,14 +144,11 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
-            "span.status_code": String(
-                "200",
-            ),
             "status_code": String(
                 "200",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -212,14 +209,11 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
-            "span.status_code": String(
-                "200",
-            ),
             "status_code": String(
                 "200",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -289,14 +283,11 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
-            "span.status_code": String(
-                "200",
-            ),
             "status_code": String(
                 "200",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -315,7 +306,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "SELECT column FROM table WHERE id IN (1, 2, 3)",
+        description: "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
         op: "db.sql.query",
         span_id: SpanId(
             "bb7af8b99e95af5f",
@@ -337,7 +328,7 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "description.scrubbed": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "SeLeCt column FROM tAbLe WHERE id IN (%s)",
             ),
             "environment": String(
                 "fake_environment",
@@ -352,13 +343,13 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "SeLeCt column FROM tAbLe WHERE id IN (%s)",
             ),
             "span.domain": String(
                 "table",
             ),
             "span.group": String(
-                "a31d8fd4438bc382",
+                "f4a7fef06db3d88e",
             ),
             "span.module": String(
                 "db",
@@ -370,10 +361,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -392,7 +383,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "SELECT column FROM table WHERE id IN (1, 2, 3)",
+        description: "select column FROM table WHERE id IN (1, 2, 3)",
         op: "db",
         span_id: SpanId(
             "bb7af8b99e95af5f",
@@ -408,7 +399,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "select column FROM table WHERE id IN (%s)",
             ),
             "environment": String(
                 "fake_environment",
@@ -423,13 +414,13 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "select column FROM table WHERE id IN (%s)",
             ),
             "span.domain": String(
                 "table",
             ),
             "span.group": String(
-                "a31d8fd4438bc382",
+                "4f9711d2d09963b9",
             ),
             "span.module": String(
                 "db",
@@ -441,7 +432,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -506,10 +497,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -574,10 +565,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -636,7 +627,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -701,10 +692,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -769,10 +760,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -791,7 +782,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "SELECT 'table'.'col' FROM 'table' WHERE 'table'.'col' = %s",
+        description: "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
         op: "db",
         span_id: SpanId(
             "bb7af8b99e95af5f",
@@ -846,10 +837,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -914,10 +905,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -982,7 +973,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
@@ -1041,7 +1032,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "GET /api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "GET",
