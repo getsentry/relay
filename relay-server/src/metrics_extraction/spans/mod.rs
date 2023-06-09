@@ -43,6 +43,13 @@ pub(crate) fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
+    // Collect data for the databag that isn't metrics
+    let mut databag = BTreeMap::new();
+
+    if let Some(release) = event.release.as_str() {
+        databag.insert("release".to_owned(), release.to_owned());
+    }
+
     // Collect the shared tags for all the metrics and spans on this transaction.
     let mut shared_tags = BTreeMap::new();
 
@@ -180,12 +187,18 @@ pub(crate) fn extract_span_metrics(
             // represent a risk for the indexers.
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
-            span.data.get_or_insert_with(BTreeMap::new).extend(
-                span_tags
+            span.data.get_or_insert_with(BTreeMap::new).extend({
+                let it = span_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
-            );
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v))));
+                it.chain(
+                    databag
+                        .clone()
+                        .into_iter()
+                        .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+                )
+            });
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {

@@ -967,7 +967,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.op": "react.mount",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
@@ -982,7 +981,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.op": "react.mount",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
@@ -997,7 +995,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.op": "react.mount",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.method": "GET",
@@ -1012,7 +1009,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
                     "transaction": "gEt /api/:version/users/",
@@ -1028,7 +1024,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
                     "transaction": "gEt /api/:version/users/",
@@ -1044,7 +1039,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "ui.react",
                     "span.op": "ui.react.render",
                     "transaction": "gEt /api/:version/users/",
@@ -1060,7 +1054,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
@@ -1080,7 +1073,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
@@ -1100,7 +1092,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
@@ -1120,7 +1111,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
@@ -1140,7 +1130,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
@@ -1160,7 +1149,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
@@ -1180,7 +1168,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
@@ -1202,7 +1189,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
@@ -1224,7 +1210,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "POST",
                     "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
@@ -1246,7 +1231,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -1269,7 +1253,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -1292,7 +1275,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -1315,7 +1297,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "select column FROM table WHERE id IN (%s)",
@@ -1337,7 +1318,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "select column FROM table WHERE id IN (%s)",
@@ -1359,7 +1339,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "select column FROM table WHERE id IN (%s)",
@@ -1381,7 +1360,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1402,7 +1380,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1423,7 +1400,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1444,7 +1420,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "from_date",
@@ -1465,7 +1440,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "from_date",
@@ -1486,7 +1460,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "from_date",
@@ -1507,7 +1480,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1527,7 +1499,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1547,7 +1518,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "INSERT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1567,7 +1537,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1588,7 +1557,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1609,7 +1577,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1630,7 +1597,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1651,7 +1617,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1672,7 +1637,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.domain": "table",
@@ -1693,7 +1657,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
@@ -1716,7 +1679,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
@@ -1739,7 +1701,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.action": "SELECT",
                     "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
@@ -1762,7 +1723,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "db",
                     "span.description": "SAVEPOINT %s",
                     "span.group": "3f955cbde39e04b9",
@@ -1783,7 +1743,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "db",
                     "span.description": "SAVEPOINT %s",
                     "span.group": "3f955cbde39e04b9",
@@ -1804,7 +1763,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "db",
                     "span.description": "SAVEPOINT %s",
                     "span.group": "3f955cbde39e04b9",
@@ -1825,7 +1783,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "cache",
                     "span.description": "GET cache:user:*",
                     "span.group": "325fa5feb926f121",
@@ -1845,7 +1802,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "cache",
                     "span.description": "GET cache:user:*",
                     "span.group": "325fa5feb926f121",
@@ -1865,7 +1821,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "cache",
                     "span.description": "GET cache:user:*",
                     "span.group": "325fa5feb926f121",
@@ -1885,7 +1840,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
                     "span.group": "022f81fdf31228bf",
@@ -1904,7 +1858,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
                     "span.group": "022f81fdf31228bf",
@@ -1923,7 +1876,6 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
-                    "release": "1.2.3",
                     "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
                     "span.group": "022f81fdf31228bf",
