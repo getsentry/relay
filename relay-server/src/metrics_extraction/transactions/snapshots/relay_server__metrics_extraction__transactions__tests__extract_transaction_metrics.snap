@@ -325,9 +325,6 @@ expression: event.value().unwrap().spans
             "http.method": String(
                 "POST",
             ),
-            "release": String(
-                "1.2.3",
-            ),
             "span.action": String(
                 "POST",
             ),
@@ -393,9 +390,6 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "POST",
-            ),
-            "release": String(
-                "1.2.3",
             ),
             "span.action": String(
                 "POST",
