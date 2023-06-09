@@ -176,7 +176,8 @@ mod tests {
     #[test]
     fn test_find_rs_files() {
         let rust_crate = PathBuf::from_slash(RUST_TEST_CRATE);
-        let rust_file_paths = find_rs_files(&rust_crate);
+        let mut rust_file_paths = find_rs_files(&rust_crate);
+        rust_file_paths.sort();
         insta::assert_debug_snapshot!(rust_file_paths);
     }
 
