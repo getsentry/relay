@@ -50,6 +50,10 @@ pub(crate) fn extract_span_metrics(
         databag.insert("release".to_owned(), release.to_owned());
     }
 
+    if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
+        databag.insert("user".to_owned(), user);
+    }
+
     // Collect the shared tags for all the metrics and spans on this transaction.
     let mut shared_tags = BTreeMap::new();
 
