@@ -72,8 +72,10 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
 }
 
 /// Extract the HTTP status code from the span data.
-fn http_status_code_from_span_data(span: &Span) -> Option<String> {
-    span.data
+pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
+    // For SDKs which put the HTTP status code into the span data.
+    if let Some(status_code) = span
+        .data
         .value()
         .and_then(|v| {
             v.get("http.response.status_code")
@@ -81,6 +83,22 @@ fn http_status_code_from_span_data(span: &Span) -> Option<String> {
         })
         .and_then(|v| v.as_str())
         .map(|v| v.to_string())
+    {
+        return Some(status_code);
+    }
+
+    // For SDKs which put the HTTP status code into the span tags.
+    if let Some(status_code) = span
+        .tags
+        .value()
+        .and_then(|tags| tags.get("http.status_code"))
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_owned())
+    {
+        return Some(status_code);
+    }
+
+    None
 }
 
 /// Extracts the HTTP status code.
@@ -88,18 +106,8 @@ pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
     if let Some(spans) = event.spans.value() {
         for span in spans {
             if let Some(span_value) = span.value() {
-                // For SDKs which put the HTTP status code into the span data.
-                if let Some(status_code) = http_status_code_from_span_data(span_value) {
+                if let Some(status_code) = http_status_code_from_span(span_value) {
                     return Some(status_code);
-                }
-
-                // For SDKs which put the HTTP status code into the span tags.
-                if let Some(status_code) = span_value
-                    .tags
-                    .value()
-                    .and_then(|tags| tags.get("http.status_code"))
-                {
-                    return status_code.value().map(|v| v.as_str().to_string());
                 }
             }
         }
