@@ -47,11 +47,12 @@ pub enum SelectorPathItem {
     Key(String),
     Wildcard,
     DeepWildcard,
+    Other(String),
 }
 
 impl fmt::Display for SelectorPathItem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self {
             SelectorPathItem::Type(ty) => write!(f, "${ty}"),
             SelectorPathItem::Index(index) => write!(f, "{index}"),
             SelectorPathItem::Key(ref key) => {
@@ -63,6 +64,7 @@ impl fmt::Display for SelectorPathItem {
             }
             SelectorPathItem::Wildcard => write!(f, "*"),
             SelectorPathItem::DeepWildcard => write!(f, "**"),
+            SelectorPathItem::Other(s) => write!(f, "{s}"),
         }
     }
 }
@@ -128,6 +130,7 @@ impl SelectorPathItem {
                 .key()
                 .map(|k| k.to_lowercase() == key.to_lowercase())
                 .unwrap_or(false),
+            (SelectorPathItem::Other(_), _) => false,
         }
     }
 }
