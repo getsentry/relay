@@ -225,15 +225,12 @@ impl FromStr for SelectorSpec {
             _ => {}
         }
 
-        handle_selector(
-            SelectorParser::parse(Rule::RootSelector, s)
-                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))?
-                .next()
-                .unwrap()
-                .into_inner()
-                .next()
-                .unwrap(),
-        )
+        let rule_pair = match SelectorParser::parse(Rule::RootSelector, s) {
+            Ok(mut rule_pairs) => rule_pairs.next().unwrap().into_inner().next().unwrap(),
+            Err(e) => return Ok(SelectorSpec::Other(e.to_string())),
+        };
+
+        handle_selector(rule_pair)
     }
 }
 
@@ -265,6 +262,9 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
             Ok(f(items))
         }
     }
+
+    // dbg!(&pair);
+    dbg!(&pair.as_rule());
 
     match pair.as_rule() {
         Rule::ParenthesisOrPath | Rule::MaybeNotSelector => {
