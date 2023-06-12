@@ -874,19 +874,19 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
 enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
     #[error("found invalid characters")]
-    InvalidCharacters,
+    InvalidCharacters(String),
     /// A metric bucket had an unknown namespace in the metric name.
     #[error("found unsupported namespace")]
-    UnsupportedNamespace,
+    UnsupportedNamespace(MetricNamespace),
     /// A metric bucket's timestamp was out of the configured acceptable range.
     #[error("found invalid timestamp")]
-    InvalidTimestamp,
+    InvalidTimestamp(UnixTimestamp),
     /// Internal error: Attempted to merge two metric buckets of different types.
     #[error("found incompatible metric types")]
     InvalidTypes,
     /// A metric bucket had a too long string (metric name or a tag key/value).
     #[error("found invalid string")]
-    InvalidStringLength,
+    InvalidStringLength(String),
     /// A metric bucket is too large for the global bytes limit.
     #[error("total metrics limit exceeded")]
     TotalLimitExceeded,
@@ -1053,7 +1053,7 @@ impl AggregatorConfig {
             relay_statsd::metric!(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64
             );
-            return Err(AggregateMetricsErrorKind::InvalidTimestamp.into());
+            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
         }
 
         Ok(output_timestamp)
@@ -1552,7 +1552,6 @@ impl AggregatorService {
                     "bucket.project_key",
                     key.project_key.as_str().to_owned().into(),
                 );
-                scope.set_extra("bucket.metric_name", key.metric_name.into());
                 scope.set_extra(
                     "bucket.metric_name.length",
                     metric_name_length.to_string().into(),
@@ -1562,7 +1561,7 @@ impl AggregatorService {
                     aggregator_config.max_name_length.to_string().into(),
                 );
             });
-            return Err(AggregateMetricsErrorKind::InvalidStringLength.into());
+            return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
         }
 
         if let Err(err) = Self::normalize_metric_name(&mut key) {
@@ -1583,8 +1582,10 @@ impl AggregatorService {
         key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
             Ok(mri) => {
                 if matches!(mri.namespace, MetricNamespace::Unsupported) {
-                    relay_log::debug!("invalid metric namespace {:?}", key.metric_name);
-                    return Err(AggregateMetricsErrorKind::UnsupportedNamespace.into());
+                    relay_log::debug!("invalid metric namespace {:?}", &key.metric_name);
+                    return Err(
+                        AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into(),
+                    );
                 }
 
                 let mut metric_name = mri.to_string();
@@ -1593,8 +1594,10 @@ impl AggregatorService {
                 metric_name
             }
             Err(_) => {
-                relay_log::debug!("invalid metric name {:?}", key.metric_name);
-                return Err(AggregateMetricsErrorKind::InvalidCharacters.into());
+                relay_log::debug!("invalid metric name {:?}", &key.metric_name);
+                return Err(
+                    AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
+                );
             }
         };
 
@@ -1933,7 +1936,7 @@ impl AggregatorService {
         } = msg;
         for metric in metrics {
             if let Err(err) = self.insert(project_key, metric) {
-                relay_log::error!(error = &err as &dyn Error, "failed to insert metrics");
+                relay_log::error!(error = &err as &dyn Error, "failed to insert metrics",);
             }
         }
     }
@@ -2842,7 +2845,7 @@ mod tests {
                 .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), 2)
                 .unwrap_err()
                 .kind,
-            AggregateMetricsErrorKind::InvalidTimestamp
+            AggregateMetricsErrorKind::InvalidTimestamp(_)
         ));
     }
 
@@ -2973,10 +2976,12 @@ mod tests {
         };
         let validation = AggregatorService::validate_bucket_key(long_metric, &aggregator_config);
 
-        assert_eq!(
+        assert!(matches!(
             validation.unwrap_err(),
-            AggregateMetricsError::from(AggregateMetricsErrorKind::InvalidStringLength)
-        );
+            AggregateMetricsError {
+                kind: AggregateMetricsErrorKind::InvalidStringLength(_)
+            }
+        ));
 
         let short_metric_long_tag_key = BucketKey {
             project_key,
