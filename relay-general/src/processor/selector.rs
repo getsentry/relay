@@ -138,22 +138,24 @@ pub enum SelectorSpec {
     Or(Vec<SelectorSpec>),
     Not(Box<SelectorSpec>),
     Path(Vec<SelectorPathItem>),
+    Other(String),
 }
 
 impl fmt::Display for SelectorSpec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self {
             SelectorSpec::And(ref xs) => {
                 for (idx, x) in xs.iter().enumerate() {
                     if idx > 0 {
                         write!(f, " && ")?;
                     }
 
-                    let needs_parens = match *x {
+                    let needs_parens = match x {
                         SelectorSpec::And(_) => false,
                         SelectorSpec::Or(_) => true,
                         SelectorSpec::Not(_) => false,
                         SelectorSpec::Path(_) => false,
+                        SelectorSpec::Other(_) => true,
                     };
 
                     if needs_parens {
@@ -180,6 +182,7 @@ impl fmt::Display for SelectorSpec {
                     SelectorSpec::And(_) => true,
                     SelectorSpec::Or(_) => true,
                     SelectorSpec::Not(_) => true,
+                    SelectorSpec::Other(_) => true,
                     SelectorSpec::Path(_) => false,
                 };
 
@@ -197,6 +200,7 @@ impl fmt::Display for SelectorSpec {
                     write!(f, "{item}")?;
                 }
             }
+            SelectorSpec::Other(s) => write!(f, "{s}")?,
         }
         Ok(())
     }
@@ -294,10 +298,7 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
         Rule::NotSelector => Ok(SelectorSpec::Not(Box::new(handle_selector(
             pair.into_inner().next().unwrap(),
         )?))),
-        rule => Err(InvalidSelectorError::UnexpectedToken(
-            format!("{rule:?}"),
-            "a selector",
-        )),
+        _ => Ok(SelectorSpec::Other(pair.as_str().to_string())),
     }
 }
 
