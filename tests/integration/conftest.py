@@ -238,6 +238,7 @@ def pytest_runtest_call(item):
     like multiple assertions within a test will stop the test
     execution at the first failure.
     """
+    print("EXTRA FAILURE CHECKS")
     yield
     for marker in item.iter_markers("extra_failure_checks"):
         for check_func in marker.kwargs.get("checks", []):
