@@ -263,9 +263,6 @@ fn handle_selector(pair: Pair<Rule>) -> Result<SelectorSpec, InvalidSelectorErro
         }
     }
 
-    // dbg!(&pair);
-    dbg!(&pair.as_rule());
-
     match pair.as_rule() {
         Rule::ParenthesisOrPath | Rule::MaybeNotSelector => {
             handle_selector(pair.into_inner().next().unwrap())
