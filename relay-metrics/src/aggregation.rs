@@ -873,19 +873,19 @@ impl From<AggregateMetricsErrorKind> for AggregateMetricsError {
 #[allow(clippy::enum_variant_names)]
 enum AggregateMetricsErrorKind {
     /// A metric bucket had invalid characters in the metric name.
-    #[error("found invalid characters")]
+    #[error("found invalid characters: {0}")]
     InvalidCharacters(String),
     /// A metric bucket had an unknown namespace in the metric name.
-    #[error("found unsupported namespace")]
+    #[error("found unsupported namespace: {0}")]
     UnsupportedNamespace(MetricNamespace),
     /// A metric bucket's timestamp was out of the configured acceptable range.
-    #[error("found invalid timestamp")]
+    #[error("found invalid timestamp: {0}")]
     InvalidTimestamp(UnixTimestamp),
     /// Internal error: Attempted to merge two metric buckets of different types.
     #[error("found incompatible metric types")]
     InvalidTypes,
     /// A metric bucket had a too long string (metric name or a tag key/value).
-    #[error("found invalid string")]
+    #[error("found invalid string: {0}")]
     InvalidStringLength(String),
     /// A metric bucket is too large for the global bytes limit.
     #[error("total metrics limit exceeded")]
