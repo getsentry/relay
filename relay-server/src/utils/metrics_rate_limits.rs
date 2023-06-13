@@ -374,6 +374,7 @@ mod tests {
         // Profile tag has been removed:
         assert!(metrics[0].tags.is_empty());
         assert!(metrics[1].tags.is_empty());
+        assert!(!metrics[2].tags.is_empty());
 
         rx.close();
 
