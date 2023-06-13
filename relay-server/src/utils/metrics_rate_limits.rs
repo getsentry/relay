@@ -1,5 +1,5 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
@@ -22,12 +22,17 @@ pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>
     /// Binary index of metrics/buckets in the transaction namespace (used to retain).
     transaction_buckets: Vec<bool>,
 
+    /// Binary index of metrics/buckets that encode processed profiles.
+    profile_buckets: Vec<bool>,
+
     /// The number of transactions contributing to these metrics.
     transaction_count: usize,
 
     /// The number of profiles contained in these metrics.
     profile_count: usize,
 }
+
+const PROFILE_TAG: &str = "has_profile";
 
 impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     /// Create a new limiter instance.
@@ -54,7 +59,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     // The "duration" metric is extracted exactly once for every processed
                     // transaction, so we can use it to count the number of transactions.
                     let count = metric.len();
-                    let has_profile = metric.tag("has_profile") == Some("true");
+                    let has_profile = metric.tag(PROFILE_TAG) == Some("true");
                     Some((count, has_profile))
                 } else {
                     // For any other metric in the transaction namespace, we check the limit with
@@ -76,11 +81,19 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
         if let Some((transaction_count, profile_count)) = total_counts {
             let transaction_buckets = counts.iter().map(Option::is_some).collect();
+            let profile_buckets = counts
+                .iter()
+                .map(|o| match o {
+                    Some((_, has_profile)) => *has_profile,
+                    None => false,
+                })
+                .collect();
             Ok(Self {
                 metrics: buckets,
                 quotas,
                 scoping,
                 transaction_buckets,
+                profile_buckets,
                 transaction_count,
                 profile_count,
             })
@@ -129,17 +142,34 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 quantity: self.transaction_count as u32,
             });
 
-            if self.profile_count > 0 {
-                outcome_aggregator.send(TrackOutcome {
-                    timestamp,
-                    scoping: self.scoping,
-                    outcome,
-                    event_id: None,
-                    remote_addr: None,
-                    category: DataCategory::Profile,
-                    quantity: self.profile_count as u32,
-                });
+            self.report_profiles(outcome, timestamp, outcome_aggregator);
+        }
+    }
+
+    fn strip_profiles(&mut self) {
+        for (has_profile, bucket) in self.profile_buckets.iter().zip(self.metrics.iter_mut()) {
+            if *has_profile {
+                bucket.remove_tag(PROFILE_TAG);
             }
+        }
+    }
+
+    fn report_profiles(
+        &self,
+        outcome: Outcome,
+        timestamp: DateTime<Utc>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
+        if self.profile_count > 0 {
+            outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping: self.scoping,
+                outcome,
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Profile,
+                quantity: self.profile_count as u32,
+            });
         }
     }
 
@@ -172,6 +202,23 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                         outcome_aggregator,
                     );
                     dropped_stuff = true;
+                } else {
+                    // Also check profiles:
+                    let item_scoping = ItemScoping {
+                        category: DataCategory::Profile,
+                        scoping: &self.scoping,
+                    };
+                    let active_rate_limits =
+                        rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
+
+                    if let Some(limit) = active_rate_limits.longest() {
+                        self.strip_profiles();
+                        self.report_profiles(
+                            Outcome::RateLimited(limit.reason_code.clone()),
+                            UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now),
+                            outcome_aggregator,
+                        )
+                    }
                 }
             }
             Err(_) => {
@@ -267,6 +314,80 @@ mod tests {
                 (Outcome::RateLimited(None), DataCategory::Transaction, 2),
                 (Outcome::RateLimited(None), DataCategory::Profile, 1)
             ]
+        );
+    }
+
+    #[test]
+    fn profiles_quota_is_enforced() {
+        let metrics = vec![
+            Metric {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: Default::default(),
+                value: MetricValue::Distribution(123.0),
+            },
+            Metric {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: MetricValue::Distribution(456.0),
+            },
+            Metric {
+                // unrelated metric
+                timestamp: UnixTimestamp::now(),
+                name: "something_else".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: MetricValue::Distribution(123.0),
+            },
+        ];
+        let quotas = vec![Quota {
+            id: None,
+            categories: smallvec![DataCategory::Profile],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+        }];
+        let (outcome_sink, mut rx) = Addr::custom();
+
+        let mut limiter = MetricsLimiter::create(
+            metrics,
+            quotas,
+            Scoping {
+                organization_id: 1,
+                project_id: ProjectId::new(1),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: None,
+            },
+        )
+        .unwrap();
+
+        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+        let metrics = limiter.into_metrics();
+
+        // All metrics have been preserved:
+        assert_eq!(metrics.len(), 3);
+
+        // Profile tag has been removed:
+        assert!(metrics[0].tags.is_empty());
+        assert!(metrics[1].tags.is_empty());
+        assert!(!metrics[2].tags.is_empty());
+
+        rx.close();
+
+        let outcomes: Vec<_> = (0..)
+            .map(|_| rx.blocking_recv())
+            .take_while(|o| o.is_some())
+            .flatten()
+            .map(|o| (o.outcome, o.category, o.quantity))
+            .collect();
+
+        assert_eq!(
+            outcomes,
+            vec![(Outcome::RateLimited(None), DataCategory::Profile, 1)]
         );
     }
 }

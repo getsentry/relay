@@ -854,6 +854,10 @@ impl MetricsContainer for Bucket {
     fn tag(&self, name: &str) -> Option<&str> {
         self.tags.get(name).map(|s| s.as_str())
     }
+
+    fn remove_tag(&mut self, name: &str) {
+        self.tags.remove(name);
+    }
 }
 
 /// Any error that may occur during aggregation.
