@@ -2471,7 +2471,9 @@ mod tests {
 
     macro_rules! span_description_test {
         // Tests the scrubbed span description for the given op.
-        // An empty output `""` means the span description was not scrubbed at all.
+
+        // Same output and input means the input was already scrubbed.
+        // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
         ($name:ident, $description_in:literal, $op_in:literal, $output:literal) => {
             #[test]
             fn $name() {
@@ -2518,12 +2520,15 @@ mod tests {
                         .is_none());
                 } else {
                     assert_eq!(
-                        $output,
-                        span.value()
-                            .and_then(|span| span.data.value())
-                            .and_then(|data| data.get("description.scrubbed"))
-                            .and_then(|an_value| an_value.as_str())
-                            .unwrap()
+                        format!("\"{}\"", $output),
+                        format!(
+                            "{:?}",
+                            span.value()
+                                .and_then(|span| span.data.value())
+                                .and_then(|data| data.get("description.scrubbed"))
+                                .and_then(|an_value| an_value.as_str())
+                                .unwrap()
+                        )
                     );
                 }
             }
@@ -2601,14 +2606,14 @@ mod tests {
         span_description_scrub_various_parameterized_ins_percentage,
         "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)"
+        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)"
     );
 
     span_description_test!(
         span_description_scrub_various_parameterized_ins_dollar,
         "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (%s)"
+        "SELECT count() FROM table WHERE id IN ($1, $2, $3)"
     );
 
     span_description_test!(
@@ -2685,7 +2690,7 @@ mod tests {
         span_description_dont_scrub_double_quoted_strings_format_postgres,
         r#"SELECT * from \"table\" WHERE sku = %s"#,
         "db.sql.query",
-        ""
+        r#"SELECT * from \"table\" WHERE sku = %s"#
     );
 
     span_description_test!(
@@ -2727,7 +2732,7 @@ mod tests {
         span_description_already_scrubbed,
         "SELECT * FROM table123 WHERE id = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM table123 WHERE id = %s"
     );
 
     span_description_test!(
@@ -2755,28 +2760,28 @@ mod tests {
         span_description_scrub_boolean_not_in_tablename_true,
         "SELECT * FROM table_true WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM table_true WHERE deleted = %s"
     );
 
     span_description_test!(
         span_description_scrub_boolean_not_in_tablename_false,
         "SELECT * FROM table_false WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM table_false WHERE deleted = %s"
     );
 
     span_description_test!(
         span_description_scrub_boolean_not_in_mid_tablename_true,
         "SELECT * FROM tatrueble WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM tatrueble WHERE deleted = %s"
     );
 
     span_description_test!(
         span_description_scrub_boolean_not_in_mid_tablename_false,
         "SELECT * FROM tafalseble WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM tafalseble WHERE deleted = %s"
     );
 
     span_description_test!(
