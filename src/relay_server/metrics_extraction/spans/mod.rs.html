@@ -664,8 +664,8 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
-                        MetricNamespace::Spans,
-                        <span class="string">&quot;user&quot;</span>,
+                        MetricNamespace::Transactions,
+                        <span class="string">&quot;span.user&quot;</span>,
                         MetricUnit::None,
                         MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
                         timestamp,
@@ -679,8 +679,8 @@
                 // such as sub-transactions. We accept these limitations for
                 // now.
                 </span>metrics.push(Metric::new_mri(
-                    MetricNamespace::Spans,
-                    <span class="string">&quot;exclusive_time&quot;</span>,
+                    MetricNamespace::Transactions,
+                    <span class="string">&quot;span.exclusive_time&quot;</span>,
                     MetricUnit::Duration(DurationUnit::MilliSecond),
                     MetricValue::Distribution(<span class="kw-2">*</span>exclusive_time),
                     timestamp,
@@ -691,8 +691,8 @@
             <span class="comment">// The `duration` of a span. This metric also serves as the
             // counter metric `throughput`.
             </span>metrics.push(Metric::new_mri(
-                MetricNamespace::Spans,
-                <span class="string">&quot;duration&quot;</span>,
+                MetricNamespace::Transactions,
+                <span class="string">&quot;span.duration&quot;</span>,
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
                 timestamp,
