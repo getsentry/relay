@@ -11,6 +11,7 @@ use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::RequestPartsExt;
+use data_encoding::BASE64;
 use relay_common::{
     Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectKeyError, ProjectId, ProjectKey, Scheme,
 };
@@ -157,7 +158,7 @@ impl Serialize for PartialDsn {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        serializer.collect_str(self)
     }
 }
 
@@ -477,6 +478,30 @@ fn auth_from_parts(req: &Parts, path_key: Option<String>) -> Result<Auth, BadEve
         }
 
         auth = Some(header.parse::<Auth>()?);
+    }
+
+    // try to get authentication info from basic auth
+    if let Some(basic_auth) = req
+        .headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|x| {
+            if x.len() >= 6 && x[..6].eq_ignore_ascii_case("basic ") {
+                x.get(6..)
+            } else {
+                None
+            }
+        })
+        .and_then(|value| {
+            let decoded = String::from_utf8(BASE64.decode(value.as_bytes()).ok()?).ok()?;
+            let (public_key, _) = decoded.split_once(':')?;
+            Auth::from_pairs([("sentry_key", public_key)]).ok()
+        })
+    {
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
+        auth = Some(basic_auth);
     }
 
     // try to extract authentication info from URL query_param .../?sentry_...=<key>...

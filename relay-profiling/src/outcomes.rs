@@ -14,5 +14,7 @@ pub fn discard_reason(err: ProfileError) -> &'static str {
         ProfileError::NoTransactionAssociated => "profiling_no_transaction_associated",
         ProfileError::NotEnoughSamples => "profiling_not_enough_samples",
         ProfileError::PlatformNotSupported => "profiling_platform_not_supported",
+        ProfileError::TooManyProfiles => "profiling_too_many_profiles",
+        ProfileError::DurationIsTooLong => "profiling_duration_is_too_long",
     }
 }

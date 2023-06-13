@@ -3,7 +3,9 @@ use std::collections::BTreeSet;
 use relay_auth::PublicKey;
 use relay_filter::FiltersConfig;
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::{BreakdownsConfig, MeasurementsConfig, TransactionNameRule};
+use relay_general::store::{
+    BreakdownsConfig, MeasurementsConfig, SpanDescriptionRule, TransactionNameRule,
+};
 use relay_general::types::SpanAttribute;
 use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
@@ -65,6 +67,12 @@ pub struct ProjectConfig {
     /// Transaction renaming rules.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tx_name_rules: Vec<TransactionNameRule>,
+    /// Whether or not a project is ready to mark all URL transactions as "sanitized".
+    #[serde(skip_serializing_if = "is_false")]
+    pub tx_name_ready: bool,
+    /// Span description renaming rules.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
 }
 
 impl Default for ProjectConfig {
@@ -87,6 +95,8 @@ impl Default for ProjectConfig {
             metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
             tx_name_rules: Vec::new(),
+            tx_name_ready: false,
+            span_description_rules: None,
         }
     }
 }
@@ -123,4 +133,13 @@ pub struct LimitedProjectConfig {
     pub features: BTreeSet<Feature>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tx_name_rules: Vec<TransactionNameRule>,
+    /// Whether or not a project is ready to mark all URL transactions as "sanitized".
+    #[serde(skip_serializing_if = "is_false")]
+    pub tx_name_ready: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }

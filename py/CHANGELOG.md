@@ -2,7 +2,27 @@
 
 ## Unreleased
 
+- Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+
+## 0.8.25
+
+### Various fixes & improvements
+
+- release: 0.8.24 (a9a78dfa) by @getsentry-bot
+
+## 0.8.24
+
+- Compile regexes in PII config validation. ([#2152](https://github.com/getsentry/relay/pull/2152))
+
+## 0.8.23
+
+- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+
+## 0.8.22
+
 - Store `geo.subdivision` of the end user location. ([#2058](https://github.com/getsentry/relay/pull/2058))
+- Scrub URLs in span descriptions. ([#2095](https://github.com/getsentry/relay/pull/2095))
+- Add new FFI function for running dynamic sampling. ([#2091](https://github.com/getsentry/relay/pull/2091))
 
 ## 0.8.21
 

@@ -597,4 +597,14 @@ struct RelayStr relay_validate_sampling_configuration(const struct RelayStr *val
 struct RelayStr relay_validate_project_config(const struct RelayStr *value,
                                               bool strict);
 
+/**
+ * Runs dynamic sampling given the sampling config, root sampling config, dsc and event.
+ *
+ * Returns the sampling decision containing the sample_rate and the list of matched rule ids.
+ */
+struct RelayStr run_dynamic_sampling(const struct RelayStr *sampling_config,
+                                     const struct RelayStr *root_sampling_config,
+                                     const struct RelayStr *dsc,
+                                     const struct RelayStr *event);
+
 #endif /* RELAY_H_INCLUDED */

@@ -183,7 +183,7 @@ fn normalize_uri(value: &str) -> Cow<'_, str> {
 #[serde(rename_all = "kebab-case")]
 struct CspRaw {
     #[serde(skip_serializing_if = "Option::is_none")]
-    effective_directive: Option<CspDirective>,
+    effective_directive: Option<String>,
     #[serde(default = "CspRaw::default_blocked_uri")]
     blocked_uri: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -218,20 +218,31 @@ impl CspRaw {
 
     fn effective_directive(&self) -> Result<CspDirective, InvalidSecurityError> {
         // Firefox doesn't send effective-directive, so parse it from
-        // violated-directive but prefer effective-directive when present
-        //
+        // violated-directive but prefer effective-directive when present.
         // refs: https://bugzil.la/1192684#c8
 
-        if let Some(directive) = self.effective_directive {
-            return Ok(directive);
+        if let Some(directive) = &self.effective_directive {
+            // In C2P1 and CSP2, violated_directive and possibly effective_directive might contain
+            // more information than just the CSP-directive.
+            if let Ok(parsed_directive) = directive
+                .split_once(' ')
+                .map_or(directive.as_str(), |s| s.0)
+                .parse()
+            {
+                return Ok(parsed_directive);
+            }
         }
 
-        self.violated_directive
+        if let Ok(parsed_directive) = self
+            .violated_directive
             .split_once(' ')
-            .map_or(&*self.violated_directive, |x| x.0)
+            .map_or(self.violated_directive.as_str(), |s| s.0)
             .parse()
-            .ok()
-            .ok_or(InvalidSecurityError)
+        {
+            Ok(parsed_directive)
+        } else {
+            Err(InvalidSecurityError)
+        }
     }
 
     fn get_message(&self, effective_directive: CspDirective) -> String {
@@ -1927,5 +1938,40 @@ mod tests {
             csp_raw.effective_directive(),
             Ok(CspDirective::DefaultSrc)
         ));
+    }
+
+    #[test]
+    fn test_extract_effective_directive_from_long_form() {
+        // First try from 'effective-directive' field
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "effective-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
+                "blocked-uri": "data"
+            }
+        }"#;
+
+        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
+        let raw_csp = raw_report.csp_report;
+
+        let effective_directive = raw_csp.effective_directive().unwrap();
+
+        assert_eq!(effective_directive, CspDirective::ScriptSrc);
+
+        // Then from 'violated-directive' field
+        let json = r#"{
+            "csp-report": {
+                "document-uri": "http://example.com/foo",
+                "violated-directive": "script-src 'report-sample' 'strict-dynamic' 'unsafe-eval' 'nonce-random" ,
+                "blocked-uri": "data"
+            }
+        }"#;
+
+        let raw_report = serde_json::from_slice::<CspReportRaw>(json.as_bytes()).unwrap();
+        let raw_csp = raw_report.csp_report;
+
+        let effective_directive = raw_csp.effective_directive().unwrap();
+
+        assert_eq!(effective_directive, CspDirective::ScriptSrc);
     }
 }

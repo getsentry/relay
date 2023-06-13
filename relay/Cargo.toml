@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.4.0"
+version = "23.5.2"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -27,3 +27,6 @@ relay-config = { path = "../relay-config" }
 relay-log = { path = "../relay-log", features = ["init"] }
 relay-server = { path = "../relay-server" }
 relay-statsd = { path = "../relay-statsd" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemallocator = { version = "0.5.0", features = ["background_threads"] }

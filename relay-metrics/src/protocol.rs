@@ -6,8 +6,8 @@ use std::iter::FusedIterator;
 use hash32::{FnvHasher, Hasher as _};
 #[doc(inline)]
 pub use relay_common::{
-    CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
-    UnixTimestamp,
+    is_valid_metric_name, CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit,
+    ParseMetricUnitError, UnixTimestamp,
 };
 use serde::{Deserialize, Serialize};
 
@@ -149,20 +149,6 @@ impl fmt::Display for ParseMetricError {
     }
 }
 
-/// Validates a metric name. This is the statsd name, i.e. without type or unit.
-///
-/// Metric names cannot be empty, must begin with a letter and can consist of ASCII alphanumerics,
-/// underscores, slashes and periods.
-fn is_valid_name(name: &str) -> bool {
-    let mut iter = name.as_bytes().iter();
-    if let Some(first_byte) = iter.next() {
-        if first_byte.is_ascii_alphabetic() {
-            return iter.all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'/'));
-        }
-    }
-    false
-}
-
 /// The namespace of a metric.
 ///
 /// Namespaces allow to identify the product entity that the metric got extracted from, and/or
@@ -179,6 +165,8 @@ pub enum MetricNamespace {
     Sessions,
     /// Metrics extracted from transaction events.
     Transactions,
+    /// Metrics extracted from spans.
+    Spans,
     /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
@@ -196,6 +184,7 @@ impl std::str::FromStr for MetricNamespace {
         match ns {
             "sessions" => Ok(MetricNamespace::Sessions),
             "transactions" => Ok(MetricNamespace::Transactions),
+            "spans" => Ok(MetricNamespace::Spans),
             _ => Ok(MetricNamespace::Unsupported),
         }
     }
@@ -208,6 +197,7 @@ impl fmt::Display for MetricNamespace {
         match self {
             MetricNamespace::Sessions => write!(f, "sessions"),
             MetricNamespace::Transactions => write!(f, "transactions"),
+            MetricNamespace::Spans => write!(f, "spans"),
             MetricNamespace::Unsupported => write!(f, "unsupported"),
         }
     }
@@ -287,7 +277,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
-    if !is_valid_name(name) {
+    if !is_valid_metric_name(name) {
         return None;
     }
 
@@ -598,6 +588,9 @@ pub trait MetricsContainer {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Returns the value of the given tag, if present.
+    fn tag(&self, name: &str) -> Option<&str>;
 }
 
 impl MetricsContainer for Metric {
@@ -607,6 +600,10 @@ impl MetricsContainer for Metric {
 
     fn len(&self) -> usize {
         1
+    }
+
+    fn tag(&self, name: &str) -> Option<&str> {
+        self.tags.get(name).map(|s| s.as_str())
     }
 }
 

@@ -19,7 +19,7 @@ pub enum TransactionMetric {
     Duration {
         unit: DurationUnit,
         value: DistributionType,
-        tags: CommonTags,
+        tags: TransactionDurationTags,
     },
     /// An internal counter metric used to compute dynamic sampling biases.
     ///
@@ -97,6 +97,22 @@ impl IntoMetric for TransactionMetric {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub struct TransactionDurationTags {
+    pub has_profile: bool,
+    pub universal_tags: CommonTags,
+}
+
+impl From<TransactionDurationTags> for BTreeMap<String, String> {
+    fn from(tags: TransactionDurationTags) -> Self {
+        let mut map: BTreeMap<String, String> = tags.universal_tags.into();
+        if tags.has_profile {
+            map.insert("has_profile".to_string(), "true".to_string());
+        }
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct TransactionMeasurementTags {
     pub measurement_rating: Option<String>,
     pub universal_tags: CommonTags,
@@ -150,6 +166,10 @@ pub enum CommonTag {
     TransactionStatus,
     TransactionOp,
     HttpMethod,
+    HttpStatusCode,
+    BrowserName,
+    OsName,
+    GeoCountryCode,
     Custom(String),
 }
 
@@ -164,6 +184,10 @@ impl Display for CommonTag {
             CommonTag::TransactionStatus => "transaction.status",
             CommonTag::TransactionOp => "transaction.op",
             CommonTag::HttpMethod => "http.method",
+            CommonTag::HttpStatusCode => "http.status_code",
+            CommonTag::BrowserName => "browser.name",
+            CommonTag::OsName => "os.name",
+            CommonTag::GeoCountryCode => "geo.country_code",
             CommonTag::Custom(s) => s,
         };
         write!(f, "{name}")

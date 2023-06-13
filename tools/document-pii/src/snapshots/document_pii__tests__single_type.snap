@@ -1,0 +1,8 @@
+---
+source: tools/document-pii/src/main.rs
+expression: output
+---
+[
+    "SubStruct.field2",
+    "SubStruct.mystery_field.bitcoin_wallet_key",
+]

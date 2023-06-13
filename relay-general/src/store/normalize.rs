@@ -1,4 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::Arc;
@@ -7,7 +8,7 @@ use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use relay_common::{DurationUnit, FractionUnit, MetricUnit};
+use relay_common::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -19,10 +20,12 @@ use crate::protocol::{
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
-use crate::store::{ClockDriftProcessor, GeoIpLookup, StoreConfig, TransactionNameConfig};
+use crate::store::{
+    ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
+};
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
-    ProcessingResult, Remark, RemarkType, Value,
+    ProcessingResult, Remark, RemarkType, SpanAttribute, Value,
 };
 use crate::user_agent::RawUserAgentInfo;
 
@@ -54,6 +57,12 @@ pub struct MeasurementsConfig {
 
     /// The maximum number of measurements allowed per event that are not known measurements.
     max_custom_measurements: usize,
+}
+
+impl MeasurementsConfig {
+    /// The length of a full measurement MRI, minus the name and the unit. This length is the same
+    /// for every measurement-mri.
+    pub const MEASUREMENT_MRI_OVERHEAD: usize = 29;
 }
 
 /// Validate fields that go into a `sentry.models.BoundedIntegerField`.
@@ -264,17 +273,41 @@ fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     measurements_config: &MeasurementsConfig,
+    max_name_and_unit_len: Option<usize>,
 ) {
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
 
     measurements.retain(|name, value| {
-        let measurement = match value.value() {
+        let measurement = match value.value_mut() {
             Some(m) => m,
             None => return false,
         };
+
+        if !is_valid_metric_name(name) {
+            meta.add_error(Error::invalid(format!(
+                "Metric name contains invalid characters: \"{name}\""
+            )));
+            removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+            return false;
+        }
+
         // TODO(jjbayer): Should we actually normalize the unit into the event?
         let unit = measurement.unit.value().unwrap_or(&MetricUnit::None);
+
+        if let Some(max_name_and_unit_len) = max_name_and_unit_len {
+            let max_name_len = max_name_and_unit_len - unit.to_string().len();
+
+            if name.len() > max_name_len {
+                meta.add_error(Error::invalid(format!(
+                    "Metric name too long {}/{max_name_len}: \"{name}\"",
+                    name.len(),
+                )));
+                removed_measurements
+                    .insert(name.clone(), Annotated::new(std::mem::take(measurement)));
+                return false;
+            }
+        }
 
         // Check if this is a builtin measurement:
         for builtin_measurement in &measurements_config.builtin_measurements {
@@ -292,16 +325,13 @@ fn remove_invalid_measurements(
             return true;
         }
 
-        // Retain payloads in _meta just for excessive custom measurements.
-        if let Some(measurement) = value.value_mut().take() {
-            removed_measurements.insert(name.clone(), Annotated::new(measurement));
-        }
+        meta.add_error(Error::invalid(format!("Too many measurements: {name}")));
+        removed_measurements.insert(name.clone(), Annotated::new(std::mem::take(measurement)));
 
         false
     });
 
     if !removed_measurements.is_empty() {
-        meta.add_error(Error::invalid("too many measurements"));
         meta.set_original_value(Some(removed_measurements));
     }
 }
@@ -360,14 +390,18 @@ fn normalize_units(measurements: &mut Measurements) {
 }
 
 /// Ensure measurements interface is only present for transaction events.
-fn normalize_measurements(event: &mut Event, measurements_config: Option<&MeasurementsConfig>) {
+fn normalize_measurements(
+    event: &mut Event,
+    measurements_config: Option<&MeasurementsConfig>,
+    max_mri_len: Option<usize>,
+) {
     if event.ty.value() != Some(&EventType::Transaction) {
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            remove_invalid_measurements(measurements, meta, measurements_config);
+            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
@@ -693,12 +727,16 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
+    pub max_name_and_unit_len: Option<usize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
     pub normalize_user_agent: Option<bool>,
     pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
     pub device_class_synthesis_config: bool,
+    pub scrub_span_descriptions: bool,
+    pub light_normalize_spans: bool,
+    pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 }
 
 pub fn light_normalize_event(
@@ -714,8 +752,11 @@ pub fn light_normalize_event(
         // (internally noops for non-transaction events).
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction)
-        let mut transactions_processor =
-            transactions::TransactionsProcessor::new(config.transaction_name_config);
+        let mut transactions_processor = transactions::TransactionsProcessor::new(
+            config.transaction_name_config,
+            config.scrub_span_descriptions,
+            config.span_description_rules,
+        );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
@@ -769,8 +810,21 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(event, config.measurements_config); // Measurements are part of the metric extraction
+        normalize_measurements(
+            event,
+            config.measurements_config,
+            config.max_name_and_unit_len,
+        ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+
+        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+            // XXX(iker): span normalization runs in the store processor, but
+            // the exclusive time is required for span metrics. Most of
+            // transactions don't have many spans, but if this is no longer the
+            // case and we roll this flag out for most projects, we may want to
+            // reconsider this approach.
+            spans::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
+        }
 
         Ok(())
     })
@@ -1130,9 +1184,10 @@ fn remove_logger_word(tokens: &mut Vec<&str>) {
         tokens.pop();
     }
 }
-
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use chrono::TimeZone;
     use insta::assert_debug_snapshot;
     use relay_common::Uuid;
@@ -2411,7 +2466,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        normalize_measurements(&mut event, None);
+        normalize_measurements(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -2480,7 +2535,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_measurements(&mut event, Some(&config));
+        normalize_measurements(&mut event, Some(&config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
@@ -2509,7 +2564,7 @@ mod tests {
                   [
                     "invalid_data",
                     {
-                      "reason": "too many measurements",
+                      "reason": "Too many measurements: my_custom_measurement_3",
                     },
                   ],
                 ],
@@ -3006,5 +3061,66 @@ mod tests {
             ),
         )
         "###);
+    }
+
+    #[test]
+    fn test_keeps_valid_measurement() {
+        let name = "lcp";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+
+        assert!(!is_measurement_dropped(name, measurement));
+    }
+
+    #[test]
+    fn test_drops_too_long_measurement_names() {
+        let name = "lcpppppppppppppppppppppppppppp";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+
+        assert!(is_measurement_dropped(name, measurement));
+    }
+
+    #[test]
+    fn test_drops_measurements_with_invalid_characters() {
+        let name = "i æm frøm nørwåy";
+        let measurement = Measurement {
+            value: Annotated::new(420.69),
+            unit: Annotated::new(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        };
+
+        assert!(is_measurement_dropped(name, measurement));
+    }
+
+    fn is_measurement_dropped(name: &str, measurement: Measurement) -> bool {
+        let max_name_and_unit_len = Some(30);
+
+        let mut measurements: BTreeMap<String, Annotated<Measurement>> = Object::new();
+        measurements.insert(name.to_string(), Annotated::new(measurement));
+
+        let mut measurements = Measurements(measurements);
+        let mut meta = Meta::default();
+        let measurements_config = MeasurementsConfig {
+            max_custom_measurements: 1,
+            ..Default::default()
+        };
+
+        // Just for clarity.
+        // Checks that there is 1 measurement before processing.
+        assert_eq!(measurements.len(), 1);
+
+        remove_invalid_measurements(
+            &mut measurements,
+            &mut meta,
+            &measurements_config,
+            max_name_and_unit_len,
+        );
+
+        // Checks whether the measurement is dropped.
+        measurements.len() == 0
     }
 }
