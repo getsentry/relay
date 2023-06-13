@@ -897,6 +897,13 @@
 <a href="#897" id="897">897</a>
 <a href="#898" id="898">898</a>
 <a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
@@ -1490,6 +1497,9 @@
 
     <span class="doccomment">/// Returns the value of the given tag, if present.
     </span><span class="kw">fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;;
+
+    <span class="doccomment">/// Removes the given tag, if present.
+    </span><span class="kw">fn </span>remove_tag(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str);
 }
 
 <span class="kw">impl </span>MetricsContainer <span class="kw">for </span>Metric {
@@ -1503,6 +1513,10 @@
 
     <span class="kw">fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
         <span class="self">self</span>.tags.get(name).map(|s| s.as_str())
+    }
+
+    <span class="kw">fn </span>remove_tag(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) {
+        <span class="self">self</span>.tags.remove(name);
     }
 }
 

@@ -3177,6 +3177,10 @@
 <a href="#3177" id="3177">3177</a>
 <a href="#3178" id="3178">3178</a>
 <a href="#3179" id="3179">3179</a>
+<a href="#3180" id="3180">3180</a>
+<a href="#3181" id="3181">3181</a>
+<a href="#3182" id="3182">3182</a>
+<a href="#3183" id="3183">3183</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4032,6 +4036,10 @@
 
     <span class="kw">fn </span>tag(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
         <span class="self">self</span>.tags.get(name).map(|s| s.as_str())
+    }
+
+    <span class="kw">fn </span>remove_tag(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str) {
+        <span class="self">self</span>.tags.remove(name);
     }
 }
 
