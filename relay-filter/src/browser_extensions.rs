@@ -264,7 +264,7 @@ mod tests {
             assert_ne!(
                 filter_result,
                 Ok(()),
-                "Event filter not recognizing events with known values {exc_value}"
+                "Event filter not recognizing events with known value '{exc_value}'"
             )
         }
     }
