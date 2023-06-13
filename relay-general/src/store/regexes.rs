@@ -76,6 +76,9 @@ pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
+pub static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?i)(/\?|\$1|%s)"#).unwrap());
+
 /// Regex with multiple capture groups for cache tokens we should scrub.
 ///
 /// The regex attempts to identify all tokens based on hex chars and segments,

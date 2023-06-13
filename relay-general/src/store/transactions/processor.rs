@@ -11,8 +11,8 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::{
-    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
-    TRANSACTION_NAME_NORMALIZER_REGEX,
+    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
+    SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
 };
 use crate::store::SpanDescriptionRule;
 use crate::types::{
@@ -386,6 +386,10 @@ fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingA
 
 /// Normalize the given SQL-query-like string.
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    if is_sql_query_scrubbed(string) {
+        return Ok(true);
+    }
+
     scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
 }
 
@@ -447,6 +451,16 @@ fn scrub_identifiers_with_regex(
         Ok(())
     })?;
     Ok(did_change)
+}
+
+fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
+    if let Some(is_match) = query
+        .value()
+        .map(|q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
+    {
+        return is_match;
+    }
+    false
 }
 
 impl Processor for TransactionsProcessor<'_> {
