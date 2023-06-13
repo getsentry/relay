@@ -2873,7 +2873,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 None,
@@ -2974,7 +2973,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 Some(&Vec::from([SpanDescriptionRule {
