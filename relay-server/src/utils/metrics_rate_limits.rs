@@ -269,4 +269,77 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn profiles_quota_is_enforced() {
+        let metrics = vec![
+            Metric {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: Default::default(),
+                value: MetricValue::Distribution(123.0),
+            },
+            Metric {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                name: "d:transactions/duration@millisecond".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: MetricValue::Distribution(456.0),
+            },
+            Metric {
+                // unrelated metric
+                timestamp: UnixTimestamp::now(),
+                name: "something_else".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: MetricValue::Distribution(123.0),
+            },
+        ];
+        let quotas = vec![Quota {
+            id: None,
+            categories: smallvec![DataCategory::Profile],
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            limit: Some(0),
+            window: None,
+            reason_code: None,
+        }];
+        let (outcome_sink, mut rx) = Addr::custom();
+
+        let mut limiter = MetricsLimiter::create(
+            metrics,
+            quotas,
+            Scoping {
+                organization_id: 1,
+                project_id: ProjectId::new(1),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: None,
+            },
+        )
+        .unwrap();
+
+        limiter.enforce_limits(Ok(&RateLimits::new()), outcome_sink);
+        let metrics = limiter.into_metrics();
+
+        // All metrics have been preserved:
+        assert_eq!(metrics.len(), 3);
+
+        // Profile tag has been removed:
+        assert!(metrics[0].tags.is_empty());
+        assert!(metrics[1].tags.is_empty());
+
+        rx.close();
+
+        let outcomes: Vec<_> = (0..)
+            .map(|_| rx.blocking_recv())
+            .take_while(|o| o.is_some())
+            .flatten()
+            .map(|o| (o.outcome, o.category, o.quantity))
+            .collect();
+
+        assert_eq!(
+            outcomes,
+            vec![(Outcome::RateLimited(None), DataCategory::Profile, 1)]
+        );
+    }
 }
