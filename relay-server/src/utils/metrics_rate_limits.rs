@@ -1,5 +1,5 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
 use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
@@ -22,12 +22,17 @@ pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>
     /// Binary index of metrics/buckets in the transaction namespace (used to retain).
     transaction_buckets: Vec<bool>,
 
+    /// Binary index of metrics/buckets that encode processed profiles.
+    profile_buckets: Vec<bool>,
+
     /// The number of transactions contributing to these metrics.
     transaction_count: usize,
 
     /// The number of profiles contained in these metrics.
     profile_count: usize,
 }
+
+const PROFILE_TAG: &str = "has_profile";
 
 impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     /// Create a new limiter instance.
@@ -54,7 +59,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                     // The "duration" metric is extracted exactly once for every processed
                     // transaction, so we can use it to count the number of transactions.
                     let count = metric.len();
-                    let has_profile = metric.tag("has_profile") == Some("true");
+                    let has_profile = metric.tag(PROFILE_TAG) == Some("true");
                     Some((count, has_profile))
                 } else {
                     // For any other metric in the transaction namespace, we check the limit with
@@ -76,11 +81,19 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
         if let Some((transaction_count, profile_count)) = total_counts {
             let transaction_buckets = counts.iter().map(Option::is_some).collect();
+            let profile_buckets = counts
+                .iter()
+                .map(|o| match o {
+                    Some((_, has_profile)) => *has_profile,
+                    None => false,
+                })
+                .collect();
             Ok(Self {
                 metrics: buckets,
                 quotas,
                 scoping,
                 transaction_buckets,
+                profile_buckets,
                 transaction_count,
                 profile_count,
             })
@@ -129,17 +142,34 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 quantity: self.transaction_count as u32,
             });
 
-            if self.profile_count > 0 {
-                outcome_aggregator.send(TrackOutcome {
-                    timestamp,
-                    scoping: self.scoping,
-                    outcome,
-                    event_id: None,
-                    remote_addr: None,
-                    category: DataCategory::Profile,
-                    quantity: self.profile_count as u32,
-                });
+            self.report_profiles(outcome, timestamp, outcome_aggregator);
+        }
+    }
+
+    fn strip_profiles(&mut self) {
+        for (has_profile, bucket) in self.profile_buckets.iter().zip(self.metrics.iter_mut()) {
+            if *has_profile {
+                bucket.remove_tag(PROFILE_TAG);
             }
+        }
+    }
+
+    fn report_profiles(
+        &self,
+        outcome: Outcome,
+        timestamp: DateTime<Utc>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
+        if self.profile_count > 0 {
+            outcome_aggregator.send(TrackOutcome {
+                timestamp,
+                scoping: self.scoping,
+                outcome,
+                event_id: None,
+                remote_addr: None,
+                category: DataCategory::Profile,
+                quantity: self.profile_count as u32,
+            });
         }
     }
 
@@ -182,11 +212,12 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                         rate_limits.check_with_quotas(self.quotas.as_ref(), item_scoping);
 
                     if let Some(limit) = active_rate_limits.longest() {
-                        self.drop_with_outcome(
+                        self.strip_profiles();
+                        self.report_profiles(
                             Outcome::RateLimited(limit.reason_code.clone()),
+                            UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now),
                             outcome_aggregator,
-                        );
-                        dropped_stuff = true;
+                        )
                     }
                 }
             }
