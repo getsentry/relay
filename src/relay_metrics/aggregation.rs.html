@@ -3172,6 +3172,11 @@
 <a href="#3172" id="3172">3172</a>
 <a href="#3173" id="3173">3173</a>
 <a href="#3174" id="3174">3174</a>
+<a href="#3175" id="3175">3175</a>
+<a href="#3176" id="3176">3176</a>
+<a href="#3177" id="3177">3177</a>
+<a href="#3178" id="3178">3178</a>
+<a href="#3179" id="3179">3179</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4047,20 +4052,20 @@
 #[allow(clippy::enum_variant_names)]
 </span><span class="kw">enum </span>AggregateMetricsErrorKind {
     <span class="doccomment">/// A metric bucket had invalid characters in the metric name.
-    </span><span class="attr">#[error(<span class="string">&quot;found invalid characters&quot;</span>)]
-    </span>InvalidCharacters,
+    </span><span class="attr">#[error(<span class="string">&quot;found invalid characters: {0}&quot;</span>)]
+    </span>InvalidCharacters(String),
     <span class="doccomment">/// A metric bucket had an unknown namespace in the metric name.
-    </span><span class="attr">#[error(<span class="string">&quot;found unsupported namespace&quot;</span>)]
-    </span>UnsupportedNamespace,
+    </span><span class="attr">#[error(<span class="string">&quot;found unsupported namespace: {0}&quot;</span>)]
+    </span>UnsupportedNamespace(MetricNamespace),
     <span class="doccomment">/// A metric bucket&#39;s timestamp was out of the configured acceptable range.
-    </span><span class="attr">#[error(<span class="string">&quot;found invalid timestamp&quot;</span>)]
-    </span>InvalidTimestamp,
+    </span><span class="attr">#[error(<span class="string">&quot;found invalid timestamp: {0}&quot;</span>)]
+    </span>InvalidTimestamp(UnixTimestamp),
     <span class="doccomment">/// Internal error: Attempted to merge two metric buckets of different types.
     </span><span class="attr">#[error(<span class="string">&quot;found incompatible metric types&quot;</span>)]
     </span>InvalidTypes,
     <span class="doccomment">/// A metric bucket had a too long string (metric name or a tag key/value).
-    </span><span class="attr">#[error(<span class="string">&quot;found invalid string&quot;</span>)]
-    </span>InvalidStringLength,
+    </span><span class="attr">#[error(<span class="string">&quot;found invalid string: {0}&quot;</span>)]
+    </span>InvalidStringLength(String),
     <span class="doccomment">/// A metric bucket is too large for the global bytes limit.
     </span><span class="attr">#[error(<span class="string">&quot;total metrics limit exceeded&quot;</span>)]
     </span>TotalLimitExceeded,
@@ -4227,7 +4232,7 @@
             <span class="macro">relay_statsd::metric!</span>(
                 histogram(MetricHistograms::InvalidBucketTimestamp) = delta <span class="kw">as </span>f64
             );
-            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidTimestamp.into());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
         }
 
         <span class="prelude-val">Ok</span>(output_timestamp)
@@ -4726,7 +4731,6 @@
                     <span class="string">&quot;bucket.project_key&quot;</span>,
                     key.project_key.as_str().to_owned().into(),
                 );
-                scope.set_extra(<span class="string">&quot;bucket.metric_name&quot;</span>, key.metric_name.into());
                 scope.set_extra(
                     <span class="string">&quot;bucket.metric_name.length&quot;</span>,
                     metric_name_length.to_string().into(),
@@ -4736,7 +4740,7 @@
                     aggregator_config.max_name_length.to_string().into(),
                 );
             });
-            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidStringLength.into());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
         }
 
         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">Self</span>::normalize_metric_name(<span class="kw-2">&amp;mut </span>key) {
@@ -4757,8 +4761,10 @@
         key.metric_name = <span class="kw">match </span>MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>key.metric_name) {
             <span class="prelude-val">Ok</span>(mri) =&gt; {
                 <span class="kw">if </span><span class="macro">matches!</span>(mri.namespace, MetricNamespace::Unsupported) {
-                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric namespace {:?}&quot;</span>, key.metric_name);
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::UnsupportedNamespace.into());
+                    <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric namespace {:?}&quot;</span>, <span class="kw-2">&amp;</span>key.metric_name);
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(
+                        AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into(),
+                    );
                 }
 
                 <span class="kw">let </span><span class="kw-2">mut </span>metric_name = mri.to_string();
@@ -4767,8 +4773,10 @@
                 metric_name
             }
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric name {:?}&quot;</span>, key.metric_name);
-                <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidCharacters.into());
+                <span class="macro">relay_log::debug!</span>(<span class="string">&quot;invalid metric name {:?}&quot;</span>, <span class="kw-2">&amp;</span>key.metric_name);
+                <span class="kw">return </span><span class="prelude-val">Err</span>(
+                    AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
+                );
             }
         };
 
@@ -5107,7 +5115,7 @@
         } = msg;
         <span class="kw">for </span>metric <span class="kw">in </span>metrics {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.insert(project_key, metric) {
-                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to insert metrics&quot;</span>);
+                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to insert metrics&quot;</span>,);
             }
         }
     }
@@ -6016,7 +6024,7 @@
                 .get_bucket_timestamp(UnixTimestamp::from_secs(u64::MAX), <span class="number">2</span>)
                 .unwrap_err()
                 .kind,
-            AggregateMetricsErrorKind::InvalidTimestamp
+            AggregateMetricsErrorKind::InvalidTimestamp(<span class="kw">_</span>)
         ));
     }
 
@@ -6147,10 +6155,12 @@
         };
         <span class="kw">let </span>validation = AggregatorService::validate_bucket_key(long_metric, <span class="kw-2">&amp;</span>aggregator_config);
 
-        <span class="macro">assert_eq!</span>(
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             validation.unwrap_err(),
-            AggregateMetricsError::from(AggregateMetricsErrorKind::InvalidStringLength)
-        );
+            AggregateMetricsError {
+                kind: AggregateMetricsErrorKind::InvalidStringLength(<span class="kw">_</span>)
+            }
+        ));
 
         <span class="kw">let </span>short_metric_long_tag_key = BucketKey {
             project_key,
