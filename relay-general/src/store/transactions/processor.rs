@@ -24,8 +24,6 @@ use crate::types::{
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
-    /// True if URL transactions should be marked as sanitized, even if there are no rules.
-    pub ready: bool,
 }
 
 /// Rejects transactions based on required fields.
@@ -471,18 +469,13 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        // If the project is marked as 'ready', always set the transaction source to sanitized.
-        let mut mark_as_sanitized = self.name_config.ready;
-
         if matches!(
             event.get_transaction_source(),
             &TransactionSource::Url | &TransactionSource::Sanitized
         ) {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            scrub_identifiers(&mut event.transaction)?.then(|| {
-                mark_as_sanitized = true;
-            });
+            scrub_identifiers(&mut event.transaction)?;
         }
 
         if !self.name_config.rules.is_empty() {
@@ -490,11 +483,16 @@ impl Processor for TransactionsProcessor<'_> {
                 &mut event.transaction,
                 event.transaction_info.value_mut(),
             )?;
-
-            mark_as_sanitized = true;
         }
 
-        if mark_as_sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
+        if matches!(event.get_transaction_source(), &TransactionSource::Url) {
+            // Always mark URL transactions as sanitized, even if no modification were made by
+            // clusterer rules or regex matchers. This has the consequence that the transaction name
+            // is always extracted as a tag on transaction metrics.
+            // Instead of changing the source to "sanitized", we could have changed metrics extraction
+            // to also extract the transaction name for URL transactions. But this is the safer way,
+            // because the product currently uses queries that assume that `source:url` is equivalent
+            // to `transaction:<< unparameterized >>`.
             event
                 .transaction_info
                 .get_or_insert_with(Default::default)
@@ -1808,14 +1806,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[],
-                    ready: true,
-                },
-                false,
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[] }, false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1896,7 +1887,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: false,
                 },
                 false,
                 None,
@@ -1962,7 +1952,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: false,
                 },
                 false,
                 None,
@@ -2062,7 +2051,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: false,
                 },
                 false,
                 None,
@@ -2130,14 +2118,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[rule],
-                    ready: false,
-                },
-                false,
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2364,7 +2345,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ready: false,
                 },
                 false,
                 None,
@@ -2412,7 +2392,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ready: false,
                 },
                 false,
                 None,
