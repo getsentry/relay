@@ -76,8 +76,12 @@ pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
+/// Regex to identify SQL queries that are already normalized.
+///
+/// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
+/// Python, Ruby on Rails and PHP platforms.
 pub static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(/\?|\$1|%s)"#).unwrap());
+    Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
 
 /// Regex with multiple capture groups for cache tokens we should scrub.
 ///
