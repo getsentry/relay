@@ -2989,29 +2989,6 @@
 <a href="#2989" id="2989">2989</a>
 <a href="#2990" id="2990">2990</a>
 <a href="#2991" id="2991">2991</a>
-<a href="#2992" id="2992">2992</a>
-<a href="#2993" id="2993">2993</a>
-<a href="#2994" id="2994">2994</a>
-<a href="#2995" id="2995">2995</a>
-<a href="#2996" id="2996">2996</a>
-<a href="#2997" id="2997">2997</a>
-<a href="#2998" id="2998">2998</a>
-<a href="#2999" id="2999">2999</a>
-<a href="#3000" id="3000">3000</a>
-<a href="#3001" id="3001">3001</a>
-<a href="#3002" id="3002">3002</a>
-<a href="#3003" id="3003">3003</a>
-<a href="#3004" id="3004">3004</a>
-<a href="#3005" id="3005">3005</a>
-<a href="#3006" id="3006">3006</a>
-<a href="#3007" id="3007">3007</a>
-<a href="#3008" id="3008">3008</a>
-<a href="#3009" id="3009">3009</a>
-<a href="#3010" id="3010">3010</a>
-<a href="#3011" id="3011">3011</a>
-<a href="#3012" id="3012">3012</a>
-<a href="#3013" id="3013">3013</a>
-<a href="#3014" id="3014">3014</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3038,8 +3015,6 @@
 </span><span class="kw">pub struct </span>TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt; {
     <span class="doccomment">/// Rules for identifier replacement that were discovered by Sentry&#39;s transaction clusterer.
     </span><span class="kw">pub </span>rules: <span class="kw-2">&amp;</span><span class="lifetime">&#39;r </span>[TransactionNameRule],
-    <span class="doccomment">/// True if URL transactions should be marked as sanitized, even if there are no rules.
-    </span><span class="kw">pub </span>ready: bool,
 }
 
 <span class="doccomment">/// Rejects transactions based on required fields.
@@ -3485,18 +3460,13 @@
                 .set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;&lt;unlabeled transaction&gt;&quot;</span>.to_owned()))
         }
 
-        <span class="comment">// If the project is marked as &#39;ready&#39;, always set the transaction source to sanitized.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>mark_as_sanitized = <span class="self">self</span>.name_config.ready;
-
         <span class="kw">if </span><span class="macro">matches!</span>(
             event.get_transaction_source(),
             <span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized
         ) {
             <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>.then(|| {
-                mark_as_sanitized = <span class="bool-val">true</span>;
-            });
+            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
         }
 
         <span class="kw">if </span>!<span class="self">self</span>.name_config.rules.is_empty() {
@@ -3504,12 +3474,17 @@
                 <span class="kw-2">&amp;mut </span>event.transaction,
                 event.transaction_info.value_mut(),
             )<span class="question-mark">?</span>;
-
-            mark_as_sanitized = <span class="bool-val">true</span>;
         }
 
-        <span class="kw">if </span>mark_as_sanitized &amp;&amp; <span class="macro">matches!</span>(event.get_transaction_source(), <span class="kw-2">&amp;</span>TransactionSource::Url) {
-            event
+        <span class="kw">if </span><span class="macro">matches!</span>(event.get_transaction_source(), <span class="kw-2">&amp;</span>TransactionSource::Url) {
+            <span class="comment">// Always mark URL transactions as sanitized, even if no modification were made by
+            // clusterer rules or regex matchers. This has the consequence that the transaction name
+            // is always extracted as a tag on transaction metrics.
+            // Instead of changing the source to &quot;sanitized&quot;, we could have changed metrics extraction
+            // to also extract the transaction name for URL transactions. But this is the safer way,
+            // because the product currently uses queries that assume that `source:url` is equivalent
+            // to `transaction:&lt;&lt; unparameterized &gt;&gt;`.
+            </span>event
                 .transaction_info
                 .get_or_insert_with(Default::default)
                 .source
@@ -4822,14 +4797,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: <span class="kw-2">&amp;</span>[],
-                    ready: <span class="bool-val">true</span>,
-                },
-                <span class="bool-val">false</span>,
-                <span class="prelude-val">None</span>,
-            ),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4910,7 +4878,6 @@
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: <span class="bool-val">false</span>,
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -4976,7 +4943,6 @@
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: <span class="bool-val">false</span>,
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5076,7 +5042,6 @@
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: <span class="bool-val">false</span>,
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5144,14 +5109,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: <span class="kw-2">&amp;</span>[rule],
-                    ready: <span class="bool-val">false</span>,
-                },
-                <span class="bool-val">false</span>,
-                <span class="prelude-val">None</span>,
-            ),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] }, <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
             ProcessingState::root(),
         )
         .unwrap();
@@ -5378,7 +5336,6 @@
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ready: <span class="bool-val">false</span>,
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5426,7 +5383,6 @@
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ready: <span class="bool-val">false</span>,
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5908,7 +5864,6 @@
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 <span class="bool-val">true</span>,
                 <span class="prelude-val">None</span>,
@@ -6009,7 +5964,6 @@
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 <span class="bool-val">true</span>,
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Vec::from([SpanDescriptionRule {

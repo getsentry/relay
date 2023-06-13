@@ -3840,8 +3840,6 @@
 <a href="#3840" id="3840">3840</a>
 <a href="#3841" id="3841">3841</a>
 <a href="#3842" id="3842">3842</a>
-<a href="#3843" id="3843">3843</a>
-<a href="#3844" id="3844">3844</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6201,7 +6199,6 @@
                 normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
                 transaction_name_config: TransactionNameConfig {
                     rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
-                    ready: state.project_state.config.tx_name_ready,
                 },
                 device_class_synthesis_config: state
                     .project_state
@@ -7560,7 +7557,6 @@
                                 substitution: <span class="string">&quot;*&quot;</span>.to_owned(),
                             },
                         }],
-                        ready: <span class="bool-val">false</span>,
                     },
                     ..Default::default()
                 };
