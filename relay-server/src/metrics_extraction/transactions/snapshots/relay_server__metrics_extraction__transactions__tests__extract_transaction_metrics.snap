@@ -768,6 +768,9 @@ expression: event.value().unwrap().spans
             "db.system": String(
                 "MyDatabase",
             ),
+            "description.scrubbed": String(
+                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -780,8 +783,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "db",
             ),
+            "span.description": String(
+                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "74f357d6eeea41b8",
             ),
             "span.module": String(
                 "db",
@@ -840,7 +849,7 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "description.scrubbed": String(
-                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
             ),
             "environment": String(
                 "fake_environment",
@@ -855,13 +864,13 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
             ),
             "span.domain": String(
                 "table",
             ),
             "span.group": String(
-                "c55478a060a56db3",
+                "8ea340ad7f24b50a",
             ),
             "span.module": String(
                 "db",
