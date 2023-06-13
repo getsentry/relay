@@ -717,7 +717,10 @@ impl<'a> Path<'a> {
             SelectorSpec::And(ref xs) => xs.iter().all(|x| self.matches_selector(x)),
             SelectorSpec::Or(ref xs) => xs.iter().any(|x| self.matches_selector(x)),
             SelectorSpec::Not(ref x) => !self.matches_selector(x),
-            SelectorSpec::Other(_) => false,
+            SelectorSpec::Other(_) => {
+                relay_log::warn!("Incoming selector is not supported");
+                false
+            }
         }
     }
 }

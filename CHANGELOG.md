@@ -8,6 +8,7 @@
 
 **Features**:
 
+- Add . ([#2171](https://github.com/getsentry/relay/pull/2171))
 - Add `data` and `api_target` fields to `ResponseContext` and scrub `graphql` bodies. ([#2141](https://github.com/getsentry/relay/pull/2141))
 - Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
