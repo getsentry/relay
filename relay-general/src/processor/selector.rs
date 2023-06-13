@@ -320,10 +320,7 @@ fn handle_selector_path_item(pair: Pair<Rule>) -> Result<SelectorPathItem, Inval
                 .map_err(|_| InvalidSelectorError::InvalidIndex)?,
         )),
         Rule::Key => Ok(SelectorPathItem::Key(handle_key(pair)?)),
-        rule => Err(InvalidSelectorError::UnexpectedToken(
-            format!("{rule:?}"),
-            "a selector path item",
-        )),
+        rule => Ok(SelectorPathItem::Other(format!("{rule:?}"))),
     }
 }
 
