@@ -454,13 +454,9 @@ fn scrub_identifiers_with_regex(
 }
 
 fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
-    if let Some(is_match) = query
+    query
         .value()
-        .map(|q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
-    {
-        return is_match;
-    }
-    false
+        .map_or(false, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
 }
 
 impl Processor for TransactionsProcessor<'_> {
