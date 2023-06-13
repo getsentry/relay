@@ -1806,7 +1806,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[] }, false, None),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
