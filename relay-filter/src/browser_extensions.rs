@@ -40,7 +40,10 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         plugin\.setSuspendState\sis\snot\sa\sfunction|
         # Chrome extension message passing failure
         Extension\scontext\sinvalidated|
-        webkit-masked-url:
+        webkit-masked-url:|
+        # Firefox message when an extension tries to modify a no-longer-existing DOM node
+        # See https://blog.mozilla.org/addons/2012/09/12/what-does-cant-access-dead-object-mean/
+        can't\saccess\sdead\sobject
     "#,
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
@@ -252,6 +255,7 @@ mod tests {
             "plugin.setSuspendState is not a function",
             "Extension context invalidated",
             "useless error webkit-masked-url: please filter",
+            "TypeError: can't access dead object because dead stuff smells bad",
         ];
 
         for exc_value in &exceptions {
