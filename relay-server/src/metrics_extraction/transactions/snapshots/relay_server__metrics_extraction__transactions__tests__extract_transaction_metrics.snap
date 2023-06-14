@@ -31,6 +31,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -80,6 +81,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -135,6 +137,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -208,6 +211,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -284,6 +288,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -365,6 +370,9 @@ expression: event.value().unwrap().spans
             "http.method": String(
                 "POST",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -436,6 +444,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "POST",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -516,6 +527,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -592,6 +604,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -668,6 +681,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -741,6 +755,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -808,6 +823,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -878,6 +894,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -954,6 +971,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -1036,6 +1054,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -1115,6 +1134,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -1188,6 +1208,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -1255,6 +1276,7 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
