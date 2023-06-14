@@ -3103,6 +3103,12 @@
 <a href="#3103" id="3103">3103</a>
 <a href="#3104" id="3104">3104</a>
 <a href="#3105" id="3105">3105</a>
+<a href="#3106" id="3106">3106</a>
+<a href="#3107" id="3107">3107</a>
+<a href="#3108" id="3108">3108</a>
+<a href="#3109" id="3109">3109</a>
+<a href="#3110" id="3110">3110</a>
+<a href="#3111" id="3111">3111</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
@@ -4704,7 +4710,9 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
+                    &quot;span.description&quot;: &quot;SELECT \&quot;table\&quot;.\&quot;col\&quot; FROM \&quot;table\&quot; WHERE \&quot;table\&quot;.\&quot;col\&quot; = %s&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
+                    &quot;span.group&quot;: &quot;74f357d6eeea41b8&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
@@ -4724,7 +4732,9 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
+                    &quot;span.description&quot;: &quot;SELECT \&quot;table\&quot;.\&quot;col\&quot; FROM \&quot;table\&quot; WHERE \&quot;table\&quot;.\&quot;col\&quot; = %s&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
+                    &quot;span.group&quot;: &quot;74f357d6eeea41b8&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
@@ -4744,7 +4754,9 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
+                    &quot;span.description&quot;: &quot;SELECT \&quot;table\&quot;.\&quot;col\&quot; FROM \&quot;table\&quot; WHERE \&quot;table\&quot;.\&quot;col\&quot; = %s&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
+                    &quot;span.group&quot;: &quot;74f357d6eeea41b8&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
@@ -4764,9 +4776,9 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT %s.%s FROM %s WHERE %s.%s = %s&quot;,
+                    &quot;span.description&quot;: &quot;SELECT &#39;TABLE&#39;.&#39;col&#39; FROM &#39;TABLE&#39; WHERE &#39;TABLE&#39;.&#39;col&#39; = %s&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;c55478a060a56db3&quot;,
+                    &quot;span.group&quot;: &quot;8ea340ad7f24b50a&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
@@ -4786,9 +4798,9 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT %s.%s FROM %s WHERE %s.%s = %s&quot;,
+                    &quot;span.description&quot;: &quot;SELECT &#39;TABLE&#39;.&#39;col&#39; FROM &#39;TABLE&#39; WHERE &#39;TABLE&#39;.&#39;col&#39; = %s&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;c55478a060a56db3&quot;,
+                    &quot;span.group&quot;: &quot;8ea340ad7f24b50a&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
@@ -4808,9 +4820,9 @@
                     &quot;environment&quot;: &quot;fake_environment&quot;,
                     &quot;span.action&quot;: &quot;SELECT&quot;,
                     &quot;span.category&quot;: &quot;db&quot;,
-                    &quot;span.description&quot;: &quot;SELECT %s.%s FROM %s WHERE %s.%s = %s&quot;,
+                    &quot;span.description&quot;: &quot;SELECT &#39;TABLE&#39;.&#39;col&#39; FROM &#39;TABLE&#39; WHERE &#39;TABLE&#39;.&#39;col&#39; = %s&quot;,
                     &quot;span.domain&quot;: &quot;table&quot;,
-                    &quot;span.group&quot;: &quot;c55478a060a56db3&quot;,
+                    &quot;span.group&quot;: &quot;8ea340ad7f24b50a&quot;,
                     &quot;span.module&quot;: &quot;db&quot;,
                     &quot;span.op&quot;: &quot;db&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
