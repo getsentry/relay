@@ -29,6 +29,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -75,6 +78,9 @@ expression: event.value().unwrap().spans
         data: {
             "environment": String(
                 "fake_environment",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -128,6 +134,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "PoSt",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -199,6 +208,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "POST",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -273,6 +285,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "POST",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -355,6 +370,9 @@ expression: event.value().unwrap().spans
             "http.method": String(
                 "POST",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -426,6 +444,9 @@ expression: event.value().unwrap().spans
             ),
             "http.method": String(
                 "POST",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -504,6 +525,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -577,6 +601,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -652,6 +679,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -723,6 +753,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -787,6 +820,9 @@ expression: event.value().unwrap().spans
         data: {
             "environment": String(
                 "fake_environment",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -855,6 +891,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -929,6 +968,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
@@ -1010,6 +1052,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -1087,6 +1132,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -1158,6 +1206,9 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "http.status_code": String(
+                "200",
+            ),
             "release": String(
                 "1.2.3",
             ),
@@ -1222,6 +1273,9 @@ expression: event.value().unwrap().spans
             ),
             "environment": String(
                 "fake_environment",
+            ),
+            "http.status_code": String(
+                "200",
             ),
             "release": String(
                 "1.2.3",
