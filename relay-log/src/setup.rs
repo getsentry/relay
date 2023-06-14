@@ -220,7 +220,9 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         .with_target(true);
 
     let format = match (config.format, console::user_attended()) {
-        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => subscriber.pretty().boxed(),
+        (LogFormat::Auto, true) | (LogFormat::Pretty, _) => {
+            subscriber.compact().without_time().boxed()
+        }
         (LogFormat::Auto, false) | (LogFormat::Simplified, _) => {
             subscriber.with_ansi(false).boxed()
         }
@@ -234,17 +236,9 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             .boxed(),
     };
 
-    #[allow(unused_mut)]
-    let mut sentry_tracing = sentry::integrations::tracing::layer();
-    #[cfg(not(debug_assertions))]
-    {
-        // Ignore all the spans.
-        sentry_tracing = sentry_tracing.span_filter(|_| false);
-    }
-
     tracing_subscriber::registry()
         .with(format.with_filter(LevelFilter::from(config.level)))
-        .with(sentry_tracing)
+        .with(sentry::integrations::tracing::layer())
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
             Ok(value) => EnvFilter::new(value),
             Err(_) => get_default_filters(),

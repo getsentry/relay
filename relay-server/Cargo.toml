@@ -38,6 +38,7 @@ futures = "0.3"
 hashbrown = "0.13.2"
 itertools = "0.10.5"
 json-forensics = { version = "0.1.1" }
+md5 = "0.7.0"
 mime = "0.3.16"
 minidump = { version = "0.15.2", optional = true }
 multer = "2.0.4"
@@ -48,6 +49,7 @@ relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
+relay-dynamic-config = { path = "../relay-dynamic-config"}
 relay-filter = { path = "../relay-filter" }
 relay-general = { path = "../relay-general" }
 relay-kafka = { path = "../relay-kafka", optional = true }
@@ -55,7 +57,6 @@ relay-log = { path = "../relay-log", features = ["sentry"] }
 relay-metrics = { path = "../relay-metrics" }
 relay-monitors = { path = "../relay-monitors" }
 relay-profiling = { path = "../relay-profiling" }
-relay-dynamic-config = { path = "../relay-dynamic-config"}
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 relay-replays = { path = "../relay-replays" }
@@ -74,13 +75,9 @@ thiserror = "1.0.38"
 tokio = { version = "1.28.0", features = ["rt-multi-thread", "sync", "macros"] }
 tower = { version = "0.4.13", default-features = false }
 tower-http = { version = "0.4.0", default-features = false, features = ["catch-panic", "cors", "decompression-br", "decompression-deflate", "decompression-gzip", "set-header", "trace"] }
+tracing = { version = "0.1" }
 url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
-md5 = "0.7.0"
-
-
-# TODO(ja): Here
-tracing = { version = "0.1", features = ["release_max_level_info"] }
 
 [dev-dependencies]
 insta = { version = "1.19.0", features = ["json"] }
