@@ -14,6 +14,7 @@
 - Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
 - Change default topic for transaction metrics to `ingest-performance-metrics`. ([#2180](https://github.com/getsentry/relay/pull/2180))
 - Add Firefox "dead object" error to browser extension filter ([#2215](https://github.com/getsentry/relay/pull/2215))
+- Add events whose `url` starts with `file://` to localhost inbound filter ([#2214](https://github.com/getsentry/relay/pull/2214))
 
 **Internal**:
 
