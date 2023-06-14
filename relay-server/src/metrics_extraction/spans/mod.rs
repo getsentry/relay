@@ -495,31 +495,15 @@ mod tests {
                         "platform": "javascript",
                         "start_timestamp": "2021-04-26T07:59:01+0100",
                         "timestamp": "2021-04-26T08:00:00+0100",
-                        "server_name": "myhost",
-                        "release": "1.2.3",
-                        "dist": "foo ",
-                        "environment": "fake_environment",
                         "transaction": "{}",
-                        "transaction_info": {{"source": "custom"}},
-                        "user": {{
-                            "id": "user123",
-                            "geo": {{
-                                "country_code": "US"
-                            }}
-                        }},
                         "contexts": {{
                             "trace": {{
                                 "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                                "span_id": "bd429c44b67a3eb4",
-                                "op": "mYOp",
-                                "status": "ok"
+                                "span_id": "bd429c44b67a3eb4"
                             }}
                         }},
                         "spans": [
                             {{
-                                "description": "<SomeUiRendering>",
-                                "op": "UI.React.Render",
-                                "parent_span_id": "8f5a2b8768cafb4e",
                                 "span_id": "bd429c44b67a3eb4",
                                 "start_timestamp": 1597976300.0000000,
                                 "timestamp": 1597976302.0000000,
@@ -581,7 +565,6 @@ mod tests {
                 );
 
                 for metric in &metrics {
-                    dbg!(metric.tags.get("transaction.method").unwrap());
                     assert_eq!(
                         $expected_method,
                         metric.tags.get("transaction.method").unwrap()
