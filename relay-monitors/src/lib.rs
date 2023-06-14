@@ -37,7 +37,7 @@ pub enum ProcessCheckInError {
 ///
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum CheckInStatus {
+pub enum CheckInStatus {
     /// Check-in had no issues during execution.
     Ok,
     /// Check-in failed or otherwise had some issues.
@@ -79,7 +79,7 @@ enum IntervalName {
 
 /// The monitor configuration playload for upserting monitors during check-in
 #[derive(Debug, Deserialize, Serialize)]
-struct MonitorConfig {
+pub struct MonitorConfig {
     /// The monitor schedule configuration
     schedule: Schedule,
 
@@ -100,28 +100,28 @@ struct MonitorConfig {
 
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
-struct CheckIn {
+pub struct CheckIn {
     /// Unique identifier of this check-in.
     #[serde(serialize_with = "uuid_simple")]
-    check_in_id: Uuid,
+    pub check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.
-    monitor_slug: String,
+    pub monitor_slug: String,
 
     /// Status of this check-in. Defaults to `"unknown"`.
-    status: CheckInStatus,
+    pub status: CheckInStatus,
 
     /// The environment to associate the check-in with
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    environment: Option<String>,
+    pub environment: Option<String>,
 
     /// Duration of this check since it has started in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    duration: Option<f64>,
+    pub duration: Option<f64>,
 
     /// monitor configuration to support upserts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    monitor_config: Option<MonitorConfig>,
+    pub monitor_config: Option<MonitorConfig>,
 }
 
 /// Normalizes a monitor check-in payload.

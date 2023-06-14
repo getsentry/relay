@@ -21,3 +21,4 @@ thiserror = "1.0.38"
 
 [dev-dependencies]
 serde_test = "1.0.125"
+insta = "1.29.0"

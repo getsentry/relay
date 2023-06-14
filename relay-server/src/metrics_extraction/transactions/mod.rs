@@ -1,22 +1,22 @@
 use std::collections::BTreeMap;
 
-use itertools::Itertools;
-use once_cell::sync::Lazy;
-use regex::Regex;
-use relay_common::{DurationUnit, EventType, MetricUnit, SpanStatus, UnixTimestamp};
+use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
-use relay_filter::csp::SchemeDomainPort;
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource, User,
+    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource,
 };
 use relay_general::store;
-use relay_general::types::{Annotated, Value};
-use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
+use relay_general::types::Annotated;
+use relay_metrics::{AggregatorConfig, Metric};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
+use crate::metrics_extraction::spans::extract_span_metrics;
 use crate::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionMeasurementTags,
-    TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
+    TransactionMeasurementTags, TransactionMetric,
+};
+use crate::metrics_extraction::utils::{
+    extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -24,33 +24,10 @@ use crate::utils::SamplingResult;
 
 pub mod types;
 
-fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    let contexts = event.contexts.value()?;
-    let trace = contexts.get("trace").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
-        return Some(trace_context.as_ref());
-    }
-
-    None
-}
-
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
 /// Must be consistent with `process_trace_context` in [`relay_general::store`].
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
     *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
-}
-
-fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
-    let op = trace_context.op.value()?;
-    if op == "default" {
-        // This was likely set by normalization, so let's treat it as None
-        // See https://github.com/getsentry/relay/blob/bb2ac4ee82c25faa07a6d078f93d22d799cfc5d1/relay-general/src/store/transactions.rs#L96
-
-        // Note that this is the opposite behavior of what we do for transaction.status, where
-        // we coalesce None to "unknown".
-        return None;
-    }
-    Some(op.to_string())
 }
 
 /// Extract HTTP method
@@ -83,7 +60,7 @@ fn extract_os_name(event: &Event) -> Option<String> {
     None
 }
 
-/// Extract the GEO country code from the [`User`] context.
+/// Extract the GEO country code from the [`relay_general::protocol::User`] context.
 fn extract_geo_country_code(event: &Event) -> Option<String> {
     if let Some(user) = event.user.value() {
         if let Some(geo) = user.geo.value() {
@@ -98,7 +75,10 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
 fn http_status_code_from_span_data(span: &Span) -> Option<String> {
     span.data
         .value()
-        .and_then(|v| v.get("status_code"))
+        .and_then(|v| {
+            v.get("http.response.status_code")
+                .or_else(|| v.get("status_code"))
+        })
         .and_then(|v| v.as_str())
         .map(|v| v.to_string())
 }
@@ -334,17 +314,21 @@ pub fn extract_transaction_metrics(
     event: &mut Event,
     transaction_from_dsc: Option<&str>,
     sampling_result: &SamplingResult,
+    has_profile: bool,
     project_metrics: &mut Vec<Metric>,  // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<bool, ExtractMetricsError> {
     let before_len = project_metrics.len();
 
     extract_transaction_metrics_inner(
-        aggregator_config,
-        config,
-        event,
-        transaction_from_dsc,
-        sampling_result,
+        ExtractInput {
+            aggregator_config,
+            config,
+            event,
+            transaction_from_dsc,
+            sampling_result,
+            has_profile,
+        },
         project_metrics,
         sampling_metrics,
     )?;
@@ -358,15 +342,21 @@ pub fn extract_transaction_metrics(
     Ok(!added_slice.is_empty())
 }
 
+struct ExtractInput<'a> {
+    aggregator_config: &'a AggregatorConfig,
+    config: &'a TransactionMetricsConfig,
+    event: &'a Event,
+    transaction_from_dsc: Option<&'a str>,
+    sampling_result: &'a SamplingResult,
+    has_profile: bool,
+}
+
 fn extract_transaction_metrics_inner(
-    aggregator_config: &AggregatorConfig,
-    config: &TransactionMetricsConfig,
-    event: &Event,
-    transaction_from_dsc: Option<&str>,
-    sampling_result: &SamplingResult,
+    input: ExtractInput<'_>,
     metrics: &mut Vec<Metric>,          // output parameter
     sampling_metrics: &mut Vec<Metric>, // output parameter
 ) -> Result<(), ExtractMetricsError> {
+    let event = input.event;
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
@@ -384,12 +374,16 @@ fn extract_transaction_metrics_inner(
     // Validate the transaction event against the metrics timestamp limits. If the metric is too
     // old or too new, we cannot extract the metric and also need to drop the transaction event
     // for consistency between metrics and events.
-    if !aggregator_config.timestamp_range().contains(&timestamp) {
+    if !input
+        .aggregator_config
+        .timestamp_range()
+        .contains(&timestamp)
+    {
         relay_log::debug!("event timestamp is out of the valid range for metrics");
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-    let tags = extract_universal_tags(event, config);
+    let tags = extract_universal_tags(event, input.config);
 
     // Measurements
     if let Some(measurements) = event.measurements.value() {
@@ -459,20 +453,23 @@ fn extract_transaction_metrics_inner(
         TransactionMetric::Duration {
             unit: DurationUnit::MilliSecond,
             value: relay_common::chrono_to_positive_millis(end - start),
-            tags: tags.clone(),
+            tags: TransactionDurationTags {
+                has_profile: input.has_profile,
+                universal_tags: tags.clone(),
+            },
         }
         .into_metric(timestamp),
     );
 
     let root_counter_tags = {
         let mut universal_tags = CommonTags(BTreeMap::default());
-        if let Some(transaction_from_dsc) = transaction_from_dsc {
+        if let Some(transaction_from_dsc) = input.transaction_from_dsc {
             universal_tags
                 .0
                 .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
         }
         TransactionCPRTags {
-            decision: match sampling_result {
+            decision: match input.sampling_result {
                 SamplingResult::Keep => "keep".to_owned(),
                 SamplingResult::Drop(_) => "drop".to_owned(),
             },
@@ -496,324 +493,6 @@ fn extract_transaction_metrics_inner(
     }
 
     Ok(())
-}
-
-/// Extracts metrics from the spans of the given transaction, and sets common
-/// tags for all the metrics and spans. If a span already contains a tag
-/// extracted for a metric, the tag value is overwritten.
-fn extract_span_metrics(
-    aggregator_config: &AggregatorConfig,
-    event: &mut Event,
-    metrics: &mut Vec<Metric>, // output parameter
-) -> Result<(), ExtractMetricsError> {
-    // TODO(iker): measure the performance of this whole method
-
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
-    }
-    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
-        relay_log::debug!("failed to extract the start and the end timestamps from the event");
-        return Err(ExtractMetricsError::MissingTimestamp);
-    };
-
-    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-        relay_log::debug!("event timestamp is not a valid unix timestamp");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    };
-
-    // Validate the transaction event against the metrics timestamp limits. If the metric is too
-    // old or too new, we cannot extract the metric and also need to drop the transaction event
-    // for consistency between metrics and events.
-    if !aggregator_config.timestamp_range().contains(&timestamp) {
-        relay_log::debug!("event timestamp is out of the valid range for metrics");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    }
-
-    // Collect the shared tags for all the metrics and spans on this transaction.
-    let mut shared_tags = BTreeMap::new();
-
-    if let Some(environment) = event.environment.as_str() {
-        shared_tags.insert("environment".to_owned(), environment.to_owned());
-    }
-
-    if let Some(transaction_name) = event.transaction.value() {
-        shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
-    }
-
-    if let Some(trace_context) = get_trace_context(event) {
-        if let Some(op) = extract_transaction_op(trace_context) {
-            shared_tags.insert("transaction.op".to_owned(), op);
-        }
-    }
-
-    let Some(spans) = event.spans.value_mut() else { return Ok(())};
-
-    for annotated_span in spans {
-        if let Some(span) = annotated_span.value_mut() {
-            let mut span_tags = shared_tags.clone();
-
-            if let Some(scrubbed_description) = span
-                .data
-                .value()
-                .and_then(|data| data.get("description.scrubbed"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    "span.description".to_owned(),
-                    scrubbed_description.to_owned(),
-                );
-            }
-
-            if let Some(span_op) = span.op.value() {
-                span_tags.insert("span.op".to_owned(), span_op.to_owned());
-
-                let span_module = if span_op.starts_with("http") {
-                    Some("http")
-                } else if span_op.starts_with("db") {
-                    Some("db")
-                } else if span_op.starts_with("cache") {
-                    Some("cache")
-                } else {
-                    None
-                };
-
-                if let Some(module) = span_module {
-                    span_tags.insert("span.module".to_owned(), module.to_owned());
-                }
-
-                // TODO(iker): we're relying on the existance of `http.method`
-                // or `db.operation`. This is not guaranteed, and we'll need to
-                // parse the span description in that case.
-                let action = match span_module {
-                    Some("http") => span
-                        .data
-                        .value()
-                        // TODO(iker): some SDKs extract this as method
-                        .and_then(|v| v.get("http.method"))
-                        .and_then(|method| method.as_str()),
-                    Some("db") => {
-                        let action_from_data = span
-                            .data
-                            .value()
-                            .and_then(|v| v.get("db.operation"))
-                            .and_then(|db_op| db_op.as_str());
-                        action_from_data.or_else(|| {
-                            span.description
-                                .value()
-                                .and_then(|d| sql_action_from_query(d))
-                        })
-                    }
-                    _ => None,
-                };
-
-                if let Some(act) = action {
-                    span_tags.insert("span.action".to_owned(), act.to_owned());
-                }
-
-                let domain = if span_op == "http.client" {
-                    span.description
-                        .value()
-                        .and_then(|url| domain_from_http_url(url))
-                } else if span_op.starts_with("db") {
-                    span.description
-                        .value()
-                        .and_then(|query| sql_table_from_query(query))
-                        .map(|s| s.to_owned())
-                } else {
-                    None
-                };
-
-                if let Some(dom) = domain {
-                    span_tags.insert("span.domain".to_owned(), dom.to_owned());
-                }
-            }
-
-            let system = span
-                .data
-                .value()
-                .and_then(|v| v.get("db.system"))
-                .and_then(|system| system.as_str());
-            if let Some(sys) = system {
-                span_tags.insert("span.system".to_owned(), sys.to_owned());
-            }
-
-            if let Some(span_status) = span.status.value() {
-                span_tags.insert("span.status".to_owned(), span_status.to_string());
-            }
-
-            if let Some(status_code) = http_status_code_from_span_data(span) {
-                span_tags.insert("span.status_code".to_owned(), status_code);
-            }
-
-            // Even if we emit metrics, we want this info to be duplicated in every span.
-            span.data.get_or_insert_with(BTreeMap::new).extend(
-                span_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
-            );
-
-            if let Some(user) = event.user.value() {
-                if let Some(value) = get_eventuser_tag(user) {
-                    metrics.push(Metric::new_mri(
-                        MetricNamespace::Transactions,
-                        "span.user",
-                        MetricUnit::None,
-                        MetricValue::set_from_str(&value),
-                        timestamp,
-                        span_tags.clone(),
-                    ));
-                }
-            }
-
-            if let Some(exclusive_time) = span.exclusive_time.value() {
-                // NOTE(iker): this exclusive time doesn't consider all cases,
-                // such as sub-transactions. We accept these limitations for
-                // now.
-                metrics.push(Metric::new_mri(
-                    MetricNamespace::Transactions,
-                    "span.exclusive_time",
-                    MetricUnit::Duration(DurationUnit::MilliSecond),
-                    MetricValue::Distribution(*exclusive_time),
-                    timestamp,
-                    span_tags.clone(),
-                ));
-            }
-
-            // The `duration` of a span. This metric also serves as the
-            // counter metric `throughput`.
-            metrics.push(Metric::new_mri(
-                MetricNamespace::Transactions,
-                "span.duration",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
-                timestamp,
-                span_tags.clone(),
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-/// Regex with a capture group to extract the database action from a query.
-///
-/// Currently, we're only interested in either `SELECT` or `INSERT` statements.
-static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
-
-fn sql_action_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
-}
-
-/// Regex with a capture group tot extract the table from a database query,
-/// based on `FROM` and `INTO` keywords.
-static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
-});
-
-/// Returns the table in the SQL query, if any.
-///
-/// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
-}
-
-/// Returns the captured substring in `string` with the capture group in `pattern`.
-///
-/// It assumes there's only one capture group in `pattern`, and only returns the first one.
-fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> Option<&'a str> {
-    let capture_names: Vec<_> = pattern.capture_names().flatten().collect();
-
-    for captures in pattern.captures_iter(string) {
-        for name in &capture_names {
-            if let Some(capture) = captures.name(name) {
-                return Some(&string[capture.start()..capture.end()]);
-            }
-        }
-    }
-
-    None
-}
-
-fn domain_from_http_url(url: &str) -> Option<String> {
-    match url.split_once(' ') {
-        Some((_method, url)) => {
-            let domain_port = SchemeDomainPort::from(url);
-            match (domain_port.domain, domain_port.port) {
-                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
-    let mut tokens = domain.rsplitn(3, '.');
-    let tld = tokens.next();
-    let domain = tokens.next();
-    let prefix = tokens.next().map(|_| "*");
-
-    let mut replaced = prefix
-        .iter()
-        .chain(domain.iter())
-        .chain(tld.iter())
-        .join(".");
-
-    if let Some(port) = port {
-        replaced = format!("{replaced}:{port}");
-    }
-    Some(replaced)
-}
-
-/// Compute the transaction event's "user" tag as close as possible to how users are determined in
-/// the transactions dataset in Snuba. This should produce the exact same user counts as the `user`
-/// column in Discover for Transactions, barring:
-///
-/// * imprecision caused by HLL sketching in Snuba, which we don't have in events
-/// * hash collisions in [`relay_metrics::MetricValue::set_from_display`], which we don't have in events
-/// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
-///
-///   MD5 is used to efficiently look up the current event user for an event, and if there is a
-///   collision it seems that this code will fetch an event user with potentially different values
-///   for everything that is in `defaults`:
-///   <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L1058-L1060>
-///
-/// The performance product runs a discover query such as `count_unique(user)`, which maps to two
-/// things:
-///
-/// * `user` metric for the metrics dataset
-/// * the "promoted tag" column `user` in the transactions clickhouse table
-///
-/// A promoted tag is a tag that snuba pulls out into its own column. In this case it pulls out the
-/// `sentry:user` tag from the event payload:
-/// <https://github.com/getsentry/snuba/blob/430763e67e30957c89126e62127e34051eb52fd6/snuba/datasets/transactions_processor.py#L151>
-///
-/// Sentry's processing pipeline defers to `sentry.models.EventUser` to produce the `sentry:user` tag
-/// here: <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/event_manager.py#L790-L794>
-///
-/// `sentry.models.eventuser.KEYWORD_MAP` determines which attributes are looked up in which order, here:
-/// <https://github.com/getsentry/sentry/blob/f621cd76da3a39836f34802ba9b35133bdfbe38b/src/sentry/models/eventuser.py#L18>
-/// If its order is changed, this function needs to be changed.
-fn get_eventuser_tag(user: &User) -> Option<String> {
-    if let Some(id) = user.id.as_str() {
-        return Some(format!("id:{id}"));
-    }
-
-    if let Some(username) = user.username.as_str() {
-        return Some(format!("username:{username}"));
-    }
-
-    if let Some(email) = user.email.as_str() {
-        return Some(format!("email:{email}"));
-    }
-
-    if let Some(ip_address) = user.ip_address.as_str() {
-        return Some(format!("ip:{ip_address}"));
-    }
-
-    None
 }
 
 fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
@@ -873,7 +552,7 @@ mod tests {
             "release": "1.2.3",
             "dist": "foo ",
             "environment": "fake_environment",
-            "transaction": "mytransaction",
+            "transaction": "gEt /api/:version/users/",
             "transaction_info": {"source": "custom"},
             "user": {
                 "id": "user123",
@@ -893,7 +572,7 @@ mod tests {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "span_id": "bd429c44b67a3eb4",
-                    "op": "myop",
+                    "op": "mYOp",
                     "status": "ok"
                 },
                 "browser": {
@@ -914,6 +593,15 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
                 },
                 {
+                    "description": "<SomeUiRendering>",
+                    "op": "UI.React.Render",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
                     "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
@@ -923,7 +611,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "http.method": "POST",
+                        "http.method": "PoSt",
                         "status_code": "200"
                     }
                 },
@@ -956,7 +644,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
+                    "description": "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
                     "op": "db.sql.query",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -970,7 +658,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT column FROM table WHERE id IN (1, 2, 3)",
+                    "description": "select column FROM table WHERE id IN (1, 2, 3)",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -1046,7 +734,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT 'table'.'col' FROM 'table' WHERE 'table'.'col' = %s",
+                    "description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",
@@ -1150,6 +838,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -1176,8 +865,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1199,8 +888,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1221,8 +910,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1243,8 +932,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1265,8 +954,8 @@ mod tests {
                     "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
-                    "transaction": "mytransaction",
-                    "transaction.op": "myop",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
             },
@@ -1279,7 +968,8 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1292,7 +982,8 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1305,7 +996,53 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.op": "react.mount",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "s:transactions/span.user@none",
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.category": "ui.react",
+                    "span.op": "ui.react.render",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.exclusive_time@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.category": "ui.react",
+                    "span.op": "ui.react.render",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
+                    "transaction.op": "myop",
+                },
+            },
+            Metric {
+                name: "d:transactions/span.duration@millisecond",
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    "environment": "fake_environment",
+                    "span.category": "ui.react",
+                    "span.op": "ui.react.render",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1318,12 +1055,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1336,12 +1074,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1354,12 +1093,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "*.domain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1372,12 +1112,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1390,12 +1131,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1408,12 +1150,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.domain": "targetdomain.tld:targetport",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1426,13 +1169,15 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
+                    "span.group": "ca77233e5cdb864b",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1445,13 +1190,15 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
+                    "span.group": "ca77233e5cdb864b",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1464,13 +1211,15 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "POST",
+                    "span.category": "http",
                     "span.description": "POST http://targetdomain:targetport/api/id/*",
                     "span.domain": "targetdomain:targetport",
+                    "span.group": "ca77233e5cdb864b",
                     "span.module": "http",
                     "span.op": "http.client",
                     "span.status": "ok",
-                    "span.status_code": "200",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1483,13 +1232,16 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.category": "db",
+                    "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "f4a7fef06db3d88e",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1502,13 +1254,16 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.category": "db",
+                    "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "f4a7fef06db3d88e",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1521,13 +1276,16 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.category": "db",
+                    "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "f4a7fef06db3d88e",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1540,12 +1298,15 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.category": "db",
+                    "span.description": "select column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "4f9711d2d09963b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1558,12 +1319,15 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.category": "db",
+                    "span.description": "select column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "4f9711d2d09963b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1576,12 +1340,15 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
-                    "span.description": "SELECT column FROM table WHERE id IN (%s)",
+                    "span.category": "db",
+                    "span.description": "select column FROM table WHERE id IN (%s)",
                     "span.domain": "table",
+                    "span.group": "4f9711d2d09963b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1594,12 +1361,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1612,12 +1381,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1630,12 +1401,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1648,12 +1421,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "from_date",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1666,12 +1441,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "from_date",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1684,12 +1461,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "from_date",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1702,11 +1481,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1719,11 +1500,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1736,11 +1519,13 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "INSERT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1753,12 +1538,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1771,12 +1558,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1789,12 +1578,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db.sql.query",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1807,12 +1598,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1825,12 +1618,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1843,12 +1638,14 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.domain": "table",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1861,13 +1658,16 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
+                    "span.group": "c55478a060a56db3",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1880,13 +1680,16 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
+                    "span.group": "c55478a060a56db3",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1899,13 +1702,16 @@ mod tests {
                 tags: {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
+                    "span.category": "db",
                     "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
                     "span.domain": "table",
+                    "span.group": "c55478a060a56db3",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1917,12 +1723,15 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "db",
                     "span.description": "SAVEPOINT %s",
+                    "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1934,12 +1743,15 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "db",
                     "span.description": "SAVEPOINT %s",
+                    "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1951,12 +1763,15 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "db",
                     "span.description": "SAVEPOINT %s",
+                    "span.group": "3f955cbde39e04b9",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
-                    "span.system": "MyDatabase",
-                    "transaction": "mytransaction",
+                    "span.system": "mydatabase",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1968,11 +1783,14 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "cache",
                     "span.description": "GET cache:user:*",
+                    "span.group": "325fa5feb926f121",
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -1984,11 +1802,14 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "cache",
                     "span.description": "GET cache:user:*",
+                    "span.group": "325fa5feb926f121",
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -2000,11 +1821,14 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "cache",
                     "span.description": "GET cache:user:*",
+                    "span.group": "325fa5feb926f121",
                     "span.module": "cache",
                     "span.op": "cache.get_item",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -2016,10 +1840,13 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
+                    "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -2031,10 +1858,13 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
+                    "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -2046,10 +1876,13 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "environment": "fake_environment",
+                    "span.category": "resource",
                     "span.description": "http://domain/static/myscript-*.js",
+                    "span.group": "022f81fdf31228bf",
                     "span.op": "resource.script",
                     "span.status": "ok",
-                    "transaction": "mytransaction",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.method": "GET",
                     "transaction.op": "myop",
                 },
             },
@@ -2097,6 +1930,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2190,6 +2024,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2270,6 +2105,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2346,6 +2182,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2457,6 +2294,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2545,6 +2383,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2595,6 +2434,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2635,6 +2475,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2648,6 +2489,76 @@ mod tests {
             BTreeMap::from([
                 ("transaction.status".to_string(), "unknown".to_string()),
                 ("platform".to_string(), "other".to_string())
+            ])
+        );
+    }
+
+    #[test]
+    fn test_span_tags() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "spans": [
+                {
+                    "description": "<OrganizationContext>",
+                    "op": "react.mount",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "http.response.status_code": "200"
+                    }
+                }
+            ]
+        }
+        "#;
+
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        let mut metrics = vec![];
+        let mut sampling_metrics = vec![];
+        extract_transaction_metrics(
+            &aggregator_config,
+            &config,
+            &[],
+            false,
+            event.value_mut().as_mut().unwrap(),
+            Some("test_transaction"),
+            &SamplingResult::Keep,
+            false,
+            &mut metrics,
+            &mut sampling_metrics,
+        )
+        .unwrap();
+
+        assert_eq!(metrics.len(), 1, "{metrics:?}");
+
+        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(
+            metrics[0].tags,
+            BTreeMap::from([
+                ("transaction.status".to_string(), "unknown".to_string()),
+                ("platform".to_string(), "other".to_string()),
+                ("http.status_code".to_string(), "200".to_string())
             ])
         );
     }
@@ -2684,6 +2595,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         );
@@ -2710,6 +2622,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -2750,6 +2663,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("root_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )
@@ -3124,6 +3038,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             Some("test_transaction"),
             &SamplingResult::Keep,
+            false,
             &mut metrics,
             &mut sampling_metrics,
         )

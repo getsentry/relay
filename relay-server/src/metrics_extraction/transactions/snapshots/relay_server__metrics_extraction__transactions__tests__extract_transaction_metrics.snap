@@ -29,14 +29,73 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.op": String(
                 "react.mount",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "<SomeUiRendering>",
+        op: "UI.React.Render",
+        span_id: SpanId(
+            "bd429c44b67a3eb4",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: ~,
+        tags: ~,
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.category": String(
+                "ui.react",
+            ),
+            "span.op": String(
+                "ui.react.render",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -68,10 +127,16 @@ expression: event.value().unwrap().spans
                 "fake_environment",
             ),
             "http.method": String(
-                "POST",
+                "PoSt",
+            ),
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.domain": String(
                 "*.domain.tld:targetport",
@@ -85,17 +150,20 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
-            "span.status_code": String(
-                "200",
-            ),
             "status_code": String(
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -129,8 +197,14 @@ expression: event.value().unwrap().spans
             "http.method": String(
                 "POST",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.domain": String(
                 "targetdomain.tld:targetport",
@@ -144,17 +218,20 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
-            "span.status_code": String(
-                "200",
-            ),
             "status_code": String(
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -191,14 +268,23 @@ expression: event.value().unwrap().spans
             "http.method": String(
                 "POST",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "POST",
+            ),
+            "span.category": String(
+                "http",
             ),
             "span.description": String(
                 "POST http://targetdomain:targetport/api/id/*",
             ),
             "span.domain": String(
                 "targetdomain:targetport",
+            ),
+            "span.group": String(
+                "ca77233e5cdb864b",
             ),
             "span.module": String(
                 "http",
@@ -209,17 +295,20 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
-            "span.status_code": String(
-                "200",
-            ),
             "status_code": String(
                 "200",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -232,7 +321,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "SELECT column FROM table WHERE id IN (1, 2, 3)",
+        description: "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
         op: "db.sql.query",
         span_id: SpanId(
             "bb7af8b99e95af5f",
@@ -254,19 +343,28 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "description.scrubbed": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "SeLeCt column FROM tAbLe WHERE id IN (%s)",
             ),
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "SELECT",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.description": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "SeLeCt column FROM tAbLe WHERE id IN (%s)",
             ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "f4a7fef06db3d88e",
             ),
             "span.module": String(
                 "db",
@@ -278,13 +376,19 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -297,7 +401,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "SELECT column FROM table WHERE id IN (1, 2, 3)",
+        description: "select column FROM table WHERE id IN (1, 2, 3)",
         op: "db",
         span_id: SpanId(
             "bb7af8b99e95af5f",
@@ -313,19 +417,28 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "select column FROM table WHERE id IN (%s)",
             ),
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "SELECT",
             ),
+            "span.category": String(
+                "db",
+            ),
             "span.description": String(
-                "SELECT column FROM table WHERE id IN (%s)",
+                "select column FROM table WHERE id IN (%s)",
             ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "4f9711d2d09963b9",
             ),
             "span.module": String(
                 "db",
@@ -337,10 +450,16 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -377,8 +496,14 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "INSERT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "table",
@@ -393,13 +518,19 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -436,8 +567,14 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "INSERT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "from_date",
@@ -452,13 +589,19 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -489,8 +632,14 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "INSERT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "table",
@@ -505,10 +654,16 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -545,8 +700,14 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "SELECT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "table",
@@ -561,13 +722,19 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -604,8 +771,14 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "SELECT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.domain": String(
                 "table",
@@ -620,13 +793,19 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -639,7 +818,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "SELECT 'table'.'col' FROM 'table' WHERE 'table'.'col' = %s",
+        description: "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
         op: "db",
         span_id: SpanId(
             "bb7af8b99e95af5f",
@@ -666,14 +845,23 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
             "span.action": String(
                 "SELECT",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.description": String(
                 "SELECT %s.%s FROM %s WHERE %s.%s = %s",
             ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "c55478a060a56db3",
             ),
             "span.module": String(
                 "db",
@@ -685,13 +873,19 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -728,8 +922,17 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.category": String(
+                "db",
+            ),
             "span.description": String(
                 "SAVEPOINT %s",
+            ),
+            "span.group": String(
+                "3f955cbde39e04b9",
             ),
             "span.module": String(
                 "db",
@@ -741,13 +944,19 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "MyDatabase",
+                "mydatabase",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -784,8 +993,17 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.category": String(
+                "cache",
+            ),
             "span.description": String(
                 "GET cache:user:*",
+            ),
+            "span.group": String(
+                "325fa5feb926f121",
             ),
             "span.module": String(
                 "cache",
@@ -797,10 +1015,16 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -834,8 +1058,17 @@ expression: event.value().unwrap().spans
             "environment": String(
                 "fake_environment",
             ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.category": String(
+                "resource",
+            ),
             "span.description": String(
                 "http://domain/static/myscript-*.js",
+            ),
+            "span.group": String(
+                "022f81fdf31228bf",
             ),
             "span.op": String(
                 "resource.script",
@@ -844,10 +1077,16 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "mytransaction",
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},

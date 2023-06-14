@@ -445,7 +445,7 @@ pub struct Request {
 
     /// Request data in any format that makes sense.
     ///
-    /// SDKs should discard large and binary bodies by default. Can be given as string or
+    /// SDKs should discard large and binary bodies by default. Can be given as a string or
     /// structural data of any format.
     #[metastructure(pii = "true", bag_size = "large")]
     pub data: Annotated<Value>,
@@ -496,6 +496,15 @@ pub struct Request {
     /// The inferred content type of the request payload.
     #[metastructure(skip_serialization = "empty")]
     pub inferred_content_type: Annotated<String>,
+
+    /// The API target/specification that made the request.
+    ///
+    /// Values can be `graphql`, `rest`, etc.
+    ///
+    /// The data field should contain the request and response bodies based on its target specification.
+    ///
+    /// This information can be used for better data scrubbing and normalization.
+    pub api_target: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, pii = "true")]
@@ -667,6 +676,7 @@ mod tests {
     "REMOTE_ADDR": "213.47.147.207"
   },
   "inferred_content_type": "application/json",
+  "api_target": "graphql",
   "other": "value"
 }"#;
 
@@ -709,6 +719,7 @@ mod tests {
                 map
             }),
             inferred_content_type: Annotated::new("application/json".to_string()),
+            api_target: Annotated::new("graphql".to_string()),
             other: {
                 let mut map = Object::new();
                 map.insert(
