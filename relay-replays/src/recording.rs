@@ -379,24 +379,24 @@ impl<'a> RecordingScrubber<'a> {
     ///  - Headers and the body are separated by exactly one UNIX newline (`\n`).
     ///  - The payload size exceeds the configured `limit` of the scrubber after decompression.
     ///  - On errors during decompression or JSON parsing.
-    pub fn process_recording(&mut self, bytes: &[u8]) -> Result<Vec<u8>, ParseRecordingError> {
+    pub fn process_recording(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<(Vec<u8>, Vec<u8>), ParseRecordingError> {
         // Check for null byte condition.
         if bytes.is_empty() {
             return Err(ParseRecordingError::Message("no data found"));
         }
 
-        // The "output" variable contains the header bytes but we describe it as "output" because
-        // we're going to re-use the address and append to it as an output buffer.
-        let (mut output, body) = split_headers_from_body(bytes.to_owned())?;
+        let (headers, body) = split_headers_from_body(bytes.to_owned())?;
 
-        output.push(b'\n');
         // Data scrubbing usually does not change the size of the output by much. We can preallocate
         // enough space for the scrubbed output to avoid resizing the output buffer serveral times.
         // Benchmarks have NOT shown a big difference, however.
-        output.reserve(body.len());
+        let mut output = Vec::with_capacity(body.len());
         self.transcode_replay(&body, &mut output)?;
 
-        Ok(output)
+        Ok((headers, output))
     }
 }
 
@@ -467,7 +467,7 @@ mod tests {
 
         let config = default_pii_config();
         let result = scrubber(&config).process_recording(payload);
-        assert!(!result.unwrap().is_empty());
+        assert!(!result.unwrap().0.is_empty());
     }
 
     #[test]

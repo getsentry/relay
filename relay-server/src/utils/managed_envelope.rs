@@ -228,7 +228,7 @@ impl ManagedEnvelope {
     ///
     /// This managed envelope should be updated using [`update`](Self::update) soon after this
     /// operation to ensure that subsequent outcomes are consistent.
-    fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
+    pub fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         self.outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at(),
             scoping: self.context.scoping,
@@ -260,7 +260,7 @@ impl ManagedEnvelope {
     /// rate limits and outcomes, because reporting of the main category
     /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
     /// will be handled by the metrics aggregator.
-    fn use_index_category(&self) -> bool {
+    pub fn use_index_category(&self) -> bool {
         self.context.summary.event_metrics_extracted
     }
 

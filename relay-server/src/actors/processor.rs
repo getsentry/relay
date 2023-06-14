@@ -1250,7 +1250,12 @@ impl EnvelopeProcessorService {
                 });
 
                 match parsed_recording {
-                    Ok(recording) => {
+                    Ok((mut headers, mut body)) => {
+                        let mut recording = Vec::with_capacity(headers.len() + body.len());
+                        recording.append(&mut headers);
+                        recording.push(b'\n');
+                        recording.append(&mut body);
+
                         item.set_payload(ContentType::OctetStream, recording);
                         ItemAction::Keep
                     }
@@ -1272,88 +1277,170 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let project_state = &state.project_state;
-        let combined_envelope_items =
-            project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems);
+        let project_state = state.project_state.clone();
+        let envelope = state.envelope_mut();
+        let meta = envelope.meta().clone();
+        let event_id = envelope.event_id();
 
-        if combined_envelope_items {
-            // If this flag is enabled, combine both items into a single item,
-            // and remove the original items.
-            // The combined Item's payload is a MsgPack map with the keys
-            // "replay_event" and "replay_recording".
-            // The values are the original payloads of the items.
-            let envelope = &mut state.envelope_mut();
-            if let Some(replay_event_item) =
-                envelope.take_item_by(|item| item.ty() == &ItemType::ReplayEvent)
+        // If combined envelope processing is not enabled default to the original workflow.
+        if !project_state.has_feature(Feature::SessionReplayCombinedEnvelopeItems) {
+            return self.process_replays(state);
+        }
+
+        // Extract the replay_event and replay_recording as a unit. If only one or neither could
+        // be extracted then the process is finished.
+        //
+        // This is a breaking change. Previously unmatched items would be processed. Now unmatched
+        // items are discarded.
+        let (Some(replay_event), Some(replay_recording)) =
+            (
+                envelope.take_item_by(|item| item.ty() == &ItemType::ReplayEvent),
+                envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
+            )
+        else {
+            return Ok(());
+        };
+
+        // If replays is not enabled for this project then we're done. We're guaranteed to have
+        // removed the non-permitted envelopes in the above step.
+        if !project_state.has_feature(Feature::SessionReplay) {
+            return Ok(());
+        }
+
+        let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
+
+        let client_ip = meta.client_addr();
+
+        let limit = self.config.max_replay_uncompressed_size();
+        let config = project_state.config();
+        let datascrubbing_config = config
+            .datascrubbing_settings
+            .pii_config()
+            .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?
+            .as_ref();
+        let mut scrubber =
+            RecordingScrubber::new(limit, config.pii_config.as_ref(), datascrubbing_config);
+
+        let user_agent = &RawUserAgentInfo {
+            user_agent: meta.user_agent(),
+            client_hints: meta.client_hints().as_deref(),
+        };
+
+        let replay_json =
+            match self.process_replay_event(&replay_event.payload(), config, client_ip, user_agent)
             {
-                if let Some(replay_recording_item) =
-                    envelope.take_item_by(|item| item.ty() == &ItemType::ReplayRecording)
-                {
-                    // Split the headers from the body so they can be stored on separate keys.
-                    // This was previously done in another processing step (`process_replays`). To
-                    // be here we know it must have been successful otherwise the envelope would
-                    // have been dropped.
-                    //
-                    // TODO: Should we handle this possible error state more gracefully?
-                    // Potentially following the error pattern established in the msgpack
-                    // serialization step below?
-                    let (headers, body) =
-                        split_headers_from_body(replay_recording_item.payload().into())
-                            .expect("This is pre-validated and should not fail.");
+                Ok(replay) => match replay.to_json() {
+                    Ok(replay_json) => replay_json,
+                    Err(e) => {
+                        relay_log::error!(error = &e as &dyn Error, "failed to serialize replay");
 
-                    // We need to use this value twice. Once for pre-allocating memory and once
-                    // for serialization.
-                    let replay_event = replay_event_item.payload();
+                        // Failures to scrub return early. Both envelopes are dropped.
+                        //
+                        // This is a breaking change. Previously failures to serialize scrubbed replays
+                        // were retained. This is obviously a deficiency. Non-scrubbed replays should
+                        // not be retained.
+                        return Ok(());
+                    }
+                },
+                Err(e) => {
+                    relay_log::warn!(error = &e as &dyn Error, "invalid replay event");
 
-                    // Pre-allocate capacity in the buffer. The buffer will use the full size of
-                    // each of the three keys' values. As well as the size of the keys themselves
-                    // (52 bytes) plus some overhead of unknown size. 64 was used as a safe guess
-                    // for the combined sizes of the keys and msgpack bytes.
-                    //
-                    // Pre-allocating capacity makes pushing into the buffer essintially free.
-                    let capacity = replay_event.len() + headers.len() + body.len() + 64;
-                    let mut buffer: Vec<u8> = Vec::with_capacity(capacity);
-
-                    // Msgpack serialization step. We take all of the data we've extracted and
-                    // serialize it into a single payload.
-                    //
-                    // TODO: For now I've inlined the Payload definition. We can argue over its
-                    // best location in code review.
-                    #[derive(Debug, Serialize)]
-                    struct Payload {
-                        replay_event: Vec<u8>,
-                        replay_recording_headers: Vec<u8>,
-                        replay_recording: Vec<u8>,
+                    let use_indexed = state.managed_envelope.use_index_category();
+                    if let Some(category) = replay_event.outcome_category(use_indexed) {
+                        let outcome = Outcome::Invalid(match e {
+                            ReplayError::NoContent => DiscardReason::InvalidReplayEventNoPayload,
+                            ReplayError::CouldNotScrub(_) => DiscardReason::InvalidReplayEventPii,
+                            ReplayError::CouldNotParse(_) => DiscardReason::InvalidReplayEvent,
+                            ReplayError::InvalidPayload(_) => DiscardReason::InvalidReplayEvent,
+                        });
+                        state.managed_envelope.track_outcome(
+                            outcome,
+                            category,
+                            replay_event.quantity(),
+                        );
                     }
 
-                    let payload = Payload {
-                        replay_event: replay_event.into(),
-                        replay_recording_headers: headers,
-                        replay_recording: body,
-                    };
+                    // Failures to scrub return early. Both envelopes are dropped.
+                    return Ok(());
+                }
+            };
 
-                    if let Err(e) = rmp_serde::encode::write(&mut buffer, &payload) {
-                        // Log so we can monitor failures.
-                        relay_log::error!("replay envelope merge failure: {e}");
+        // XXX: Processing is there just for data scrubbing. Skip the entire expensive
+        // processing step if we do not need to scrub.
+        let (headers, body) = if scrubbing_enabled && !scrubber.is_empty() {
+            // Limit expansion of recordings to the max replay size. The payload is
+            // decompressed temporarily and then immediately re-compressed. However, to
+            // limit memory pressure, we use the replay limit as a good overall limit for
+            // allocations.
+            metric!(timer(RelayTimers::ReplayRecordingProcessing), {
+                match scrubber.process_recording(&replay_recording.payload()) {
+                    Ok(recording) => recording,
+                    Err(e) => {
+                        relay_log::warn!("replay-recording-event: {e} {event_id:?}");
 
-                        // If the merging process fails we need to re-append the old envelopes
-                        // back into the stream so they can be processed in the version 0
-                        // style.
-                        envelope.add_item(replay_event_item);
-                        envelope.add_item(replay_recording_item);
-                    } else {
-                        // If the operation was successful we can create our new combined envelope
-                        // items and append it to the envelope stream.
-                        let mut combined_item =
-                            Item::new(ItemType::CombinedReplayEventAndRecording);
-                        combined_item.set_payload(ContentType::MsgPack, buffer);
-                        envelope.add_item(combined_item);
+                        let use_indexed = state.managed_envelope.use_index_category();
+                        if let Some(category) = replay_event.outcome_category(use_indexed) {
+                            let outcome =
+                                Outcome::Invalid(DiscardReason::InvalidReplayRecordingEvent);
+                            state.managed_envelope.track_outcome(
+                                outcome,
+                                category,
+                                replay_event.quantity(),
+                            );
+                        }
+
+                        return Ok(());
                     }
-                } else {
-                    envelope.add_item(replay_event_item)
+                }
+            })
+        } else {
+            match split_headers_from_body(replay_recording.payload().to_vec()) {
+                Ok(v) => v,
+                Err(_) => {
+                    // TODO: REcord outcomes
+                    return Ok(());
                 }
             }
+        };
+
+        // Pre-allocate capacity in the buffer. The buffer will use the full size of
+        // each of the three keys' values. As well as the size of the keys themselves
+        // (52 bytes) plus some overhead of unknown size. 64 was used as a safe guess
+        // for the combined sizes of the keys and msgpack bytes.
+        //
+        // Pre-allocating capacity makes pushing into the buffer essintially free.
+        let capacity = replay_event.len() + headers.len() + body.len() + 64;
+        let mut buffer: Vec<u8> = Vec::with_capacity(capacity);
+
+        // Msgpack serialization step. We take all of the data we've extracted and
+        // serialize it into a single payload.
+        #[derive(Debug, Serialize)]
+        struct Payload {
+            replay_event: String,
+            replay_recording_headers: Vec<u8>,
+            replay_recording: Vec<u8>,
         }
+
+        let payload = Payload {
+            replay_event: replay_json,
+            replay_recording_headers: headers,
+            replay_recording: body,
+        };
+
+        if let Err(e) = rmp_serde::encode::write(&mut buffer, &payload) {
+            // Log so we can monitor failures.
+            relay_log::error!("replay envelope merge failure: {e}");
+
+            // Envelopes are dropped.
+            return Ok(());
+        } else {
+            // If the operation was successful we can create our new combined envelope
+            // items and append it to the envelope stream.
+            let mut combined_item = Item::new(ItemType::CombinedReplayEventAndRecording);
+            combined_item.set_payload(ContentType::MsgPack, buffer);
+            envelope.add_item(combined_item);
+        };
+
         Ok(())
     }
 
