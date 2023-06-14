@@ -11,8 +11,8 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
 };
 use crate::store::regexes::{
-    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_NORMALIZER_REGEX,
-    TRANSACTION_NAME_NORMALIZER_REGEX,
+    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
+    SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
 };
 use crate::store::SpanDescriptionRule;
 use crate::types::{
@@ -24,8 +24,6 @@ use crate::types::{
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
-    /// True if URL transactions should be marked as sanitized, even if there are no rules.
-    pub ready: bool,
 }
 
 /// Rejects transactions based on required fields.
@@ -386,6 +384,10 @@ fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingA
 
 /// Normalize the given SQL-query-like string.
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    if is_sql_query_scrubbed(string) {
+        return Ok(true);
+    }
+
     scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
 }
 
@@ -449,6 +451,12 @@ fn scrub_identifiers_with_regex(
     Ok(did_change)
 }
 
+fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
+    query
+        .value()
+        .map_or(false, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
+}
+
 impl Processor for TransactionsProcessor<'_> {
     fn process_event(
         &mut self,
@@ -471,18 +479,13 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        // If the project is marked as 'ready', always set the transaction source to sanitized.
-        let mut mark_as_sanitized = self.name_config.ready;
-
         if matches!(
             event.get_transaction_source(),
             &TransactionSource::Url | &TransactionSource::Sanitized
         ) {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            scrub_identifiers(&mut event.transaction)?.then(|| {
-                mark_as_sanitized = true;
-            });
+            scrub_identifiers(&mut event.transaction)?;
         }
 
         if !self.name_config.rules.is_empty() {
@@ -490,11 +493,16 @@ impl Processor for TransactionsProcessor<'_> {
                 &mut event.transaction,
                 event.transaction_info.value_mut(),
             )?;
-
-            mark_as_sanitized = true;
         }
 
-        if mark_as_sanitized && matches!(event.get_transaction_source(), &TransactionSource::Url) {
+        if matches!(event.get_transaction_source(), &TransactionSource::Url) {
+            // Always mark URL transactions as sanitized, even if no modification were made by
+            // clusterer rules or regex matchers. This has the consequence that the transaction name
+            // is always extracted as a tag on transaction metrics.
+            // Instead of changing the source to "sanitized", we could have changed metrics extraction
+            // to also extract the transaction name for URL transactions. But this is the safer way,
+            // because the product currently uses queries that assume that `source:url` is equivalent
+            // to `transaction:<< unparameterized >>`.
             event
                 .transaction_info
                 .get_or_insert_with(Default::default)
@@ -1808,14 +1816,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[],
-                    ready: true,
-                },
-                false,
-                None,
-            ),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1896,7 +1897,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: false,
                 },
                 false,
                 None,
@@ -1962,7 +1962,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: false,
                 },
                 false,
                 None,
@@ -2062,7 +2061,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ready: false,
                 },
                 false,
                 None,
@@ -2130,14 +2128,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[rule],
-                    ready: false,
-                },
-                false,
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2364,7 +2355,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ready: false,
                 },
                 false,
                 None,
@@ -2412,7 +2402,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ready: false,
                 },
                 false,
                 None,
@@ -2457,7 +2446,9 @@ mod tests {
 
     macro_rules! span_description_test {
         // Tests the scrubbed span description for the given op.
-        // An empty output `""` means the span description was not scrubbed at all.
+
+        // Same output and input means the input was already scrubbed.
+        // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
         ($name:ident, $description_in:literal, $op_in:literal, $output:literal) => {
             #[test]
             fn $name() {
@@ -2504,12 +2495,15 @@ mod tests {
                         .is_none());
                 } else {
                     assert_eq!(
-                        $output,
-                        span.value()
-                            .and_then(|span| span.data.value())
-                            .and_then(|data| data.get("description.scrubbed"))
-                            .and_then(|an_value| an_value.as_str())
-                            .unwrap()
+                        format!("\"{}\"", $output),
+                        format!(
+                            "{:?}",
+                            span.value()
+                                .and_then(|span| span.data.value())
+                                .and_then(|data| data.get("description.scrubbed"))
+                                .and_then(|an_value| an_value.as_str())
+                                .unwrap()
+                        )
                     );
                 }
             }
@@ -2587,14 +2581,14 @@ mod tests {
         span_description_scrub_various_parameterized_ins_percentage,
         "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)"
+        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)"
     );
 
     span_description_test!(
         span_description_scrub_various_parameterized_ins_dollar,
         "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (%s)"
+        "SELECT count() FROM table WHERE id IN ($1, $2, $3)"
     );
 
     span_description_test!(
@@ -2671,7 +2665,7 @@ mod tests {
         span_description_dont_scrub_double_quoted_strings_format_postgres,
         r#"SELECT * from \"table\" WHERE sku = %s"#,
         "db.sql.query",
-        ""
+        r#"SELECT * from \"table\" WHERE sku = %s"#
     );
 
     span_description_test!(
@@ -2713,7 +2707,7 @@ mod tests {
         span_description_already_scrubbed,
         "SELECT * FROM table123 WHERE id = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM table123 WHERE id = %s"
     );
 
     span_description_test!(
@@ -2741,28 +2735,28 @@ mod tests {
         span_description_scrub_boolean_not_in_tablename_true,
         "SELECT * FROM table_true WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM table_true WHERE deleted = %s"
     );
 
     span_description_test!(
         span_description_scrub_boolean_not_in_tablename_false,
         "SELECT * FROM table_false WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM table_false WHERE deleted = %s"
     );
 
     span_description_test!(
         span_description_scrub_boolean_not_in_mid_tablename_true,
         "SELECT * FROM tatrueble WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM tatrueble WHERE deleted = %s"
     );
 
     span_description_test!(
         span_description_scrub_boolean_not_in_mid_tablename_false,
         "SELECT * FROM tafalseble WHERE deleted = %s",
         "db.sql.query",
-        ""
+        "SELECT * FROM tafalseble WHERE deleted = %s"
     );
 
     span_description_test!(
@@ -2894,7 +2888,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 None,
@@ -2995,7 +2988,6 @@ mod tests {
                         scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 Some(&Vec::from([SpanDescriptionRule {

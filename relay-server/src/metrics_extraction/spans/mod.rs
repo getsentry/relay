@@ -1,5 +1,6 @@
 use crate::metrics_extraction::transactions::extract_http_status_code;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::utils::http_status_code_from_span;
 use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
@@ -42,6 +43,17 @@ pub(crate) fn extract_span_metrics(
     if !aggregator_config.timestamp_range().contains(&timestamp) {
         relay_log::debug!("event timestamp is out of the valid range for metrics");
         return Err(ExtractMetricsError::InvalidTimestamp);
+    }
+
+    // Collect data for the databag that isn't metrics
+    let mut databag = BTreeMap::new();
+
+    if let Some(release) = event.release.as_str() {
+        databag.insert("release".to_owned(), release.to_owned());
+    }
+
+    if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
+        databag.insert("user".to_owned(), user);
     }
 
     // Collect the shared tags for all the metrics and spans on this transaction.
@@ -181,22 +193,29 @@ pub(crate) fn extract_span_metrics(
                 span_tags.insert("span.status".to_owned(), span_status.to_string());
             }
 
-            // XXX(iker): extract status code, when its cardinality doesn't
-            // represent a risk for the indexers.
+            if let Some(status_code) = http_status_code_from_span(span) {
+                span_tags.insert("span.status_code".to_owned(), status_code);
+            }
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
-            span.data.get_or_insert_with(BTreeMap::new).extend(
-                span_tags
+            span.data.get_or_insert_with(BTreeMap::new).extend({
+                let it = span_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
-            );
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v))));
+                it.chain(
+                    databag
+                        .clone()
+                        .into_iter()
+                        .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+                )
+            });
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
-                        MetricNamespace::Transactions,
-                        "span.user",
+                        MetricNamespace::Spans,
+                        "user",
                         MetricUnit::None,
                         MetricValue::set_from_str(&value),
                         timestamp,
@@ -210,8 +229,8 @@ pub(crate) fn extract_span_metrics(
                 // such as sub-transactions. We accept these limitations for
                 // now.
                 metrics.push(Metric::new_mri(
-                    MetricNamespace::Transactions,
-                    "span.exclusive_time",
+                    MetricNamespace::Spans,
+                    "exclusive_time",
                     MetricUnit::Duration(DurationUnit::MilliSecond),
                     MetricValue::Distribution(*exclusive_time),
                     timestamp,
@@ -222,8 +241,8 @@ pub(crate) fn extract_span_metrics(
             // The `duration` of a span. This metric also serves as the
             // counter metric `throughput`.
             metrics.push(Metric::new_mri(
-                MetricNamespace::Transactions,
-                "span.duration",
+                MetricNamespace::Spans,
+                "duration",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
                 timestamp,

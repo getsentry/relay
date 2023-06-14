@@ -31,6 +31,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.op": String(
                 "react.mount",
@@ -43,6 +45,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -75,6 +80,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.category": String(
                 "ui.react",
@@ -90,6 +97,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -125,6 +135,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "POST",
@@ -144,6 +156,9 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
+            "span.status_code": String(
+                "200",
+            ),
             "status_code": String(
                 "200",
             ),
@@ -155,6 +170,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -190,6 +208,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "POST",
@@ -209,6 +229,9 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
+            "span.status_code": String(
+                "200",
+            ),
             "status_code": String(
                 "200",
             ),
@@ -220,6 +243,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -258,6 +284,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "POST",
@@ -283,6 +311,9 @@ expression: event.value().unwrap().spans
             "span.status": String(
                 "ok",
             ),
+            "span.status_code": String(
+                "200",
+            ),
             "status_code": String(
                 "200",
             ),
@@ -294,6 +325,156 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd2eb23da2beb459",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: {
+            "http.status_code": JsonLenientString(
+                "200",
+            ),
+        },
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "POST",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "POST",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.domain": String(
+                "*.domain.tld:targetport",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.status_code": String(
+                "200",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd2eb23da2beb459",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: {
+            "http.status_code": JsonLenientString(
+                "200",
+            ),
+        },
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "POST",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "POST",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.domain": String(
+                "*.domain.tld:targetport",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.status_code": String(
+                "200",
+            ),
+            "status_code": String(
+                "200",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "GET",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -335,6 +516,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -372,6 +555,9 @@ expression: event.value().unwrap().spans
             "transaction.op": String(
                 "myop",
             ),
+            "user": String(
+                "id:user123",
+            ),
         },
         other: {},
     },
@@ -406,6 +592,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -439,6 +627,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -477,6 +668,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "INSERT",
@@ -507,6 +700,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -545,6 +741,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "INSERT",
@@ -575,6 +773,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -607,6 +808,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "INSERT",
@@ -634,6 +837,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -672,6 +878,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -702,6 +910,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -735,11 +946,16 @@ expression: event.value().unwrap().spans
             "db.system": String(
                 "MyDatabase",
             ),
+            "description.scrubbed": String(
+                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            ),
             "environment": String(
                 "fake_environment",
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -747,8 +963,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "db",
             ),
+            "span.description": String(
+                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+            ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "74f357d6eeea41b8",
             ),
             "span.module": String(
                 "db",
@@ -770,6 +992,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -804,13 +1029,15 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "description.scrubbed": String(
-                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
             ),
             "environment": String(
                 "fake_environment",
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.action": String(
                 "SELECT",
@@ -819,13 +1046,13 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
             ),
             "span.domain": String(
                 "table",
             ),
             "span.group": String(
-                "c55478a060a56db3",
+                "8ea340ad7f24b50a",
             ),
             "span.module": String(
                 "db",
@@ -847,6 +1074,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -885,6 +1115,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.category": String(
                 "db",
@@ -915,6 +1147,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -953,6 +1188,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.category": String(
                 "cache",
@@ -980,6 +1217,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
@@ -1015,6 +1255,8 @@ expression: event.value().unwrap().spans
             ),
             "http.status_code": String(
                 "200",
+            "release": String(
+                "1.2.3",
             ),
             "span.category": String(
                 "resource",
@@ -1039,6 +1281,9 @@ expression: event.value().unwrap().spans
             ),
             "transaction.op": String(
                 "myop",
+            ),
+            "user": String(
+                "id:user123",
             ),
         },
         other: {},
