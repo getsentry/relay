@@ -207,8 +207,8 @@ pub(crate) fn extract_span_metrics(
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
-                        MetricNamespace::Transactions,
-                        "span.user",
+                        MetricNamespace::Spans,
+                        "user",
                         MetricUnit::None,
                         MetricValue::set_from_str(&value),
                         timestamp,
@@ -222,8 +222,8 @@ pub(crate) fn extract_span_metrics(
                 // such as sub-transactions. We accept these limitations for
                 // now.
                 metrics.push(Metric::new_mri(
-                    MetricNamespace::Transactions,
-                    "span.exclusive_time",
+                    MetricNamespace::Spans,
+                    "exclusive_time",
                     MetricUnit::Duration(DurationUnit::MilliSecond),
                     MetricValue::Distribution(*exclusive_time),
                     timestamp,
@@ -234,8 +234,8 @@ pub(crate) fn extract_span_metrics(
             // The `duration` of a span. This metric also serves as the
             // counter metric `throughput`.
             metrics.push(Metric::new_mri(
-                MetricNamespace::Transactions,
-                "span.duration",
+                MetricNamespace::Spans,
+                "duration",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
                 timestamp,
