@@ -66,11 +66,16 @@ pub(crate) fn extract_span_metrics(
     if let Some(transaction_name) = event.transaction.value() {
         shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
 
-        if let Some(transaction_method) = http_method_from_transaction_name(transaction_name) {
-            shared_tags.insert(
-                "transaction.method".to_owned(),
-                transaction_method.to_uppercase(),
-            );
+        let transaction_method_from_request = event
+            .request
+            .value()
+            .and_then(|r| r.method.value())
+            .map(|m| m.to_uppercase());
+
+        if let Some(transaction_method) = transaction_method_from_request
+            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
+        {
+            shared_tags.insert("transaction.method".to_owned(), transaction_method);
         }
     }
 
