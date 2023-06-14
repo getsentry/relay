@@ -990,7 +990,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1034,7 +1034,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1087,7 +1087,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1144,7 +1144,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1205,7 +1205,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1270,7 +1270,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1334,7 +1334,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1395,7 +1395,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1455,7 +1455,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1513,7 +1513,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1572,7 +1572,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1636,7 +1636,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1702,7 +1702,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1764,7 +1764,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1822,7 +1822,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
@@ -1877,7 +1877,7 @@ mod tests {
             Metric {
                 name: "d:spans/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    2000.0,
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
