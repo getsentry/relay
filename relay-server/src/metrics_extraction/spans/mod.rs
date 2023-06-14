@@ -473,3 +473,142 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
     }
     Some(replaced)
 }
+
+#[cfg(test)]
+mod tests {
+    use relay_general::protocol::{Event, Request};
+    use relay_general::store::{self, LightNormalizationConfig};
+    use relay_general::types::Annotated;
+    use relay_metrics::AggregatorConfig;
+
+    use crate::metrics_extraction::spans::extract_span_metrics;
+
+    macro_rules! span_transaction_method_test {
+        // Tests transaction.method is picked from the right place.
+        ($name:ident, $transaction_name:literal, $request_method:literal, $expected_method:literal) => {
+            #[test]
+            fn $name() {
+                let json = format!(
+                    r#"
+                    {{
+                        "type": "transaction",
+                        "platform": "javascript",
+                        "start_timestamp": "2021-04-26T07:59:01+0100",
+                        "timestamp": "2021-04-26T08:00:00+0100",
+                        "server_name": "myhost",
+                        "release": "1.2.3",
+                        "dist": "foo ",
+                        "environment": "fake_environment",
+                        "transaction": "{}",
+                        "transaction_info": {{"source": "custom"}},
+                        "user": {{
+                            "id": "user123",
+                            "geo": {{
+                                "country_code": "US"
+                            }}
+                        }},
+                        "contexts": {{
+                            "trace": {{
+                                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                                "span_id": "bd429c44b67a3eb4",
+                                "op": "mYOp",
+                                "status": "ok"
+                            }}
+                        }},
+                        "spans": [
+                            {{
+                                "description": "<SomeUiRendering>",
+                                "op": "UI.React.Render",
+                                "parent_span_id": "8f5a2b8768cafb4e",
+                                "span_id": "bd429c44b67a3eb4",
+                                "start_timestamp": 1597976300.0000000,
+                                "timestamp": 1597976302.0000000,
+                                "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                            }}
+                        ]
+                    }}
+                "#,
+                    $transaction_name
+                );
+
+                let mut event = Annotated::<Event>::from_json(&json).unwrap();
+
+                if !$request_method.is_empty() {
+                    if let Some(e) = event.value_mut() {
+                        e.request = Annotated::new(Request {
+                            method: Annotated::new(format!("{}", $request_method)),
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                // Normalize first, to make sure that all things are correct as in the real pipeline:
+                let res = store::light_normalize_event(
+                    &mut event,
+                    LightNormalizationConfig {
+                        scrub_span_descriptions: true,
+                        light_normalize_spans: true,
+                        ..Default::default()
+                    },
+                );
+                assert!(res.is_ok());
+
+                let aggregator_config = AggregatorConfig {
+                    max_secs_in_past: u64::MAX,
+                    max_secs_in_future: u64::MAX,
+                    ..Default::default()
+                };
+
+                let mut metrics = vec![];
+                extract_span_metrics(
+                    &aggregator_config,
+                    event.value_mut().as_mut().unwrap(),
+                    &mut metrics,
+                )
+                .unwrap();
+
+                assert_eq!(
+                    $expected_method,
+                    event
+                        .value()
+                        .and_then(|e| e.spans.value())
+                        .and_then(|spans| spans[0].value())
+                        .and_then(|s| s.data.value())
+                        .and_then(|d| d.get("transaction.method"))
+                        .and_then(|v| v.value())
+                        .and_then(|v| v.as_str())
+                        .unwrap()
+                );
+
+                for metric in &metrics {
+                    dbg!(metric.tags.get("transaction.method").unwrap());
+                    assert_eq!(
+                        $expected_method,
+                        metric.tags.get("transaction.method").unwrap()
+                    );
+                }
+            }
+        };
+    }
+
+    span_transaction_method_test!(
+        test_http_method_txname,
+        "get /api/:version/users/",
+        "",
+        "GET"
+    );
+
+    span_transaction_method_test!(
+        test_http_method_context,
+        "/api/:version/users/",
+        "post",
+        "POST"
+    );
+
+    span_transaction_method_test!(
+        test_http_method_request_prioritized,
+        "get /api/:version/users/",
+        "post",
+        "POST"
+    );
+}
