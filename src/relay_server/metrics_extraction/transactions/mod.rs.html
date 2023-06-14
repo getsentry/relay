@@ -3109,12 +3109,106 @@
 <a href="#3109" id="3109">3109</a>
 <a href="#3110" id="3110">3110</a>
 <a href="#3111" id="3111">3111</a>
+<a href="#3112" id="3112">3112</a>
+<a href="#3113" id="3113">3113</a>
+<a href="#3114" id="3114">3114</a>
+<a href="#3115" id="3115">3115</a>
+<a href="#3116" id="3116">3116</a>
+<a href="#3117" id="3117">3117</a>
+<a href="#3118" id="3118">3118</a>
+<a href="#3119" id="3119">3119</a>
+<a href="#3120" id="3120">3120</a>
+<a href="#3121" id="3121">3121</a>
+<a href="#3122" id="3122">3122</a>
+<a href="#3123" id="3123">3123</a>
+<a href="#3124" id="3124">3124</a>
+<a href="#3125" id="3125">3125</a>
+<a href="#3126" id="3126">3126</a>
+<a href="#3127" id="3127">3127</a>
+<a href="#3128" id="3128">3128</a>
+<a href="#3129" id="3129">3129</a>
+<a href="#3130" id="3130">3130</a>
+<a href="#3131" id="3131">3131</a>
+<a href="#3132" id="3132">3132</a>
+<a href="#3133" id="3133">3133</a>
+<a href="#3134" id="3134">3134</a>
+<a href="#3135" id="3135">3135</a>
+<a href="#3136" id="3136">3136</a>
+<a href="#3137" id="3137">3137</a>
+<a href="#3138" id="3138">3138</a>
+<a href="#3139" id="3139">3139</a>
+<a href="#3140" id="3140">3140</a>
+<a href="#3141" id="3141">3141</a>
+<a href="#3142" id="3142">3142</a>
+<a href="#3143" id="3143">3143</a>
+<a href="#3144" id="3144">3144</a>
+<a href="#3145" id="3145">3145</a>
+<a href="#3146" id="3146">3146</a>
+<a href="#3147" id="3147">3147</a>
+<a href="#3148" id="3148">3148</a>
+<a href="#3149" id="3149">3149</a>
+<a href="#3150" id="3150">3150</a>
+<a href="#3151" id="3151">3151</a>
+<a href="#3152" id="3152">3152</a>
+<a href="#3153" id="3153">3153</a>
+<a href="#3154" id="3154">3154</a>
+<a href="#3155" id="3155">3155</a>
+<a href="#3156" id="3156">3156</a>
+<a href="#3157" id="3157">3157</a>
+<a href="#3158" id="3158">3158</a>
+<a href="#3159" id="3159">3159</a>
+<a href="#3160" id="3160">3160</a>
+<a href="#3161" id="3161">3161</a>
+<a href="#3162" id="3162">3162</a>
+<a href="#3163" id="3163">3163</a>
+<a href="#3164" id="3164">3164</a>
+<a href="#3165" id="3165">3165</a>
+<a href="#3166" id="3166">3166</a>
+<a href="#3167" id="3167">3167</a>
+<a href="#3168" id="3168">3168</a>
+<a href="#3169" id="3169">3169</a>
+<a href="#3170" id="3170">3170</a>
+<a href="#3171" id="3171">3171</a>
+<a href="#3172" id="3172">3172</a>
+<a href="#3173" id="3173">3173</a>
+<a href="#3174" id="3174">3174</a>
+<a href="#3175" id="3175">3175</a>
+<a href="#3176" id="3176">3176</a>
+<a href="#3177" id="3177">3177</a>
+<a href="#3178" id="3178">3178</a>
+<a href="#3179" id="3179">3179</a>
+<a href="#3180" id="3180">3180</a>
+<a href="#3181" id="3181">3181</a>
+<a href="#3182" id="3182">3182</a>
+<a href="#3183" id="3183">3183</a>
+<a href="#3184" id="3184">3184</a>
+<a href="#3185" id="3185">3185</a>
+<a href="#3186" id="3186">3186</a>
+<a href="#3187" id="3187">3187</a>
+<a href="#3188" id="3188">3188</a>
+<a href="#3189" id="3189">3189</a>
+<a href="#3190" id="3190">3190</a>
+<a href="#3191" id="3191">3191</a>
+<a href="#3192" id="3192">3192</a>
+<a href="#3193" id="3193">3193</a>
+<a href="#3194" id="3194">3194</a>
+<a href="#3195" id="3195">3195</a>
+<a href="#3196" id="3196">3196</a>
+<a href="#3197" id="3197">3197</a>
+<a href="#3198" id="3198">3198</a>
+<a href="#3199" id="3199">3199</a>
+<a href="#3200" id="3200">3200</a>
+<a href="#3201" id="3201">3201</a>
+<a href="#3202" id="3202">3202</a>
+<a href="#3203" id="3203">3203</a>
+<a href="#3204" id="3204">3204</a>
+<a href="#3205" id="3205">3205</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 <span class="kw">use </span>relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
 <span class="kw">use </span>relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, Span, TraceContext, TransactionSource,
+    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource,
 };
 <span class="kw">use </span>relay_general::store;
 <span class="kw">use </span>relay_general::types::Annotated;
@@ -3127,7 +3221,7 @@
     TransactionMeasurementTags, TransactionMetric,
 };
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::{
-    extract_transaction_op, get_eventuser_tag, get_trace_context,
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -3176,74 +3270,6 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(geo) = user.geo.value() {
             <span class="kw">return </span>geo.country_code.value().cloned();
-        }
-    }
-
-    <span class="prelude-val">None
-</span>}
-
-<span class="doccomment">/// Extract the HTTP status code from the span data.
-</span><span class="kw">fn </span>http_status_code_from_span_data(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    span.data
-        .value()
-        .and_then(|v| {
-            v.get(<span class="string">&quot;http.response.status_code&quot;</span>)
-                .or_else(|| v.get(<span class="string">&quot;status_code&quot;</span>))
-        })
-        .and_then(|v| v.as_str())
-        .map(|v| v.to_string())
-}
-
-<span class="doccomment">/// Extracts the HTTP status code.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_http_status_code(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(spans) = event.spans.value() {
-        <span class="kw">for </span>span <span class="kw">in </span>spans {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(span_value) = span.value() {
-                <span class="comment">// For SDKs which put the HTTP status code into the span data.
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span_data(span_value) {
-                    <span class="kw">return </span><span class="prelude-val">Some</span>(status_code);
-                }
-
-                <span class="comment">// For SDKs which put the HTTP status code into the span tags.
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = span_value
-                    .tags
-                    .value()
-                    .and_then(|tags| tags.get(<span class="string">&quot;http.status_code&quot;</span>))
-                {
-                    <span class="kw">return </span>status_code.value().map(|v| v.as_str().to_string());
-                }
-            }
-        }
-    }
-
-    <span class="comment">// For SDKs which put the HTTP status code into the breadcrumbs data.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(breadcrumbs) = event.breadcrumbs.value() {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(values) = breadcrumbs.values.value() {
-            <span class="kw">for </span>breadcrumb <span class="kw">in </span>values {
-                <span class="comment">// We need only the `http` type.
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(crumb) = breadcrumb
-                    .value()
-                    .filter(|bc| bc.ty.as_str() == <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>))
-                {
-                    <span class="comment">// Try to get the status code om the map.
-                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = crumb.data.value().and_then(|v| v.get(<span class="string">&quot;status_code&quot;</span>))
-                    {
-                        <span class="kw">return </span>status_code.value().and_then(|v| v.as_str()).map(Into::into);
-                    }
-                }
-            }
-        }
-    }
-
-    <span class="comment">// For SDKs which put the HTTP status code in the `Response` context.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value() {
-        <span class="kw">let </span>response = contexts.get(<span class="string">&quot;response&quot;</span>).and_then(Annotated::value);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Response(response_context))) = response {
-            <span class="kw">let </span>status_code = response_context
-                .status_code
-                .value()
-                .map(|code| code.to_string());
-            <span class="kw">return </span>status_code;
         }
     }
 
@@ -3755,6 +3781,39 @@
                     }
                 },
                 {
+                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:targetport/api/hi&quot;,
+                    &quot;op&quot;: &quot;http.client&quot;,
+                    &quot;tags&quot;: {
+                        &quot;http.status_code&quot;: &quot;200&quot;
+                    },
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976302.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;http.method&quot;: &quot;POST&quot;
+                    }
+                },
+                {
+                    &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:targetport/api/hi&quot;,
+                    &quot;op&quot;: &quot;http.client&quot;,
+                    &quot;tags&quot;: {
+                        &quot;http.status_code&quot;: &quot;200&quot;
+                    },
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976302.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;http.method&quot;: &quot;POST&quot;,
+                        &quot;status_code&quot;: &quot;200&quot;
+                    }
+                },
+                {
                     &quot;description&quot;: &quot;SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)&quot;,
                     &quot;op&quot;: &quot;db.sql.query&quot;,
                     &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
@@ -4171,6 +4230,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4190,6 +4250,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4209,6 +4270,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4228,6 +4290,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4247,6 +4310,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4266,6 +4330,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4287,6 +4352,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4308,6 +4374,7 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
@@ -4329,6 +4396,127 @@
                     &quot;span.module&quot;: &quot;http&quot;,
                     &quot;span.op&quot;: &quot;http.client&quot;,
                     &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;s:spans/user@none&quot;,
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;POST&quot;,
+                    &quot;span.category&quot;: &quot;http&quot;,
+                    &quot;span.domain&quot;: &quot;*.domain.tld:targetport&quot;,
+                    &quot;span.module&quot;: &quot;http&quot;,
+                    &quot;span.op&quot;: &quot;http.client&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;d:spans/exclusive_time@millisecond&quot;,
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;POST&quot;,
+                    &quot;span.category&quot;: &quot;http&quot;,
+                    &quot;span.domain&quot;: &quot;*.domain.tld:targetport&quot;,
+                    &quot;span.module&quot;: &quot;http&quot;,
+                    &quot;span.op&quot;: &quot;http.client&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;d:spans/duration@millisecond&quot;,
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;POST&quot;,
+                    &quot;span.category&quot;: &quot;http&quot;,
+                    &quot;span.domain&quot;: &quot;*.domain.tld:targetport&quot;,
+                    &quot;span.module&quot;: &quot;http&quot;,
+                    &quot;span.op&quot;: &quot;http.client&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;s:spans/user@none&quot;,
+                value: Set(
+                    933084975,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;POST&quot;,
+                    &quot;span.category&quot;: &quot;http&quot;,
+                    &quot;span.domain&quot;: &quot;*.domain.tld:targetport&quot;,
+                    &quot;span.module&quot;: &quot;http&quot;,
+                    &quot;span.op&quot;: &quot;http.client&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;d:spans/exclusive_time@millisecond&quot;,
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;POST&quot;,
+                    &quot;span.category&quot;: &quot;http&quot;,
+                    &quot;span.domain&quot;: &quot;*.domain.tld:targetport&quot;,
+                    &quot;span.module&quot;: &quot;http&quot;,
+                    &quot;span.op&quot;: &quot;http.client&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                    &quot;transaction.method&quot;: &quot;GET&quot;,
+                    &quot;transaction.op&quot;: &quot;myop&quot;,
+                },
+            },
+            Metric {
+                name: &quot;d:spans/duration@millisecond&quot;,
+                value: Distribution(
+                    59000.0,
+                ),
+                timestamp: UnixTimestamp(1619420400),
+                tags: {
+                    &quot;environment&quot;: &quot;fake_environment&quot;,
+                    &quot;span.action&quot;: &quot;POST&quot;,
+                    &quot;span.category&quot;: &quot;http&quot;,
+                    &quot;span.domain&quot;: &quot;*.domain.tld:targetport&quot;,
+                    &quot;span.module&quot;: &quot;http&quot;,
+                    &quot;span.op&quot;: &quot;http.client&quot;,
+                    &quot;span.status&quot;: &quot;ok&quot;,
+                    &quot;span.status_code&quot;: &quot;200&quot;,
                     &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
                     &quot;transaction.method&quot;: &quot;GET&quot;,
                     &quot;transaction.op&quot;: &quot;myop&quot;,
