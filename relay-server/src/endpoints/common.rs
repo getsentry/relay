@@ -6,7 +6,6 @@ use relay_general::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
-use tracing::Instrument;
 
 use crate::actors::outcome::{DiscardReason, Outcome};
 use crate::actors::processor::ProcessMetrics;
@@ -322,7 +321,6 @@ fn queue_envelope(
 ///
 /// This returns `Some(EventId)` if the envelope contains an event, either explicitly as payload or
 /// implicitly through an item that will create an event during ingestion.
-#[tracing::instrument(name = "function", level = "debug", skip_all)]
 pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
@@ -350,7 +348,6 @@ pub async fn handle_envelope(
     let checked = state
         .project_cache()
         .send(CheckEnvelope::new(managed_envelope))
-        .instrument(tracing::debug_span!("queue.submit"))
         .await
         .map_err(|_| BadStoreRequest::ScheduleFailed)?
         .map_err(BadStoreRequest::EventRejected)?;

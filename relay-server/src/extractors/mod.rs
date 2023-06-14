@@ -1,4 +1,3 @@
-mod axum;
 mod content_type;
 mod forwarded_for;
 mod mime;
@@ -6,7 +5,6 @@ mod request_meta;
 mod signed_json;
 mod start_time;
 
-pub use self::axum::*;
 pub use self::content_type::*;
 pub use self::forwarded_for::*;
 pub use self::mime::*;

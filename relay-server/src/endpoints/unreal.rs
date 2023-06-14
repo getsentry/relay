@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::constants::UNREAL_USER_HEADER;
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{InstrumentedBytes, RequestMeta};
+use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
@@ -24,12 +24,10 @@ struct UnrealParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: UnrealQuery,
-    #[from_request(via(InstrumentedBytes))]
     data: Bytes,
 }
 
 impl UnrealParams {
-    #[tracing::instrument(name = "function", level = "debug", skip_all)]
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, query, data } = self;
 

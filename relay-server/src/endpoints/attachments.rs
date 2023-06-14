@@ -1,16 +1,15 @@
-use axum::extract::{DefaultBodyLimit, Path};
+use axum::extract::{DefaultBodyLimit, Multipart, Path};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
-use multer::Multipart;
 use relay_config::Config;
 use relay_general::protocol::EventId;
 use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope};
-use crate::extractors::{InstrumentedMultipart, RequestMeta};
+use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
 use crate::utils;
 
@@ -23,7 +22,7 @@ async fn extract_envelope(
     config: &Config,
     meta: RequestMeta,
     path: AttachmentPath,
-    multipart: Multipart<'_>,
+    multipart: Multipart,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
     let max_size = config.max_attachment_size();
     let items = utils::multipart_items(multipart, max_size, |_| AttachmentType::default()).await?;
@@ -39,7 +38,7 @@ async fn handle(
     state: ServiceState,
     meta: RequestMeta,
     Path(path): Path<AttachmentPath>,
-    InstrumentedMultipart(multipart): InstrumentedMultipart,
+    multipart: Multipart,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = extract_envelope(state.config(), meta, path, multipart).await?;
     common::handle_envelope(&state, envelope).await?;

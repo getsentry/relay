@@ -427,7 +427,6 @@ where
 {
     type Rejection = Infallible;
 
-    #[tracing::instrument(name = "middleware.axum.extractor", level = "trace", skip_all)]
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let mut ua = RawUserAgentInfo::default();
         for (key, value) in &parts.headers {
@@ -570,7 +569,6 @@ struct StorePath {
 impl FromRequestParts<ServiceState> for RequestMeta {
     type Rejection = BadEventMeta;
 
-    #[tracing::instrument(name = "middleware.axum.extractor", level = "trace", skip_all)]
     async fn from_request_parts(
         parts: &mut Parts,
         state: &ServiceState,

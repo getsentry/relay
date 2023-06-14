@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::{InstrumentedBytes, Mime, RequestMeta};
+use crate::extractors::{Mime, RequestMeta};
 use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +26,6 @@ struct SecurityReportParams {
     meta: RequestMeta,
     #[from_request(via(Query))]
     query: SecurityReportQuery,
-    #[from_request(via(InstrumentedBytes))]
     body: Bytes,
 }
 
