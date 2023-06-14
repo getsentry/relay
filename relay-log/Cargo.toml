@@ -18,7 +18,7 @@ sentry = { version = "0.31.3", features = ["debug-images", "tower-axum-matched-p
 sentry-core = { version = "0.31.3" }
 serde = { version = "1.0.114", features = ["derive"], optional = true }
 serde_json = { version = "1.0.55", optional = true }
-tracing = { version = "0.1.37", features = ["release_max_level_info"] }
+tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json", "time"], optional = true }
 
 [features]
