@@ -44,6 +44,17 @@ pub(crate) fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
+    // Collect data for the databag that isn't metrics
+    let mut databag = BTreeMap::new();
+
+    if let Some(release) = event.release.as_str() {
+        databag.insert("release".to_owned(), release.to_owned());
+    }
+
+    if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
+        databag.insert("user".to_owned(), user);
+    }
+
     // Collect the shared tags for all the metrics and spans on this transaction.
     let mut shared_tags = BTreeMap::new();
 
@@ -182,18 +193,24 @@ pub(crate) fn extract_span_metrics(
             }
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
-            span.data.get_or_insert_with(BTreeMap::new).extend(
-                span_tags
+            span.data.get_or_insert_with(BTreeMap::new).extend({
+                let it = span_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
-            );
+                    .map(|(k, v)| (k, Annotated::new(Value::String(v))));
+                it.chain(
+                    databag
+                        .clone()
+                        .into_iter()
+                        .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+                )
+            });
 
             if let Some(user) = event.user.value() {
                 if let Some(value) = get_eventuser_tag(user) {
                     metrics.push(Metric::new_mri(
-                        MetricNamespace::Transactions,
-                        "span.user",
+                        MetricNamespace::Spans,
+                        "user",
                         MetricUnit::None,
                         MetricValue::set_from_str(&value),
                         timestamp,
@@ -207,8 +224,8 @@ pub(crate) fn extract_span_metrics(
                 // such as sub-transactions. We accept these limitations for
                 // now.
                 metrics.push(Metric::new_mri(
-                    MetricNamespace::Transactions,
-                    "span.exclusive_time",
+                    MetricNamespace::Spans,
+                    "exclusive_time",
                     MetricUnit::Duration(DurationUnit::MilliSecond),
                     MetricValue::Distribution(*exclusive_time),
                     timestamp,
@@ -219,8 +236,8 @@ pub(crate) fn extract_span_metrics(
             // The `duration` of a span. This metric also serves as the
             // counter metric `throughput`.
             metrics.push(Metric::new_mri(
-                MetricNamespace::Transactions,
-                "span.duration",
+                MetricNamespace::Spans,
+                "duration",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
                 timestamp,

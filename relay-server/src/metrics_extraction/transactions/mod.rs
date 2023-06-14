@@ -925,7 +925,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -939,7 +939,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -953,7 +953,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -967,7 +967,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -982,7 +982,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -997,7 +997,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1012,7 +1012,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1032,7 +1032,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1052,7 +1052,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1072,7 +1072,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1092,7 +1092,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1112,7 +1112,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1132,7 +1132,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1154,7 +1154,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1176,7 +1176,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1318,7 +1318,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1340,7 +1340,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1362,7 +1362,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1384,7 +1384,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1405,7 +1405,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1426,7 +1426,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1447,7 +1447,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1467,7 +1467,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1487,7 +1487,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1507,7 +1507,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1527,7 +1527,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1547,7 +1547,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1567,7 +1567,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1586,7 +1586,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1605,7 +1605,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1624,7 +1624,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1644,7 +1644,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1664,7 +1664,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1684,7 +1684,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1693,7 +1693,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
+                    "span.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
                     "span.domain": "table",
+                    "span.group": "74f357d6eeea41b8",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1704,7 +1706,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1713,7 +1715,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
+                    "span.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
                     "span.domain": "table",
+                    "span.group": "74f357d6eeea41b8",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1724,7 +1728,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1733,7 +1737,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
+                    "span.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
                     "span.domain": "table",
+                    "span.group": "74f357d6eeea41b8",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1744,7 +1750,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1753,9 +1759,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                    "span.description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
                     "span.domain": "table",
-                    "span.group": "c55478a060a56db3",
+                    "span.group": "8ea340ad7f24b50a",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1766,7 +1772,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1775,9 +1781,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                    "span.description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
                     "span.domain": "table",
-                    "span.group": "c55478a060a56db3",
+                    "span.group": "8ea340ad7f24b50a",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1788,7 +1794,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1797,9 +1803,9 @@ mod tests {
                     "environment": "fake_environment",
                     "span.action": "SELECT",
                     "span.category": "db",
-                    "span.description": "SELECT %s.%s FROM %s WHERE %s.%s = %s",
+                    "span.description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
                     "span.domain": "table",
-                    "span.group": "c55478a060a56db3",
+                    "span.group": "8ea340ad7f24b50a",
                     "span.module": "db",
                     "span.op": "db",
                     "span.status": "ok",
@@ -1810,7 +1816,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1830,7 +1836,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1850,7 +1856,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1870,7 +1876,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1889,7 +1895,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1908,7 +1914,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),
@@ -1927,7 +1933,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "s:transactions/span.user@none",
+                name: "s:spans/user@none",
                 value: Set(
                     933084975,
                 ),
@@ -1945,7 +1951,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.exclusive_time@millisecond",
+                name: "d:spans/exclusive_time@millisecond",
                 value: Distribution(
                     2000.0,
                 ),
@@ -1963,7 +1969,7 @@ mod tests {
                 },
             },
             Metric {
-                name: "d:transactions/span.duration@millisecond",
+                name: "d:spans/duration@millisecond",
                 value: Distribution(
                     59000.0,
                 ),

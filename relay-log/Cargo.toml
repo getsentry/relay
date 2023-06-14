@@ -14,7 +14,7 @@ build = "build.rs"
 chrono = { version = "0.4.24", optional = true, default-features = false, features = ["clock", "std", "serde"] }
 console = { version = "0.15.5", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
-sentry = { version = "0.31.3", features = ["debug-images", "tower", "tracing"], optional = true }
+sentry = { version = "0.31.3", features = ["debug-images", "tower-axum-matched-path", "tracing"], optional = true }
 sentry-core = { version = "0.31.3" }
 serde = { version = "1.0.114", features = ["derive"], optional = true }
 serde_json = { version = "1.0.55", optional = true }

@@ -17,6 +17,8 @@
 **Internal**:
 
 - Extract app identifier from app context for profiles. ([#2172](https://github.com/getsentry/relay/pull/2172))
+- Mark all URL transactions as sanitized after applying rules. ([#2210](https://github.com/getsentry/relay/pull/2210))
+- Add limited, experimental Sentry performance monitoring. ([#2157](https://github.com/getsentry/relay/pull/2157))
 
 ## 23.5.2
 
