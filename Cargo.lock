@@ -3357,7 +3357,6 @@ dependencies = [
  "tokio",
  "tower",
  "tower-http",
- "tracing",
  "url",
  "zstd",
 ]
