@@ -127,6 +127,7 @@
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::net::SocketAddr;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -135,7 +136,7 @@
 <span class="kw">use </span>axum::ServiceExt;
 <span class="kw">use </span>axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_log::tower::NewSentryLayer;
+<span class="kw">use </span>relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 <span class="kw">use </span>relay_system::{Controller, Service, Shutdown};
 <span class="kw">use </span>tower::ServiceBuilder;
 <span class="kw">use </span>tower_http::set_header::SetResponseHeaderLayer;
@@ -205,6 +206,7 @@
                 HeaderValue::from_static(constants::SERVER),
             ))
             .layer(NewSentryLayer::new_from_top())
+            .layer(SentryHttpLayer::with_transaction())
             .layer(middlewares::trace_http_layer())
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .map_request(middlewares::remove_empty_encoding)
