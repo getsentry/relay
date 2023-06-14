@@ -514,6 +514,9 @@ mod tests {
                     "name": "Windows"
                 }
             },
+            "request": {
+                "method": "post"
+            }
             "spans": [
                 {
                     "description": "<OrganizationContext>",
@@ -748,10 +751,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok"
                 }
-            ],
-            "request": {
-                "method": "POST"
-            }
+            ]
         }
         "#;
 

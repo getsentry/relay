@@ -39,10 +39,10 @@ expression: event.value().unwrap().spans
                 "react.mount",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -92,10 +92,10 @@ expression: event.value().unwrap().spans
                 "ui.react.render",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -166,10 +166,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -240,10 +240,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -323,10 +323,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -398,10 +398,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -476,10 +476,10 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -559,10 +559,10 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -633,10 +633,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -707,10 +707,10 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -781,10 +781,10 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -846,10 +846,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -920,10 +920,10 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -1003,10 +1003,10 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -1086,10 +1086,10 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -1160,10 +1160,10 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -1231,10 +1231,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
@@ -1296,10 +1296,10 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "gEt /api/:version/users/",
+                "/api/:version/users/",
             ),
             "transaction.method": String(
-                "GET",
+                "POST",
             ),
             "transaction.op": String(
                 "myop",
