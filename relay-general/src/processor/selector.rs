@@ -130,7 +130,10 @@ impl SelectorPathItem {
                 .key()
                 .map(|k| k.to_lowercase() == key.to_lowercase())
                 .unwrap_or(false),
-            (SelectorPathItem::Other(_), _) => false,
+            (SelectorPathItem::Other(_), _) => {
+                relay_log::warn!("Incoming SelectorPathItem is not supported");
+                false
+            }
         }
     }
 }
