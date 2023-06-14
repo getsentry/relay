@@ -231,16 +231,22 @@ pub(crate) fn extract_span_metrics(
                 ));
             }
 
-            // The `duration` of a span. This metric also serves as the
-            // counter metric `throughput`.
-            metrics.push(Metric::new_mri(
-                MetricNamespace::Spans,
-                "duration",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
-                timestamp,
-                span_tags.clone(),
-            ));
+            if let (Some(&span_start), Some(&span_end)) =
+                (span.start_timestamp.value(), span.timestamp.value())
+            {
+                // The `duration` of a span. This metric also serves as the
+                // counter metric `throughput`.
+                metrics.push(Metric::new_mri(
+                    MetricNamespace::Spans,
+                    "duration",
+                    MetricUnit::Duration(DurationUnit::MilliSecond),
+                    MetricValue::Distribution(relay_common::chrono_to_positive_millis(
+                        span_end - span_start,
+                    )),
+                    timestamp,
+                    span_tags.clone(),
+                ));
+            };
         }
     }
 
