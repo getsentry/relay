@@ -25,7 +25,7 @@ pub(crate) fn extract_span_metrics(
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
-    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
+    let (Some(&_start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
         relay_log::debug!("failed to extract the start and the end timestamps from the event");
         return Err(ExtractMetricsError::MissingTimestamp);
     };
