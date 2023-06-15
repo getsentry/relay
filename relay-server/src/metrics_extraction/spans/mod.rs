@@ -1,3 +1,4 @@
+use crate::metrics_extraction::spans::types::SpanTagKey;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::utils::extract_http_status_code;
 use crate::metrics_extraction::utils::http_status_code_from_span;
@@ -13,6 +14,8 @@ use relay_general::protocol::Event;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
 use std::collections::BTreeMap;
+
+mod types;
 
 /// Extracts metrics from the spans of the given transaction, and sets common
 /// tags for all the metrics and spans. If a span already contains a tag
@@ -49,22 +52,22 @@ pub(crate) fn extract_span_metrics(
     let mut databag = BTreeMap::new();
 
     if let Some(release) = event.release.as_str() {
-        databag.insert("release".to_owned(), release.to_owned());
+        databag.insert(SpanTagKey::Release, release.to_owned());
     }
 
     if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
-        databag.insert("user".to_owned(), user);
+        databag.insert(SpanTagKey::User, user);
     }
 
     // Collect the shared tags for all the metrics and spans on this transaction.
     let mut shared_tags = BTreeMap::new();
 
     if let Some(environment) = event.environment.as_str() {
-        shared_tags.insert("environment".to_owned(), environment.to_owned());
+        shared_tags.insert(SpanTagKey::Environment, environment.to_owned());
     }
 
     if let Some(transaction_name) = event.transaction.value() {
-        shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
+        shared_tags.insert(SpanTagKey::Transaction, transaction_name.to_owned());
 
         let transaction_method_from_request = event
             .request
@@ -75,18 +78,18 @@ pub(crate) fn extract_span_metrics(
         if let Some(transaction_method) = transaction_method_from_request
             .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
         {
-            shared_tags.insert("transaction.method".to_owned(), transaction_method);
+            shared_tags.insert(SpanTagKey::TransactionMethod, transaction_method);
         }
     }
 
     if let Some(trace_context) = get_trace_context(event) {
         if let Some(op) = extract_transaction_op(trace_context) {
-            shared_tags.insert("transaction.op".to_owned(), op.to_lowercase());
+            shared_tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
         }
     }
 
     if let Some(transaction_http_status_code) = extract_http_status_code(event) {
-        shared_tags.insert("http.status_code".to_owned(), transaction_http_status_code);
+        shared_tags.insert(SpanTagKey::StatusCode, transaction_http_status_code);
     }
 
     let Some(spans) = event.spans.value_mut() else { return Ok(()) };
@@ -101,23 +104,20 @@ pub(crate) fn extract_span_metrics(
                 .and_then(|data| data.get("description.scrubbed"))
                 .and_then(|value| value.as_str())
             {
-                span_tags.insert(
-                    "span.description".to_owned(),
-                    scrubbed_description.to_owned(),
-                );
+                span_tags.insert(SpanTagKey::Description, scrubbed_description.to_owned());
 
                 let mut span_group = format!("{:?}", md5::compute(scrubbed_description));
                 span_group.truncate(16);
-                span_tags.insert("span.group".to_owned(), span_group);
+                span_tags.insert(SpanTagKey::Group, span_group);
             }
 
             if let Some(unsanitized_span_op) = span.op.value() {
                 let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-                span_tags.insert("span.op".to_owned(), span_op.to_owned());
+                span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
                 if let Some(category) = span_op_to_category(&span_op) {
-                    span_tags.insert("span.category".to_owned(), category.to_owned());
+                    span_tags.insert(SpanTagKey::Category, category.to_owned());
                 }
 
                 let span_module = if span_op.starts_with("http") {
@@ -131,7 +131,7 @@ pub(crate) fn extract_span_metrics(
                 };
 
                 if let Some(module) = span_module {
-                    span_tags.insert("span.module".to_owned(), module.to_owned());
+                    span_tags.insert(SpanTagKey::Module, module.to_owned());
                 }
 
                 // TODO(iker): we're relying on the existance of `http.method`
@@ -163,7 +163,7 @@ pub(crate) fn extract_span_metrics(
                 };
 
                 if let Some(act) = action {
-                    span_tags.insert("span.action".to_owned(), act);
+                    span_tags.insert(SpanTagKey::Action, act);
                 }
 
                 let domain = if span_op == "http.client" {
@@ -181,7 +181,7 @@ pub(crate) fn extract_span_metrics(
                 };
 
                 if let Some(dom) = domain {
-                    span_tags.insert("span.domain".to_owned(), dom.to_owned());
+                    span_tags.insert(SpanTagKey::Domain, dom.to_owned());
                 }
             }
 
@@ -191,15 +191,15 @@ pub(crate) fn extract_span_metrics(
                 .and_then(|v| v.get("db.system"))
                 .and_then(|system| system.as_str());
             if let Some(sys) = system {
-                span_tags.insert("span.system".to_owned(), sys.to_lowercase());
+                span_tags.insert(SpanTagKey::System, sys.to_lowercase());
             }
 
             if let Some(span_status) = span.status.value() {
-                span_tags.insert("span.status".to_owned(), span_status.to_string());
+                span_tags.insert(SpanTagKey::Status, span_status.to_string());
             }
 
             if let Some(status_code) = http_status_code_from_span(span) {
-                span_tags.insert("span.status_code".to_owned(), status_code);
+                span_tags.insert(SpanTagKey::StatusCode, status_code);
             }
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
@@ -207,12 +207,12 @@ pub(crate) fn extract_span_metrics(
                 let it = span_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v))));
+                    .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v))));
                 it.chain(
                     databag
                         .clone()
                         .into_iter()
-                        .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+                        .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v)))),
                 )
             });
 
