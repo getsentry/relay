@@ -21,6 +21,27 @@ pub struct TypeAndField {
     pub field_ident: String,
 }
 
+#[derive(Ord, PartialOrd, PartialEq, Eq, Hash, Clone, Debug, Default)]
+pub struct FieldsWithAttribute {
+    pub type_and_fields: Vec<TypeAndField>,
+    pub attributes: BTreeMap<String, Option<String>>,
+}
+
+impl FieldsWithAttribute {
+    pub fn has_attribute(&self, key: &str, has_value: Option<&Vec<String>>) -> bool {
+        let value = match self.attributes.get(key) {
+            Some(value) => value,
+            None => return false,
+        };
+
+        match (has_value, value) {
+            (None, None) => true,
+            (Some(v), Some(val)) => v.iter().any(|v| v == val),
+            (_, _) => false,
+        }
+    }
+}
+
 fn get_type_paths_from_type(ty: &Type, type_paths: &mut Vec<TypePath>) {
     match ty {
         Type::Path(path) => type_paths.push(path.clone()),
@@ -59,10 +80,8 @@ pub struct PiiFinder<'a> {
     pub all_types: &'a HashMap<String, EnumOrStruct>,
     // The full paths of rust types either defined in the module or brought in to scope with a use-statement.
     pub scoped_paths: &'a BTreeMap<String, BTreeSet<String>>,
-    // The PII-values of the types that the user wants to collect.
-    pub pii_values: &'a Vec<String>,
     pub current_path: Vec<TypeAndField>,
-    pub pii_types: BTreeSet<Vec<TypeAndField>>, // output
+    pub pii_types: BTreeSet<FieldsWithAttribute>, // output
 }
 
 impl<'a> PiiFinder<'a> {
@@ -70,7 +89,6 @@ impl<'a> PiiFinder<'a> {
         path: &str,
         all_types: &'a HashMap<String, EnumOrStruct>,
         scoped_paths: &'a BTreeMap<String, BTreeSet<String>>,
-        pii_values: &'a Vec<String>,
     ) -> anyhow::Result<Self> {
         let module_path = path
             .rsplit_once("::")
@@ -83,7 +101,6 @@ impl<'a> PiiFinder<'a> {
             current_type: String::new(),
             all_types,
             scoped_paths,
-            pii_values,
             current_path: vec![],
             pii_types: BTreeSet::new(),
         })
@@ -166,10 +183,16 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
                 .unwrap_or_else(|| "{{Unnamed}}".to_string()),
         });
 
-        // Here we make like a 'snapshot' of the current path whenever we encounter a field with the
-        // correct PII-value.
-        if has_pii_value(self.pii_values, node) {
-            self.pii_types.insert(self.current_path.clone());
+        for attr in &node.attrs {
+            if let Some(attributes) = get_attributes(attr, "metastructure") {
+                self.pii_types.insert({
+                    FieldsWithAttribute {
+                        type_and_fields: self.current_path.clone(),
+                        attributes,
+                    }
+                });
+                break;
+            }
         }
 
         // Recursively diving into the types of the field to look for more PII-fields.
@@ -222,40 +245,47 @@ fn get_field_types(path: &Path, segments: &mut BTreeSet<String>) {
 }
 
 /// Checks if an attribute is equal to a specified name and value.
-fn has_attr_value(attr: &Attribute, ident: &str, name: &str, value: &str) -> bool {
+fn get_attributes(attr: &Attribute, ident: &str) -> Option<BTreeMap<String, Option<String>>> {
     let meta_list = match &attr.meta {
         Meta::List(meta_list) => meta_list,
-        _ => return false,
+        _ => return None,
     };
 
     // Checks name of attribute, E.g. 'metastructure'
     if !meta_list.path.is_ident(ident) {
-        return false;
+        return None;
     }
 
-    // Looks for the pattern '{name} = "{value}"'
+    let mut attributes = BTreeMap::<String, Option<String>>::new();
 
-    let mut iter = meta_list.tokens.clone().into_iter();
+    let mut ident = String::new();
+    let mut literal = None;
+    for token in meta_list.tokens.clone().into_iter() {
+        match token {
+            TokenTree::Group(_) => {}
+            TokenTree::Ident(new_ident) => {
+                if !ident.is_empty() {
+                    attributes.insert(ident.clone(), literal.clone());
+                }
+                ident = new_ident.to_string();
+                literal = None;
+            }
+            TokenTree::Punct(_) => {}
+            TokenTree::Literal(lit) => {
+                let mut as_string = lit.to_string();
 
-    if !iter.any(|token| matches!(token, TokenTree::Ident(ident) if ident == name)) {
-        return false;
-    };
+                // remove quotes
+                as_string.remove(0);
+                as_string.pop();
 
-    if !iter.any(|token| matches!(token, TokenTree::Punct(punct) if punct.as_char() == '=')) {
-        return false;
-    };
+                literal = Some(as_string);
+            }
+        }
+    }
 
-    iter.any(
-        |token| matches!(token, TokenTree::Literal(lit_val) if lit_val.to_string() == format!("\"{value}\"")),
-    )
-}
+    if !ident.is_empty() {
+        attributes.insert(ident, literal);
+    }
 
-/// Checks if a field has the metastructure "PII" and if it does, if it is equal to any
-/// of the values that the user defines.
-fn has_pii_value(pii_values: &[String], field: &Field) -> bool {
-    field.attrs.iter().any(|attribute| {
-        pii_values
-            .iter()
-            .any(|pii_value| has_attr_value(attribute, "metastructure", "pii", pii_value))
-    })
+    Some(attributes)
 }

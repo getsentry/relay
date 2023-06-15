@@ -3,18 +3,20 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{command, Parser};
+use serde::Serialize;
 use syn::ItemEnum;
 use syn::ItemStruct;
 use walkdir::WalkDir;
 
 use crate::item_collector::AstItemCollector;
-use crate::pii_finder::TypeAndField;
+use crate::pii_finder::FieldsWithAttribute;
 
 pub mod item_collector;
 pub mod pii_finder;
@@ -66,10 +68,8 @@ pub struct Cli {
 }
 
 impl Cli {
-    fn write_pii<W: Write>(&self, mut writer: W, metrics: &[String]) -> anyhow::Result<()> {
-        for metric in metrics {
-            writeln!(writer, "{}", metric)?;
-        }
+    fn write_pii<W: Write>(&self, writer: W, metrics: &[Output]) -> anyhow::Result<()> {
+        serde_json::to_writer_pretty(writer, metrics).unwrap();
 
         Ok(())
     }
@@ -93,12 +93,8 @@ impl Cli {
             AstItemCollector::collect(&rust_file_paths)?
         };
 
-        let pii_types = match self.item.as_deref() {
-            // If user provides path to an item, find PII_fields under this item in particular.
-            Some(path) => types_and_use_statements.find_pii_fields_of_type(path, &self.pii_values),
-            // If no item is provided, find PII fields of all types in crate/workspace.
-            None => types_and_use_statements.find_pii_fields_of_all_types(&self.pii_values),
-        }?;
+        let pii_types =
+            types_and_use_statements.find_pii_fields(self.item.as_deref(), &self.pii_values)?;
 
         // Function also takes a string to replace unnamed fields, for now we just remove them.
         let output_vec = get_pii_fields_output(pii_types, "".to_string());
@@ -112,24 +108,34 @@ impl Cli {
     }
 }
 
+#[derive(Serialize, Default, Debug)]
+struct Output {
+    path: String,
+    attributes: BTreeMap<String, Option<String>>,
+}
+
 /// Represent the PII fields in a format that will be used in the final output.
 fn get_pii_fields_output(
-    pii_types: BTreeSet<Vec<TypeAndField>>,
+    pii_types: BTreeSet<FieldsWithAttribute>,
     unnamed_replace: String,
-) -> Vec<String> {
+) -> Vec<Output> {
     let mut output_vec = vec![];
     for pii in pii_types {
-        let mut output = String::new();
-        output.push_str(&pii[0].qualified_type_name);
+        let mut output = Output::default();
+        output
+            .path
+            .push_str(&pii.type_and_fields[0].qualified_type_name);
 
-        for path in pii {
-            output.push_str(&format!(".{}", path.field_ident));
+        for path in pii.type_and_fields {
+            output.path.push_str(&format!(".{}", path.field_ident));
         }
 
-        output = output.replace("{{Unnamed}}.", &unnamed_replace);
+        output.path = output.path.replace("{{Unnamed}}.", &unnamed_replace);
+        output.attributes = pii.attributes;
         output_vec.push(output);
     }
-    output_vec.sort();
+    output_vec.sort_by(|a, b| a.path.cmp(&b.path));
+
     output_vec
 }
 
@@ -186,7 +192,7 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_type("test_pii_docs::SubStruct", &vec!["true".to_string()])
+            .find_pii_fields(Some("test_pii_docs::SubStruct"), &vec!["true".to_string()])
             .unwrap();
 
         let output = get_pii_fields_output(pii_types, "".into());
@@ -206,7 +212,7 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(&vec!["true".to_string()])
+            .find_pii_fields(None, &vec!["true".to_string()])
             .unwrap();
 
         let output = get_pii_fields_output(pii_types, "".into());
@@ -218,7 +224,7 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(&vec!["false".to_string()])
+            .find_pii_fields(None, &vec!["false".to_string()])
             .unwrap();
 
         let output = get_pii_fields_output(pii_types, "".into());
@@ -230,11 +236,44 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(&vec![
-                "true".to_string(),
-                "false".to_string(),
-                "maybe".to_string(),
-            ])
+            .find_pii_fields(
+                None,
+                &vec!["true".to_string(), "false".to_string(), "maybe".to_string()],
+            )
+            .unwrap();
+
+        let output = get_pii_fields_output(pii_types, "".into());
+        insta::assert_debug_snapshot!(output);
+    }
+
+    #[test]
+    fn test_pii_retain_additional_properties_truth_table()
+    /*
+    Fields should be chosen if there is a pii match, and either retain = "true", or there's no
+    "additional_properties" attribute.
+    Logic: ((pii match) & (retain = "true" | !additional_properties))
+
+    truth table:
+
+    +-----------+-----------------+----------  ------------+----------+
+    | pii match | retain = "true" | !additional_properties | selected |
+    +-----------+----------------------+-------------------+----------+
+    | True      | True            | True                   | True     |
+    | True      | True            | False                  | True     |
+    | True      | False           | True                   | False    |
+    | True      | False           | False                  | True     |
+    | False     | True            | True                   | False    |
+    | False     | True            | False                  | False    |
+    | False     | False           | True                   | False    |
+    | False     | False           | False                  | False    |
+    +-----------+-----------------+------------------------+----------+
+
+     */
+    {
+        let types_and_use_statements = get_types_and_use_statements();
+
+        let pii_types = types_and_use_statements
+            .find_pii_fields(None, &vec!["truth_table_test".to_string()])
             .unwrap();
 
         let output = get_pii_fields_output(pii_types, "".into());

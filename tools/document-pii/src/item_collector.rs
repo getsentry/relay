@@ -12,7 +12,7 @@ use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use syn::{ItemEnum, ItemStruct, UseTree};
 
-use crate::pii_finder::{PiiFinder, TypeAndField};
+use crate::pii_finder::{FieldsWithAttribute, PiiFinder};
 use crate::EnumOrStruct;
 
 pub struct TypesAndScopedPaths {
@@ -24,14 +24,34 @@ pub struct TypesAndScopedPaths {
 }
 
 impl TypesAndScopedPaths {
+    pub fn find_pii_fields(
+        &self,
+        type_path: Option<&str>,
+        pii_values: &Vec<String>,
+    ) -> anyhow::Result<BTreeSet<FieldsWithAttribute>> {
+        let fields = match type_path {
+            // If user provides path to an item, find PII_fields under this item in particular.
+            Some(path) => self.find_pii_fields_of_type(path),
+            // If no item is provided, find PII fields of all types in crate/workspace.
+            None => self.find_pii_fields_of_all_types(),
+        }?;
+
+        Ok(fields
+            .into_iter()
+            .filter(|pii| {
+                pii.has_attribute("pii", Some(pii_values))
+                    && (pii.has_attribute("retain", Some(&vec!["true".to_string()]))
+                        || !pii.has_attribute("additional_properties", None))
+            })
+            .collect())
+    }
+
     /// Finds all the PII fields recursively of a given type.
-    pub fn find_pii_fields_of_type(
+    fn find_pii_fields_of_type(
         &self,
         type_path: &str,
-        pii_values: &Vec<String>,
-    ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
-        let mut visitor =
-            PiiFinder::new(type_path, &self.all_types, &self.scoped_paths, pii_values)?;
+    ) -> anyhow::Result<BTreeSet<FieldsWithAttribute>> {
+        let mut visitor = PiiFinder::new(type_path, &self.all_types, &self.scoped_paths)?;
 
         let value = &self
             .all_types
@@ -46,14 +66,11 @@ impl TypesAndScopedPaths {
     }
 
     /// Finds all the PII fields recursively of all the types in the rust crate/workspace.
-    pub fn find_pii_fields_of_all_types(
-        &self,
-        pii_values: &Vec<String>,
-    ) -> anyhow::Result<BTreeSet<Vec<TypeAndField>>> {
+    fn find_pii_fields_of_all_types(&self) -> anyhow::Result<BTreeSet<FieldsWithAttribute>> {
         let mut pii_types = BTreeSet::new();
 
         for type_path in self.all_types.keys() {
-            pii_types.extend(self.find_pii_fields_of_type(type_path, pii_values)?);
+            pii_types.extend(self.find_pii_fields_of_type(type_path)?);
         }
 
         Ok(pii_types)
@@ -84,7 +101,7 @@ impl AstItemCollector {
     pub fn collect(paths: &[PathBuf]) -> anyhow::Result<TypesAndScopedPaths> {
         let mut visitor = Self::default();
 
-        visitor.visit_files(paths)?;
+        visitor.visit_files(paths).unwrap();
 
         Ok(TypesAndScopedPaths {
             all_types: visitor.all_types,
@@ -94,11 +111,11 @@ impl AstItemCollector {
 
     fn visit_files(&mut self, paths: &[PathBuf]) -> anyhow::Result<()> {
         for path in paths {
-            self.module_path = module_name_from_file(path)?;
+            self.module_path = module_name_from_file(path).unwrap();
 
             let syntax_tree: syn::File = {
-                let file_content = fs::read_to_string(path.as_path())?;
-                syn::parse_file(&file_content)?
+                let file_content = fs::read_to_string(path.as_path()).unwrap();
+                syn::parse_file(&file_content).unwrap()
             };
 
             self.visit_file(&syntax_tree);

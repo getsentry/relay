@@ -3,17 +3,111 @@ source: tools/document-pii/src/main.rs
 expression: output
 ---
 [
-    "InnerGeneric.bitcoin_wallet_key",
-    "MyStruct.foo",
-    "MyStruct.sub_struct.field2",
-    "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
-    "SelfReferential.pretty_sensitive",
-    "SubStruct.field2",
-    "SubStruct.mystery_field.bitcoin_wallet_key",
-    "WeirdType.pii_true",
-    "WeirdTypes.func.pii_true",
-    "WeirdTypes.ptr.pii_true",
-    "WeirdTypes.reference.pii_true",
-    "WeirdTypes.slice.pii_true",
-    "WeirdTypes.tuple.pii_true",
+    Output {
+        path: "InnerGeneric.bitcoin_wallet_key",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "MyStruct.foo",
+        attributes: {
+            "foo": Some(
+                "bar",
+            ),
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "MyStruct.sub_struct.field2",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "SelfReferential.pretty_sensitive",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "SubStruct.field2",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "SubStruct.mystery_field.bitcoin_wallet_key",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "WeirdType.pii_true",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "WeirdTypes.func.pii_true",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "WeirdTypes.ptr.pii_true",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "WeirdTypes.reference.pii_true",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "WeirdTypes.slice.pii_true",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "WeirdTypes.tuple.pii_true",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
 ]

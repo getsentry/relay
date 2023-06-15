@@ -3,6 +3,20 @@ source: tools/document-pii/src/main.rs
 expression: output
 ---
 [
-    "SubStruct.field2",
-    "SubStruct.mystery_field.bitcoin_wallet_key",
+    Output {
+        path: "SubStruct.field2",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "SubStruct.mystery_field.bitcoin_wallet_key",
+        attributes: {
+            "pii": Some(
+                "true",
+            ),
+        },
+    },
 ]
