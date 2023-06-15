@@ -2,7 +2,7 @@ use relay_common::EventType;
 use relay_general::protocol::Event;
 use relay_general::types::{Annotated, RemarkType};
 
-use crate::metrics_extraction::transactions::extract_http_status_code;
+use crate::metrics_extraction::utils::extract_http_status_code;
 use crate::statsd::RelayCounters;
 
 /// Log statsd metrics about transaction name modifications.

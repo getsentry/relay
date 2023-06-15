@@ -60,6 +60,14 @@ where
         .route("/api/cron/:monitor_slug/:sentry_key/", cron::route(config))
         .route("/api/cron/:monitor_slug", cron::route(config))
         .route("/api/cron/:monitor_slug/", cron::route(config))
+        // XXX(epurkhiser): While deciding how we want these routes to work we'll also be including
+        // the project_id version, to quickly iterate without waiting for ops to make special cases
+        // for these routes.
+        .route("/api/:project_id/cron/:monitor_slug/:sentry_key", cron::route(config))
+        .route("/api/:project_id/cron/:monitor_slug/:sentry_key/", cron::route(config))
+        .route("/api/:project_id/cron/:monitor_slug", cron::route(config))
+        .route("/api/:project_id/cron/:monitor_slug/", cron::route(config))
+
         .route("/api/:project_id/store/", store::route(config))
         .route("/api/:project_id/envelope/", envelope::route(config))
         .route("/api/:project_id/security/", security_report::route(config))

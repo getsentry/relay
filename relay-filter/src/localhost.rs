@@ -25,6 +25,9 @@ pub fn matches(event: &Event) -> bool {
                 }
             }
         }
+        if url.scheme() == "file" {
+            return true;
+        }
     }
 
     false
@@ -72,6 +75,16 @@ mod tests {
         Event {
             request: Annotated::from(Request {
                 url: Annotated::from(format!("http://{val}:8080/")),
+                ..Request::default()
+            }),
+            ..Event::default()
+        }
+    }
+
+    fn get_event_with_url(val: &str) -> Event {
+        Event {
+            request: Annotated::from(Request {
+                url: Annotated::from(val.to_string()),
                 ..Request::default()
             }),
             ..Event::default()
@@ -150,5 +163,25 @@ mod tests {
                 "Filtered perfectly valid domain '{domain}'"
             );
         }
+    }
+
+    #[test]
+    fn test_filter_file_urls() {
+        let url = "file:///Users/Maisey/work/squirrelchasers/src/leaderboard.html";
+        let event = get_event_with_url(url);
+        let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+        assert_ne!(
+            filter_result,
+            Ok(()),
+            "Failed to filter event with url '{url}'"
+        );
+    }
+
+    #[test]
+    fn test_dont_filter_non_file_urls() {
+        let url = "http://www.squirrelchasers.com/leaderboard";
+        let event = get_event_with_url(url);
+        let filter_result = should_filter(&event, &FilterConfig { is_enabled: true });
+        assert_eq!(filter_result, Ok(()), "Filtered valid url '{url}'");
     }
 }
