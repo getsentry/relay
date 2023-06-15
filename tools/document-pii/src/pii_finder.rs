@@ -28,15 +28,17 @@ pub struct FieldsWithAttribute {
 }
 
 impl FieldsWithAttribute {
-    pub fn has_attribute(&self, key: &str, has_value: Option<&Vec<String>>) -> bool {
-        let value = match self.attributes.get(key) {
+    pub fn has_attribute(&self, key: &str, expected_values: Option<&Vec<String>>) -> bool {
+        let actual_value = match self.attributes.get(key) {
             Some(value) => value,
             None => return false,
         };
 
-        match (has_value, value) {
+        match (expected_values, actual_value) {
             (None, None) => true,
-            (Some(v), Some(val)) => v.iter().any(|v| v == val),
+            (Some(expected_values), Some(actual_value)) => expected_values
+                .iter()
+                .any(|expected_value| expected_value == actual_value),
             (_, _) => false,
         }
     }
