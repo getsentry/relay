@@ -516,7 +516,7 @@ mod tests {
             },
             "request": {
                 "method": "post"
-            }
+            },
             "spans": [
                 {
                     "description": "<OrganizationContext>",
