@@ -6,7 +6,6 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{command, Parser};
@@ -68,12 +67,6 @@ pub struct Cli {
 }
 
 impl Cli {
-    fn write_pii<W: Write>(&self, writer: W, metrics: &[Output]) -> anyhow::Result<()> {
-        serde_json::to_writer_pretty(writer, metrics).unwrap();
-
-        Ok(())
-    }
-
     pub fn run(self) -> anyhow::Result<()> {
         // User must either provide the path to a rust crate/workspace or be in one when calling this script.
         let path = match self.path.clone() {
@@ -97,12 +90,12 @@ impl Cli {
             types_and_use_statements.find_pii_fields(self.item.as_deref(), &self.pii_values)?;
 
         // Function also takes a string to replace unnamed fields, for now we just remove them.
-        let output_vec = get_pii_fields_output(pii_types, "".to_string());
+        let output_vec = Output::from_btreeset(pii_types);
 
         match self.output {
-            Some(ref path) => self.write_pii(File::create(path)?, &output_vec)?,
-            None => self.write_pii(std::io::stdout(), &output_vec)?,
-        }
+            Some(ref path) => serde_json::to_writer_pretty(File::create(path)?, &output_vec)?,
+            None => serde_json::to_writer_pretty(std::io::stdout(), &output_vec)?,
+        };
 
         Ok(())
     }
@@ -114,29 +107,32 @@ struct Output {
     attributes: BTreeMap<String, Option<String>>,
 }
 
-/// Represent the PII fields in a format that will be used in the final output.
-fn get_pii_fields_output(
-    pii_types: BTreeSet<FieldsWithAttribute>,
-    unnamed_replace: String,
-) -> Vec<Output> {
-    let mut output_vec = vec![];
-    for pii in pii_types {
-        let mut output = Output::default();
+impl Output {
+    fn new(pii_type: FieldsWithAttribute) -> Self {
+        let mut output = Self::default();
         output
             .path
-            .push_str(&pii.type_and_fields[0].qualified_type_name);
+            .push_str(&pii_type.type_and_fields[0].qualified_type_name);
 
-        for path in pii.type_and_fields {
+        for path in pii_type.type_and_fields {
             output.path.push_str(&format!(".{}", path.field_ident));
         }
 
-        output.path = output.path.replace("{{Unnamed}}.", &unnamed_replace);
-        output.attributes = pii.attributes;
-        output_vec.push(output);
+        output.path = output.path.replace("{{Unnamed}}.", "");
+        output.attributes = pii_type.attributes;
+        output
     }
-    output_vec.sort_by(|a, b| a.path.cmp(&b.path));
 
-    output_vec
+    /// Represent the PII fields in a format that will be used in the final output.
+    fn from_btreeset(pii_types: BTreeSet<FieldsWithAttribute>) -> Vec<Output> {
+        let mut output_vec = vec![];
+        for pii in pii_types {
+            output_vec.push(Output::new(pii));
+        }
+        output_vec.sort_by(|a, b| a.path.cmp(&b.path));
+
+        output_vec
+    }
 }
 
 fn print_error(error: &anyhow::Error) {
@@ -195,7 +191,7 @@ mod tests {
             .find_pii_fields(Some("test_pii_docs::SubStruct"), &vec!["true".to_string()])
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -215,7 +211,7 @@ mod tests {
             .find_pii_fields(None, &vec!["true".to_string()])
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -227,7 +223,7 @@ mod tests {
             .find_pii_fields(None, &vec!["false".to_string()])
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -242,7 +238,7 @@ mod tests {
             )
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -276,7 +272,7 @@ mod tests {
             .find_pii_fields(None, &vec!["truth_table_test".to_string()])
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 }

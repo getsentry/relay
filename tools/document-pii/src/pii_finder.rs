@@ -246,7 +246,7 @@ fn get_field_types(path: &Path, segments: &mut BTreeSet<String>) {
     }
 }
 
-/// Checks if an attribute is equal to a specified name and value.
+/// Collects all the attributes from a given field.
 fn get_attributes(attr: &Attribute, ident: &str) -> Option<BTreeMap<String, Option<String>>> {
     let meta_list = match &attr.meta {
         Meta::List(meta_list) => meta_list,
@@ -264,7 +264,6 @@ fn get_attributes(attr: &Attribute, ident: &str) -> Option<BTreeMap<String, Opti
     let mut literal = None;
     for token in meta_list.tokens.clone().into_iter() {
         match token {
-            TokenTree::Group(_) => {}
             TokenTree::Ident(new_ident) => {
                 if !ident.is_empty() {
                     attributes.insert(ident.clone(), literal.clone());
@@ -272,7 +271,6 @@ fn get_attributes(attr: &Attribute, ident: &str) -> Option<BTreeMap<String, Opti
                 ident = new_ident.to_string();
                 literal = None;
             }
-            TokenTree::Punct(_) => {}
             TokenTree::Literal(lit) => {
                 let mut as_string = lit.to_string();
 
@@ -282,6 +280,7 @@ fn get_attributes(attr: &Attribute, ident: &str) -> Option<BTreeMap<String, Opti
 
                 literal = Some(as_string);
             }
+            TokenTree::Group(_) | TokenTree::Punct(_) => {}
         }
     }
 

@@ -1,0 +1,37 @@
+---
+source: tools/document-pii/src/main.rs
+expression: output
+---
+[
+    Output {
+        path: "TruthTableTest.baz",
+        attributes: {
+            "pii": Some(
+                "truth_table_test",
+            ),
+            "retain": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "TruthTableTest.foo",
+        attributes: {
+            "additional_properties": None,
+            "pii": Some(
+                "truth_table_test",
+            ),
+            "retain": Some(
+                "true",
+            ),
+        },
+    },
+    Output {
+        path: "TruthTableTest.qux",
+        attributes: {
+            "pii": Some(
+                "truth_table_test",
+            ),
+        },
+    },
+]
