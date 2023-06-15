@@ -89,7 +89,7 @@ pub(crate) fn extract_span_metrics(
     }
 
     if let Some(transaction_http_status_code) = extract_http_status_code(event) {
-        shared_tags.insert(SpanTagKey::StatusCode, transaction_http_status_code);
+        shared_tags.insert(SpanTagKey::HttpStatusCode, transaction_http_status_code);
     }
 
     let Some(spans) = event.spans.value_mut() else { return Ok(()) };
