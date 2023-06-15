@@ -7,20 +7,21 @@ use relay_metrics::{Metric, MetricNamespace, MetricValue};
 use crate::metrics_extraction::IntoMetric;
 
 pub(crate) enum SpanMetric {
-    User { value: MetricValue, tags: SpanTags },
-    Duration { value: MetricValue, tags: SpanTags },
-    ExclusiveTime { value: MetricValue, tags: SpanTags },
+    User { value: String, tags: SpanTags },
+    Duration { value: Duration, tags: SpanTags },
+    ExclusiveTime { value: f64, tags: SpanTags },
 }
 
 impl IntoMetric for SpanMetric {
     fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
         let namespace = MetricNamespace::Spans;
+
         match self {
             SpanMetric::User { value, tags } => Metric::new_mri(
                 namespace,
                 "user",
                 MetricUnit::None,
-                value,
+                MetricValue::set_from_str(value),
                 timestamp,
                 tags.into(),
             ),
@@ -28,7 +29,7 @@ impl IntoMetric for SpanMetric {
                 namespace,
                 "duration",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
-                value,
+                MetricValue::Distribution(relay_common::chrono_to_positive_millis(value)),
                 timestamp,
                 tags.into(),
             ),
@@ -36,7 +37,7 @@ impl IntoMetric for SpanMetric {
                 namespace,
                 "exclusive_time",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
-                value,
+                MetricValue::Distribution(value),
                 timestamp,
                 tags.into(),
             ),
