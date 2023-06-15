@@ -39,7 +39,7 @@ expression: event.value().unwrap().spans
                 "react.mount",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -92,7 +92,7 @@ expression: event.value().unwrap().spans
                 "ui.react.render",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -166,7 +166,7 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -240,7 +240,7 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -323,7 +323,7 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -398,7 +398,7 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -476,7 +476,7 @@ expression: event.value().unwrap().spans
                 "200",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -559,7 +559,7 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -633,7 +633,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -707,7 +707,7 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -781,7 +781,7 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -846,7 +846,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -920,7 +920,7 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -1003,7 +1003,7 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -1086,7 +1086,7 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -1160,7 +1160,7 @@ expression: event.value().unwrap().spans
                 "mydatabase",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -1231,7 +1231,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
@@ -1296,7 +1296,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "transaction": String(
-                "/api/:version/users/",
+                "gEt /api/:version/users/",
             ),
             "transaction.method": String(
                 "POST",
