@@ -7,6 +7,7 @@ use relay_metrics::{Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::IntoMetric;
 
+#[derive(Clone, Debug)]
 pub(crate) enum SpanMetric {
     User { value: String, tags: SpanTags },
     Duration { value: Duration, tags: SpanTags },
@@ -46,6 +47,7 @@ impl IntoMetric for SpanMetric {
     }
 }
 
+#[derive(Clone, Debug)]
 pub(crate) struct SpanTags(BTreeMap<SpanTagKey, String>);
 
 impl From<SpanTags> for BTreeMap<String, String> {
@@ -57,6 +59,7 @@ impl From<SpanTags> for BTreeMap<String, String> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SpanTagKey {
     // Specific to a transaction
     Release,
@@ -70,7 +73,7 @@ pub(crate) enum SpanTagKey {
     // Specific to spans
     Description,
     Group,
-    Op,
+    SpanOp,
     Category,
     Module,
     Action,
@@ -93,7 +96,7 @@ impl Display for SpanTagKey {
 
             SpanTagKey::Description => "span.description",
             SpanTagKey::Group => "span.group",
-            SpanTagKey::Op => "span.op",
+            SpanTagKey::SpanOp => "span.op",
             SpanTagKey::Category => "span.category",
             SpanTagKey::Module => "span.module",
             SpanTagKey::Action => "span.action",
