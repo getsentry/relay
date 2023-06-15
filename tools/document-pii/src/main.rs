@@ -107,7 +107,7 @@ struct Output {
 }
 
 impl Output {
-    fn new(mut pii_type: FieldsWithAttribute) -> Self {
+    fn new(pii_type: FieldsWithAttribute) -> Self {
         let mut output = Self::default();
 
         // If field has attribute "additional_properties" it means it's not a real field
@@ -115,15 +115,17 @@ impl Output {
         // in order to properly document this fact in the docs.
         if pii_type.attributes.contains_key("additional_properties") {
             output.additional_properties = true;
-            pii_type.type_and_fields.pop();
         }
 
         output
             .path
             .push_str(&pii_type.type_and_fields[0].qualified_type_name);
 
-        for path in pii_type.type_and_fields {
-            output.path.push_str(&format!(".{}", path.field_ident));
+        let mut iter = pii_type.type_and_fields.iter().peekable();
+        while let Some(path) = iter.next() {
+            if !(output.additional_properties && iter.peek().is_none()) {
+                output.path.push_str(&format!(".{}", path.field_ident));
+            }
         }
 
         output.path = output.path.replace("{{Unnamed}}.", "");

@@ -4,12 +4,12 @@ expression: output
 ---
 [
     Output {
-        path: "TruthTableTest.baz",
-        additional_properties: false,
+        path: "TruthTableTest",
+        additional_properties: true,
     },
     Output {
-        path: "TruthTableTest.foo",
-        additional_properties: true,
+        path: "TruthTableTest.baz",
+        additional_properties: false,
     },
     Output {
         path: "TruthTableTest.qux",
