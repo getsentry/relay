@@ -5,33 +5,14 @@ expression: output
 [
     Output {
         path: "TruthTableTest.baz",
-        attributes: {
-            "pii": Some(
-                "truth_table_test",
-            ),
-            "retain": Some(
-                "true",
-            ),
-        },
+        additional_properties: false,
     },
     Output {
         path: "TruthTableTest.foo",
-        attributes: {
-            "additional_properties": None,
-            "pii": Some(
-                "truth_table_test",
-            ),
-            "retain": Some(
-                "true",
-            ),
-        },
+        additional_properties: true,
     },
     Output {
         path: "TruthTableTest.qux",
-        attributes: {
-            "pii": Some(
-                "truth_table_test",
-            ),
-        },
+        additional_properties: false,
     },
 ]

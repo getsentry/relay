@@ -5,10 +5,6 @@ expression: output
 [
     Output {
         path: "FooBar.not_sensitive",
-        attributes: {
-            "pii": Some(
-                "false",
-            ),
-        },
+        additional_properties: false,
     },
 ]

@@ -5,18 +5,10 @@ expression: output
 [
     Output {
         path: "SubStruct.field2",
-        attributes: {
-            "pii": Some(
-                "true",
-            ),
-        },
+        additional_properties: false,
     },
     Output {
         path: "SubStruct.mystery_field.bitcoin_wallet_key",
-        attributes: {
-            "pii": Some(
-                "true",
-            ),
-        },
+        additional_properties: false,
     },
 ]

@@ -3,7 +3,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::path::PathBuf;
@@ -104,7 +103,7 @@ impl Cli {
 #[derive(Serialize, Default, Debug)]
 struct Output {
     path: String,
-    attributes: BTreeMap<String, Option<String>>,
+    additional_properties: bool,
 }
 
 impl Output {
@@ -119,12 +118,12 @@ impl Output {
         }
 
         output.path = output.path.replace("{{Unnamed}}.", "");
-        output.attributes = pii_type.attributes;
+        output.additional_properties = pii_type.attributes.contains_key("additional_properties");
         output
     }
 
     /// Represent the PII fields in a format that will be used in the final output.
-    fn from_btreeset(pii_types: BTreeSet<FieldsWithAttribute>) -> Vec<Output> {
+    fn from_btreeset(pii_types: BTreeSet<FieldsWithAttribute>) -> Vec<Self> {
         let mut output_vec = vec![];
         for pii in pii_types {
             output_vec.push(Output::new(pii));
