@@ -3840,6 +3840,14 @@
 <a href="#3840" id="3840">3840</a>
 <a href="#3841" id="3841">3841</a>
 <a href="#3842" id="3842">3842</a>
+<a href="#3843" id="3843">3843</a>
+<a href="#3844" id="3844">3844</a>
+<a href="#3845" id="3845">3845</a>
+<a href="#3846" id="3846">3846</a>
+<a href="#3847" id="3847">3847</a>
+<a href="#3848" id="3848">3848</a>
+<a href="#3849" id="3849">3849</a>
+<a href="#3850" id="3850">3850</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4907,8 +4915,16 @@
 
     <span class="doccomment">/// Remove profiles from the envelope if they can not be parsed
     </span><span class="kw">fn </span>filter_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+        <span class="kw">let </span>transaction_count: usize = state
+            .managed_envelope
+            .envelope()
+            .items()
+            .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction)
+            .count();
         <span class="kw">let </span><span class="kw-2">mut </span>found_profile = <span class="bool-val">false</span>;
         state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+            <span class="comment">// Drop profile without a transaction in the same envelope.
+            </span>ItemType::Profile <span class="kw">if </span>transaction_count == <span class="number">0 </span>=&gt; ItemAction::DropSilently,
             ItemType::Profile =&gt; {
                 <span class="kw">if </span>!found_profile {
                     <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload()) {

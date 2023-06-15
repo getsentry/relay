@@ -215,14 +215,6 @@
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -323,7 +315,6 @@
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">mod </span>android;
-<span class="kw">mod </span>cocoa;
 <span class="kw">mod </span>error;
 <span class="kw">mod </span>extract_from_transaction;
 <span class="kw">mod </span>measurements;
@@ -374,12 +365,6 @@
                     <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err)),
                 };
             }
-            <span class="string">&quot;cocoa&quot; </span>=&gt; {
-                <span class="kw">let _</span>: cocoa::ProfileMetadata = <span class="kw">match </span>serde_json::from_slice(payload) {
-                    <span class="prelude-val">Ok</span>(profile) =&gt; profile,
-                    <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err)),
-                };
-            }
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
         },
     };
@@ -409,7 +394,6 @@
             <span class="string">&quot;android&quot; </span>=&gt; {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
-            <span class="string">&quot;cocoa&quot; </span>=&gt; cocoa::parse_cocoa_profile(payload),
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
         },
     };
@@ -430,7 +414,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_minimal_profile_without_version() {
-        <span class="kw">let </span>data = <span class="string">r#&quot;{&quot;platform&quot;:&quot;cocoa&quot;,&quot;event_id&quot;:&quot;751fff80-a266-467b-a6f5-eeeef65f4f84&quot;}&quot;#</span>;
+        <span class="kw">let </span>data = <span class="string">r#&quot;{&quot;platform&quot;:&quot;android&quot;,&quot;event_id&quot;:&quot;751fff80-a266-467b-a6f5-eeeef65f4f84&quot;}&quot;#</span>;
         <span class="kw">let </span>profile = minimal_profile_from_json(data.as_bytes());
         <span class="macro">assert!</span>(profile.is_ok());
         <span class="macro">assert_eq!</span>(profile.unwrap().version, sample::Version::Unknown);
@@ -444,7 +428,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_without_version() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/cocoa/roundtrip.json&quot;</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/roundtrip.json&quot;</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Event::default())).is_ok());
     }
 }
