@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
+use chrono::Duration;
 use relay_common::{DurationUnit, MetricUnit, UnixTimestamp};
 use relay_metrics::{Metric, MetricNamespace, MetricValue};
 
@@ -21,7 +22,7 @@ impl IntoMetric for SpanMetric {
                 namespace,
                 "user",
                 MetricUnit::None,
-                MetricValue::set_from_str(value),
+                MetricValue::set_from_str(&value),
                 timestamp,
                 tags.into(),
             ),
