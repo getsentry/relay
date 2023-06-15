@@ -101,7 +101,7 @@ impl AstItemCollector {
     pub fn collect(paths: &[PathBuf]) -> anyhow::Result<TypesAndScopedPaths> {
         let mut visitor = Self::default();
 
-        visitor.visit_files(paths).unwrap();
+        visitor.visit_files(paths)?;
 
         Ok(TypesAndScopedPaths {
             all_types: visitor.all_types,
@@ -111,11 +111,11 @@ impl AstItemCollector {
 
     fn visit_files(&mut self, paths: &[PathBuf]) -> anyhow::Result<()> {
         for path in paths {
-            self.module_path = module_name_from_file(path).unwrap();
+            self.module_path = module_name_from_file(path)?;
 
             let syntax_tree: syn::File = {
-                let file_content = fs::read_to_string(path.as_path()).unwrap();
-                syn::parse_file(&file_content).unwrap()
+                let file_content = fs::read_to_string(path.as_path())?;
+                syn::parse_file(&file_content)?
             };
 
             self.visit_file(&syntax_tree);

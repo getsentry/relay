@@ -183,16 +183,18 @@ impl<'ast> Visit<'ast> for PiiFinder<'_> {
                 .unwrap_or_else(|| "{{Unnamed}}".to_string()),
         });
 
+        let mut all_attributes = BTreeMap::new();
         for attr in &node.attrs {
-            if let Some(attributes) = get_attributes(attr, "metastructure") {
-                self.pii_types.insert({
-                    FieldsWithAttribute {
-                        type_and_fields: self.current_path.clone(),
-                        attributes,
-                    }
-                });
-                break;
+            if let Some(mut attributes) = get_attributes(attr, "metastructure") {
+                all_attributes.append(&mut attributes);
             }
+        }
+
+        if !all_attributes.is_empty() {
+            self.pii_types.insert(FieldsWithAttribute {
+                type_and_fields: self.current_path.clone(),
+                attributes: all_attributes,
+            });
         }
 
         // Recursively diving into the types of the field to look for more PII-fields.
