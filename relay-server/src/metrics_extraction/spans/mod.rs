@@ -1,10 +1,13 @@
+use crate::metrics_extraction::spans::types::SpanMetric;
 use crate::metrics_extraction::spans::types::SpanTagKey;
+use crate::metrics_extraction::spans::types::SpanTags;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::utils::extract_http_status_code;
 use crate::metrics_extraction::utils::http_status_code_from_span;
 use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
+use crate::metrics_extraction::IntoMetric;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -217,15 +220,14 @@ pub(crate) fn extract_span_metrics(
             });
 
             if let Some(user) = event.user.value() {
-                if let Some(value) = get_eventuser_tag(user) {
-                    metrics.push(Metric::new_mri(
-                        MetricNamespace::Spans,
-                        "user",
-                        MetricUnit::None,
-                        MetricValue::set_from_str(&value),
-                        timestamp,
-                        span_tags.clone(),
-                    ));
+                if let Some(user_tag) = get_eventuser_tag(user) {
+                    metrics.push(
+                        SpanMetric::User {
+                            value: user_tag,
+                            tags: SpanTags(span_tags.clone()),
+                        }
+                        .into_metric(timestamp),
+                    );
                 }
             }
 
@@ -233,14 +235,13 @@ pub(crate) fn extract_span_metrics(
                 // NOTE(iker): this exclusive time doesn't consider all cases,
                 // such as sub-transactions. We accept these limitations for
                 // now.
-                metrics.push(Metric::new_mri(
-                    MetricNamespace::Spans,
-                    "exclusive_time",
-                    MetricUnit::Duration(DurationUnit::MilliSecond),
-                    MetricValue::Distribution(*exclusive_time),
-                    timestamp,
-                    span_tags.clone(),
-                ));
+                metrics.push(
+                    SpanMetric::ExclusiveTime {
+                        value: *exclusive_time,
+                        tags: SpanTags(span_tags.clone()),
+                    }
+                    .into_metric(timestamp),
+                );
             }
 
             if let (Some(&span_start), Some(&span_end)) =
@@ -248,16 +249,13 @@ pub(crate) fn extract_span_metrics(
             {
                 // The `duration` of a span. This metric also serves as the
                 // counter metric `throughput`.
-                metrics.push(Metric::new_mri(
-                    MetricNamespace::Spans,
-                    "duration",
-                    MetricUnit::Duration(DurationUnit::MilliSecond),
-                    MetricValue::Distribution(relay_common::chrono_to_positive_millis(
-                        span_end - span_start,
-                    )),
-                    timestamp,
-                    span_tags.clone(),
-                ));
+                metrics.push(
+                    SpanMetric::Duration {
+                        value: span_end - span_start,
+                        tags: SpanTags(span_tags.clone()),
+                    }
+                    .into_metric(timestamp),
+                );
             };
         }
     }
