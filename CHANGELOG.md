@@ -6,6 +6,10 @@
 
 - Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
 
+## 23.6.1
+
+- No documented changes.
+
 ## 23.6.0
 
 **Bug Fixes**:
