@@ -9,9 +9,18 @@ use crate::metrics_extraction::IntoMetric;
 
 #[derive(Clone, Debug)]
 pub(crate) enum SpanMetric {
-    User { value: String, tags: SpanTags },
-    Duration { value: Duration, tags: SpanTags },
-    ExclusiveTime { value: f64, tags: SpanTags },
+    User {
+        value: String,
+        tags: BTreeMap<SpanTagKey, String>,
+    },
+    Duration {
+        value: Duration,
+        tags: BTreeMap<SpanTagKey, String>,
+    },
+    ExclusiveTime {
+        value: f64,
+        tags: BTreeMap<SpanTagKey, String>,
+    },
 }
 
 impl IntoMetric for SpanMetric {
@@ -25,7 +34,7 @@ impl IntoMetric for SpanMetric {
                 MetricUnit::None,
                 MetricValue::set_from_str(&value),
                 timestamp,
-                tags.into(),
+                SpanTags(tags).into(),
             ),
             SpanMetric::Duration { value, tags } => Metric::new_mri(
                 namespace,
@@ -33,7 +42,7 @@ impl IntoMetric for SpanMetric {
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(value)),
                 timestamp,
-                tags.into(),
+                SpanTags(tags).into(),
             ),
             SpanMetric::ExclusiveTime { value, tags } => Metric::new_mri(
                 namespace,
@@ -41,7 +50,7 @@ impl IntoMetric for SpanMetric {
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(value),
                 timestamp,
-                tags.into(),
+                SpanTags(tags).into(),
             ),
         }
     }

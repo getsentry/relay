@@ -224,7 +224,7 @@ pub(crate) fn extract_span_metrics(
                     metrics.push(
                         SpanMetric::User {
                             value: user_tag,
-                            tags: SpanTags(span_tags.clone()),
+                            tags: span_tags.clone(),
                         }
                         .into_metric(timestamp),
                     );
@@ -238,7 +238,7 @@ pub(crate) fn extract_span_metrics(
                 metrics.push(
                     SpanMetric::ExclusiveTime {
                         value: *exclusive_time,
-                        tags: SpanTags(span_tags.clone()),
+                        tags: span_tags.clone(),
                     }
                     .into_metric(timestamp),
                 );
@@ -252,7 +252,7 @@ pub(crate) fn extract_span_metrics(
                 metrics.push(
                     SpanMetric::Duration {
                         value: span_end - span_start,
-                        tags: SpanTags(span_tags.clone()),
+                        tags: span_tags.clone(),
                     }
                     .into_metric(timestamp),
                 );
