@@ -117,3 +117,41 @@ impl Display for SpanTagKey {
         write!(f, "{name}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use chrono::{TimeZone, Utc};
+    use relay_common::UnixTimestamp;
+
+    use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
+    use crate::metrics_extraction::IntoMetric;
+
+    #[test]
+    fn test_span_metric_conversion() {
+        let timestamp =
+            UnixTimestamp::from_datetime(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap())
+                .unwrap();
+
+        let tags = BTreeMap::from([(SpanTagKey::Release, "1.2.3".to_owned())]);
+        let metric = SpanMetric::User {
+            value: "usertag".to_owned(),
+            tags,
+        };
+        let converted = metric.into_metric(timestamp);
+
+        insta::assert_debug_snapshot!(converted, @r#"
+        Metric {
+            name: "s:spans/user@none",
+            value: Set(
+                1473472266,
+            ),
+            timestamp: UnixTimestamp(946684800),
+            tags: {
+                "release": "1.2.3",
+            },
+        }
+        "#);
+    }
+}
