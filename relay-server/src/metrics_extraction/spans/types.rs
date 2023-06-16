@@ -57,7 +57,7 @@ impl IntoMetric for SpanMetric {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct SpanTags(pub(crate) BTreeMap<SpanTagKey, String>);
+struct SpanTags(BTreeMap<SpanTagKey, String>);
 
 impl From<SpanTags> for BTreeMap<String, String> {
     fn from(tags: SpanTags) -> Self {
