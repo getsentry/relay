@@ -1,4 +1,6 @@
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::utils::extract_http_status_code;
+use crate::metrics_extraction::utils::http_status_code_from_span;
 use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
@@ -25,7 +27,7 @@ pub(crate) fn extract_span_metrics(
     if event.ty.value() != Some(&EventType::Transaction) {
         return Ok(());
     }
-    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
+    let (Some(&_start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
         relay_log::debug!("failed to extract the start and the end timestamps from the event");
         return Err(ExtractMetricsError::MissingTimestamp);
     };
@@ -64,11 +66,16 @@ pub(crate) fn extract_span_metrics(
     if let Some(transaction_name) = event.transaction.value() {
         shared_tags.insert("transaction".to_owned(), transaction_name.to_owned());
 
-        if let Some(transaction_method) = http_method_from_transaction_name(transaction_name) {
-            shared_tags.insert(
-                "transaction.method".to_owned(),
-                transaction_method.to_uppercase(),
-            );
+        let transaction_method_from_request = event
+            .request
+            .value()
+            .and_then(|r| r.method.value())
+            .map(|m| m.to_uppercase());
+
+        if let Some(transaction_method) = transaction_method_from_request
+            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
+        {
+            shared_tags.insert("transaction.method".to_owned(), transaction_method);
         }
     }
 
@@ -76,6 +83,10 @@ pub(crate) fn extract_span_metrics(
         if let Some(op) = extract_transaction_op(trace_context) {
             shared_tags.insert("transaction.op".to_owned(), op.to_lowercase());
         }
+    }
+
+    if let Some(transaction_http_status_code) = extract_http_status_code(event) {
+        shared_tags.insert("http.status_code".to_owned(), transaction_http_status_code);
     }
 
     let Some(spans) = event.spans.value_mut() else { return Ok(()) };
@@ -187,8 +198,9 @@ pub(crate) fn extract_span_metrics(
                 span_tags.insert("span.status".to_owned(), span_status.to_string());
             }
 
-            // XXX(iker): extract status code, when its cardinality doesn't
-            // represent a risk for the indexers.
+            if let Some(status_code) = http_status_code_from_span(span) {
+                span_tags.insert("span.status_code".to_owned(), status_code);
+            }
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
             span.data.get_or_insert_with(BTreeMap::new).extend({
@@ -231,16 +243,22 @@ pub(crate) fn extract_span_metrics(
                 ));
             }
 
-            // The `duration` of a span. This metric also serves as the
-            // counter metric `throughput`.
-            metrics.push(Metric::new_mri(
-                MetricNamespace::Spans,
-                "duration",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(relay_common::chrono_to_positive_millis(end - start)),
-                timestamp,
-                span_tags.clone(),
-            ));
+            if let (Some(&span_start), Some(&span_end)) =
+                (span.start_timestamp.value(), span.timestamp.value())
+            {
+                // The `duration` of a span. This metric also serves as the
+                // counter metric `throughput`.
+                metrics.push(Metric::new_mri(
+                    MetricNamespace::Spans,
+                    "duration",
+                    MetricUnit::Duration(DurationUnit::MilliSecond),
+                    MetricValue::Distribution(relay_common::chrono_to_positive_millis(
+                        span_end - span_start,
+                    )),
+                    timestamp,
+                    span_tags.clone(),
+                ));
+            };
         }
     }
 
@@ -454,4 +472,418 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
         replaced = format!("{replaced}:{port}");
     }
     Some(replaced)
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_general::protocol::{Event, Request};
+    use relay_general::store::{self, LightNormalizationConfig};
+    use relay_general::types::Annotated;
+
+    use relay_metrics::AggregatorConfig;
+
+    use crate::metrics_extraction::spans::extract_span_metrics;
+
+    macro_rules! span_transaction_method_test {
+        // Tests transaction.method is picked from the right place.
+        ($name:ident, $transaction_name:literal, $request_method:literal, $expected_method:literal) => {
+            #[test]
+            fn $name() {
+                let json = format!(
+                    r#"
+                    {{
+                        "type": "transaction",
+                        "platform": "javascript",
+                        "start_timestamp": "2021-04-26T07:59:01+0100",
+                        "timestamp": "2021-04-26T08:00:00+0100",
+                        "transaction": "{}",
+                        "contexts": {{
+                            "trace": {{
+                                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                                "span_id": "bd429c44b67a3eb4"
+                            }}
+                        }},
+                        "spans": [
+                            {{
+                                "span_id": "bd429c44b67a3eb4",
+                                "start_timestamp": 1597976300.0000000,
+                                "timestamp": 1597976302.0000000,
+                                "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                            }}
+                        ]
+                    }}
+                "#,
+                    $transaction_name
+                );
+
+                let mut event = Annotated::<Event>::from_json(&json).unwrap();
+
+                if !$request_method.is_empty() {
+                    if let Some(e) = event.value_mut() {
+                        e.request = Annotated::new(Request {
+                            method: Annotated::new(format!("{}", $request_method)),
+                            ..Default::default()
+                        });
+                    }
+                }
+
+                // Normalize first, to make sure that all things are correct as in the real pipeline:
+                let res = store::light_normalize_event(
+                    &mut event,
+                    LightNormalizationConfig {
+                        scrub_span_descriptions: true,
+                        light_normalize_spans: true,
+                        ..Default::default()
+                    },
+                );
+                assert!(res.is_ok());
+
+                let aggregator_config = AggregatorConfig {
+                    max_secs_in_past: u64::MAX,
+                    max_secs_in_future: u64::MAX,
+                    ..Default::default()
+                };
+
+                let mut metrics = vec![];
+                extract_span_metrics(
+                    &aggregator_config,
+                    event.value_mut().as_mut().unwrap(),
+                    &mut metrics,
+                )
+                .unwrap();
+
+                assert_eq!(
+                    $expected_method,
+                    event
+                        .value()
+                        .and_then(|e| e.spans.value())
+                        .and_then(|spans| spans[0].value())
+                        .and_then(|s| s.data.value())
+                        .and_then(|d| d.get("transaction.method"))
+                        .and_then(|v| v.value())
+                        .and_then(|v| v.as_str())
+                        .unwrap()
+                );
+
+                for metric in &metrics {
+                    assert_eq!(
+                        $expected_method,
+                        metric.tags.get("transaction.method").unwrap()
+                    );
+                }
+            }
+        };
+    }
+
+    span_transaction_method_test!(
+        test_http_method_txname,
+        "get /api/:version/users/",
+        "",
+        "GET"
+    );
+
+    span_transaction_method_test!(
+        test_http_method_context,
+        "/api/:version/users/",
+        "post",
+        "POST"
+    );
+
+    span_transaction_method_test!(
+        test_http_method_request_prioritized,
+        "get /api/:version/users/",
+        "post",
+        "POST"
+    );
+    #[test]
+    fn test_extract_span_metrics() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "platform": "javascript",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "server_name": "myhost",
+            "release": "1.2.3",
+            "dist": "foo ",
+            "environment": "fake_environment",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "user": {
+                "id": "user123",
+                "geo": {
+                    "country_code": "US"
+                }
+            },
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4",
+                    "op": "mYOp",
+                    "status": "ok"
+                }
+            },
+            "request": {
+                "method": "POST"
+            },
+            "spans": [
+                {
+                    "description": "<SomeUiRendering>",
+                    "op": "UI.React.Render",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "PoSt",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "POST http://targetdomain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "POST http://targetdomain:targetport/api/id/0987654321",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "tags": {
+                        "http.status_code": "200"
+                    },
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST"
+                    }
+                },
+                {
+                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "op": "http.client",
+                    "tags": {
+                        "http.status_code": "200"
+                    },
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "POST",
+                        "status_code": "200"
+                    }
+                },
+                {
+                    "description": "SeLeCt column FROM tAbLe WHERE id IN (1, 2, 3)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "select column FROM table WHERE id IN (1, 2, 3)",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
+                },
+                {
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "INSERT"
+                    }
+                },
+                {
+                    "description": "INSERT INTO from_date (col) VALUES (val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "INSERT"
+                    }
+                },
+                {
+                    "description": "INSERT INTO table (col) VALUES (val)",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
+                },
+                {
+                    "description": "SELECT\n*\nFROM\ntable\nWHERE\nid\nIN\n(val)",
+                    "op": "db.sql.query",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase",
+                        "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "SAVEPOINT save_this_one",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
+                    }
+                },
+                {
+                    "description": "GET cache:user:{123}",
+                    "op": "cache.get_item",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "cache.hit": false
+                    }
+                },
+                {
+                    "description": "http://domain/static/myscript-v1.9.23.js",
+                    "op": "resource.script",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
+                }
+
+            ]
+        }
+        "#;
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        let res = store::light_normalize_event(
+            &mut event,
+            LightNormalizationConfig {
+                scrub_span_descriptions: true,
+                light_normalize_spans: true,
+                ..Default::default()
+            },
+        );
+        assert!(res.is_ok());
+
+        let aggregator_config = AggregatorConfig {
+            max_secs_in_past: u64::MAX,
+            max_secs_in_future: u64::MAX,
+            ..Default::default()
+        };
+
+        let mut metrics = vec![];
+        extract_span_metrics(
+            &aggregator_config,
+            event.value_mut().as_mut().unwrap(),
+            &mut metrics,
+        )
+        .unwrap();
+
+        insta::assert_debug_snapshot!(event.value().unwrap().spans);
+        insta::assert_debug_snapshot!(metrics);
+    }
 }
