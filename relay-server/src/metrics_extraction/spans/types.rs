@@ -34,7 +34,7 @@ impl IntoMetric for SpanMetric {
                 MetricUnit::None,
                 MetricValue::set_from_str(&value),
                 timestamp,
-                SpanTags(tags).into(),
+                span_tag_mapping_to_string_mapping(tags),
             ),
             SpanMetric::Duration { value, tags } => Metric::new_mri(
                 namespace,
@@ -42,7 +42,7 @@ impl IntoMetric for SpanMetric {
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(relay_common::chrono_to_positive_millis(value)),
                 timestamp,
-                SpanTags(tags).into(),
+                span_tag_mapping_to_string_mapping(tags),
             ),
             SpanMetric::ExclusiveTime { value, tags } => Metric::new_mri(
                 namespace,
@@ -50,22 +50,20 @@ impl IntoMetric for SpanMetric {
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(value),
                 timestamp,
-                SpanTags(tags).into(),
+                span_tag_mapping_to_string_mapping(tags),
             ),
         }
     }
 }
 
-#[derive(Clone, Debug)]
-struct SpanTags(BTreeMap<SpanTagKey, String>);
-
-impl From<SpanTags> for BTreeMap<String, String> {
-    fn from(tags: SpanTags) -> Self {
-        tags.0
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
-            .collect()
-    }
+/// Returns the same mapping of tags, with the tag keys as strings.
+///
+/// Rust doesn't allow to add implementations on foreign methods (BTreeMap), so
+/// this method is a workaround to parse [`SpanTagKey`]s to strings to strings.
+fn span_tag_mapping_to_string_mapping(
+    tags: BTreeMap<SpanTagKey, String>,
+) -> BTreeMap<String, String> {
+    tags.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
