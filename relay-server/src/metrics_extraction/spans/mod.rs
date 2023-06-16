@@ -478,10 +478,12 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
     Some(replaced)
 }
 
+/// Allow list of domains to not get subdomains scrubbed.
+const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
+
 fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Option<String> {
-    let allow_list = ["127.0.0.1", "localhost"];
-    for allowed in allow_list {
-        if domain == allowed {
+    for allowed in DOMAIN_ALLOW_LIST {
+        if domain == *allowed {
             if let Some(p) = port {
                 return Some(format!("{}:{}", domain, p));
             }
