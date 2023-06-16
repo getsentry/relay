@@ -1,6 +1,5 @@
 use crate::metrics_extraction::spans::types::SpanMetric;
 use crate::metrics_extraction::spans::types::SpanTagKey;
-use crate::metrics_extraction::spans::types::SpanTags;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::utils::extract_http_status_code;
 use crate::metrics_extraction::utils::http_status_code_from_span;
@@ -11,11 +10,11 @@ use crate::metrics_extraction::IntoMetric;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_common::{DurationUnit, EventType, MetricUnit, UnixTimestamp};
+use relay_common::{EventType, UnixTimestamp};
 use relay_filter::csp::SchemeDomainPort;
 use relay_general::protocol::Event;
 use relay_general::types::{Annotated, Value};
-use relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
+use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
 
 mod types;
