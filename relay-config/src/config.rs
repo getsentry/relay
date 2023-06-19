@@ -878,7 +878,7 @@ fn default_max_rate_limit() -> Option<u32> {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
-    pub enabled: Option<bool>,
+    pub enabled: bool,
     /// GeoIp DB file source.
     #[serde(default)]
     pub geoip_path: Option<PathBuf>,
@@ -892,7 +892,6 @@ pub struct Processing {
     #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
-    #[serde(default)]
     pub kafka_config: Vec<KafkaConfigParam>,
     /// Additional kafka producer configurations.
     ///
@@ -936,7 +935,7 @@ impl Default for Processing {
     /// Constructs a disabled processing configuration.
     fn default() -> Self {
         Self {
-            enabled: Some(false),
+            enabled: false,
             geoip_path: None,
             max_secs_in_future: default_max_secs_in_future(),
             max_secs_in_past: default_max_secs_in_past(),
@@ -1187,6 +1186,13 @@ pub struct AwsConfig {
     pub runtime_api: Option<String>,
 }
 
+/// GeoIp database configuration options.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct GeoIpConfig {
+    /// The path to GeoIP database.
+    path: Option<PathBuf>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1217,6 +1223,8 @@ struct ConfigValues {
     auth: AuthConfig,
     #[serde(default)]
     aws: AwsConfig,
+    #[serde(default)]
+    geoip: GeoIpConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1322,8 +1330,8 @@ impl Config {
         let processing = &mut self.values.processing;
         if let Some(enabled) = overrides.processing {
             match enabled.to_lowercase().as_str() {
-                "true" | "1" => processing.enabled = Some(true),
-                "false" | "0" | "" => processing.enabled = Some(false),
+                "true" | "1" => processing.enabled = true,
+                "false" | "0" | "" => processing.enabled = false,
                 _ => return Err(ConfigError::field("processing").into()),
             }
         }
@@ -1892,12 +1900,16 @@ impl Config {
 
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
-        self.values.processing.enabled.unwrap_or_default()
+        self.values.processing.enabled
     }
 
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
-        self.values.processing.geoip_path.as_deref()
+        self.values
+            .geoip
+            .path
+            .as_deref()
+            .or(self.values.processing.geoip_path.as_deref())
     }
 
     /// Maximum future timestamp of ingested data.
