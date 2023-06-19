@@ -346,6 +346,23 @@
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
 <a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the helper types and functions which help to iterate over all the given rust files,
 //! collect all of the full path names and the actual AST-node for the types defined in those paths.
 //! This is later needed for finding PII fields recursively.
@@ -360,7 +377,7 @@
 <span class="kw">use </span>syn::visit::Visit;
 <span class="kw">use </span>syn::{ItemEnum, ItemStruct, UseTree};
 
-<span class="kw">use </span><span class="kw">crate</span>::pii_finder::{PiiFinder, TypeAndField};
+<span class="kw">use </span><span class="kw">crate</span>::pii_finder::{FieldsWithAttribute, PiiFinder};
 <span class="kw">use </span><span class="kw">crate</span>::EnumOrStruct;
 
 <span class="kw">pub struct </span>TypesAndScopedPaths {
@@ -372,14 +389,34 @@
 }
 
 <span class="kw">impl </span>TypesAndScopedPaths {
+    <span class="kw">pub fn </span>find_pii_fields(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        type_path: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+        pii_values: <span class="kw-2">&amp;</span>Vec&lt;String&gt;,
+    ) -&gt; anyhow::Result&lt;BTreeSet&lt;FieldsWithAttribute&gt;&gt; {
+        <span class="kw">let </span>fields = <span class="kw">match </span>type_path {
+            <span class="comment">// If user provides path to an item, find PII_fields under this item in particular.
+            </span><span class="prelude-val">Some</span>(path) =&gt; <span class="self">self</span>.find_pii_fields_of_type(path),
+            <span class="comment">// If no item is provided, find PII fields of all types in crate/workspace.
+            </span><span class="prelude-val">None </span>=&gt; <span class="self">self</span>.find_pii_fields_of_all_types(),
+        }<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(fields
+            .into_iter()
+            .filter(|pii| {
+                pii.has_attribute(<span class="string">&quot;pii&quot;</span>, <span class="prelude-val">Some</span>(pii_values))
+                    &amp;&amp; (pii.has_attribute(<span class="string">&quot;retain&quot;</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()]))
+                        || !pii.has_attribute(<span class="string">&quot;additional_properties&quot;</span>, <span class="prelude-val">None</span>))
+            })
+            .collect())
+    }
+
     <span class="doccomment">/// Finds all the PII fields recursively of a given type.
-    </span><span class="kw">pub fn </span>find_pii_fields_of_type(
+    </span><span class="kw">fn </span>find_pii_fields_of_type(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         type_path: <span class="kw-2">&amp;</span>str,
-        pii_values: <span class="kw-2">&amp;</span>Vec&lt;String&gt;,
-    ) -&gt; anyhow::Result&lt;BTreeSet&lt;Vec&lt;TypeAndField&gt;&gt;&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>visitor =
-            PiiFinder::new(type_path, <span class="kw-2">&amp;</span><span class="self">self</span>.all_types, <span class="kw-2">&amp;</span><span class="self">self</span>.scoped_paths, pii_values)<span class="question-mark">?</span>;
+    ) -&gt; anyhow::Result&lt;BTreeSet&lt;FieldsWithAttribute&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>visitor = PiiFinder::new(type_path, <span class="kw-2">&amp;</span><span class="self">self</span>.all_types, <span class="kw-2">&amp;</span><span class="self">self</span>.scoped_paths)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>value = <span class="kw-2">&amp;</span><span class="self">self
             </span>.all_types
@@ -394,14 +431,11 @@
     }
 
     <span class="doccomment">/// Finds all the PII fields recursively of all the types in the rust crate/workspace.
-    </span><span class="kw">pub fn </span>find_pii_fields_of_all_types(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        pii_values: <span class="kw-2">&amp;</span>Vec&lt;String&gt;,
-    ) -&gt; anyhow::Result&lt;BTreeSet&lt;Vec&lt;TypeAndField&gt;&gt;&gt; {
+    </span><span class="kw">fn </span>find_pii_fields_of_all_types(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; anyhow::Result&lt;BTreeSet&lt;FieldsWithAttribute&gt;&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>pii_types = BTreeSet::new();
 
         <span class="kw">for </span>type_path <span class="kw">in </span><span class="self">self</span>.all_types.keys() {
-            pii_types.extend(<span class="self">self</span>.find_pii_fields_of_type(type_path, pii_values)<span class="question-mark">?</span>);
+            pii_types.extend(<span class="self">self</span>.find_pii_fields_of_type(type_path)<span class="question-mark">?</span>);
         }
 
         <span class="prelude-val">Ok</span>(pii_types)

@@ -259,6 +259,39 @@
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module takes the types and paths from &#39;item_collector&#39; module, and will recursively find
 //! all the fields with the specified PII-value, and save those fields with the full path.
 //!
@@ -280,6 +313,29 @@
     <span class="comment">// Full path of a type. E.g. relay_common::protocol::Event, rather than just &#39;Event&#39;.
     </span><span class="kw">pub </span>qualified_type_name: String,
     <span class="kw">pub </span>field_ident: String,
+}
+
+<span class="attr">#[derive(Ord, PartialOrd, PartialEq, Eq, Hash, Clone, Debug, Default)]
+</span><span class="kw">pub struct </span>FieldsWithAttribute {
+    <span class="kw">pub </span>type_and_fields: Vec&lt;TypeAndField&gt;,
+    <span class="kw">pub </span>attributes: BTreeMap&lt;String, <span class="prelude-ty">Option</span>&lt;String&gt;&gt;,
+}
+
+<span class="kw">impl </span>FieldsWithAttribute {
+    <span class="kw">pub fn </span>has_attribute(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>str, expected_values: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Vec&lt;String&gt;&gt;) -&gt; bool {
+        <span class="kw">let </span>actual_value = <span class="kw">match </span><span class="self">self</span>.attributes.get(key) {
+            <span class="prelude-val">Some</span>(value) =&gt; value,
+            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="bool-val">false</span>,
+        };
+
+        <span class="kw">match </span>(expected_values, actual_value) {
+            (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; <span class="bool-val">true</span>,
+            (<span class="prelude-val">Some</span>(expected_values), <span class="prelude-val">Some</span>(actual_value)) =&gt; expected_values
+                .iter()
+                .any(|expected_value| expected_value == actual_value),
+            (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+        }
+    }
 }
 
 <span class="kw">fn </span>get_type_paths_from_type(ty: <span class="kw-2">&amp;</span>Type, type_paths: <span class="kw-2">&amp;mut </span>Vec&lt;TypePath&gt;) {
@@ -320,10 +376,8 @@
     <span class="kw">pub </span>all_types: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>HashMap&lt;String, EnumOrStruct&gt;,
     <span class="comment">// The full paths of rust types either defined in the module or brought in to scope with a use-statement.
     </span><span class="kw">pub </span>scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeMap&lt;String, BTreeSet&lt;String&gt;&gt;,
-    <span class="comment">// The PII-values of the types that the user wants to collect.
-    </span><span class="kw">pub </span>pii_values: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;String&gt;,
     <span class="kw">pub </span>current_path: Vec&lt;TypeAndField&gt;,
-    <span class="kw">pub </span>pii_types: BTreeSet&lt;Vec&lt;TypeAndField&gt;&gt;, <span class="comment">// output
+    <span class="kw">pub </span>pii_types: BTreeSet&lt;FieldsWithAttribute&gt;, <span class="comment">// output
 </span>}
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PiiFinder&lt;<span class="lifetime">&#39;a</span>&gt; {
@@ -331,7 +385,6 @@
         path: <span class="kw-2">&amp;</span>str,
         all_types: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>HashMap&lt;String, EnumOrStruct&gt;,
         scoped_paths: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BTreeMap&lt;String, BTreeSet&lt;String&gt;&gt;,
-        pii_values: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;String&gt;,
     ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>module_path = path
             .rsplit_once(<span class="string">&quot;::&quot;</span>)
@@ -344,7 +397,6 @@
             current_type: String::new(),
             all_types,
             scoped_paths,
-            pii_values,
             current_path: <span class="macro">vec!</span>[],
             pii_types: BTreeSet::new(),
         })
@@ -427,10 +479,18 @@
                 .unwrap_or_else(|| <span class="string">&quot;{{Unnamed}}&quot;</span>.to_string()),
         });
 
-        <span class="comment">// Here we make like a &#39;snapshot&#39; of the current path whenever we encounter a field with the
-        // correct PII-value.
-        </span><span class="kw">if </span>has_pii_value(<span class="self">self</span>.pii_values, node) {
-            <span class="self">self</span>.pii_types.insert(<span class="self">self</span>.current_path.clone());
+        <span class="kw">let </span><span class="kw-2">mut </span>all_attributes = BTreeMap::new();
+        <span class="kw">for </span>attr <span class="kw">in </span><span class="kw-2">&amp;</span>node.attrs {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>attributes) = get_attributes(attr, <span class="string">&quot;metastructure&quot;</span>) {
+                all_attributes.append(<span class="kw-2">&amp;mut </span>attributes);
+            }
+        }
+
+        <span class="kw">if </span>!all_attributes.is_empty() {
+            <span class="self">self</span>.pii_types.insert(FieldsWithAttribute {
+                type_and_fields: <span class="self">self</span>.current_path.clone(),
+                attributes: all_attributes,
+            });
         }
 
         <span class="comment">// Recursively diving into the types of the field to look for more PII-fields.
@@ -482,42 +542,48 @@
     }
 }
 
-<span class="doccomment">/// Checks if an attribute is equal to a specified name and value.
-</span><span class="kw">fn </span>has_attr_value(attr: <span class="kw-2">&amp;</span>Attribute, ident: <span class="kw-2">&amp;</span>str, name: <span class="kw-2">&amp;</span>str, value: <span class="kw-2">&amp;</span>str) -&gt; bool {
+<span class="doccomment">/// Collects all the attributes from a given field.
+</span><span class="kw">fn </span>get_attributes(attr: <span class="kw-2">&amp;</span>Attribute, ident: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;String, <span class="prelude-ty">Option</span>&lt;String&gt;&gt;&gt; {
     <span class="kw">let </span>meta_list = <span class="kw">match </span><span class="kw-2">&amp;</span>attr.meta {
         Meta::List(meta_list) =&gt; meta_list,
-        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="bool-val">false</span>,
+        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
     };
 
     <span class="comment">// Checks name of attribute, E.g. &#39;metastructure&#39;
     </span><span class="kw">if </span>!meta_list.path.is_ident(ident) {
-        <span class="kw">return </span><span class="bool-val">false</span>;
+        <span class="kw">return </span><span class="prelude-val">None</span>;
     }
 
-    <span class="comment">// Looks for the pattern &#39;{name} = &quot;{value}&quot;&#39;
+    <span class="kw">let </span><span class="kw-2">mut </span>attributes = BTreeMap::&lt;String, <span class="prelude-ty">Option</span>&lt;String&gt;&gt;::new();
 
-    </span><span class="kw">let </span><span class="kw-2">mut </span>iter = meta_list.tokens.clone().into_iter();
+    <span class="kw">let </span><span class="kw-2">mut </span>ident = String::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>literal = <span class="prelude-val">None</span>;
+    <span class="kw">for </span>token <span class="kw">in </span>meta_list.tokens.clone().into_iter() {
+        <span class="kw">match </span>token {
+            TokenTree::Ident(new_ident) =&gt; {
+                <span class="kw">if </span>!ident.is_empty() {
+                    attributes.insert(ident.clone(), literal.clone());
+                }
+                ident = new_ident.to_string();
+                literal = <span class="prelude-val">None</span>;
+            }
+            TokenTree::Literal(lit) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>as_string = lit.to_string();
 
-    <span class="kw">if </span>!iter.any(|token| <span class="macro">matches!</span>(token, TokenTree::Ident(ident) <span class="kw">if </span>ident == name)) {
-        <span class="kw">return </span><span class="bool-val">false</span>;
-    };
+                <span class="comment">// remove quotes
+                </span>as_string.remove(<span class="number">0</span>);
+                as_string.pop();
 
-    <span class="kw">if </span>!iter.any(|token| <span class="macro">matches!</span>(token, TokenTree::Punct(punct) <span class="kw">if </span>punct.as_char() == <span class="string">&#39;=&#39;</span>)) {
-        <span class="kw">return </span><span class="bool-val">false</span>;
-    };
+                literal = <span class="prelude-val">Some</span>(as_string);
+            }
+            TokenTree::Group(<span class="kw">_</span>) | TokenTree::Punct(<span class="kw">_</span>) =&gt; {}
+        }
+    }
 
-    iter.any(
-        |token| <span class="macro">matches!</span>(token, TokenTree::Literal(lit_val) <span class="kw">if </span>lit_val.to_string() == <span class="macro">format!</span>(<span class="string">&quot;\&quot;{value}\&quot;&quot;</span>)),
-    )
-}
+    <span class="kw">if </span>!ident.is_empty() {
+        attributes.insert(ident, literal);
+    }
 
-<span class="doccomment">/// Checks if a field has the metastructure &quot;PII&quot; and if it does, if it is equal to any
-/// of the values that the user defines.
-</span><span class="kw">fn </span>has_pii_value(pii_values: <span class="kw-2">&amp;</span>[String], field: <span class="kw-2">&amp;</span>Field) -&gt; bool {
-    field.attrs.iter().any(|attribute| {
-        pii_values
-            .iter()
-            .any(|pii_value| has_attr_value(attribute, <span class="string">&quot;metastructure&quot;</span>, <span class="string">&quot;pii&quot;</span>, pii_value))
-    })
+    <span class="prelude-val">Some</span>(attributes)
 }
 </code></pre></div></section></main></body></html>

@@ -241,6 +241,49 @@
 <a href="#241" id="241">241</a>
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
 </pre></div><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
@@ -248,16 +291,16 @@
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::fs::File;
-<span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::path::PathBuf;
 
 <span class="kw">use </span>clap::{command, Parser};
+<span class="kw">use </span>serde::Serialize;
 <span class="kw">use </span>syn::ItemEnum;
 <span class="kw">use </span>syn::ItemStruct;
 <span class="kw">use </span>walkdir::WalkDir;
 
 <span class="kw">use </span><span class="kw">crate</span>::item_collector::AstItemCollector;
-<span class="kw">use </span><span class="kw">crate</span>::pii_finder::TypeAndField;
+<span class="kw">use </span><span class="kw">crate</span>::pii_finder::FieldsWithAttribute;
 
 <span class="kw">pub mod </span>item_collector;
 <span class="kw">pub mod </span>pii_finder;
@@ -309,14 +352,6 @@
 }
 
 <span class="kw">impl </span>Cli {
-    <span class="kw">fn </span>write_pii&lt;W: Write&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>writer: W, metrics: <span class="kw-2">&amp;</span>[String]) -&gt; anyhow::Result&lt;()&gt; {
-        <span class="kw">for </span>metric <span class="kw">in </span>metrics {
-            <span class="macro">writeln!</span>(writer, <span class="string">&quot;{}&quot;</span>, metric)<span class="question-mark">?</span>;
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
     <span class="kw">pub fn </span>run(<span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt; {
         <span class="comment">// User must either provide the path to a rust crate/workspace or be in one when calling this script.
         </span><span class="kw">let </span>path = <span class="kw">match </span><span class="self">self</span>.path.clone() {
@@ -336,44 +371,62 @@
             AstItemCollector::collect(<span class="kw-2">&amp;</span>rust_file_paths)<span class="question-mark">?
         </span>};
 
-        <span class="kw">let </span>pii_types = <span class="kw">match </span><span class="self">self</span>.item.as_deref() {
-            <span class="comment">// If user provides path to an item, find PII_fields under this item in particular.
-            </span><span class="prelude-val">Some</span>(path) =&gt; types_and_use_statements.find_pii_fields_of_type(path, <span class="kw-2">&amp;</span><span class="self">self</span>.pii_values),
-            <span class="comment">// If no item is provided, find PII fields of all types in crate/workspace.
-            </span><span class="prelude-val">None </span>=&gt; types_and_use_statements.find_pii_fields_of_all_types(<span class="kw-2">&amp;</span><span class="self">self</span>.pii_values),
-        }<span class="question-mark">?</span>;
+        <span class="kw">let </span>pii_types =
+            types_and_use_statements.find_pii_fields(<span class="self">self</span>.item.as_deref(), <span class="kw-2">&amp;</span><span class="self">self</span>.pii_values)<span class="question-mark">?</span>;
 
         <span class="comment">// Function also takes a string to replace unnamed fields, for now we just remove them.
-        </span><span class="kw">let </span>output_vec = get_pii_fields_output(pii_types, <span class="string">&quot;&quot;</span>.to_string());
+        </span><span class="kw">let </span>output_vec = Output::from_btreeset(pii_types);
 
         <span class="kw">match </span><span class="self">self</span>.output {
-            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path) =&gt; <span class="self">self</span>.write_pii(File::create(path)<span class="question-mark">?</span>, <span class="kw-2">&amp;</span>output_vec)<span class="question-mark">?</span>,
-            <span class="prelude-val">None </span>=&gt; <span class="self">self</span>.write_pii(std::io::stdout(), <span class="kw-2">&amp;</span>output_vec)<span class="question-mark">?</span>,
-        }
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>path) =&gt; serde_json::to_writer_pretty(File::create(path)<span class="question-mark">?</span>, <span class="kw-2">&amp;</span>output_vec)<span class="question-mark">?</span>,
+            <span class="prelude-val">None </span>=&gt; serde_json::to_writer_pretty(std::io::stdout(), <span class="kw-2">&amp;</span>output_vec)<span class="question-mark">?</span>,
+        };
 
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="doccomment">/// Represent the PII fields in a format that will be used in the final output.
-</span><span class="kw">fn </span>get_pii_fields_output(
-    pii_types: BTreeSet&lt;Vec&lt;TypeAndField&gt;&gt;,
-    unnamed_replace: String,
-) -&gt; Vec&lt;String&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>output_vec = <span class="macro">vec!</span>[];
-    <span class="kw">for </span>pii <span class="kw">in </span>pii_types {
-        <span class="kw">let </span><span class="kw-2">mut </span>output = String::new();
-        output.push_str(<span class="kw-2">&amp;</span>pii[<span class="number">0</span>].qualified_type_name);
+<span class="attr">#[derive(Serialize, Default, Debug)]
+</span><span class="kw">struct </span>Output {
+    path: String,
+    additional_properties: bool,
+}
 
-        <span class="kw">for </span>path <span class="kw">in </span>pii {
-            output.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;.{}&quot;</span>, path.field_ident));
+<span class="kw">impl </span>Output {
+    <span class="kw">fn </span>new(pii_type: FieldsWithAttribute) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>output = <span class="self">Self </span>{
+            additional_properties: pii_type.attributes.contains_key(<span class="string">&quot;additional_properties&quot;</span>),
+            ..Default::default()
+        };
+
+        output
+            .path
+            .push_str(<span class="kw-2">&amp;</span>pii_type.type_and_fields[<span class="number">0</span>].qualified_type_name);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>iter = pii_type.type_and_fields.iter().peekable();
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(path) = iter.next() {
+            <span class="comment">// If field has attribute &quot;additional_properties&quot; it means it&#39;s not a real field
+            // but represents unstrucutred data. So we remove it and pass the information as a boolean
+            // in order to properly document this fact in the docs.
+            </span><span class="kw">if </span>!(output.additional_properties &amp;&amp; iter.peek().is_none()) {
+                output.path.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;.{}&quot;</span>, path.field_ident));
+            }
         }
 
-        output = output.replace(<span class="string">&quot;{{Unnamed}}.&quot;</span>, <span class="kw-2">&amp;</span>unnamed_replace);
-        output_vec.push(output);
+        output.path = output.path.replace(<span class="string">&quot;{{Unnamed}}.&quot;</span>, <span class="string">&quot;&quot;</span>);
+        output
     }
-    output_vec.sort();
-    output_vec
+
+    <span class="doccomment">/// Represent the PII fields in a format that will be used in the final output.
+    </span><span class="kw">fn </span>from_btreeset(pii_types: BTreeSet&lt;FieldsWithAttribute&gt;) -&gt; Vec&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>output_vec = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>pii <span class="kw">in </span>pii_types {
+            output_vec.push(Output::new(pii));
+        }
+        output_vec.sort_by(|a, b| a.path.cmp(<span class="kw-2">&amp;</span>b.path));
+
+        output_vec
+    }
 }
 
 <span class="kw">fn </span>print_error(error: <span class="kw-2">&amp;</span>anyhow::Error) {
@@ -429,10 +482,10 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields_of_type(<span class="string">&quot;test_pii_docs::SubStruct&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()])
+            .find_pii_fields(<span class="prelude-val">Some</span>(<span class="string">&quot;test_pii_docs::SubStruct&quot;</span>), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()])
             .unwrap();
 
-        <span class="kw">let </span>output = get_pii_fields_output(pii_types, <span class="string">&quot;&quot;</span>.into());
+        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
         <span class="macro">insta::assert_debug_snapshot!</span>(output);
     }
 
@@ -449,10 +502,10 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()])
+            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string()])
             .unwrap();
 
-        <span class="kw">let </span>output = get_pii_fields_output(pii_types, <span class="string">&quot;&quot;</span>.into());
+        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
         <span class="macro">insta::assert_debug_snapshot!</span>(output);
     }
 
@@ -461,10 +514,10 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;false&quot;</span>.to_string()])
+            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;false&quot;</span>.to_string()])
             .unwrap();
 
-        <span class="kw">let </span>output = get_pii_fields_output(pii_types, <span class="string">&quot;&quot;</span>.into());
+        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
         <span class="macro">insta::assert_debug_snapshot!</span>(output);
     }
 
@@ -473,14 +526,47 @@
         <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
 
         <span class="kw">let </span>pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
-                <span class="string">&quot;true&quot;</span>.to_string(),
-                <span class="string">&quot;false&quot;</span>.to_string(),
-                <span class="string">&quot;maybe&quot;</span>.to_string(),
-            ])
+            .find_pii_fields(
+                <span class="prelude-val">None</span>,
+                <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;true&quot;</span>.to_string(), <span class="string">&quot;false&quot;</span>.to_string(), <span class="string">&quot;maybe&quot;</span>.to_string()],
+            )
             .unwrap();
 
-        <span class="kw">let </span>output = get_pii_fields_output(pii_types, <span class="string">&quot;&quot;</span>.into());
+        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
+        <span class="macro">insta::assert_debug_snapshot!</span>(output);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_pii_retain_additional_properties_truth_table()
+    <span class="comment">/*
+    Fields should be chosen if there is a pii match, and either retain = &quot;true&quot;, or there&#39;s no
+    &quot;additional_properties&quot; attribute.
+    Logic: ((pii match) &amp; (retain = &quot;true&quot; | !additional_properties))
+
+    truth table:
+
+    +-----------+-----------------+----------  ------------+----------+
+    | pii match | retain = &quot;true&quot; | !additional_properties | selected |
+    +-----------+----------------------+-------------------+----------+
+    | True      | True            | True                   | True     |
+    | True      | True            | False                  | True     |
+    | True      | False           | True                   | False    |
+    | True      | False           | False                  | True     |
+    | False     | True            | True                   | False    |
+    | False     | True            | False                  | False    |
+    | False     | False           | True                   | False    |
+    | False     | False           | False                  | False    |
+    +-----------+-----------------+------------------------+----------+
+
+     */
+    </span>{
+        <span class="kw">let </span>types_and_use_statements = get_types_and_use_statements();
+
+        <span class="kw">let </span>pii_types = types_and_use_statements
+            .find_pii_fields(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span><span class="macro">vec!</span>[<span class="string">&quot;truth_table_test&quot;</span>.to_string()])
+            .unwrap();
+
+        <span class="kw">let </span>output = Output::from_btreeset(pii_types);
         <span class="macro">insta::assert_debug_snapshot!</span>(output);
     }
 }
