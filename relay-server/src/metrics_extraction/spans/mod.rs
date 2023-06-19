@@ -457,6 +457,10 @@ fn domain_from_http_url(url: &str) -> Option<String> {
 }
 
 fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
+    if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
+        return Some(allow_listed);
+    }
+
     let mut tokens = domain.rsplitn(3, '.');
     let tld = tokens.next();
     let domain = tokens.next();
@@ -472,6 +476,17 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
         replaced = format!("{replaced}:{port}");
     }
     Some(replaced)
+}
+
+/// Allow list of domains to not get subdomains scrubbed.
+const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
+
+fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Option<String> {
+    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
+        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
+        return Some(with_port);
+    }
+    None
 }
 
 #[cfg(test)]
@@ -595,6 +610,7 @@ mod tests {
         "post",
         "POST"
     );
+
     #[test]
     fn test_extract_span_metrics() {
         let json = r#"
@@ -635,6 +651,20 @@ mod tests {
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "POST http://127.0.0.1:1234/api/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd2eb23da2beb459",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "http.method": "PoSt",
+                        "status_code": "200"
+                    }
                 },
                 {
                     "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
