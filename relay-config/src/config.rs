@@ -878,7 +878,7 @@ fn default_max_rate_limit() -> Option<u32> {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Processing {
     /// True if the Relay should do processing. Defaults to `false`.
-    pub enabled: bool,
+    pub enabled: Option<bool>,
     /// GeoIp DB file source.
     #[serde(default)]
     pub geoip_path: Option<PathBuf>,
@@ -892,6 +892,7 @@ pub struct Processing {
     #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
     /// Kafka producer configurations.
+    #[serde(default)]
     pub kafka_config: Vec<KafkaConfigParam>,
     /// Additional kafka producer configurations.
     ///
@@ -935,7 +936,7 @@ impl Default for Processing {
     /// Constructs a disabled processing configuration.
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: Some(false),
             geoip_path: None,
             max_secs_in_future: default_max_secs_in_future(),
             max_secs_in_past: default_max_secs_in_past(),
@@ -1321,8 +1322,8 @@ impl Config {
         let processing = &mut self.values.processing;
         if let Some(enabled) = overrides.processing {
             match enabled.to_lowercase().as_str() {
-                "true" | "1" => processing.enabled = true,
-                "false" | "0" | "" => processing.enabled = false,
+                "true" | "1" => processing.enabled = Some(true),
+                "false" | "0" | "" => processing.enabled = Some(false),
                 _ => return Err(ConfigError::field("processing").into()),
             }
         }
@@ -1891,7 +1892,7 @@ impl Config {
 
     /// True if the Relay should do processing.
     pub fn processing_enabled(&self) -> bool {
-        self.values.processing.enabled
+        self.values.processing.enabled.unwrap_or_default()
     }
 
     /// The path to the GeoIp database required for event processing.
