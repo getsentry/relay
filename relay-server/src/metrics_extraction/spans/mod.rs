@@ -486,10 +486,7 @@ fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Opti
         return None;
     };
 
-    if let Some(p) = port {
-        return Some(format!("{}:{}", domain, p));
-    }
-    Some((*domain).to_owned())
+    Some(port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p)))
 }
 
 #[cfg(test)]
