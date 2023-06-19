@@ -956,14 +956,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         user.process_child_values(self, state)?;
 
         // Infer user.geo from user.ip_address
-        if user.geo.value().is_none() {
-            if let Some(geoip_lookup) = self.geoip_lookup {
-                if let Some(ip_address) = user.ip_address.value() {
-                    if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-                        user.geo.set_value(Some(geo));
-                    }
-                }
-            }
+        if let Some(geoip_lookup) = self.geoip_lookup {
+            normalize_user_geoinfo(geoip_lookup, user)
         }
 
         Ok(())
