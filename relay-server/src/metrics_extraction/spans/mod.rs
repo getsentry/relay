@@ -482,11 +482,11 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
 const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
 
 fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Option<String> {
-    let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) else {
-        return None;
-    };
-
-    Some(port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p)))
+    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
+        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
+        return Some(with_port);
+    }
+    None
 }
 
 #[cfg(test)]
