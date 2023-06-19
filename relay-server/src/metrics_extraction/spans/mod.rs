@@ -1,5 +1,4 @@
-use crate::metrics_extraction::spans::types::SpanMetric;
-use crate::metrics_extraction::spans::types::SpanTagKey;
+use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::utils::extract_http_status_code;
 use crate::metrics_extraction::utils::http_status_code_from_span;
