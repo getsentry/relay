@@ -17,3 +17,14 @@ pub struct WeirdType {
     #[metastructure(pii = "true")]
     pii_true: u32,
 }
+
+pub struct TruthTableTest {
+    #[metastructure(pii = "truth_table_test", retain = "true", additional_properties)]
+    foo: u32,
+    #[metastructure(pii = "truth_table_test", additional_properties)]
+    bar: u32,
+    #[metastructure(pii = "truth_table_test", retain = "true")]
+    baz: u32,
+    #[metastructure(pii = "truth_table_test")]
+    qux: u32,
+}

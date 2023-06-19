@@ -4,11 +4,15 @@ expression: output
 ---
 [
     Output {
-        path: "SubStruct.field2",
+        path: "TruthTableTest",
+        additional_properties: true,
+    },
+    Output {
+        path: "TruthTableTest.baz",
         additional_properties: false,
     },
     Output {
-        path: "SubStruct.mystery_field.bitcoin_wallet_key",
+        path: "TruthTableTest.qux",
         additional_properties: false,
     },
 ]
