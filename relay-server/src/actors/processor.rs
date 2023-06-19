@@ -7,6 +7,7 @@ use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
@@ -17,6 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -31,6 +33,7 @@ use relay_general::protocol::{
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+use relay_general::store::GeoIpLookup;
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
@@ -47,11 +50,9 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    anyhow::Context,
     relay_general::protocol::{Context as SentryContext, ProfileContext},
-    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_general::store::{StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -537,7 +538,6 @@ pub struct EnvelopeProcessorService {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
-    #[cfg(feature = "processing")]
     geoip_lookup: Option<GeoIpLookup>,
 }
 
@@ -551,13 +551,13 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> anyhow::Result<Self> {
+        let geoip_lookup = match config.geoip_path() {
+            Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
+            None => None,
+        };
+
         #[cfg(feature = "processing")]
         {
-            let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
-                None => None,
-            };
-
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
@@ -575,6 +575,7 @@ impl EnvelopeProcessorService {
         #[cfg(not(feature = "processing"))]
         Ok(Self {
             config,
+            geoip_lookup,
             envelope_manager,
             outcome_aggregator,
             project_cache,
@@ -3102,7 +3103,6 @@ mod tests {
             upstream_relay,
             #[cfg(feature = "processing")]
             rate_limiter: None,
-            #[cfg(feature = "processing")]
             geoip_lookup: None,
         }
     }
