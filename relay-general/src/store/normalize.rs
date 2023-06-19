@@ -720,6 +720,18 @@ fn normalize_device_class(event: &mut Event) {
     }
 }
 
+// Sets the user's GeoIp info based on user's IP address.
+fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
+    // Infer user.geo from user.ip_address
+    if user.geo.value().is_none() {
+        if let Some(ip_address) = user.ip_address.value() {
+            if let Ok(Some(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
+                user.geo.set_value(Some(geo));
+            }
+        }
+    }
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
@@ -737,6 +749,7 @@ pub struct LightNormalizationConfig<'a> {
     pub scrub_span_descriptions: bool,
     pub light_normalize_spans: bool,
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
+    pub geoip_lookup: Option<&'a GeoIpLookup>,
 }
 
 pub fn light_normalize_event(
@@ -772,6 +785,12 @@ pub fn light_normalize_event(
             event.platform.as_str(),
             config.client_ip,
         );
+
+        if let Some(geoip_lookup) = config.geoip_lookup {
+            if let Some(user) = event.user.value_mut() {
+                normalize_user_geoinfo(geoip_lookup, user)
+            }
+        }
 
         // Validate the basic attributes we extract metrics from
         event.release.apply(|release, meta| {

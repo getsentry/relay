@@ -135,6 +135,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         scrub_span_descriptions: false,
         light_normalize_spans: false,
         span_description_rules: None,
+        geoip_lookup: None, // only supported in relay
     };
     light_normalize_event(&mut event, light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
