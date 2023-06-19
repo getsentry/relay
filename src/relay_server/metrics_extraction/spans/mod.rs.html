@@ -887,6 +887,36 @@
 <a href="#887" id="887">887</a>
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::extract_http_status_code;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::http_status_code_from_span;
@@ -1346,6 +1376,10 @@
 }
 
 <span class="kw">fn </span>normalize_domain(domain: <span class="kw-2">&amp;</span>str, port: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>String&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(allow_listed) = normalized_domain_from_allowlist(domain, port) {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(allow_listed);
+    }
+
     <span class="kw">let </span><span class="kw-2">mut </span>tokens = domain.rsplitn(<span class="number">3</span>, <span class="string">&#39;.&#39;</span>);
     <span class="kw">let </span>tld = tokens.next();
     <span class="kw">let </span>domain = tokens.next();
@@ -1362,6 +1396,17 @@
     }
     <span class="prelude-val">Some</span>(replaced)
 }
+
+<span class="doccomment">/// Allow list of domains to not get subdomains scrubbed.
+</span><span class="kw">const </span>DOMAIN_ALLOW_LIST: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;localhost&quot;</span>];
+
+<span class="kw">fn </span>normalized_domain_from_allowlist(domain: <span class="kw-2">&amp;</span>str, port: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>String&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| <span class="kw-2">**</span>allowed == domain) {
+        <span class="kw">let </span>with_port = port.map_or_else(|| (<span class="kw-2">*</span>domain).to_owned(), |p| <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, domain, p));
+        <span class="kw">return </span><span class="prelude-val">Some</span>(with_port);
+    }
+    <span class="prelude-val">None
+</span>}
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
@@ -1484,6 +1529,7 @@
         <span class="string">&quot;post&quot;</span>,
         <span class="string">&quot;POST&quot;
     </span>);
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_span_metrics() {
         <span class="kw">let </span>json = <span class="string">r#&quot;
@@ -1524,6 +1570,20 @@
                     &quot;start_timestamp&quot;: 1597976300.0000000,
                     &quot;timestamp&quot;: 1597976302.0000000,
                     &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;
+                },
+                {
+                    &quot;description&quot;: &quot;POST http://127.0.0.1:1234/api/hi&quot;,
+                    &quot;op&quot;: &quot;http.client&quot;,
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bd2eb23da2beb459&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976302.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;http.method&quot;: &quot;PoSt&quot;,
+                        &quot;status_code&quot;: &quot;200&quot;
+                    }
                 },
                 {
                     &quot;description&quot;: &quot;POST http://sth.subdomain.domain.tld:targetport/api/hi&quot;,
