@@ -1839,11 +1839,12 @@ impl EnvelopeProcessorService {
                     },
                     platform =
                         PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
-                    contains_slashes = if event.transaction.as_str().unwrap_or_default().contains('/') {
-                        "true"
-                    } else {
-                        "false"
-                    }
+                    contains_slashes =
+                        if event.transaction.as_str().unwrap_or_default().contains('/') {
+                            "true"
+                        } else {
+                            "false"
+                        }
                 );
 
                 let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
