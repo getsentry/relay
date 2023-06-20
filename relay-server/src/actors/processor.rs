@@ -1839,7 +1839,7 @@ impl EnvelopeProcessorService {
                     },
                     platform =
                         PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
-                    contains_slashes = if event.transaction.as_str().unwrap_or("").contains('/') {
+                    contains_slashes = if event.transaction.as_str().unwrap_or_default().contains('/') {
                         "true"
                     } else {
                         "false"
