@@ -25,12 +25,12 @@ use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Context::Trace;
-use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+use relay_general::protocol::{Contexts, TransactionSource};
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
@@ -66,7 +66,7 @@ use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
     ItemAction, ManagedEnvelope, SamplingResult,
@@ -1832,10 +1832,19 @@ impl EnvelopeProcessorService {
                 let source = event.get_transaction_source();
 
                 metric!(
-                    counter(RelayCounters::EventTransactionSource) += 1,
-                    source = &source.to_string(),
-                    sdk = envelope.meta().client_name().unwrap_or("proprietary"),
-                    platform = event.platform.as_str().unwrap_or("other"),
+                    counter(RelayCounters::EventTransaction) += 1,
+                    source = match &source {
+                        TransactionSource::Other(_) => "other",
+                        source => source.as_str(),
+                    },
+                    platform =
+                        PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
+                    contains_slashes =
+                        if event.transaction.as_str().unwrap_or_default().contains('/') {
+                            "true"
+                        } else {
+                            "false"
+                        }
                 );
 
                 let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
