@@ -913,25 +913,25 @@
 <a href="#913" id="913">913</a>
 <a href="#914" id="914">914</a>
 <a href="#915" id="915">915</a>
-<a href="#916" id="916">916</a>
-<a href="#917" id="917">917</a>
-<a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
+</pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::extract_http_status_code;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::http_status_code_from_span;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>relay_common::{DurationUnit, EventType, MetricUnit, UnixTimestamp};
+<span class="kw">use </span>relay_common::{EventType, UnixTimestamp};
 <span class="kw">use </span>relay_filter::csp::SchemeDomainPort;
 <span class="kw">use </span>relay_general::protocol::Event;
 <span class="kw">use </span>relay_general::types::{Annotated, Value};
-<span class="kw">use </span>relay_metrics::{AggregatorConfig, Metric, MetricNamespace, MetricValue};
+<span class="kw">use </span>relay_metrics::{AggregatorConfig, Metric};
 <span class="kw">use </span>std::collections::BTreeMap;
+
+<span class="kw">mod </span>types;
 
 <span class="doccomment">/// Extracts metrics from the spans of the given transaction, and sets common
 /// tags for all the metrics and spans. If a span already contains a tag
@@ -968,22 +968,22 @@
     </span><span class="kw">let </span><span class="kw-2">mut </span>databag = BTreeMap::new();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
-        databag.insert(<span class="string">&quot;release&quot;</span>.to_owned(), release.to_owned());
+        databag.insert(SpanTagKey::Release, release.to_owned());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value().and_then(get_eventuser_tag) {
-        databag.insert(<span class="string">&quot;user&quot;</span>.to_owned(), user);
+        databag.insert(SpanTagKey::User, user);
     }
 
     <span class="comment">// Collect the shared tags for all the metrics and spans on this transaction.
     </span><span class="kw">let </span><span class="kw-2">mut </span>shared_tags = BTreeMap::new();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
-        shared_tags.insert(<span class="string">&quot;environment&quot;</span>.to_owned(), environment.to_owned());
+        shared_tags.insert(SpanTagKey::Environment, environment.to_owned());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = event.transaction.value() {
-        shared_tags.insert(<span class="string">&quot;transaction&quot;</span>.to_owned(), transaction_name.to_owned());
+        shared_tags.insert(SpanTagKey::Transaction, transaction_name.to_owned());
 
         <span class="kw">let </span>transaction_method_from_request = event
             .request
@@ -994,18 +994,18 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_method) = transaction_method_from_request
             .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
         {
-            shared_tags.insert(<span class="string">&quot;transaction.method&quot;</span>.to_owned(), transaction_method);
+            shared_tags.insert(SpanTagKey::TransactionMethod, transaction_method);
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = get_trace_context(event) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
-            shared_tags.insert(<span class="string">&quot;transaction.op&quot;</span>.to_owned(), op.to_lowercase());
+            shared_tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_http_status_code) = extract_http_status_code(event) {
-        shared_tags.insert(<span class="string">&quot;http.status_code&quot;</span>.to_owned(), transaction_http_status_code);
+        shared_tags.insert(SpanTagKey::HttpStatusCode, transaction_http_status_code);
     }
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
@@ -1020,23 +1020,20 @@
                 .and_then(|data| data.get(<span class="string">&quot;description.scrubbed&quot;</span>))
                 .and_then(|value| value.as_str())
             {
-                span_tags.insert(
-                    <span class="string">&quot;span.description&quot;</span>.to_owned(),
-                    scrubbed_description.to_owned(),
-                );
+                span_tags.insert(SpanTagKey::Description, scrubbed_description.to_owned());
 
                 <span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, md5::compute(scrubbed_description));
                 span_group.truncate(<span class="number">16</span>);
-                span_tags.insert(<span class="string">&quot;span.group&quot;</span>.to_owned(), span_group);
+                span_tags.insert(SpanTagKey::Group, span_group);
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(unsanitized_span_op) = span.op.value() {
                 <span class="kw">let </span>span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-                span_tags.insert(<span class="string">&quot;span.op&quot;</span>.to_owned(), span_op.to_owned());
+                span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = span_op_to_category(<span class="kw-2">&amp;</span>span_op) {
-                    span_tags.insert(<span class="string">&quot;span.category&quot;</span>.to_owned(), category.to_owned());
+                    span_tags.insert(SpanTagKey::Category, category.to_owned());
                 }
 
                 <span class="kw">let </span>span_module = <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;http&quot;</span>) {
@@ -1050,7 +1047,7 @@
                 </span>};
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = span_module {
-                    span_tags.insert(<span class="string">&quot;span.module&quot;</span>.to_owned(), module.to_owned());
+                    span_tags.insert(SpanTagKey::Module, module.to_owned());
                 }
 
                 <span class="comment">// TODO(iker): we&#39;re relying on the existance of `http.method`
@@ -1082,7 +1079,7 @@
                 };
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action {
-                    span_tags.insert(<span class="string">&quot;span.action&quot;</span>.to_owned(), act);
+                    span_tags.insert(SpanTagKey::Action, act);
                 }
 
                 <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>{
@@ -1100,7 +1097,7 @@
                 </span>};
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(dom) = domain {
-                    span_tags.insert(<span class="string">&quot;span.domain&quot;</span>.to_owned(), dom.to_owned());
+                    span_tags.insert(SpanTagKey::Domain, dom.to_owned());
                 }
             }
 
@@ -1110,15 +1107,15 @@
                 .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
                 .and_then(|system| system.as_str());
             <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
-                span_tags.insert(<span class="string">&quot;span.system&quot;</span>.to_owned(), sys.to_lowercase());
+                span_tags.insert(SpanTagKey::System, sys.to_lowercase());
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(span_status) = span.status.value() {
-                span_tags.insert(<span class="string">&quot;span.status&quot;</span>.to_owned(), span_status.to_string());
+                span_tags.insert(SpanTagKey::Status, span_status.to_string());
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span(span) {
-                span_tags.insert(<span class="string">&quot;span.status_code&quot;</span>.to_owned(), status_code);
+                span_tags.insert(SpanTagKey::StatusCode, status_code);
             }
 
             <span class="comment">// Even if we emit metrics, we want this info to be duplicated in every span.
@@ -1126,25 +1123,24 @@
                 <span class="kw">let </span>it = span_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k, Annotated::new(Value::String(v))));
+                    .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v))));
                 it.chain(
                     databag
                         .clone()
                         .into_iter()
-                        .map(|(k, v)| (k, Annotated::new(Value::String(v)))),
+                        .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v)))),
                 )
             });
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = get_eventuser_tag(user) {
-                    metrics.push(Metric::new_mri(
-                        MetricNamespace::Spans,
-                        <span class="string">&quot;user&quot;</span>,
-                        MetricUnit::None,
-                        MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
-                        timestamp,
-                        span_tags.clone(),
-                    ));
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(user_tag) = get_eventuser_tag(user) {
+                    metrics.push(
+                        SpanMetric::User {
+                            value: user_tag,
+                            tags: span_tags.clone(),
+                        }
+                        .into_metric(timestamp),
+                    );
                 }
             }
 
@@ -1152,14 +1148,13 @@
                 <span class="comment">// NOTE(iker): this exclusive time doesn&#39;t consider all cases,
                 // such as sub-transactions. We accept these limitations for
                 // now.
-                </span>metrics.push(Metric::new_mri(
-                    MetricNamespace::Spans,
-                    <span class="string">&quot;exclusive_time&quot;</span>,
-                    MetricUnit::Duration(DurationUnit::MilliSecond),
-                    MetricValue::Distribution(<span class="kw-2">*</span>exclusive_time),
-                    timestamp,
-                    span_tags.clone(),
-                ));
+                </span>metrics.push(
+                    SpanMetric::ExclusiveTime {
+                        value: <span class="kw-2">*</span>exclusive_time,
+                        tags: span_tags.clone(),
+                    }
+                    .into_metric(timestamp),
+                );
             }
 
             <span class="kw">if let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>span_start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>span_end)) =
@@ -1167,16 +1162,13 @@
             {
                 <span class="comment">// The `duration` of a span. This metric also serves as the
                 // counter metric `throughput`.
-                </span>metrics.push(Metric::new_mri(
-                    MetricNamespace::Spans,
-                    <span class="string">&quot;duration&quot;</span>,
-                    MetricUnit::Duration(DurationUnit::MilliSecond),
-                    MetricValue::Distribution(relay_common::chrono_to_positive_millis(
-                        span_end - span_start,
-                    )),
-                    timestamp,
-                    span_tags.clone(),
-                ));
+                </span>metrics.push(
+                    SpanMetric::Duration {
+                        value: span_end - span_start,
+                        tags: span_tags.clone(),
+                    }
+                    .into_metric(timestamp),
+                );
             };
         }
     }
