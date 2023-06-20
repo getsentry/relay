@@ -578,6 +578,72 @@
 <a href="#578" id="578">578</a>
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1071,12 +1137,12 @@
     ///
     /// This metric is tagged with:
     ///  - `platform`: The event&#39;s platform, such as `&quot;javascript&quot;`.
-    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
-    ///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.
     ///  - `source`: The source of the transaction name on the client. See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
-    </span>EventTransactionSource,
+    ///  - `contains_slashes`: Whether the transaction name contains `/`. We use this as a heuristic
+    ///    to represent URL transactions.
+    </span>EventTransaction,
     <span class="doccomment">/// The number of transaction events processed grouped by transaction name modifications.
     /// This metric is tagged with:
     ///  - `source_in`: The source of the transaction name before normalization.
@@ -1147,7 +1213,7 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">&quot;processing.event.produced&quot;</span>,
             RelayCounters::EventProtocol =&gt; <span class="string">&quot;event.protocol&quot;</span>,
-            RelayCounters::EventTransactionSource =&gt; <span class="string">&quot;event.transaction_source&quot;</span>,
+            RelayCounters::EventTransaction =&gt; <span class="string">&quot;event.transaction&quot;</span>,
             RelayCounters::TransactionNameChanges =&gt; <span class="string">&quot;event.transaction_name_changes&quot;</span>,
             RelayCounters::Requests =&gt; <span class="string">&quot;requests&quot;</span>,
             RelayCounters::ResponsesStatusCodes =&gt; <span class="string">&quot;responses.status_codes&quot;</span>,
@@ -1155,6 +1221,72 @@
             RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
             RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
             RelayCounters::OpenTelemetryEvent =&gt; <span class="string">&quot;event.opentelemetry&quot;</span>,
+        }
+    }
+}
+
+<span class="doccomment">/// Low-cardinality platform that can be used as a statsd tag.
+</span><span class="kw">pub enum </span>PlatformTag {
+    Cocoa,
+    Csharp,
+    Edge,
+    Go,
+    Java,
+    Javascript,
+    Julia,
+    Native,
+    Node,
+    Objc,
+    Other,
+    Perl,
+    Php,
+    Python,
+    Ruby,
+    Swift,
+}
+
+<span class="kw">impl </span>PlatformTag {
+    <span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Cocoa =&gt; <span class="string">&quot;cocoa&quot;</span>,
+            <span class="self">Self</span>::Csharp =&gt; <span class="string">&quot;csharp&quot;</span>,
+            <span class="self">Self</span>::Edge =&gt; <span class="string">&quot;edge&quot;</span>,
+            <span class="self">Self</span>::Go =&gt; <span class="string">&quot;go&quot;</span>,
+            <span class="self">Self</span>::Java =&gt; <span class="string">&quot;java&quot;</span>,
+            <span class="self">Self</span>::Javascript =&gt; <span class="string">&quot;javascript&quot;</span>,
+            <span class="self">Self</span>::Julia =&gt; <span class="string">&quot;julia&quot;</span>,
+            <span class="self">Self</span>::Native =&gt; <span class="string">&quot;native&quot;</span>,
+            <span class="self">Self</span>::Node =&gt; <span class="string">&quot;node&quot;</span>,
+            <span class="self">Self</span>::Objc =&gt; <span class="string">&quot;objc&quot;</span>,
+            <span class="self">Self</span>::Other =&gt; <span class="string">&quot;other&quot;</span>,
+            <span class="self">Self</span>::Perl =&gt; <span class="string">&quot;perl&quot;</span>,
+            <span class="self">Self</span>::Php =&gt; <span class="string">&quot;php&quot;</span>,
+            <span class="self">Self</span>::Python =&gt; <span class="string">&quot;python&quot;</span>,
+            <span class="self">Self</span>::Ruby =&gt; <span class="string">&quot;ruby&quot;</span>,
+            <span class="self">Self</span>::Swift =&gt; <span class="string">&quot;swift&quot;</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;S: AsRef&lt;str&gt;&gt; From&lt;S&gt; <span class="kw">for </span>PlatformTag {
+    <span class="kw">fn </span>from(value: S) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>value.as_ref() {
+            <span class="string">&quot;cocoa&quot; </span>=&gt; <span class="self">Self</span>::Cocoa,
+            <span class="string">&quot;csharp&quot; </span>=&gt; <span class="self">Self</span>::Csharp,
+            <span class="string">&quot;edge&quot; </span>=&gt; <span class="self">Self</span>::Edge,
+            <span class="string">&quot;go&quot; </span>=&gt; <span class="self">Self</span>::Go,
+            <span class="string">&quot;java&quot; </span>=&gt; <span class="self">Self</span>::Java,
+            <span class="string">&quot;javascript&quot; </span>=&gt; <span class="self">Self</span>::Javascript,
+            <span class="string">&quot;julia&quot; </span>=&gt; <span class="self">Self</span>::Julia,
+            <span class="string">&quot;native&quot; </span>=&gt; <span class="self">Self</span>::Native,
+            <span class="string">&quot;node&quot; </span>=&gt; <span class="self">Self</span>::Node,
+            <span class="string">&quot;objc&quot; </span>=&gt; <span class="self">Self</span>::Objc,
+            <span class="string">&quot;perl&quot; </span>=&gt; <span class="self">Self</span>::Perl,
+            <span class="string">&quot;php&quot; </span>=&gt; <span class="self">Self</span>::Php,
+            <span class="string">&quot;python&quot; </span>=&gt; <span class="self">Self</span>::Python,
+            <span class="string">&quot;ruby&quot; </span>=&gt; <span class="self">Self</span>::Ruby,
+            <span class="string">&quot;swift&quot; </span>=&gt; <span class="self">Self</span>::Swift,
+            <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Other,
         }
     }
 }

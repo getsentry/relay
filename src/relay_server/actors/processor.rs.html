@@ -3848,6 +3848,15 @@
 <a href="#3848" id="3848">3848</a>
 <a href="#3849" id="3849">3849</a>
 <a href="#3850" id="3850">3850</a>
+<a href="#3851" id="3851">3851</a>
+<a href="#3852" id="3852">3852</a>
+<a href="#3853" id="3853">3853</a>
+<a href="#3854" id="3854">3854</a>
+<a href="#3855" id="3855">3855</a>
+<a href="#3856" id="3856">3856</a>
+<a href="#3857" id="3857">3857</a>
+<a href="#3858" id="3858">3858</a>
+<a href="#3859" id="3859">3859</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -3875,12 +3884,12 @@
 <span class="kw">use </span>relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_general::protocol::Context::Trace;
-<span class="kw">use </span>relay_general::protocol::Contexts;
 <span class="kw">use </span>relay_general::protocol::{
     <span class="self">self</span>, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+<span class="kw">use </span>relay_general::protocol::{Contexts, TransactionSource};
 <span class="kw">use </span>relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
@@ -3916,7 +3925,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::extract_session_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     <span class="self">self</span>, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
     ItemAction, ManagedEnvelope, SamplingResult,
@@ -5682,10 +5691,19 @@
                 <span class="kw">let </span>source = event.get_transaction_source();
 
                 <span class="macro">metric!</span>(
-                    counter(RelayCounters::EventTransactionSource) += <span class="number">1</span>,
-                    source = <span class="kw-2">&amp;</span>source.to_string(),
-                    sdk = envelope.meta().client_name().unwrap_or(<span class="string">&quot;proprietary&quot;</span>),
-                    platform = event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>),
+                    counter(RelayCounters::EventTransaction) += <span class="number">1</span>,
+                    source = <span class="kw">match </span><span class="kw-2">&amp;</span>source {
+                        TransactionSource::Other(<span class="kw">_</span>) =&gt; <span class="string">&quot;other&quot;</span>,
+                        source =&gt; source.as_str(),
+                    },
+                    platform =
+                        PlatformTag::from(event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>)).as_str(),
+                    contains_slashes =
+                        <span class="kw">if </span>event.transaction.as_str().unwrap_or_default().contains(<span class="string">&#39;/&#39;</span>) {
+                            <span class="string">&quot;true&quot;
+                        </span>} <span class="kw">else </span>{
+                            <span class="string">&quot;false&quot;
+                        </span>}
                 );
 
                 <span class="kw">let </span>span_count = event.spans.value().map(Vec::len).unwrap_or(<span class="number">0</span>) <span class="kw">as </span>u64;
