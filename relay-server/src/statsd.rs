@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 /// Gauge metrics used by Relay
