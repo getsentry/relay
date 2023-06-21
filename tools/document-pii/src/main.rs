@@ -5,16 +5,16 @@
 
 use std::collections::BTreeSet;
 use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{command, Parser};
+use serde::Serialize;
 use syn::ItemEnum;
 use syn::ItemStruct;
 use walkdir::WalkDir;
 
 use crate::item_collector::AstItemCollector;
-use crate::pii_finder::TypeAndField;
+use crate::pii_finder::FieldsWithAttribute;
 
 pub mod item_collector;
 pub mod pii_finder;
@@ -66,14 +66,6 @@ pub struct Cli {
 }
 
 impl Cli {
-    fn write_pii<W: Write>(&self, mut writer: W, metrics: &[String]) -> anyhow::Result<()> {
-        for metric in metrics {
-            writeln!(writer, "{}", metric)?;
-        }
-
-        Ok(())
-    }
-
     pub fn run(self) -> anyhow::Result<()> {
         // User must either provide the path to a rust crate/workspace or be in one when calling this script.
         let path = match self.path.clone() {
@@ -93,44 +85,62 @@ impl Cli {
             AstItemCollector::collect(&rust_file_paths)?
         };
 
-        let pii_types = match self.item.as_deref() {
-            // If user provides path to an item, find PII_fields under this item in particular.
-            Some(path) => types_and_use_statements.find_pii_fields_of_type(path, &self.pii_values),
-            // If no item is provided, find PII fields of all types in crate/workspace.
-            None => types_and_use_statements.find_pii_fields_of_all_types(&self.pii_values),
-        }?;
+        let pii_types =
+            types_and_use_statements.find_pii_fields(self.item.as_deref(), &self.pii_values)?;
 
         // Function also takes a string to replace unnamed fields, for now we just remove them.
-        let output_vec = get_pii_fields_output(pii_types, "".to_string());
+        let output_vec = Output::from_btreeset(pii_types);
 
         match self.output {
-            Some(ref path) => self.write_pii(File::create(path)?, &output_vec)?,
-            None => self.write_pii(std::io::stdout(), &output_vec)?,
-        }
+            Some(ref path) => serde_json::to_writer_pretty(File::create(path)?, &output_vec)?,
+            None => serde_json::to_writer_pretty(std::io::stdout(), &output_vec)?,
+        };
 
         Ok(())
     }
 }
 
-/// Represent the PII fields in a format that will be used in the final output.
-fn get_pii_fields_output(
-    pii_types: BTreeSet<Vec<TypeAndField>>,
-    unnamed_replace: String,
-) -> Vec<String> {
-    let mut output_vec = vec![];
-    for pii in pii_types {
-        let mut output = String::new();
-        output.push_str(&pii[0].qualified_type_name);
+#[derive(Serialize, Default, Debug)]
+struct Output {
+    path: String,
+    additional_properties: bool,
+}
 
-        for path in pii {
-            output.push_str(&format!(".{}", path.field_ident));
+impl Output {
+    fn new(pii_type: FieldsWithAttribute) -> Self {
+        let mut output = Self {
+            additional_properties: pii_type.attributes.contains_key("additional_properties"),
+            ..Default::default()
+        };
+
+        output
+            .path
+            .push_str(&pii_type.type_and_fields[0].qualified_type_name);
+
+        let mut iter = pii_type.type_and_fields.iter().peekable();
+        while let Some(path) = iter.next() {
+            // If field has attribute "additional_properties" it means it's not a real field
+            // but represents unstrucutred data. So we remove it and pass the information as a boolean
+            // in order to properly document this fact in the docs.
+            if !(output.additional_properties && iter.peek().is_none()) {
+                output.path.push_str(&format!(".{}", path.field_ident));
+            }
         }
 
-        output = output.replace("{{Unnamed}}.", &unnamed_replace);
-        output_vec.push(output);
+        output.path = output.path.replace("{{Unnamed}}.", "");
+        output
     }
-    output_vec.sort();
-    output_vec
+
+    /// Represent the PII fields in a format that will be used in the final output.
+    fn from_btreeset(pii_types: BTreeSet<FieldsWithAttribute>) -> Vec<Self> {
+        let mut output_vec = vec![];
+        for pii in pii_types {
+            output_vec.push(Output::new(pii));
+        }
+        output_vec.sort_by(|a, b| a.path.cmp(&b.path));
+
+        output_vec
+    }
 }
 
 fn print_error(error: &anyhow::Error) {
@@ -186,10 +196,10 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_type("test_pii_docs::SubStruct", &vec!["true".to_string()])
+            .find_pii_fields(Some("test_pii_docs::SubStruct"), &vec!["true".to_string()])
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -206,10 +216,10 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(&vec!["true".to_string()])
+            .find_pii_fields(None, &vec!["true".to_string()])
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -218,10 +228,10 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(&vec!["false".to_string()])
+            .find_pii_fields(None, &vec!["false".to_string()])
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 
@@ -230,14 +240,47 @@ mod tests {
         let types_and_use_statements = get_types_and_use_statements();
 
         let pii_types = types_and_use_statements
-            .find_pii_fields_of_all_types(&vec![
-                "true".to_string(),
-                "false".to_string(),
-                "maybe".to_string(),
-            ])
+            .find_pii_fields(
+                None,
+                &vec!["true".to_string(), "false".to_string(), "maybe".to_string()],
+            )
             .unwrap();
 
-        let output = get_pii_fields_output(pii_types, "".into());
+        let output = Output::from_btreeset(pii_types);
+        insta::assert_debug_snapshot!(output);
+    }
+
+    #[test]
+    fn test_pii_retain_additional_properties_truth_table()
+    /*
+    Fields should be chosen if there is a pii match, and either retain = "true", or there's no
+    "additional_properties" attribute.
+    Logic: ((pii match) & (retain = "true" | !additional_properties))
+
+    truth table:
+
+    +-----------+-----------------+----------  ------------+----------+
+    | pii match | retain = "true" | !additional_properties | selected |
+    +-----------+----------------------+-------------------+----------+
+    | True      | True            | True                   | True     |
+    | True      | True            | False                  | True     |
+    | True      | False           | True                   | False    |
+    | True      | False           | False                  | True     |
+    | False     | True            | True                   | False    |
+    | False     | True            | False                  | False    |
+    | False     | False           | True                   | False    |
+    | False     | False           | False                  | False    |
+    +-----------+-----------------+------------------------+----------+
+
+     */
+    {
+        let types_and_use_statements = get_types_and_use_statements();
+
+        let pii_types = types_and_use_statements
+            .find_pii_fields(None, &vec!["truth_table_test".to_string()])
+            .unwrap();
+
+        let output = Output::from_btreeset(pii_types);
         insta::assert_debug_snapshot!(output);
     }
 }
