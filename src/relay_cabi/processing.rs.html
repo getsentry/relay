@@ -437,6 +437,7 @@
 <a href="#437" id="437">437</a>
 <a href="#438" id="438">438</a>
 <a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -574,7 +575,8 @@
         </span>scrub_span_descriptions: <span class="bool-val">false</span>,
         light_normalize_spans: <span class="bool-val">false</span>,
         span_description_rules: <span class="prelude-val">None</span>,
-    };
+        geoip_lookup: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
+    </span>};
     light_normalize_event(<span class="kw-2">&amp;mut </span>event, light_normalization_config)<span class="question-mark">?</span>;
     process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut *</span>processor, ProcessingState::root())<span class="question-mark">?</span>;
     RelayStr::from_string(event.to_json()<span class="question-mark">?</span>)

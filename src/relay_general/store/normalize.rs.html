@@ -3124,6 +3124,19 @@
 <a href="#3124" id="3124">3124</a>
 <a href="#3125" id="3125">3125</a>
 <a href="#3126" id="3126">3126</a>
+<a href="#3127" id="3127">3127</a>
+<a href="#3128" id="3128">3128</a>
+<a href="#3129" id="3129">3129</a>
+<a href="#3130" id="3130">3130</a>
+<a href="#3131" id="3131">3131</a>
+<a href="#3132" id="3132">3132</a>
+<a href="#3133" id="3133">3133</a>
+<a href="#3134" id="3134">3134</a>
+<a href="#3135" id="3135">3135</a>
+<a href="#3136" id="3136">3136</a>
+<a href="#3137" id="3137">3137</a>
+<a href="#3138" id="3138">3138</a>
+<a href="#3139" id="3139">3139</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3846,6 +3859,18 @@
     }
 }
 
+<span class="comment">// Sets the user&#39;s GeoIp info based on user&#39;s IP address.
+</span><span class="kw">fn </span>normalize_user_geoinfo(geoip_lookup: <span class="kw-2">&amp;</span>GeoIpLookup, user: <span class="kw-2">&amp;mut </span>User) {
+    <span class="comment">// Infer user.geo from user.ip_address
+    </span><span class="kw">if </span>user.geo.value().is_none() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_address) = user.ip_address.value() {
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
+                user.geo.set_value(<span class="prelude-val">Some</span>(geo));
+            }
+        }
+    }
+}
+
 <span class="attr">#[derive(Clone, Default, Debug)]
 </span><span class="kw">pub struct </span>LightNormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IpAddr&gt;,
@@ -3863,6 +3888,7 @@
     <span class="kw">pub </span>scrub_span_descriptions: bool,
     <span class="kw">pub </span>light_normalize_spans: bool,
     <span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
+    <span class="kw">pub </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GeoIpLookup&gt;,
 }
 
 <span class="kw">pub fn </span>light_normalize_event(
@@ -3898,6 +3924,12 @@
             event.platform.as_str(),
             config.client_ip,
         );
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = config.geoip_lookup {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value_mut() {
+                normalize_user_geoinfo(geoip_lookup, user)
+            }
+        }
 
         <span class="comment">// Validate the basic attributes we extract metrics from
         </span>event.release.apply(|release, meta| {
@@ -4063,14 +4095,8 @@
         user.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
         <span class="comment">// Infer user.geo from user.ip_address
-        </span><span class="kw">if </span>user.geo.value().is_none() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = <span class="self">self</span>.geoip_lookup {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(ip_address) = user.ip_address.value() {
-                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(geo)) = geoip_lookup.lookup(ip_address.as_str()) {
-                        user.geo.set_value(<span class="prelude-val">Some</span>(geo));
-                    }
-                }
-            }
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(geoip_lookup) = <span class="self">self</span>.geoip_lookup {
+            normalize_user_geoinfo(geoip_lookup, user)
         }
 
         <span class="prelude-val">Ok</span>(())

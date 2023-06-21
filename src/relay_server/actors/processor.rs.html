@@ -3857,6 +3857,65 @@
 <a href="#3857" id="3857">3857</a>
 <a href="#3858" id="3858">3858</a>
 <a href="#3859" id="3859">3859</a>
+<a href="#3860" id="3860">3860</a>
+<a href="#3861" id="3861">3861</a>
+<a href="#3862" id="3862">3862</a>
+<a href="#3863" id="3863">3863</a>
+<a href="#3864" id="3864">3864</a>
+<a href="#3865" id="3865">3865</a>
+<a href="#3866" id="3866">3866</a>
+<a href="#3867" id="3867">3867</a>
+<a href="#3868" id="3868">3868</a>
+<a href="#3869" id="3869">3869</a>
+<a href="#3870" id="3870">3870</a>
+<a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
+<a href="#3878" id="3878">3878</a>
+<a href="#3879" id="3879">3879</a>
+<a href="#3880" id="3880">3880</a>
+<a href="#3881" id="3881">3881</a>
+<a href="#3882" id="3882">3882</a>
+<a href="#3883" id="3883">3883</a>
+<a href="#3884" id="3884">3884</a>
+<a href="#3885" id="3885">3885</a>
+<a href="#3886" id="3886">3886</a>
+<a href="#3887" id="3887">3887</a>
+<a href="#3888" id="3888">3888</a>
+<a href="#3889" id="3889">3889</a>
+<a href="#3890" id="3890">3890</a>
+<a href="#3891" id="3891">3891</a>
+<a href="#3892" id="3892">3892</a>
+<a href="#3893" id="3893">3893</a>
+<a href="#3894" id="3894">3894</a>
+<a href="#3895" id="3895">3895</a>
+<a href="#3896" id="3896">3896</a>
+<a href="#3897" id="3897">3897</a>
+<a href="#3898" id="3898">3898</a>
+<a href="#3899" id="3899">3899</a>
+<a href="#3900" id="3900">3900</a>
+<a href="#3901" id="3901">3901</a>
+<a href="#3902" id="3902">3902</a>
+<a href="#3903" id="3903">3903</a>
+<a href="#3904" id="3904">3904</a>
+<a href="#3905" id="3905">3905</a>
+<a href="#3906" id="3906">3906</a>
+<a href="#3907" id="3907">3907</a>
+<a href="#3908" id="3908">3908</a>
+<a href="#3909" id="3909">3909</a>
+<a href="#3910" id="3910">3910</a>
+<a href="#3911" id="3911">3911</a>
+<a href="#3912" id="3912">3912</a>
+<a href="#3913" id="3913">3913</a>
+<a href="#3914" id="3914">3914</a>
+<a href="#3915" id="3915">3915</a>
+<a href="#3916" id="3916">3916</a>
+<a href="#3917" id="3917">3917</a>
+<a href="#3918" id="3918">3918</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -3866,6 +3925,7 @@
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
+<span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>brotli::CompressorWriter <span class="kw">as </span>BrotliEncoder;
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Duration <span class="kw">as </span>SignedDuration, Utc};
@@ -3876,6 +3936,7 @@
 <span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
 <span class="kw">use </span>tokio::sync::Semaphore;
 
+<span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span>relay_auth::RelayVersion;
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
@@ -3890,6 +3951,7 @@
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
 <span class="kw">use </span>relay_general::protocol::{Contexts, TransactionSource};
+<span class="kw">use </span>relay_general::store::GeoIpLookup;
 <span class="kw">use </span>relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
@@ -3906,11 +3968,9 @@
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::actors::envelopes::SendMetrics,
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
-    <span class="kw">crate</span>::service::ServiceError,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
-    anyhow::Context,
     relay_general::protocol::{Context <span class="kw">as </span>SentryContext, ProfileContext},
-    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_general::store::{StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -4396,8 +4456,7 @@
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;RedisRateLimiter&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;GeoIpLookup&gt;,
+    geoip_lookup: <span class="prelude-ty">Option</span>&lt;GeoIpLookup&gt;,
 }
 
 <span class="kw">impl </span>EnvelopeProcessorService {
@@ -4410,13 +4469,13 @@
         project_cache: Addr&lt;ProjectCache&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
     ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>geoip_lookup = <span class="kw">match </span>config.geoip_path() {
+            <span class="prelude-val">Some</span>(p) =&gt; <span class="prelude-val">Some</span>(GeoIpLookup::open(p).context(ServiceError::GeoIp)<span class="question-mark">?</span>),
+            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+        };
+
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span>{
-            <span class="kw">let </span>geoip_lookup = <span class="kw">match </span>config.geoip_path() {
-                <span class="prelude-val">Some</span>(p) =&gt; <span class="prelude-val">Some</span>(GeoIpLookup::open(p).context(ServiceError::GeoIp)<span class="question-mark">?</span>),
-                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
-            };
-
             <span class="kw">let </span>rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
@@ -4434,6 +4493,7 @@
         <span class="attr">#[cfg(not(feature = <span class="string">&quot;processing&quot;</span>))]
         </span><span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             config,
+            geoip_lookup,
             envelope_manager,
             outcome_aggregator,
             project_cache,
@@ -6243,6 +6303,7 @@
                 is_renormalize: <span class="bool-val">false</span>,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
+                geoip_lookup: <span class="self">self</span>.geoip_lookup.as_ref(),
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -6969,8 +7030,7 @@
             upstream_relay,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>rate_limiter: <span class="prelude-val">None</span>,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>geoip_lookup: <span class="prelude-val">None</span>,
+            geoip_lookup: <span class="prelude-val">None</span>,
         }
     }
 
@@ -7714,6 +7774,64 @@
             hardcoded_value, derived_value,
             <span class="string">&quot;Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed.&quot;
         </span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_geo_in_light_normalize() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
+            <span class="string">r###&quot;
+            {
+                &quot;type&quot;: &quot;transaction&quot;,
+                &quot;transaction&quot;: &quot;/foo/&quot;,
+                &quot;timestamp&quot;: 946684810.0,
+                &quot;start_timestamp&quot;: 946684800.0,
+                &quot;contexts&quot;: {
+                    &quot;trace&quot;: {
+                        &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
+                        &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
+                        &quot;op&quot;: &quot;http.server&quot;,
+                        &quot;type&quot;: &quot;trace&quot;
+                    }
+                },
+                &quot;transaction_info&quot;: {
+                    &quot;source&quot;: &quot;url&quot;
+                },
+                &quot;user&quot;: {
+                    &quot;ip_address&quot;: &quot;2.125.160.216&quot;
+                }
+            }
+            &quot;###</span>,
+        )
+        .unwrap();
+
+        <span class="kw">let </span>lookup =
+            GeoIpLookup::open(<span class="string">&quot;../relay-general/tests/fixtures/GeoIP2-Enterprise-Test.mmdb&quot;</span>)
+                .unwrap();
+        <span class="kw">let </span>config = LightNormalizationConfig {
+            geoip_lookup: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>lookup),
+            ..Default::default()
+        };
+
+        <span class="comment">// Extract user&#39;s geo information before normalization.
+        </span><span class="kw">let </span>user_geo = event.value().unwrap().user.value().unwrap().geo.value();
+
+        <span class="macro">assert!</span>(user_geo.is_none());
+
+        relay_general::store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
+
+        <span class="comment">// Extract user&#39;s geo information after normalization.
+        </span><span class="kw">let </span>user_geo = event
+            .value()
+            .unwrap()
+            .user
+            .value()
+            .unwrap()
+            .geo
+            .value()
+            .unwrap();
+
+        <span class="macro">assert_eq!</span>(user_geo.country_code.value().unwrap(), <span class="string">&quot;GB&quot;</span>);
+        <span class="macro">assert_eq!</span>(user_geo.city.value().unwrap(), <span class="string">&quot;Boxford&quot;</span>);
     }
 }
 </code></pre></div></section></main></body></html>

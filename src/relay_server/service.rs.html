@@ -292,7 +292,6 @@
 <a href="#292" id="292">292</a>
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -324,8 +323,7 @@
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 </span><span class="kw">pub enum </span>ServiceError {
     <span class="doccomment">/// GeoIp construction failed.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    #[error(<span class="string">&quot;could not load the Geoip Db&quot;</span>)]
+    </span><span class="attr">#[error(<span class="string">&quot;could not load the Geoip Db&quot;</span>)]
     </span>GeoIp,
 
     <span class="doccomment">/// Initializing the Kafka producer failed.

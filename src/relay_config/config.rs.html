@@ -2016,6 +2016,19 @@
 <a href="#2016" id="2016">2016</a>
 <a href="#2017" id="2017">2017</a>
 <a href="#2018" id="2018">2018</a>
+<a href="#2019" id="2019">2019</a>
+<a href="#2020" id="2020">2020</a>
+<a href="#2021" id="2021">2021</a>
+<a href="#2022" id="2022">2022</a>
+<a href="#2023" id="2023">2023</a>
+<a href="#2024" id="2024">2024</a>
+<a href="#2025" id="2025">2025</a>
+<a href="#2026" id="2026">2026</a>
+<a href="#2027" id="2027">2027</a>
+<a href="#2028" id="2028">2028</a>
+<a href="#2029" id="2029">2029</a>
+<a href="#2030" id="2030">2030</a>
+<a href="#2031" id="2031">2031</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -3204,6 +3217,13 @@
     </span><span class="kw">pub </span>runtime_api: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
+<span class="doccomment">/// GeoIp database configuration options.
+</span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
+</span><span class="kw">pub struct </span>GeoIpConfig {
+    <span class="doccomment">/// The path to GeoIP database.
+    </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
+}
+
 <span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
 </span><span class="kw">struct </span>ConfigValues {
     <span class="attr">#[serde(default)]
@@ -3234,6 +3254,8 @@
     </span>auth: AuthConfig,
     <span class="attr">#[serde(default)]
     </span>aws: AwsConfig,
+    <span class="attr">#[serde(default)]
+    </span>geoip: GeoIpConfig,
 }
 
 <span class="kw">impl </span>ConfigObject <span class="kw">for </span>ConfigValues {
@@ -3914,7 +3936,11 @@
 
     <span class="doccomment">/// The path to the GeoIp database required for event processing.
     </span><span class="kw">pub fn </span>geoip_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Path&gt; {
-        <span class="self">self</span>.values.processing.geoip_path.as_deref()
+        <span class="self">self</span>.values
+            .geoip
+            .path
+            .as_deref()
+            .or(<span class="self">self</span>.values.processing.geoip_path.as_deref())
     }
 
     <span class="doccomment">/// Maximum future timestamp of ingested data.
