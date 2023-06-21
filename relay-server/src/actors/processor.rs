@@ -7,6 +7,7 @@ use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
@@ -17,6 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -31,6 +33,7 @@ use relay_general::protocol::{
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
 use relay_general::protocol::{Contexts, TransactionSource};
+use relay_general::store::GeoIpLookup;
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
@@ -47,11 +50,9 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    anyhow::Context,
     relay_general::protocol::{Context as SentryContext, ProfileContext},
-    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_general::store::{StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -537,7 +538,6 @@ pub struct EnvelopeProcessorService {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
-    #[cfg(feature = "processing")]
     geoip_lookup: Option<GeoIpLookup>,
 }
 
@@ -551,13 +551,13 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> anyhow::Result<Self> {
+        let geoip_lookup = match config.geoip_path() {
+            Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
+            None => None,
+        };
+
         #[cfg(feature = "processing")]
         {
-            let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
-                None => None,
-            };
-
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
@@ -575,6 +575,7 @@ impl EnvelopeProcessorService {
         #[cfg(not(feature = "processing"))]
         Ok(Self {
             config,
+            geoip_lookup,
             envelope_manager,
             outcome_aggregator,
             project_cache,
@@ -2384,6 +2385,7 @@ impl EnvelopeProcessorService {
                 is_renormalize: false,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
+                geoip_lookup: self.geoip_lookup.as_ref(),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -3110,7 +3112,6 @@ mod tests {
             upstream_relay,
             #[cfg(feature = "processing")]
             rate_limiter: None,
-            #[cfg(feature = "processing")]
             geoip_lookup: None,
         }
     }
@@ -3855,5 +3856,63 @@ mod tests {
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         );
+    }
+
+    #[test]
+    fn test_geo_in_light_normalize() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                },
+                "user": {
+                    "ip_address": "2.125.160.216"
+                }
+            }
+            "###,
+        )
+        .unwrap();
+
+        let lookup =
+            GeoIpLookup::open("../relay-general/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
+                .unwrap();
+        let config = LightNormalizationConfig {
+            geoip_lookup: Some(&lookup),
+            ..Default::default()
+        };
+
+        // Extract user's geo information before normalization.
+        let user_geo = event.value().unwrap().user.value().unwrap().geo.value();
+
+        assert!(user_geo.is_none());
+
+        relay_general::store::light_normalize_event(&mut event, config).unwrap();
+
+        // Extract user's geo information after normalization.
+        let user_geo = event
+            .value()
+            .unwrap()
+            .user
+            .value()
+            .unwrap()
+            .geo
+            .value()
+            .unwrap();
+
+        assert_eq!(user_geo.country_code.value().unwrap(), "GB");
+        assert_eq!(user_geo.city.value().unwrap(), "Boxford");
     }
 }

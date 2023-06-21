@@ -29,7 +29,6 @@ use crate::utils::BufferGuard;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum ServiceError {
     /// GeoIp construction failed.
-    #[cfg(feature = "processing")]
     #[error("could not load the Geoip Db")]
     GeoIp,
 
