@@ -7,6 +7,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
+use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,8 +22,6 @@ use relay_filter::FilterStatKey;
 use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
-#[cfg(feature = "processing")]
-use relay_log::LogError;
 use relay_quotas::{ReasonCode, Scoping};
 use relay_sampling::MatchedRuleIds;
 use relay_statsd::metric;
@@ -148,16 +147,12 @@ impl FromMessage<Self> for TrackOutcome {
 /// Defines the possible outcomes from processing an event.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Outcome {
-    /// The event has been accepted and handled completely.
-    ///
-    /// For events and most other types, this is never emitted by Relay as the event
-    /// may be discarded by the processing pipeline after Relay.
-    /// Only the `save_event` task in Sentry finally accepts an event.
-    ///
-    /// The only data type for which this outcome is emitted by Relay is [`DataCategory::Profile`].
-    /// (See [`crate::actors::processor::EnvelopeProcessor`])
-    #[cfg(feature = "processing")]
-    Accepted,
+    // /// The event has been accepted and handled completely.
+    // ///
+    // /// This is never emitted by Relay as the event may be discarded by the processing pipeline
+    // /// after Relay. Only the `save_event` task in Sentry finally accepts an event.
+    // #[allow(dead_code)]
+    // Accepted,
     /// The event has been filtered due to a configured filter.
     Filtered(FilterStatKey),
 
@@ -182,8 +177,6 @@ impl Outcome {
     /// Returns the raw numeric value of this outcome for the JSON and Kafka schema.
     fn to_outcome_id(&self) -> OutcomeId {
         match self {
-            #[cfg(feature = "processing")]
-            Outcome::Accepted => OutcomeId::ACCEPTED,
             Outcome::Filtered(_) | Outcome::FilteredSampling(_) => OutcomeId::FILTERED,
             Outcome::RateLimited(_) => OutcomeId::RATE_LIMITED,
             Outcome::Invalid(_) => OutcomeId::INVALID,
@@ -195,8 +188,6 @@ impl Outcome {
     /// Returns the `reason` code field of this outcome.
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
-            #[cfg(feature = "processing")]
-            Outcome::Accepted => None,
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
             Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
@@ -229,8 +220,6 @@ impl Outcome {
 impl fmt::Display for Outcome {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            #[cfg(feature = "processing")]
-            Outcome::Accepted => write!(f, "accepted"),
             Outcome::Filtered(key) => write!(f, "filtered by {key}"),
             Outcome::FilteredSampling(rule_ids) => write!(f, "sampling rule {rule_ids}"),
             Outcome::RateLimited(None) => write!(f, "rate limited"),
@@ -548,11 +537,11 @@ impl HttpOutcomeProducer {
         self.flush_handle.reset();
 
         if self.unsent_outcomes.is_empty() {
-            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send.");
+            relay_log::warn!("unexpected send_batch scheduled with no outcomes to send");
             return;
         } else {
             relay_log::trace!(
-                "sending outcome batch of size:{}",
+                "sending outcome batch of size {}",
                 self.unsent_outcomes.len()
             );
         }
@@ -565,16 +554,16 @@ impl HttpOutcomeProducer {
 
         tokio::spawn(async move {
             match upstream_relay.send(SendQuery(request)).await {
-                Ok(_) => relay_log::trace!("outcome batch sent."),
+                Ok(_) => relay_log::trace!("outcome batch sent"),
                 Err(error) => {
-                    relay_log::error!("outcome batch sending failed with: {}", error)
+                    relay_log::error!(error = &error as &dyn Error, "outcome batch sending failed")
                 }
             }
         });
     }
 
     fn handle_message(&mut self, message: TrackRawOutcome) {
-        relay_log::trace!("Batching outcome");
+        relay_log::trace!("batching outcome");
         self.unsent_outcomes.push(message);
 
         if self.unsent_outcomes.len() >= self.config.outcome_batch_size() {
@@ -625,7 +614,7 @@ impl ClientReportOutcomeProducer {
     }
 
     fn flush(&mut self) {
-        relay_log::trace!("Flushing client reports");
+        relay_log::trace!("flushing client reports");
         self.flush_handle.reset();
 
         let unsent_reports = mem::take(&mut self.unsent_reports);
@@ -797,15 +786,13 @@ impl OutcomeBroker {
     }
 
     #[cfg(feature = "processing")]
-    fn send_kafka_message_inner(
+    fn send_kafka_message(
         &self,
         producer: &KafkaOutcomesProducer,
         organization_id: u64,
         message: TrackRawOutcome,
     ) -> Result<(), OutcomeError> {
-        relay_log::trace!("Tracking kafka outcome: {:?}", message);
-
-        send_outcome_metric(&message, "kafka");
+        relay_log::trace!("Tracking kafka outcome: {message:?}");
 
         let payload = serde_json::to_string(&message).map_err(OutcomeError::SerializationError)?;
 
@@ -836,29 +823,17 @@ impl OutcomeBroker {
         }
     }
 
-    #[cfg(feature = "processing")]
-    fn send_kafka_message(
-        &self,
-        producer: &KafkaOutcomesProducer,
-        organization_id: u64,
-        message: TrackRawOutcome,
-    ) -> Result<(), OutcomeError> {
-        for message in transform_outcome(message) {
-            self.send_kafka_message_inner(producer, organization_id, message)?;
-        }
-        Ok(())
-    }
-
     fn handle_track_outcome(&self, message: TrackOutcome, config: &Config) {
         match self {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
+                send_outcome_metric(&message, "kafka");
                 let organization_id = message.scoping.organization_id;
                 let raw_message = TrackRawOutcome::from_outcome(message, config);
                 if let Err(error) =
                     self.send_kafka_message(kafka_producer, organization_id, raw_message)
                 {
-                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
+                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
             Self::ClientReport(producer) => {
@@ -877,9 +852,10 @@ impl OutcomeBroker {
         match self {
             #[cfg(feature = "processing")]
             Self::Kafka(kafka_producer) => {
+                send_outcome_metric(&message, "kafka");
                 let sharding_id = message.org_id.unwrap_or_else(|| message.project_id.value());
                 if let Err(error) = self.send_kafka_message(kafka_producer, sharding_id, message) {
-                    relay_log::error!("failed to produce outcome: {}", LogError(&error));
+                    relay_log::error!(error = &error as &dyn Error, "failed to produce outcome");
                 }
             }
             Self::Http(producer) => {
@@ -890,54 +866,6 @@ impl OutcomeBroker {
             Self::Disabled => (),
         }
     }
-}
-
-/// Returns true if the outcome represents profiles dropped by dynamic sampling.
-#[cfg(feature = "processing")]
-fn is_sampled_profile(outcome: &TrackRawOutcome) -> bool {
-    (outcome.category == Some(DataCategory::Profile as u8)
-        || outcome.category == Some(DataCategory::ProfileIndexed as u8))
-        && outcome.outcome == OutcomeId::FILTERED
-        && outcome
-            .reason
-            .as_deref()
-            .map_or(false, |reason| reason.starts_with("Sampled:"))
-}
-
-/// Transform outcome into one or more derived outcome messages before sending it to kafka.
-#[cfg(feature = "processing")]
-fn transform_outcome(mut outcome: TrackRawOutcome) -> impl Iterator<Item = TrackRawOutcome> {
-    let mut extra = None;
-    if is_sampled_profile(&outcome) {
-        // Profiles that were dropped by dynamic sampling still count as "processed",
-        // so we emit the FILTERED outcome only for the "indexed" category instead.
-        outcome.category = Some(DataCategory::ProfileIndexed as u8);
-
-        // "processed" profiles are an abstract data category that does not represent actual data
-        // going through our pipeline. Instead, the number of accepted "processed" profiles is counted as
-        //
-        //     processed_profiles = indexed_profiles + sampled_profiles
-        //
-        // The "processed" outcome for indexed_profiles is generated in processing
-        // (see `EnvelopeProcessor::count_processed_profiles()`),
-        // but for profiles dropped by dynamic sampling, all we have is the FILTERED outcome,
-        // which we transform into an ACCEPTED outcome here.
-        //
-        // The reason for doing this transformation in the kafka producer is that it should apply
-        // to both `TrackOutcome` and `TrackRawOutcome`, and it should only happen _once_.
-        //
-        // In the future, we might actually extract metrics from profiles before dynamic sampling,
-        // like we do for transactions. At that point, this code should be removed, and we should
-        // enforce rate limits and emit outcomes based on the collect profile metric, as we do for
-        // transactions.
-        extra = Some(TrackRawOutcome {
-            outcome: OutcomeId::ACCEPTED,
-            reason: None,
-            category: Some(DataCategory::Profile as u8),
-            ..outcome.clone()
-        });
-    }
-    Some(outcome).into_iter().chain(extra)
 }
 
 #[derive(Debug)]

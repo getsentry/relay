@@ -23,10 +23,32 @@ pipelines:
         stage: promote-to-pops
 
     stages:
-      # checks aren't needed because it's implied by pipeline-deploy-relay-completed.
-      - deploy:
+      - checks:
           approval:
             type: manual
+          fetch_materials: true
+
+          jobs:
+            checks:
+              environment_variables:
+                # Required for checkruns.
+                GITHUB_TOKEN: "{{SECRET:[devinfra-github][token]}}"
+              timeout: 1800
+              elastic_profile_id: relay-pop
+              tasks:
+                - script: |
+                    /devinfra/scripts/checks/githubactions/checkruns.py \
+                    getsentry/relay \
+                    ${GO_REVISION_RELAY_REPO} \
+                    "Integration Tests" \
+                    "Test (macos-latest)" \
+                    "Test (windows-latest)" \
+                    "Test All Features (ubuntu-latest)" \
+                    "Push GCR Docker Image"
+      - deploy:
+          approval:
+            type: success
+            allow_only_on_success: true
           fetch_materials: true
 
           jobs:

@@ -95,9 +95,9 @@
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 mod android;
-mod cocoa;
 mod error;
 mod extract_from_transaction;
 mod measurements;
@@ -113,6 +113,8 @@ use crate::extract_from_transaction::{extract_transaction_metadata, extract_tran
 
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
+
+const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
@@ -146,12 +148,6 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
                     Err(err) => return Err(ProfileError::InvalidJson(err)),
                 };
             }
-            "cocoa" => {
-                let _: cocoa::ProfileMetadata = match serde_json::from_slice(payload) {
-                    Ok(profile) => profile,
-                    Err(err) => return Err(ProfileError::InvalidJson(err)),
-                };
-            }
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
@@ -181,7 +177,6 @@ pub fn expand_profile(
             "android" => {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
-            "cocoa" => cocoa::parse_cocoa_profile(payload),
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
@@ -202,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_minimal_profile_without_version() {
-        let data = r#"{"platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
+        let data = r#"{"platform":"android","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
         assert_eq!(profile.unwrap().version, sample::Version::Unknown);
@@ -216,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_expand_profile_without_version() {
-        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
         assert!(expand_profile(payload, Some(&Event::default())).is_ok());
     }
 }

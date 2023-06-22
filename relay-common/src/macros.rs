@@ -11,7 +11,7 @@ macro_rules! impl_str_ser {
             where
                 S: ::serde::ser::Serializer,
             {
-                serializer.serialize_str(&self.to_string())
+                serializer.collect_str(self)
             }
         }
     };

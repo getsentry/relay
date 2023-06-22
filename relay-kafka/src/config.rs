@@ -89,7 +89,7 @@ pub struct TopicAssignments {
     /// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
     pub metrics_sessions: Option<TopicAssignment>,
     /// Topic name for metrics extracted from transactions. Defaults to the assignment of `metrics`.
-    pub metrics_transactions: Option<TopicAssignment>,
+    pub metrics_transactions: TopicAssignment,
     /// Stacktrace topic name
     pub profiles: TopicAssignment,
     /// Replay Events topic name.
@@ -112,9 +112,7 @@ impl TopicAssignments {
             KafkaTopic::OutcomesBilling => self.outcomes_billing.as_ref().unwrap_or(&self.outcomes),
             KafkaTopic::Sessions => &self.sessions,
             KafkaTopic::MetricsSessions => self.metrics_sessions.as_ref().unwrap_or(&self.metrics),
-            KafkaTopic::MetricsTransactions => {
-                self.metrics_transactions.as_ref().unwrap_or(&self.metrics)
-            }
+            KafkaTopic::MetricsTransactions => &self.metrics_transactions,
             KafkaTopic::Profiles => &self.profiles,
             KafkaTopic::ReplayEvents => &self.replay_events,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
@@ -134,7 +132,7 @@ impl Default for TopicAssignments {
             sessions: "ingest-sessions".to_owned().into(),
             metrics: "ingest-metrics".to_owned().into(),
             metrics_sessions: None,
-            metrics_transactions: None,
+            metrics_transactions: "ingest-performance-metrics".to_owned().into(),
             profiles: "profiles".to_owned().into(),
             replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),

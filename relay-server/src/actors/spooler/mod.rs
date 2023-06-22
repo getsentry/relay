@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::error::Error;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use futures::stream::{self, StreamExt};
 use relay_common::ProjectKey;
 use relay_config::Config;
-use relay_log::LogError;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
@@ -308,7 +308,10 @@ impl OnDisk {
                 |(key, received_at, managed)| match managed.into_envelope().to_vec() {
                     Ok(vec) => Some((key, vec, received_at)),
                     Err(err) => {
-                        relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed to serialize the envelope"
+                        );
                         None
                     }
                 },
@@ -418,8 +421,8 @@ impl OnDisk {
                     // Bail if there are errors in the stream.
                     Err(err) => {
                         relay_log::error!(
-                            "failed to read the buffer stream from the disk: {}",
-                            LogError(&err)
+                            error = &err as &dyn Error,
+                            "failed to read the buffer stream from the disk",
                         );
                         self.track_count(-count);
                         return Err(key);
@@ -431,8 +434,8 @@ impl OnDisk {
                         sender.send(managed_envelope).ok();
                     }
                     Err(err) => relay_log::error!(
-                        "failed to extract envelope from the buffer: {}",
-                        LogError(&err)
+                        error = &err as &dyn Error,
+                        "failed to extract envelope from the buffer",
                     ),
                 }
             }
@@ -583,8 +586,8 @@ impl BufferState {
             {
                 if let Err(err) = disk.spool(ram.buffer).await {
                     relay_log::error!(
-                        "failed to spool the in-memory buffer to disk: {}",
-                        LogError(&err)
+                        error = &err as &dyn Error,
+                        "failed to spool the in-memory buffer to disk",
                     );
                 }
                 Self::Disk(disk)
@@ -800,7 +803,7 @@ impl BufferService {
         if count > 0 {
             relay_log::with_scope(
                 |scope| scope.set_tag("project_key", project_key),
-                || relay_log::error!("evicted project with {} envelopes", count),
+                || relay_log::error!(count, "evicted project with envelopes"),
             );
         }
 
@@ -842,8 +845,8 @@ impl BufferService {
         }
 
         relay_log::info!(
-            "received shutdown signal, spooling {} envelopes to disk",
-            count
+            count,
+            "received shutdown signal, spooling envelopes to disk"
         );
 
         let buffer = std::mem::take(&mut ram.buffer);
@@ -865,12 +868,18 @@ impl Service for BufferService {
 
                     Some(message) = rx.recv() => {
                         if let Err(err) = self.handle_message(message).await {
-                            relay_log::error!("failed to handle an incoming message: {}", LogError(&err))
+                            relay_log::error!(
+                                error = &err as &dyn Error,
+                                "failed to handle an incoming message",
+                            );
                         }
                     }
                     _ = shutdown.notified() => {
                        if let Err(err) = self.handle_shutdown().await {
-                            relay_log::error!("failed while shutting down the service: {}", LogError(&err))
+                            relay_log::error!(
+                                error = &err as &dyn Error,
+                                "failed while shutting down the service",
+                            );
                         }
                     }
                     else => break,
@@ -887,7 +896,7 @@ impl Drop for BufferService {
             BufferState::Memory(ram) | BufferState::MemoryFileStandby { ram, .. } => {
                 let count = ram.count();
                 if count > 0 {
-                    relay_log::error!("dropped {} envelopes", count);
+                    relay_log::error!("dropped {count} envelopes");
                 }
             }
             BufferState::Disk(_) => (),
@@ -1036,7 +1045,7 @@ mod tests {
 
         // There are enough permits, so get an envelope:
         let res = rx.try_recv();
-        assert!(res.is_ok(), "{:?}", res);
+        assert!(res.is_ok(), "{res:?}");
         assert_eq!(buffer_guard.available(), 2);
 
         // Simulate a new envelope coming in via a web request:

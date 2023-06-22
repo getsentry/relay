@@ -5,14 +5,57 @@
 **Features**:
 
 - Add filter for healthcheck endpoints. ([#2118](https://github.com/getsentry/relay/pull/2118))
+- Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
+- Use GeoIP lookup also in non-processing Relays. Lookup from now on will be also run in light normalization. ([#2229](https://github.com/getsentry/relay/pull/2229))
+
+## 23.6.1
+
+- No documented changes.
+
+## 23.6.0
+
+**Bug Fixes**:
+
+- Make counting of total profiles consistent with total transactions. ([#2163](https://github.com/getsentry/relay/pull/2163))
+
+**Features**:
+
+- Add `data` and `api_target` fields to `ResponseContext` and scrub `graphql` bodies. ([#2141](https://github.com/getsentry/relay/pull/2141))
+- Add support for X-Vercel-Forwarded-For header. ([#2124](https://github.com/getsentry/relay/pull/2124))
+- Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+- Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
+- Change default topic for transaction metrics to `ingest-performance-metrics`. ([#2180](https://github.com/getsentry/relay/pull/2180))
+- Add Firefox "dead object" error to browser extension filter ([#2215](https://github.com/getsentry/relay/pull/2215))
+- Add events whose `url` starts with `file://` to localhost inbound filter ([#2214](https://github.com/getsentry/relay/pull/2214))
+
+**Internal**:
+
+- Extract app identifier from app context for profiles. ([#2172](https://github.com/getsentry/relay/pull/2172))
+- Mark all URL transactions as sanitized after applying rules. ([#2210](https://github.com/getsentry/relay/pull/2210))
+- Add limited, experimental Sentry performance monitoring. ([#2157](https://github.com/getsentry/relay/pull/2157))
+
+## 23.5.2
+
+**Features**:
+
+- Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
+- Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
+
+- Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
+
+## 23.5.1
 
 **Bug Fixes**:
 
 - Sample only transaction events instead of sampling both transactions and errors. ([#2130](https://github.com/getsentry/relay/pull/2130))
+- Fix tagging of incoming errors with `sampled` that was not done due to lack of sampling state. ([#2148](https://github.com/getsentry/relay/pull/2148))
+- Remove profiling feature flag. ([#2146](https://github.com/getsentry/relay/pull/2146))
 
 **Internal**:
 
-- Add `txNameReady` flag to project config. ([#2128](https://github.com/getsentry/relay/pull/2128))
+- Mark all URL transactions as `sanitized` when `txNameReady` flag is set. ([#2128](https://github.com/getsentry/relay/pull/2128), [#2139](https://github.com/getsentry/relay/pull/2139))
+- Tag incoming errors with the new `sampled` field in case their DSC is sampled. ([#2026](https://github.com/getsentry/relay/pull/2026))
+- Enable PII scrubbing for urls field ([#2143](https://github.com/getsentry/relay/pull/2143))
 
 ## 23.5.0
 

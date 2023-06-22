@@ -16,8 +16,6 @@
 )]
 #![warn(missing_docs)]
 
-use once_cell::sync::Lazy;
-use regex::Regex;
 use relay_common::Uuid;
 use serde::{Deserialize, Serialize};
 
@@ -39,7 +37,7 @@ pub enum ProcessCheckInError {
 ///
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum CheckInStatus {
+pub enum CheckInStatus {
     /// Check-in had no issues during execution.
     Ok,
     /// Check-in failed or otherwise had some issues.
@@ -81,7 +79,7 @@ enum IntervalName {
 
 /// The monitor configuration playload for upserting monitors during check-in
 #[derive(Debug, Deserialize, Serialize)]
-struct MonitorConfig {
+pub struct MonitorConfig {
     /// The monitor schedule configuration
     schedule: Schedule,
 
@@ -100,45 +98,30 @@ struct MonitorConfig {
     timezone: Option<String>,
 }
 
-// XXX(epurkhiser): This is a duplicate of the ClientSdkInfo that is part of the relay-general
-// crate. Until we're able to migrate the checkin payload over to it's own protocol using
-// metastructure we'll need to have this duplicated here
-//
-/// The SDK Interface describes the Sentry SDK and its configuration used to capture and transmit an event.
-#[derive(Debug, Deserialize, Serialize)]
-struct MinimalClientSdkInfo {
-    pub name: String,
-    pub version: String,
-}
-
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
-struct CheckIn {
+pub struct CheckIn {
     /// Unique identifier of this check-in.
     #[serde(serialize_with = "uuid_simple")]
-    check_in_id: Uuid,
+    pub check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.
-    monitor_slug: String,
+    pub monitor_slug: String,
 
     /// Status of this check-in. Defaults to `"unknown"`.
-    status: CheckInStatus,
-
-    /// monitor configuration to support upserts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sdk: Option<MinimalClientSdkInfo>,
+    pub status: CheckInStatus,
 
     /// The environment to associate the check-in with
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    environment: Option<String>,
+    pub environment: Option<String>,
 
     /// Duration of this check since it has started in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    duration: Option<f64>,
+    pub duration: Option<f64>,
 
     /// monitor configuration to support upserts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    monitor_config: Option<MonitorConfig>,
+    pub monitor_config: Option<MonitorConfig>,
 }
 
 /// Normalizes a monitor check-in payload.
@@ -150,7 +133,8 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
         check_in.status = CheckInStatus::Unknown;
     }
 
-    check_in.monitor_slug = slugify(&check_in.monitor_slug);
+    trim_slug(&mut check_in.monitor_slug);
+
     if check_in.monitor_slug.is_empty() {
         return Err(ProcessCheckInError::EmptySlug);
     }
@@ -158,25 +142,10 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
     Ok(serde_json::to_vec(&check_in)?)
 }
 
-fn slugify(input: &str) -> String {
-    static SLUG_CLEANER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[^a-zA-Z0-9\s_-]").unwrap());
-    static SLUGIFIER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\s\-]+").unwrap());
-
-    let cleaned = SLUG_CLEANER.replace_all(input, "");
-    let mut slug = SLUGIFIER
-        .replace_all(&cleaned, "-")
-        .trim_matches('-')
-        .to_owned();
-
-    slug.truncate(SLUG_LENGTH);
-
-    // Truncate may leave a trailing '-', so we may need to truncate again.
-    if slug.ends_with('-') {
-        slug.truncate(slug.len() - 1);
+fn trim_slug(slug: &mut String) {
+    if let Some((overflow, _)) = slug.char_indices().nth(SLUG_LENGTH) {
+        slug.truncate(overflow);
     }
-
-    slug.make_ascii_lowercase();
-    slug
 }
 
 #[cfg(test)]
@@ -186,15 +155,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn truncate_basic() {
+        let mut test1 = "test_".repeat(50);
+        trim_slug(&mut test1);
+        assert_eq!("test_test_test_test_test_test_test_test_test_test_", test1,);
+
+        let mut test2 = "🦀".repeat(SLUG_LENGTH + 10);
+        trim_slug(&mut test2);
+        assert_eq!("🦀".repeat(SLUG_LENGTH), test2);
+    }
+
+    #[test]
     fn process_json_roundtrip() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
-  "sdk": {
-    "name": "sentry.rust",
-    "version": "1.0.0"
-  },
   "environment": "production",
   "duration": 21.0
 }"#;
@@ -211,10 +187,6 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
-  "sdk": {
-    "name": "sentry.rust",
-    "version": "1.0.0"
-  },
   "monitor_config": {
     "schedule": {
       "type": "crontab",
@@ -235,10 +207,6 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
-  "sdk": {
-    "name": "sentry.rust",
-    "version": "1.0.0"
-  },
   "monitor_config": {
     "schedule": {
       "type": "interval",
@@ -263,10 +231,6 @@ mod tests {
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
-  "sdk": {
-    "name": "sentry.rust",
-    "version": "1.0.0"
-  },
   "monitor_config": {
     "schedule": {
       "type": "crontab",
@@ -288,36 +252,11 @@ mod tests {
     fn process_empty_slug() {
         let json = r#"{
           "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
-          "monitor_slug": "🚀🚀🚀",
+          "monitor_slug": "",
           "status": "in_progress"
         }"#;
 
         let result = process_check_in(json.as_bytes());
         assert!(matches!(result, Err(ProcessCheckInError::EmptySlug)));
-    }
-
-    #[test]
-    fn slugify_empty_string() {
-        assert_eq!("", slugify(""));
-    }
-
-    #[test]
-    fn slugify_truncate_honors_trim() {
-        let input = "-".repeat(SLUG_LENGTH + 10) + "hello";
-        assert_eq!("hello", slugify(&input));
-    }
-
-    #[test]
-    fn slugify_trim_at_truncate() {
-        let expected = "a".repeat(SLUG_LENGTH - 1);
-        let input = expected.clone() + "-stripped";
-        assert_eq!(expected, slugify(&input));
-    }
-
-    #[test]
-    fn slugify_unicode() {
-        let input = "🚀🚀🚀\tmyComplicated_slug\u{200A}name is here...";
-        let expected = "mycomplicated_slug-name-is-here";
-        assert_eq!(expected, slugify(input));
     }
 }

@@ -1,0 +1,18 @@
+---
+source: tools/document-pii/src/main.rs
+expression: output
+---
+[
+    Output {
+        path: "TruthTableTest",
+        additional_properties: true,
+    },
+    Output {
+        path: "TruthTableTest.baz",
+        additional_properties: false,
+    },
+    Output {
+        path: "TruthTableTest.qux",
+        additional_properties: false,
+    },
+]

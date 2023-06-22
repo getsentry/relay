@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Common utilities and crate re-exports for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.5.0"
+version = "23.6.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -17,7 +17,7 @@ once_cell = "1.13.1"
 parking_lot = "0.12.1"
 regex = "1.5.5"
 schemars = { version = "0.8.1", features = ["uuid1", "chrono"], optional = true }
-sentry-types = "0.30.0"
+sentry-types = "0.31.3"
 serde = { version = "1.0.114", features = ["derive"] }
 thiserror = "1.0.38"
 uuid = { version = "1.3.0", features = ["serde", "v4", "v5"] }

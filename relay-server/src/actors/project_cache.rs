@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::error::Error;
 use std::sync::Arc;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_log::LogError;
 use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -375,10 +375,10 @@ impl ProjectSource {
 
             let state_opt = match state_fetch_result {
                 Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
-                Err(e) => {
+                Err(error) => {
                     relay_log::error!(
-                        "Failed to fetch project from Redis: {}",
-                        relay_log::LogError(&e)
+                        error = &error as &dyn Error,
+                        "failed to fetch project from Redis",
                     );
                     None
                 }
@@ -667,17 +667,17 @@ impl ProjectCacheBroker {
         let project_key = managed_envelope.envelope().meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
-            relay_log::with_scope(
-                |scope| scope.set_tag("project_key", project_key),
-                || relay_log::error!("project could not be found in the cache"),
+            relay_log::error!(
+                tags.project_key = %project_key,
+                "project could not be found in the cache",
             );
             return;
         };
 
         let Some(own_project_state) = project.valid_state().filter(|s| !s.invalid()) else {
-            relay_log::with_scope(
-                |scope| scope.set_tag("project_key", project_key),
-                || relay_log::error!("project has no valid cached state"),
+            relay_log::error!(
+                tags.project_key = %project_key,
+                "project has no valid cached state",
             );
             return;
         };
@@ -871,7 +871,10 @@ impl Service for ProjectCacheService {
                 {
                     Ok(buffer) => buffer.start(),
                     Err(err) => {
-                        relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed to start buffer service",
+                        );
                         // NOTE: The process will exit with error if the buffer file could not be
                         // opened or the migrations could not be run.
                         std::process::exit(1);
@@ -993,7 +996,7 @@ mod tests {
         {
             Ok(buffer) => buffer.start(),
             Err(err) => {
-                relay_log::error!("failed to start buffer service: {}", LogError(&err));
+                relay_log::error!(error = &err as &dyn Error, "failed to start buffer service");
                 // NOTE: The process will exit with error if the buffer file could not be
                 // opened or the migrations could not be run.
                 std::process::exit(1);
@@ -1047,7 +1050,7 @@ mod tests {
         // All the messages should have been spooled to disk.
         assert_eq!(buffer_guard.available(), 5);
         assert_eq!(broker.index.keys().len(), 1);
-        assert_eq!(broker.index.values().collect::<Vec<_>>().len(), 1);
+        assert_eq!(broker.index.values().count(), 1);
 
         let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
         let key = QueueKey {
@@ -1080,7 +1083,7 @@ mod tests {
         // Till now we should have enqueued 5 envleopes and dequeued only 1, it means the index is
         // still populated with same keys and values.
         assert_eq!(broker.index.keys().len(), 1);
-        assert_eq!(broker.index.values().collect::<Vec<_>>().len(), 1);
+        assert_eq!(broker.index.values().count(), 1);
 
         // Check if we can also dequeue from the buffer directly.
         buffer_svc.send(spooler::DequeueMany::new(project_key, [key].into(), tx));

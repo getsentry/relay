@@ -2,6 +2,9 @@ use crate::protocol::{Cookies, Headers};
 use crate::types::{Annotated, Object, Value};
 
 /// Response interface that contains information on a HTTP response related to the event.
+///
+/// The data variable should only contain the response body. It can either be
+/// a dictionary (for standard HTTP responses) or a raw response body.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ResponseContext {
@@ -25,6 +28,17 @@ pub struct ResponseContext {
 
     /// HTTP response body size.
     pub body_size: Annotated<u64>,
+
+    /// Response data in any format that makes sense.
+    ///
+    /// SDKs should discard large and binary bodies by default. Can be given as a string or
+    /// structural data of any format.
+    #[metastructure(pii = "true", bag_size = "large")]
+    pub data: Annotated<Value>,
+
+    /// The inferred content type of the response payload.
+    #[metastructure(skip_serialization = "empty")]
+    pub inferred_content_type: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
     /// These fields are retained (`retain = "true"`) to keep supporting the format that the Dio integration sends:
@@ -75,6 +89,10 @@ mod tests {
   ],
   "status_code": 500,
   "body_size": 1000,
+  "data": {
+    "some": 1
+  },
+  "inferred_content_type": "application/json",
   "arbitrary_field": "arbitrary",
   "type": "response"
 }"#;
@@ -90,6 +108,12 @@ mod tests {
             headers: Annotated::new(Headers(PairList(headers))),
             status_code: Annotated::new(500),
             body_size: Annotated::new(1000),
+            data: {
+                let mut map = Object::new();
+                map.insert("some".to_string(), Annotated::new(Value::I64(1)));
+                Annotated::new(Value::Object(map))
+            },
+            inferred_content_type: Annotated::new("application/json".to_string()),
             other: {
                 let mut map = Object::new();
                 map.insert(

@@ -3,6 +3,17 @@
 ## Unreleased
 
 - Add filter for healthcheck endpoints. ([#2118](https://github.com/getsentry/relay/pull/2118))
+- Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+
+## 0.8.25
+
+### Various fixes & improvements
+
+- release: 0.8.24 (a9a78dfa) by @getsentry-bot
+
+## 0.8.24
+
+- Compile regexes in PII config validation. ([#2152](https://github.com/getsentry/relay/pull/2152))
 
 ## 0.8.23
 

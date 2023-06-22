@@ -1186,6 +1186,13 @@ pub struct AwsConfig {
     pub runtime_api: Option<String>,
 }
 
+/// GeoIp database configuration options.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct GeoIpConfig {
+    /// The path to GeoIP database.
+    path: Option<PathBuf>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1216,6 +1223,8 @@ struct ConfigValues {
     auth: AuthConfig,
     #[serde(default)]
     aws: AwsConfig,
+    #[serde(default)]
+    geoip: GeoIpConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1896,7 +1905,11 @@ impl Config {
 
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
-        self.values.processing.geoip_path.as_deref()
+        self.values
+            .geoip
+            .path
+            .as_deref()
+            .or(self.values.processing.geoip_path.as_deref())
     }
 
     /// Maximum future timestamp of ingested data.

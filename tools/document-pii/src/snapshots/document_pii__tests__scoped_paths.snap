@@ -1,0 +1,20 @@
+---
+source: tools/document-pii/src/main.rs
+expression: scoped_paths
+---
+{
+    "test_pii_docs": {
+        "test_pii_docs::HasGeneric",
+        "test_pii_docs::InnerGeneric",
+        "test_pii_docs::MyStruct",
+        "test_pii_docs::SelfReferential",
+        "test_pii_docs::SubStruct",
+    },
+    "test_pii_docs::anothermod": {
+        "test_pii_docs::anothermod::BarFoo",
+        "test_pii_docs::anothermod::FooBar",
+        "test_pii_docs::anothermod::TruthTableTest",
+        "test_pii_docs::anothermod::WeirdType",
+        "test_pii_docs::anothermod::WeirdTypes",
+    },
+}

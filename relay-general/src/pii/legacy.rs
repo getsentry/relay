@@ -70,7 +70,10 @@ impl DataScrubbingConfig {
     #[inline]
     pub fn pii_config_uncached(&self) -> Result<Option<PiiConfig>, PiiConfigError> {
         convert::to_pii_config(self).map_err(|e| {
-            relay_log::error!("Failed to convert datascrubbing config");
+            relay_log::error!(
+                error = &e as &dyn std::error::Error,
+                "failed to convert datascrubbing config"
+            );
             e
         })
     }

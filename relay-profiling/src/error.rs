@@ -26,4 +26,8 @@ pub enum ProfileError {
     MalformedSamples,
     #[error("exceed size limit")]
     ExceedSizeLimit,
+    #[error("too many profiles")]
+    TooManyProfiles,
+    #[error("duration is too long")]
+    DurationIsTooLong,
 }

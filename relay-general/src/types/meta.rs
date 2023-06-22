@@ -314,6 +314,12 @@ impl Error {
         Error::invalid("expected a non-empty value")
     }
 
+    /// Creates an error that describes an expected non-empty string.
+    pub fn nonempty_string() -> Self {
+        // TODO: Replace `invalid_data` this with an explicity error constant for empty values
+        Error::invalid("expected a non-empty string")
+    }
+
     /// Returns the kind of this error.
     pub fn kind(&self) -> &ErrorKind {
         &self.kind

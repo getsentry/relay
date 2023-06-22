@@ -8,13 +8,12 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
-use anyhow::Context;
 use chrono::Utc;
 use once_cell::sync::OnceCell;
 use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
 use relay_general::pii::{
-    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiProcessor,
+    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
 use relay_general::processor::{process_value, split_chunks, ProcessingState};
 use relay_general::protocol::{Event, VALID_PLATFORMS};
@@ -134,6 +133,9 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         is_renormalize: config.is_renormalize.unwrap_or(false),
         device_class_synthesis_config: false, // only supported in relay
         scrub_span_descriptions: false,
+        light_normalize_spans: false,
+        span_description_rules: None,
+        geoip_lookup: None, // only supported in relay
     };
     light_normalize_event(&mut event, light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
@@ -153,8 +155,11 @@ pub unsafe extern "C" fn relay_translate_legacy_python_json(event: *mut RelayStr
 #[no_mangle]
 #[relay_ffi::catch_unwind]
 pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> RelayStr {
-    match serde_json::from_str((*value).as_str()) {
-        Ok(PiiConfig { .. }) => RelayStr::new(""),
+    match serde_json::from_str::<PiiConfig>((*value).as_str()) {
+        Ok(config) => match config.compiled().force_compile() {
+            Ok(_) => RelayStr::new(""),
+            Err(PiiConfigError::RegexError(source)) => RelayStr::from_string(source.to_string()),
+        },
         Err(e) => RelayStr::from_string(e.to_string()),
     }
 }
@@ -352,21 +357,26 @@ pub unsafe extern "C" fn run_dynamic_sampling(
         serde_json::from_str::<SamplingConfig>(root_sampling_config.as_str())?;
     // We can optionally accept a dsc and event.
     let dsc = serde_json::from_str::<DynamicSamplingContext>(dsc.as_str());
-    let event = Annotated::<Event>::from_json(event.as_str())?;
-    let event = event.value().context("the event can't be serialized")?;
+    let event = Annotated::<Event>::from_json(event.as_str());
 
     // Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
     // based on the `SamplingMode` but for this simulation it is not that relevant.
     let rules: Vec<SamplingRule> =
-        merge_rules_from_configs(&sampling_config, Some(&root_sampling_config))
+        merge_rules_from_configs(Some(&sampling_config), Some(&root_sampling_config))
             .cloned()
             .collect();
 
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
-    let match_result = if let Ok(dsc) = dsc {
-        SamplingMatch::match_against_rules(rules.iter(), event, Some(&dsc), None, Utc::now())
+    let match_result = if let (Ok(event), Ok(dsc)) = (event, dsc) {
+        SamplingMatch::match_against_rules(
+            rules.iter(),
+            event.value(),
+            Some(&dsc),
+            None,
+            Utc::now(),
+        )
     } else {
         None
     };
@@ -377,4 +387,54 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     };
 
     RelayStr::from(serde_json::to_string(&result).unwrap())
+}
+
+#[test]
+fn pii_config_validation_invalid_regex() {
+    let config = r#"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "(not valid regex",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
+              }
+            }
+          },
+          "applications": {
+            "*.everything": ["strip-fields"]
+          }
+        }
+    "#;
+    assert_eq!(
+        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+        "regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
+    );
+}
+
+#[test]
+fn pii_config_validation_valid_regex() {
+    let config = r#"
+        {
+          "rules": {
+            "strip-fields": {
+              "type": "redact_pair",
+              "keyPattern": "(\\w+)?+",
+              "redaction": {
+                "method": "replace",
+                "text": "[Filtered]"
+              }
+            }
+          },
+          "applications": {
+            "*.everything": ["strip-fields"]
+          }
+        }
+    "#;
+    assert_eq!(
+        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+        ""
+    );
 }

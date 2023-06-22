@@ -5,8 +5,6 @@ use serde::{Deserialize, Serialize};
 /// Features exposed by project config.
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub enum Feature {
-    /// Enables ingestion and normalization of profiles.
-    Profiling,
     /// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
     SessionReplay,
     /// Enables data scrubbing of replay recording payloads.
@@ -28,7 +26,6 @@ impl<'de> Deserialize<'de> for Feature {
     {
         let feature_name = Cow::<str>::deserialize(deserializer)?;
         Ok(match feature_name.as_ref() {
-            "organizations:profiling" => Feature::Profiling,
             "organizations:session-replay" => Feature::SessionReplay,
             "organizations:session-replay-recording-scrubbing" => {
                 Feature::SessionReplayRecordingScrubbing
@@ -46,7 +43,6 @@ impl Serialize for Feature {
         S: serde::Serializer,
     {
         serializer.serialize_str(match self {
-            Feature::Profiling => "organizations:profiling",
             Feature::SessionReplay => "organizations:session-replay",
             Feature::SessionReplayRecordingScrubbing => {
                 "organizations:session-replay-recording-scrubbing"

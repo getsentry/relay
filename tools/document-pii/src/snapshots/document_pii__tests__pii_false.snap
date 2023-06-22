@@ -1,0 +1,10 @@
+---
+source: tools/document-pii/src/main.rs
+expression: output
+---
+[
+    Output {
+        path: "FooBar.not_sensitive",
+        additional_properties: false,
+    },
+]
