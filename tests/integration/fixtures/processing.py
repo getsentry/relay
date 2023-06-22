@@ -262,7 +262,9 @@ def events_consumer(kafka_consumer):
 
 @pytest.fixture
 def transactions_consumer(kafka_consumer):
-    return lambda: EventsConsumer(*kafka_consumer("transactions"))
+    return lambda timeout=None: EventsConsumer(
+        timeout=timeout, *kafka_consumer("transactions")
+    )
 
 
 @pytest.fixture
