@@ -99,6 +99,22 @@ pub struct MonitorConfig {
     timezone: Option<String>,
 }
 
+/// The trace context sent with a check-in
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CheckInTrace {
+    /// How long (in minutes) after the expected checkin time will we wait until we consider the
+    /// checkin to have been missed.
+    #[serde(serialize_with = "uuid_simple")]
+    trace_id: Uuid,
+}
+
+/// Any contexts sent in the check-in payload
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CheckInContexts {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace: Option<CheckInTrace>,
+}
+
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckIn {
@@ -126,7 +142,7 @@ pub struct CheckIn {
 
     /// Contexts describing the environment (e.g. device, os or browser).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub contexts: Option<Contexts>,
+    pub contexts: Option<CheckInContexts>,
 }
 
 /// Normalizes a monitor check-in payload.
