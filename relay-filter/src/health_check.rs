@@ -114,6 +114,7 @@ mod tests {
             "Event did not filter health check event"
         )
     }
+
     #[test]
     fn test_does_not_filter_when_disabled() {
         let event = Event {
