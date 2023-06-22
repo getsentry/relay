@@ -101,8 +101,7 @@ pub struct MonitorConfig {
 /// The trace context sent with a check-in
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckInTrace {
-    /// How long (in minutes) after the expected checkin time will we wait until we consider the
-    /// checkin to have been missed.
+    /// trace id of the check-in
     #[serde(serialize_with = "uuid_simple")]
     trace_id: Uuid,
 }
@@ -110,6 +109,7 @@ pub struct CheckInTrace {
 /// Any contexts sent in the check-in payload
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckInContexts {
+    /// Trace context sent with a check-n
     #[serde(default, skip_serializing_if = "Option::is_none")]
     trace: Option<CheckInTrace>,
 }
