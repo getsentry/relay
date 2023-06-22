@@ -18,7 +18,6 @@
 
 use relay_common::Uuid;
 use relay_general::protocol::Contexts;
-use relay_general::types::Annotated;
 use serde::{Deserialize, Serialize};
 
 /// Maximum length of monitor slugs.
@@ -126,9 +125,8 @@ pub struct CheckIn {
     pub monitor_config: Option<MonitorConfig>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
-    #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
-    #[metastructure(skip_serialization = "empty")]
-    pub contexts: Annotated<Contexts>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contexts: Option<Contexts>,
 }
 
 /// Normalizes a monitor check-in payload.
