@@ -32,6 +32,7 @@ pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
 }
 
 /// Extracts the HTTP status code.
+#[allow(dead_code)]
 pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
     if let Some(spans) = event.spans.value() {
         for span in spans {

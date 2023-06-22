@@ -16,7 +16,7 @@ use crate::metrics_extraction::transactions::types::{
     TransactionMeasurementTags, TransactionMetric,
 };
 use crate::metrics_extraction::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag, get_trace_context,
+    extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -39,6 +39,7 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 }
 
 /// Extract the browser name from the [`Context::Browser`] context.
+#[allow(dead_code)]
 fn extract_browser_name(event: &Event) -> Option<String> {
     let contexts = event.contexts.value()?;
     let browser = contexts.get("browser").and_then(Annotated::value);
@@ -50,6 +51,7 @@ fn extract_browser_name(event: &Event) -> Option<String> {
 }
 
 /// Extract the OS name from the [`Context::Os`] context.
+#[allow(dead_code)]
 fn extract_os_name(event: &Event) -> Option<String> {
     let contexts = event.contexts.value()?;
     let os = contexts.get("os").and_then(Annotated::value);
@@ -61,6 +63,7 @@ fn extract_os_name(event: &Event) -> Option<String> {
 }
 
 /// Extract the GEO country code from the [`relay_general::protocol::User`] context.
+#[allow(dead_code)]
 fn extract_geo_country_code(event: &Event) -> Option<String> {
     if let Some(user) = event.user.value() {
         if let Some(geo) = user.geo.value() {
@@ -595,13 +598,10 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
-                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
-                    "geo.country_code": "US",
                     "http.method": "post",
-                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
@@ -616,14 +616,11 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
-                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
-                    "geo.country_code": "US",
                     "http.method": "post",
                     "measurement_rating": "meh",
-                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
@@ -638,13 +635,10 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
-                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
-                    "geo.country_code": "US",
                     "http.method": "post",
-                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
@@ -659,13 +653,10 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
-                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
-                    "geo.country_code": "US",
                     "http.method": "post",
-                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
@@ -680,13 +671,10 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
-                    "browser.name": "Chrome",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
-                    "geo.country_code": "US",
                     "http.method": "post",
-                    "os.name": "Windows",
                     "platform": "javascript",
                     "release": "1.2.3",
                     "transaction": "gEt /api/:version/users/",
@@ -1366,7 +1354,6 @@ mod tests {
             BTreeMap::from([
                 ("transaction.status".to_string(), "unknown".to_string()),
                 ("platform".to_string(), "other".to_string()),
-                ("http.status_code".to_string(), "200".to_string())
             ])
         );
     }
