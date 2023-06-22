@@ -201,21 +201,21 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::HttpMethod, http_method);
     }
 
-    if let Some(browser_name) = extract_browser_name(event) {
-        tags.insert(CommonTag::BrowserName, browser_name);
-    }
-
-    if let Some(os_name) = extract_os_name(event) {
-        tags.insert(CommonTag::OsName, os_name);
-    }
-
-    if let Some(geo_country_code) = extract_geo_country_code(event) {
-        tags.insert(CommonTag::GeoCountryCode, geo_country_code);
-    }
-
-    if let Some(status_code) = extract_http_status_code(event) {
-        tags.insert(CommonTag::HttpStatusCode, status_code);
-    }
+    // if let Some(browser_name) = extract_browser_name(event) {
+    //     tags.insert(CommonTag::BrowserName, browser_name);
+    // }
+    //
+    // if let Some(os_name) = extract_os_name(event) {
+    //     tags.insert(CommonTag::OsName, os_name);
+    // }
+    //
+    // if let Some(geo_country_code) = extract_geo_country_code(event) {
+    //     tags.insert(CommonTag::GeoCountryCode, geo_country_code);
+    // }
+    //
+    // if let Some(status_code) = extract_http_status_code(event) {
+    //     tags.insert(CommonTag::HttpStatusCode, status_code);
+    // }
 
     let custom_tags = &config.extract_custom_tags;
     if !custom_tags.is_empty() {
