@@ -1830,13 +1830,19 @@ impl EnvelopeProcessorService {
             event._metrics = Annotated::new(metrics);
 
             if event.ty.value() == Some(&EventType::Transaction) {
-                let source = event.get_transaction_source();
+                // The `get_transaction_source` helper maps `None` to `Unknown`. Get the value
+                // manually for a more accurate metric:
+                let source = event
+                    .transaction_info
+                    .value()
+                    .and_then(|i| i.source.value());
 
                 metric!(
                     counter(RelayCounters::EventTransaction) += 1,
                     source = match &source {
-                        TransactionSource::Other(_) => "other",
-                        source => source.as_str(),
+                        None => "none",
+                        Some(&TransactionSource::Other(_)) => "other",
+                        Some(source) => source.as_str(),
                     },
                     platform =
                         PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
