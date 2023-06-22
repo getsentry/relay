@@ -43,6 +43,7 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+mod combined;
 mod error_boundary;
 mod feature;
 mod metrics;
