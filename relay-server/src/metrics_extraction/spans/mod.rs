@@ -277,7 +277,27 @@ fn sanitized_span_description(
     transaction_method: Option<&str>,
     domain: Option<&str>,
 ) -> Option<String> {
-    scrubbed_description.map(|d| d.to_owned())
+    if let Some(scrubbed) = scrubbed_description {
+        return Some(scrubbed.to_owned());
+    }
+
+    if let Some(module) = module {
+        if !module.starts_with("http") {
+            return None;
+        }
+    }
+
+    let mut sanitized = String::new();
+
+    if let Some(transaction_method) = transaction_method {
+        sanitized.push_str(&format!("{transaction_method} "));
+    }
+    if let Some(domain) = domain {
+        sanitized.push_str(&format!("{domain}/"));
+    }
+    sanitized.push_str("<unparameterized>");
+
+    Some(sanitized)
 }
 
 /// Regex with a capture group to extract the database action from a query.
