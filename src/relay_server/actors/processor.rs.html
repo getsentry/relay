@@ -3916,6 +3916,12 @@
 <a href="#3916" id="3916">3916</a>
 <a href="#3917" id="3917">3917</a>
 <a href="#3918" id="3918">3918</a>
+<a href="#3919" id="3919">3919</a>
+<a href="#3920" id="3920">3920</a>
+<a href="#3921" id="3921">3921</a>
+<a href="#3922" id="3922">3922</a>
+<a href="#3923" id="3923">3923</a>
+<a href="#3924" id="3924">3924</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -5748,13 +5754,19 @@
             event._metrics = Annotated::new(metrics);
 
             <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                <span class="kw">let </span>source = event.get_transaction_source();
+                <span class="comment">// The `get_transaction_source` helper maps `None` to `Unknown`. Get the value
+                // manually for a more accurate metric:
+                </span><span class="kw">let </span>source = event
+                    .transaction_info
+                    .value()
+                    .and_then(|i| i.source.value());
 
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::EventTransaction) += <span class="number">1</span>,
                     source = <span class="kw">match </span><span class="kw-2">&amp;</span>source {
-                        TransactionSource::Other(<span class="kw">_</span>) =&gt; <span class="string">&quot;other&quot;</span>,
-                        source =&gt; source.as_str(),
+                        <span class="prelude-val">None </span>=&gt; <span class="string">&quot;none&quot;</span>,
+                        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TransactionSource::Other(<span class="kw">_</span>)) =&gt; <span class="string">&quot;other&quot;</span>,
+                        <span class="prelude-val">Some</span>(source) =&gt; source.as_str(),
                     },
                     platform =
                         PlatformTag::from(event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>)).as_str(),
