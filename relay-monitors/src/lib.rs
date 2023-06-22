@@ -19,6 +19,8 @@
 use relay_common::Uuid;
 use serde::{Deserialize, Serialize};
 
+use crate::protocol::Contexts;
+
 /// Maximum length of monitor slugs.
 const SLUG_LENGTH: usize = 50;
 
@@ -77,7 +79,7 @@ enum IntervalName {
     Minute,
 }
 
-/// The monitor configuration playload for upserting monitors during check-in
+/// The monitor configuration payload for upserting monitors during check-in
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MonitorConfig {
     /// The monitor schedule configuration
@@ -122,6 +124,11 @@ pub struct CheckIn {
     /// monitor configuration to support upserts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub monitor_config: Option<MonitorConfig>,
+
+    /// Contexts describing the environment (e.g. device, os or browser).
+    #[metastructure(legacy_alias = "sentry.interfaces.Contexts")]
+    #[metastructure(skip_serialization = "empty")]
+    pub contexts: Annotated<Contexts>,
 }
 
 /// Normalizes a monitor check-in payload.
@@ -172,7 +179,13 @@ mod tests {
   "monitor_slug": "my-monitor",
   "status": "in_progress",
   "environment": "production",
-  "duration": 21.0
+  "duration": 21.0,
+  "contexts": {
+    "trace": {
+        "trace_id": "8f431b7aa08441bbbd5a0100fd91f9fe",
+        "span_id": "bb8f278130535c3c",
+    }
+  }
 }"#;
 
         let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
