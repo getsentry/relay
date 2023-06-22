@@ -17,7 +17,6 @@
 #![warn(missing_docs)]
 
 use relay_common::Uuid;
-use relay_general::protocol::Contexts;
 use serde::{Deserialize, Serialize};
 
 /// Maximum length of monitor slugs.
@@ -197,7 +196,6 @@ mod tests {
   "contexts": {
     "trace": {
         "trace_id": "8f431b7aa08441bbbd5a0100fd91f9fe",
-        "span_id": "bb8f278130535c3c",
     }
   }
 }"#;
