@@ -67,6 +67,8 @@ pub(crate) fn extract_span_metrics(
         shared_tags.insert(SpanTagKey::Environment, environment.to_owned());
     }
 
+    let mut transaction_method = None;
+
     if let Some(transaction_name) = event.transaction.value() {
         shared_tags.insert(SpanTagKey::Transaction, transaction_name.to_owned());
 
@@ -76,10 +78,10 @@ pub(crate) fn extract_span_metrics(
             .and_then(|r| r.method.value())
             .map(|m| m.to_uppercase());
 
-        if let Some(transaction_method) = transaction_method_from_request
-            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
-        {
-            shared_tags.insert(SpanTagKey::TransactionMethod, transaction_method);
+        transaction_method = transaction_method_from_request
+            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()));
+        if let Some(tm) = transaction_method.clone() {
+            shared_tags.insert(SpanTagKey::TransactionMethod, tm);
         }
     }
 
@@ -98,19 +100,6 @@ pub(crate) fn extract_span_metrics(
     for annotated_span in spans {
         if let Some(span) = annotated_span.value_mut() {
             let mut span_tags = shared_tags.clone();
-
-            if let Some(scrubbed_description) = span
-                .data
-                .value()
-                .and_then(|data| data.get("description.scrubbed"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(SpanTagKey::Description, scrubbed_description.to_owned());
-
-                let mut span_group = format!("{:?}", md5::compute(scrubbed_description));
-                span_group.truncate(16);
-                span_tags.insert(SpanTagKey::Group, span_group);
-            }
 
             if let Some(unsanitized_span_op) = span.op.value() {
                 let span_op = unsanitized_span_op.to_owned().to_lowercase();
@@ -181,8 +170,29 @@ pub(crate) fn extract_span_metrics(
                     None
                 };
 
-                if let Some(dom) = domain {
-                    span_tags.insert(SpanTagKey::Domain, dom.to_owned());
+                if let Some(dom) = domain.clone() {
+                    span_tags.insert(SpanTagKey::Domain, dom);
+                }
+
+                let scrubbed_description = span
+                    .data
+                    .value()
+                    .and_then(|data| data.get("description.scrubbed"))
+                    .and_then(|value| value.as_str());
+
+                let sanitized_description = sanitized_span_description(
+                    scrubbed_description,
+                    span_module,
+                    transaction_method.as_deref(),
+                    domain.clone().as_deref(),
+                );
+
+                if let Some(scrubbed_desc) = sanitized_description {
+                    span_tags.insert(SpanTagKey::Description, scrubbed_desc.to_owned());
+
+                    let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
+                    span_group.truncate(16);
+                    span_tags.insert(SpanTagKey::Group, span_group);
                 }
             }
 
@@ -259,6 +269,15 @@ pub(crate) fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+fn sanitized_span_description(
+    scrubbed_description: Option<&str>,
+    module: Option<&str>,
+    transaction_method: Option<&str>,
+    domain: Option<&str>,
+) -> Option<String> {
+    scrubbed_description.map(|d| d.to_owned())
 }
 
 /// Regex with a capture group to extract the database action from a query.
