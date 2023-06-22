@@ -326,17 +326,11 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
 }
 
 fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limit: usize) {
-    // Trim down the frame list to a hard limit. Leave the last frame in place in case
-    // it's useful for debugging.
+    // Trim down the frame list to a hard limit. Prioritize the last frames.
     let original_length = frames.len();
-    if original_length >= limit {
+    if original_length > limit {
         meta.set_original_length(Some(original_length));
-
-        let last_frame = frames.pop();
-        frames.truncate(limit - 1);
-        if let Some(last_frame) = last_frame {
-            frames.push(last_frame);
-        }
+        let _ = frames.drain(0..original_length - limit);
     }
 }
 
