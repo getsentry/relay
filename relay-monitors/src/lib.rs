@@ -98,7 +98,7 @@ pub struct MonitorConfig {
     timezone: Option<String>,
 }
 
-/// The trace context sent with a check-in
+/// The trace context sent with a check-in.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckInTrace {
     /// trace id of the check-in
@@ -106,10 +106,10 @@ pub struct CheckInTrace {
     trace_id: Uuid,
 }
 
-/// Any contexts sent in the check-in payload
+/// Any contexts sent in the check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckInContexts {
-    /// Trace context sent with a check-n
+    /// Trace context sent with a check-in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     trace: Option<CheckInTrace>,
 }
@@ -139,7 +139,8 @@ pub struct CheckIn {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub monitor_config: Option<MonitorConfig>,
 
-    /// Contexts describing the environment (e.g. device, os or browser).
+    /// Contexts describing the associated environment of the job run.
+    /// Only supports trace for now
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contexts: Option<CheckInContexts>,
 }
