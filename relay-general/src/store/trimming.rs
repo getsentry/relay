@@ -768,6 +768,32 @@ mod tests {
     }
 
     #[test]
+    fn test_frameqty_equals_limit() {
+        fn create_frame(filename: &str) -> Annotated<Frame> {
+            Annotated::new(Frame {
+                filename: Annotated::new(filename.into()),
+                ..Default::default()
+            })
+        }
+
+        let mut frames = Annotated::new(vec![
+            create_frame("foo3.py"),
+            create_frame("foo4.py"),
+            create_frame("foo5.py"),
+        ]);
+
+        frames
+            .apply(|f, m| {
+                enforce_frame_hard_limit(f, m, 3);
+                Ok(())
+            })
+            .unwrap();
+
+        // original_length isn't set, when limit is equal to length, as no trimming took place.
+        assert!(frames.meta().original_length().is_none());
+    }
+
+    #[test]
     fn test_frame_hard_limit() {
         fn create_frame(filename: &str) -> Annotated<Frame> {
             Annotated::new(Frame {
@@ -798,8 +824,8 @@ mod tests {
             frames,
             Annotated(
                 Some(vec![
-                    create_frame("foo1.py"),
-                    create_frame("foo2.py"),
+                    create_frame("foo3.py"),
+                    create_frame("foo4.py"),
                     create_frame("foo5.py"),
                 ]),
                 expected_meta
