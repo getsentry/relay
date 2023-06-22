@@ -136,14 +136,14 @@ pub struct ErrorMessagesFilterConfig {
     pub patterns: GlobPatterns,
 }
 
-/// Configuration for the health check filter.
+/// Configuration for transaction name filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct HealthCheckEndpointsFilterConfig {
+pub struct IgnoreTransactionsFilterConfig {
     /// List of healthcheck patterns that will be filtered.
     pub patterns: GlobPatterns,
 }
 
-impl HealthCheckEndpointsFilterConfig {
+impl IgnoreTransactionsFilterConfig {
     /// Returns true if no configuration for this filter is given.
     pub fn is_empty(&self) -> bool {
         self.patterns.is_empty()
@@ -225,12 +225,12 @@ pub struct FiltersConfig {
     #[serde(default, skip_serializing_if = "ReleasesFilterConfig::is_empty")]
     pub releases: ReleasesFilterConfig,
 
-    /// Configuration for the healthcheck filter.
+    /// Configuration for ignore transactions filter.
     #[serde(
         default,
-        skip_serializing_if = "HealthCheckEndpointsFilterConfig::is_empty"
+        skip_serializing_if = "IgnoreTransactionsFilterConfig::is_empty"
     )]
-    pub health_check: HealthCheckEndpointsFilterConfig,
+    pub ignore_transactions: IgnoreTransactionsFilterConfig,
 }
 
 impl FiltersConfig {
@@ -244,7 +244,7 @@ impl FiltersConfig {
             && self.legacy_browsers.is_empty()
             && self.localhost.is_empty()
             && self.releases.is_empty()
-            && self.health_check.is_empty()
+            && self.ignore_transactions.is_empty()
     }
 }
 
@@ -282,7 +282,7 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: [],
             },
-            health_check: HealthCheckEndpointsFilterConfig {
+            ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: [],
             },
         }
@@ -318,7 +318,7 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: GlobPatterns::new(vec!["1.2.3".to_string()]),
             },
-            health_check: HealthCheckEndpointsFilterConfig {
+            ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: GlobPatterns::new(vec!["*health*".to_string()]),
             },
         };
@@ -360,7 +360,7 @@ mod tests {
               "1.2.3"
             ]
           },
-          "healthCheck": {
+          "ignoreTransactions": {
             "patterns": [
               "*health*"
             ]

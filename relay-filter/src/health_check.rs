@@ -4,7 +4,7 @@
 
 use relay_general::protocol::Event;
 
-use crate::{FilterStatKey, GlobPatterns, HealthCheckEndpointsFilterConfig};
+use crate::{FilterStatKey, GlobPatterns, IgnoreTransactionsFilterConfig};
 
 fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
     event
@@ -16,7 +16,7 @@ fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
 /// Filters transaction events for calls to healthcheck endpoints
 pub fn should_filter(
     event: &Event,
-    config: &HealthCheckEndpointsFilterConfig,
+    config: &IgnoreTransactionsFilterConfig,
 ) -> Result<(), FilterStatKey> {
     if matches(event, &config.patterns) {
         return Err(FilterStatKey::HealthCheck);
@@ -103,7 +103,7 @@ mod tests {
             transaction: Annotated::new("/health".into()),
             ..Event::default()
         };
-        let config = HealthCheckEndpointsFilterConfig {
+        let config = IgnoreTransactionsFilterConfig {
             patterns: _get_patterns(),
         };
 
@@ -123,7 +123,7 @@ mod tests {
         };
         let filter_result = should_filter(
             &event,
-            &HealthCheckEndpointsFilterConfig {
+            &IgnoreTransactionsFilterConfig {
                 patterns: GlobPatterns::new(vec![]),
             },
         );
@@ -142,7 +142,7 @@ mod tests {
         };
         let filter_result = should_filter(
             &event,
-            &HealthCheckEndpointsFilterConfig {
+            &IgnoreTransactionsFilterConfig {
                 patterns: _get_patterns(),
             },
         );
