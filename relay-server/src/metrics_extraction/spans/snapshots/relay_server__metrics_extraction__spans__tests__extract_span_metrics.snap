@@ -38,6 +38,12 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "ui.react",
             ),
+            "span.description": String(
+                "POST <unparameterized>",
+            ),
+            "span.group": String(
+                "666f1a6ee25475f4",
+            ),
             "span.op": String(
                 "ui.react.render",
             ),
@@ -180,8 +186,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST *.domain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
+            ),
+            "span.group": String(
+                "b996518ca64bc885",
             ),
             "span.module": String(
                 "http",
@@ -254,8 +266,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST targetdomain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "targetdomain.tld:targetport",
+            ),
+            "span.group": String(
+                "554e17b498f0131d",
             ),
             "span.module": String(
                 "http",
@@ -415,8 +433,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST *.domain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
+            ),
+            "span.group": String(
+                "b996518ca64bc885",
             ),
             "span.module": String(
                 "http",
@@ -490,8 +514,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST *.domain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
+            ),
+            "span.group": String(
+                "b996518ca64bc885",
             ),
             "span.module": String(
                 "http",
