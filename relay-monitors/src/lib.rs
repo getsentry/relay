@@ -195,7 +195,7 @@ mod tests {
   "duration": 21.0,
   "contexts": {
     "trace": {
-        "trace_id": "8f431b7aa08441bbbd5a0100fd91f9fe"
+      "trace_id": "8f431b7aa08441bbbd5a0100fd91f9fe"
     }
   }
 }"#;
