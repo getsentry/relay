@@ -136,7 +136,7 @@ pub struct ErrorMessagesFilterConfig {
     pub patterns: GlobPatterns,
 }
 
-/// Configuration for the error messages filter.
+/// Configuration for the health check filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HealthCheckEndpointsFilterConfig {
     /// List of healthcheck patterns that will be filtered.
