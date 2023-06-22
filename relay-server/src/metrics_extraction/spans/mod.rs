@@ -79,7 +79,7 @@ pub(crate) fn extract_span_metrics(
         if let Some(transaction_method) = transaction_method_from_request
             .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
         {
-            shared_tags.insert(SpanTagKey::TransactionMethod, transaction_method.clone());
+            shared_tags.insert(SpanTagKey::TransactionMethod, transaction_method);
         }
     }
 
@@ -182,7 +182,7 @@ pub(crate) fn extract_span_metrics(
                     scrubbed_description,
                     span_module,
                     action.as_deref(),
-                    domain.clone().as_deref(),
+                    domain.as_deref(),
                 );
 
                 if let Some(scrubbed_desc) = sanitized_description {
