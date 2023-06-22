@@ -21,6 +21,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::protocol::Contexts;
 
+use crate::types::Annotated;
+
 /// Maximum length of monitor slugs.
 const SLUG_LENGTH: usize = 50;
 
