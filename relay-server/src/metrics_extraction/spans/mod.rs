@@ -269,6 +269,11 @@ pub(crate) fn extract_span_metrics(
     Ok(())
 }
 
+/// Returns the sanitized span description.
+///
+/// If a scrub description is provided, that's returned. If not, a new
+/// description is built for `http*` modules with the following format:
+/// `{action} {domain}/<unparameterized>`.
 fn sanitized_span_description(
     scrubbed_description: Option<&str>,
     module: Option<&str>,
