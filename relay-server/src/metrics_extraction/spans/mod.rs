@@ -508,6 +508,10 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
     if let Some(port) = port {
         replaced = format!("{replaced}:{port}");
     }
+
+    if replaced.is_empty() {
+        return None;
+    }
     Some(replaced)
 }
 
