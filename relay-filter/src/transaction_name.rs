@@ -19,7 +19,7 @@ pub fn should_filter(
     config: &IgnoreTransactionsFilterConfig,
 ) -> Result<(), FilterStatKey> {
     if matches(event, &config.patterns) {
-        return Err(FilterStatKey::HealthCheck);
+        return Err(FilterStatKey::FilteredTransactions);
     }
     Ok(())
 }
@@ -110,8 +110,8 @@ mod tests {
         let filter_result = should_filter(&event, &config);
         assert_eq!(
             filter_result,
-            Err(FilterStatKey::HealthCheck),
-            "Event did not filter health check event"
+            Err(FilterStatKey::FilteredTransactions),
+            "Event was not filtered "
         )
     }
 

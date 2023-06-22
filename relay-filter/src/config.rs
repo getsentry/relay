@@ -139,7 +139,7 @@ pub struct ErrorMessagesFilterConfig {
 /// Configuration for transaction name filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct IgnoreTransactionsFilterConfig {
-    /// List of healthcheck patterns that will be filtered.
+    /// List of patterns for ignored transactions that should be filtered.
     pub patterns: GlobPatterns,
 }
 

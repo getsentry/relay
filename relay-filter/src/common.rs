@@ -128,8 +128,8 @@ pub enum FilterStatKey {
     /// Filtered due to invalid CSP policy.
     InvalidCsp,
 
-    /// Filtered due to the fact that it was a call to a health-check endpoint
-    HealthCheck,
+    /// Filtered due to the fact that it was a call to a filtered transaction
+    FilteredTransactions,
 }
 
 // An event grouped to a removed group.
@@ -156,7 +156,7 @@ impl FilterStatKey {
             FilterStatKey::Localhost => "localhost",
             FilterStatKey::WebCrawlers => "web-crawlers",
             FilterStatKey::InvalidCsp => "invalid-csp",
-            FilterStatKey::HealthCheck => "health-check",
+            FilterStatKey::FilteredTransactions => "filtered-transaction",
         }
     }
 }
@@ -180,7 +180,7 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
             "localhost" => FilterStatKey::Localhost,
             "web-crawlers" => FilterStatKey::WebCrawlers,
             "invalid-csp" => FilterStatKey::InvalidCsp,
-            "health-check" => FilterStatKey::HealthCheck,
+            "filtered-transaction" => FilterStatKey::FilteredTransactions,
             other => {
                 return Err(other);
             }
