@@ -67,8 +67,6 @@ pub(crate) fn extract_span_metrics(
         shared_tags.insert(SpanTagKey::Environment, environment.to_owned());
     }
 
-    let mut transaction_method = None;
-
     if let Some(transaction_name) = event.transaction.value() {
         shared_tags.insert(SpanTagKey::Transaction, transaction_name.to_owned());
 
@@ -78,10 +76,10 @@ pub(crate) fn extract_span_metrics(
             .and_then(|r| r.method.value())
             .map(|m| m.to_uppercase());
 
-        transaction_method = transaction_method_from_request
-            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()));
-        if let Some(tm) = transaction_method.clone() {
-            shared_tags.insert(SpanTagKey::TransactionMethod, tm);
+        if let Some(transaction_method) = transaction_method_from_request
+            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
+        {
+            shared_tags.insert(SpanTagKey::TransactionMethod, transaction_method.clone());
         }
     }
 
@@ -152,7 +150,7 @@ pub(crate) fn extract_span_metrics(
                     _ => None,
                 };
 
-                if let Some(act) = action {
+                if let Some(act) = action.clone() {
                     span_tags.insert(SpanTagKey::Action, act);
                 }
 
@@ -183,7 +181,7 @@ pub(crate) fn extract_span_metrics(
                 let sanitized_description = sanitized_span_description(
                     scrubbed_description,
                     span_module,
-                    transaction_method.as_deref(),
+                    action.as_deref(),
                     domain.clone().as_deref(),
                 );
 
@@ -274,7 +272,7 @@ pub(crate) fn extract_span_metrics(
 fn sanitized_span_description(
     scrubbed_description: Option<&str>,
     module: Option<&str>,
-    transaction_method: Option<&str>,
+    action: Option<&str>,
     domain: Option<&str>,
 ) -> Option<String> {
     if let Some(scrubbed) = scrubbed_description {
@@ -289,7 +287,7 @@ fn sanitized_span_description(
 
     let mut sanitized = String::new();
 
-    if let Some(transaction_method) = transaction_method {
+    if let Some(transaction_method) = action {
         sanitized.push_str(&format!("{transaction_method} "));
     }
     if let Some(domain) = domain {
