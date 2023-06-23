@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.26
 
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
