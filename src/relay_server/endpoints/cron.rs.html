@@ -84,6 +84,7 @@
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{on, MethodFilter, MethodRouter};
@@ -137,6 +138,7 @@
                 environment: query.environment,
                 duration: query.duration,
                 monitor_config: <span class="prelude-val">None</span>,
+                contexts: <span class="prelude-val">None</span>,
             })
             .map_err(BadStoreRequest::InvalidJson)<span class="question-mark">?</span>,
         );
