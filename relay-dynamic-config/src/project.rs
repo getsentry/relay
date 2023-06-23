@@ -27,27 +27,26 @@ struct DynamicConfig {
 impl DynamicConfig {
     fn split_project_config(config: ProjectConfig) -> Self {
         let global = ProjectConfig {
-            allowed_domains: config.allowed_domains,
-            breakdowns_v2: config.breakdowns_v2,
-            dynamic_sampling: config.dynamic_sampling,
-            features: config.features,
             measurements: config.measurements,
-            metric_conditional_tagging: config.metric_conditional_tagging,
-            span_attributes: config.span_attributes,
-            transaction_metrics: config.transaction_metrics,
+            metric_conditional_tagging: config.metric_conditional_tagging, // ?
             ..Default::default()
         };
 
         let org = ProjectConfig {
-            datascrubbing_settings: config.datascrubbing_settings,
-            pii_config: config.pii_config,
-            quotas: config.quotas,
-            session_metrics: config.session_metrics,
             trusted_relays: config.trusted_relays,
             ..Default::default()
         };
 
         let project = ProjectConfig {
+            pii_config: config.pii_config,
+            transaction_metrics: config.transaction_metrics,
+            span_attributes: config.span_attributes,
+            session_metrics: config.session_metrics,
+            allowed_domains: config.allowed_domains,
+            features: config.features,
+            breakdowns_v2: config.breakdowns_v2,
+            dynamic_sampling: config.dynamic_sampling,
+            datascrubbing_settings: config.datascrubbing_settings,
             filter_settings: config.filter_settings,
             grouping_config: config.grouping_config,
             span_description_rules: config.span_description_rules,
@@ -55,7 +54,10 @@ impl DynamicConfig {
             ..Default::default()
         };
 
-        let dsn = ProjectConfig::default();
+        let dsn = ProjectConfig {
+            quotas: config.quotas,
+            ..Default::default()
+        };
 
         Self {
             global,
