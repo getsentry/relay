@@ -1,3 +1,4 @@
+import hashlib
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -1137,6 +1138,8 @@ def test_span_metrics(
     transaction, _ = tx_consumer.get_event()
     assert transaction["spans"][0]["description"] == sent_description
 
+    expected_group = hashlib.md5(sent_description.encode("utf-8")).hexdigest()[:16]
+
     metrics = metrics_consumer.get_metrics()
     span_metrics = [
         metric for metric in metrics if metric["name"].startswith("spans", 2)
@@ -1144,3 +1147,4 @@ def test_span_metrics(
     assert len(span_metrics) == 3
     for metric in span_metrics:
         assert metric["tags"]["span.description"] == expected_description
+        assert metric["tags"]["span.group"] == expected_group

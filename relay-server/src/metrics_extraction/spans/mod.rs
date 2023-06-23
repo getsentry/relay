@@ -187,11 +187,17 @@ pub(crate) fn extract_span_metrics(
                 );
 
                 if let Some(scrubbed_desc) = sanitized_description {
-                    span_tags.insert(SpanTagKey::Description, scrubbed_desc.to_owned());
+                    // Truncating the span description's tag value is, for now,
+                    // a temporary solution to not get large descriptions dropped. The
+                    // group tag mustn't be affected by this, and still be
+                    // computed from the full, untruncated description.
 
-                    let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
+                    let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
                     span_group.truncate(16);
                     span_tags.insert(SpanTagKey::Group, span_group);
+
+                    let truncated = truncate_span_description(scrubbed_desc);
+                    span_tags.insert(SpanTagKey::Description, truncated);
                 }
             }
 
@@ -282,8 +288,7 @@ fn sanitized_span_description(
     domain: Option<&str>,
 ) -> Option<String> {
     if let Some(scrubbed) = scrubbed_description {
-        let trimmed = truncate_span_description(scrubbed.to_owned());
-        return Some(trimmed);
+        return Some(scrubbed.to_owned());
     }
 
     if let Some(module) = module {
@@ -301,7 +306,6 @@ fn sanitized_span_description(
         sanitized.push_str(&format!("{domain}/"));
     }
     sanitized.push_str("<unparameterized>");
-    sanitized = truncate_span_description(sanitized);
 
     Some(sanitized)
 }
