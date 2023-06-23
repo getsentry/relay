@@ -291,7 +291,7 @@ relay_common::impl_str_serde!(SecretKey, "a secret key");
 /// Public keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
 /// on the wire as opaque ascii encoded strings of arbitrary format or length.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct PublicKey {
     inner: ed25519_dalek::VerifyingKey,
 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
+use itertools::Itertools;
 use relay_auth::PublicKey;
 use relay_filter::FiltersConfig;
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
@@ -14,24 +14,31 @@ use serde_json::Value;
 
 use crate::{
     ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig, TaggingRule,
-    TransactionMetricsConfig,
+    TransactionMetricsConfig, DEFAULT_ALLOWED_DOMAINS,
 };
 
-pub struct CombinedConfig {
-    global: Arc<ProjectConfig>,
-    organization: Arc<ProjectConfig>,
-    project: Arc<ProjectConfig>,
-    key: ProjectConfig,
+pub struct MergedConfig {
+    global: ProjectConfig,
+    organization: ProjectConfig,
+    project: ProjectConfig,
+    public_key: ProjectConfig,
 }
 
-impl CombinedConfig {
+impl MergedConfig {
     pub fn allowed_domains(&self) -> impl Iterator<Item = &str> {
-        self.configs()
-            .flat_map(|c| c.allowed_domains.iter().map(|s| s.as_str()))
+        // TODO: double-check that overwriting is the behavior that we want.
+        let config = [&self.public_key, &self.project, &self.organization]
+            .into_iter()
+            .find(|slice| slice.allowed_domains.as_slice() != DEFAULT_ALLOWED_DOMAINS)
+            .unwrap_or(&self.global);
+
+        config.allowed_domains.iter().map(String::as_str)
     }
 
     pub fn trusted_relays(&self) -> impl Iterator<Item = &PublicKey> {
-        self.configs().flat_map(|c| c.trusted_relays.iter())
+        self.all_slices()
+            .flat_map(|c| c.trusted_relays.iter())
+            .unique()
     }
 
     pub fn pii_config(&self) -> Option<PiiConfig> {
@@ -40,11 +47,18 @@ impl CombinedConfig {
 
     /// The grouping configuration.
     pub fn grouping_config(&self) -> &Option<Value> {
-        todo!()
+        // Grouping config is opaque so we cannot merge it easily.
+        // Assume that grouping will be per-project for the foreseeable future.
+        // See https://github.com/getsentry/sentry/blob/254cfc0bd2f13dd794ea5bce43c0f77c217eecda/src/sentry/relay/config/__init__.py#L407-L409.
+        &self.project.grouping_config
     }
 
     /// Configuration for filter rules.
     pub fn filter_settings(&self) -> &FiltersConfig {
+        // To decide:
+        // Do we want to define e.g.
+        //   browser_extensions.is_enabled := any(scope.browser_extensions.is_enabled)
+        // or make it a tri-state per scope and let lower levels override higher levels?
         todo!()
     }
 
@@ -54,13 +68,14 @@ impl CombinedConfig {
     }
 
     /// Maximum event retention for the organization.
-    pub fn event_retention(&self) -> &Option<u16> {
+    pub fn event_retention(&self) -> Option<u16> {
         todo!()
     }
 
     /// Usage quotas for this project.
     pub fn quotas(&self) -> impl Iterator<Item = &Quota> {
-        self.configs().flat_map(|c| c.quotas.iter())
+        // TODO: Verify if order matters.
+        self.all_slices().flat_map(|c| c.quotas.iter())
     }
 
     /// Configuration for sampling traces, if not present there will be no sampling.
@@ -91,7 +106,7 @@ impl CombinedConfig {
     /// The span attributes configuration.
     pub fn span_attributes(&self) -> BTreeSet<&SpanAttribute> {
         // Generate new set every time to guarantee uniqueness:
-        BTreeSet::from_iter(self.configs().flat_map(|c| c.span_attributes.iter()))
+        BTreeSet::from_iter(self.all_slices().flat_map(|c| c.span_attributes.iter()))
     }
 
     /// Rules for applying metrics tags depending on the event's content.
@@ -101,7 +116,7 @@ impl CombinedConfig {
 
     /// Exposable features enabled for this project.
     pub fn features(&self) -> BTreeSet<&Feature> {
-        BTreeSet::from_iter(self.configs().flat_map(|c| c.features.iter()))
+        BTreeSet::from_iter(self.all_slices().flat_map(|c| c.features.iter()))
     }
 
     /// Transaction renaming rules.
@@ -119,12 +134,13 @@ impl CombinedConfig {
         todo!()
     }
 
-    fn configs(&self) -> std::array::IntoIter<&ProjectConfig, 4> {
+    fn all_slices(&self) -> std::array::IntoIter<&ProjectConfig, 4> {
+        // TODO: name this function to make clear it goes from global to local scope.
         [
-            self.global.as_ref(),
-            self.organization.as_ref(),
-            self.project.as_ref(),
-            &self.key,
+            &self.global,
+            &self.organization,
+            &self.project,
+            &self.public_key,
         ]
         .into_iter()
     }
