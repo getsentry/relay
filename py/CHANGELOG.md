@@ -4,6 +4,7 @@
 
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+- Add trace context to CheckIns. ([#2241](https://github.com/getsentry/relay/pull/2241))
 
 ## 0.8.25
 
