@@ -15,6 +15,57 @@ use serde_json::Value;
 use crate::feature::Feature;
 use crate::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};
 
+type SparseConfig = ProjectConfig;
+
+struct DynamicConfig {
+    global: SparseConfig,
+    org: SparseConfig,
+    project: SparseConfig,
+    dsn: SparseConfig,
+}
+
+impl DynamicConfig {
+    fn split_project_config(config: ProjectConfig) -> Self {
+        let global = ProjectConfig {
+            allowed_domains: config.allowed_domains,
+            breakdowns_v2: config.breakdowns_v2,
+            dynamic_sampling: config.dynamic_sampling,
+            features: config.features,
+            measurements: config.measurements,
+            metric_conditional_tagging: config.metric_conditional_tagging,
+            span_attributes: config.span_attributes,
+            transaction_metrics: config.transaction_metrics,
+            ..Default::default()
+        };
+
+        let org = ProjectConfig {
+            datascrubbing_settings: config.datascrubbing_settings,
+            pii_config: config.pii_config,
+            quotas: config.quotas,
+            session_metrics: config.session_metrics,
+            trusted_relays: config.trusted_relays,
+            ..Default::default()
+        };
+
+        let project = ProjectConfig {
+            filter_settings: config.filter_settings,
+            grouping_config: config.grouping_config,
+            span_description_rules: config.span_description_rules,
+            tx_name_rules: config.tx_name_rules,
+            ..Default::default()
+        };
+
+        let dsn = ProjectConfig::default();
+
+        Self {
+            global,
+            org,
+            project,
+            dsn,
+        }
+    }
+}
+
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
