@@ -182,6 +182,41 @@ impl<'r> TransactionsProcessor<'r> {
 
         Ok(())
     }
+
+    fn normalize_transaction_name(&self, event: &mut Event) -> ProcessingResult {
+        if matches!(
+            event.get_transaction_source(),
+            &TransactionSource::Url | &TransactionSource::Sanitized
+        ) {
+            // Normalize transaction names for URLs and Sanitized transaction sources.
+            // This in addition to renaming rules can catch some high cardinality parts.
+            scrub_identifiers(&mut event.transaction)?;
+        }
+
+        if !self.name_config.rules.is_empty() {
+            self.apply_transaction_rename_rule(
+                &mut event.transaction,
+                event.transaction_info.value_mut(),
+            )?;
+        }
+
+        if matches!(event.get_transaction_source(), &TransactionSource::Url) {
+            // Always mark URL transactions as sanitized, even if no modification were made by
+            // clusterer rules or regex matchers. This has the consequence that the transaction name
+            // is always extracted as a tag on transaction metrics.
+            // Instead of changing the source to "sanitized", we could have changed metrics extraction
+            // to also extract the transaction name for URL transactions. But this is the safer way,
+            // because the product currently uses queries that assume that `source:url` is equivalent
+            // to `transaction:<< unparameterized >>`.
+            event
+                .transaction_info
+                .get_or_insert_with(Default::default)
+                .source
+                .set_value(Some(TransactionSource::Sanitized));
+        }
+
+        Ok(())
+    }
 }
 
 /// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
@@ -457,6 +492,24 @@ fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
         .map_or(false, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
 }
 
+fn end_all_spans(event: &mut Event) -> ProcessingResult {
+    let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+    for span in spans {
+        if let Some(span) = span.value_mut() {
+            if span.timestamp.value().is_none() {
+                // event timestamp guaranteed to be `Some` due to validate_transaction call
+                span.timestamp.set_value(event.timestamp.value().cloned());
+                span.status = Annotated::new(SpanStatus::DeadlineExceeded);
+            }
+        } else {
+            return Err(ProcessingAction::InvalidTransaction(
+                "spans must be valid in transaction event",
+            ));
+        }
+    }
+    Ok(())
+}
+
 impl Processor for TransactionsProcessor<'_> {
     fn process_event(
         &mut self,
@@ -479,54 +532,11 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
-        if matches!(
-            event.get_transaction_source(),
-            &TransactionSource::Url | &TransactionSource::Sanitized
-        ) {
-            // Normalize transaction names for URLs and Sanitized transaction sources.
-            // This in addition to renaming rules can catch some high cardinality parts.
-            scrub_identifiers(&mut event.transaction)?;
-        }
-
-        if !self.name_config.rules.is_empty() {
-            self.apply_transaction_rename_rule(
-                &mut event.transaction,
-                event.transaction_info.value_mut(),
-            )?;
-        }
-
-        if matches!(event.get_transaction_source(), &TransactionSource::Url) {
-            // Always mark URL transactions as sanitized, even if no modification were made by
-            // clusterer rules or regex matchers. This has the consequence that the transaction name
-            // is always extracted as a tag on transaction metrics.
-            // Instead of changing the source to "sanitized", we could have changed metrics extraction
-            // to also extract the transaction name for URL transactions. But this is the safer way,
-            // because the product currently uses queries that assume that `source:url` is equivalent
-            // to `transaction:<< unparameterized >>`.
-            event
-                .transaction_info
-                .get_or_insert_with(Default::default)
-                .source
-                .set_value(Some(TransactionSource::Sanitized));
-        }
+        self.normalize_transaction_name(event)?;
 
         validate_transaction(event)?;
 
-        let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
-
-        for span in spans {
-            if let Some(span) = span.value_mut() {
-                if span.timestamp.value().is_none() {
-                    // event timestamp guaranteed to be `Some` due to validate_transaction call
-                    span.timestamp.set_value(event.timestamp.value().cloned());
-                    span.status = Annotated::new(SpanStatus::DeadlineExceeded);
-                }
-            } else {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "spans must be valid in transaction event",
-                ));
-            }
-        }
+        end_all_spans(event)?;
 
         set_default_transaction_source(event);
 
