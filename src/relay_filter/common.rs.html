@@ -269,6 +269,11 @@
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::fmt;
 
@@ -398,6 +403,9 @@
 
     <span class="doccomment">/// Filtered due to invalid CSP policy.
     </span>InvalidCsp,
+
+    <span class="doccomment">/// Filtered due to the fact that it was a call to a filtered transaction
+    </span>FilteredTransactions,
 }
 
 <span class="comment">// An event grouped to a removed group.
@@ -424,6 +432,7 @@
             FilterStatKey::Localhost =&gt; <span class="string">&quot;localhost&quot;</span>,
             FilterStatKey::WebCrawlers =&gt; <span class="string">&quot;web-crawlers&quot;</span>,
             FilterStatKey::InvalidCsp =&gt; <span class="string">&quot;invalid-csp&quot;</span>,
+            FilterStatKey::FilteredTransactions =&gt; <span class="string">&quot;filtered-transaction&quot;</span>,
         }
     }
 }
@@ -447,6 +456,7 @@
             <span class="string">&quot;localhost&quot; </span>=&gt; FilterStatKey::Localhost,
             <span class="string">&quot;web-crawlers&quot; </span>=&gt; FilterStatKey::WebCrawlers,
             <span class="string">&quot;invalid-csp&quot; </span>=&gt; FilterStatKey::InvalidCsp,
+            <span class="string">&quot;filtered-transaction&quot; </span>=&gt; FilterStatKey::FilteredTransactions,
             other =&gt; {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(other);
             }

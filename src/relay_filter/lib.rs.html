@@ -59,6 +59,8 @@
 <a href="#59" id="59">59</a>
 <a href="#60" id="60">60</a>
 <a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering.
 //!
 //! Events may be filtered base on the following configurable criteria.
@@ -84,6 +86,7 @@
 <span class="kw">pub mod </span>error_messages;
 <span class="kw">pub mod </span>legacy_browsers;
 <span class="kw">pub mod </span>localhost;
+<span class="kw">pub mod </span>transaction_name;
 <span class="kw">pub mod </span>web_crawlers;
 
 <span class="kw">mod </span>common;
@@ -117,6 +120,7 @@
     browser_extensions::should_filter(event, <span class="kw-2">&amp;</span>config.browser_extensions)<span class="question-mark">?</span>;
     legacy_browsers::should_filter(event, <span class="kw-2">&amp;</span>config.legacy_browsers)<span class="question-mark">?</span>;
     web_crawlers::should_filter(event, <span class="kw-2">&amp;</span>config.web_crawlers)<span class="question-mark">?</span>;
+    transaction_name::should_filter(event, <span class="kw-2">&amp;</span>config.ignore_transactions)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
 }
