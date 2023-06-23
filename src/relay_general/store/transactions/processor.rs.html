@@ -3004,6 +3004,16 @@
 <a href="#3004" id="3004">3004</a>
 <a href="#3005" id="3005">3005</a>
 <a href="#3006" id="3006">3006</a>
+<a href="#3007" id="3007">3007</a>
+<a href="#3008" id="3008">3008</a>
+<a href="#3009" id="3009">3009</a>
+<a href="#3010" id="3010">3010</a>
+<a href="#3011" id="3011">3011</a>
+<a href="#3012" id="3012">3012</a>
+<a href="#3013" id="3013">3013</a>
+<a href="#3014" id="3014">3014</a>
+<a href="#3015" id="3015">3015</a>
+<a href="#3016" id="3016">3016</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3184,6 +3194,41 @@
                 .value_mut()
                 .as_mut()
                 .and_then(|data| data.remove(<span class="string">&quot;description.scrubbed&quot;</span>));
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>normalize_transaction_name(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+        <span class="kw">if </span><span class="macro">matches!</span>(
+            event.get_transaction_source(),
+            <span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized
+        ) {
+            <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
+            // This in addition to renaming rules can catch some high cardinality parts.
+            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
+        }
+
+        <span class="kw">if </span>!<span class="self">self</span>.name_config.rules.is_empty() {
+            <span class="self">self</span>.apply_transaction_rename_rule(
+                <span class="kw-2">&amp;mut </span>event.transaction,
+                event.transaction_info.value_mut(),
+            )<span class="question-mark">?</span>;
+        }
+
+        <span class="kw">if </span><span class="macro">matches!</span>(event.get_transaction_source(), <span class="kw-2">&amp;</span>TransactionSource::Url) {
+            <span class="comment">// Always mark URL transactions as sanitized, even if no modification were made by
+            // clusterer rules or regex matchers. This has the consequence that the transaction name
+            // is always extracted as a tag on transaction metrics.
+            // Instead of changing the source to &quot;sanitized&quot;, we could have changed metrics extraction
+            // to also extract the transaction name for URL transactions. But this is the safer way,
+            // because the product currently uses queries that assume that `source:url` is equivalent
+            // to `transaction:&lt;&lt; unparameterized &gt;&gt;`.
+            </span>event
+                .transaction_info
+                .get_or_insert_with(Default::default)
+                .source
+                .set_value(<span class="prelude-val">Some</span>(TransactionSource::Sanitized));
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -3463,6 +3508,24 @@
         .map_or(<span class="bool-val">false</span>, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
 }
 
+<span class="kw">fn </span>end_all_spans(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+    <span class="kw">let </span>spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+    <span class="kw">for </span>span <span class="kw">in </span>spans {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span.value_mut() {
+            <span class="kw">if </span>span.timestamp.value().is_none() {
+                <span class="comment">// event timestamp guaranteed to be `Some` due to validate_transaction call
+                </span>span.timestamp.set_value(event.timestamp.value().cloned());
+                span.status = Annotated::new(SpanStatus::DeadlineExceeded);
+            }
+        } <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;spans must be valid in transaction event&quot;</span>,
+            ));
+        }
+    }
+    <span class="prelude-val">Ok</span>(())
+}
+
 <span class="kw">impl </span>Processor <span class="kw">for </span>TransactionsProcessor&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>process_event(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
@@ -3485,54 +3548,11 @@
                 .set_value(<span class="prelude-val">Some</span>(<span class="string">&quot;&lt;unlabeled transaction&gt;&quot;</span>.to_owned()))
         }
 
-        <span class="kw">if </span><span class="macro">matches!</span>(
-            event.get_transaction_source(),
-            <span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized
-        ) {
-            <span class="comment">// Normalize transaction names for URLs and Sanitized transaction sources.
-            // This in addition to renaming rules can catch some high cardinality parts.
-            </span>scrub_identifiers(<span class="kw-2">&amp;mut </span>event.transaction)<span class="question-mark">?</span>;
-        }
-
-        <span class="kw">if </span>!<span class="self">self</span>.name_config.rules.is_empty() {
-            <span class="self">self</span>.apply_transaction_rename_rule(
-                <span class="kw-2">&amp;mut </span>event.transaction,
-                event.transaction_info.value_mut(),
-            )<span class="question-mark">?</span>;
-        }
-
-        <span class="kw">if </span><span class="macro">matches!</span>(event.get_transaction_source(), <span class="kw-2">&amp;</span>TransactionSource::Url) {
-            <span class="comment">// Always mark URL transactions as sanitized, even if no modification were made by
-            // clusterer rules or regex matchers. This has the consequence that the transaction name
-            // is always extracted as a tag on transaction metrics.
-            // Instead of changing the source to &quot;sanitized&quot;, we could have changed metrics extraction
-            // to also extract the transaction name for URL transactions. But this is the safer way,
-            // because the product currently uses queries that assume that `source:url` is equivalent
-            // to `transaction:&lt;&lt; unparameterized &gt;&gt;`.
-            </span>event
-                .transaction_info
-                .get_or_insert_with(Default::default)
-                .source
-                .set_value(<span class="prelude-val">Some</span>(TransactionSource::Sanitized));
-        }
+        <span class="self">self</span>.normalize_transaction_name(event)<span class="question-mark">?</span>;
 
         validate_transaction(event)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
-
-        <span class="kw">for </span>span <span class="kw">in </span>spans {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span.value_mut() {
-                <span class="kw">if </span>span.timestamp.value().is_none() {
-                    <span class="comment">// event timestamp guaranteed to be `Some` due to validate_transaction call
-                    </span>span.timestamp.set_value(event.timestamp.value().cloned());
-                    span.status = Annotated::new(SpanStatus::DeadlineExceeded);
-                }
-            } <span class="kw">else </span>{
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                    <span class="string">&quot;spans must be valid in transaction event&quot;</span>,
-                ));
-            }
-        }
+        end_all_spans(event)<span class="question-mark">?</span>;
 
         set_default_transaction_source(event);
 
