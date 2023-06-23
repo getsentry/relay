@@ -140,7 +140,7 @@ pub struct CheckIn {
     pub monitor_config: Option<MonitorConfig>,
 
     /// Contexts describing the associated environment of the job run.
-    /// Only supports trace for now
+    /// Only supports trace for now.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contexts: Option<CheckInContexts>,
 }
