@@ -23,6 +23,7 @@ pub mod csp;
 pub mod error_messages;
 pub mod legacy_browsers;
 pub mod localhost;
+pub mod transaction_name;
 pub mod web_crawlers;
 
 mod common;
@@ -56,6 +57,7 @@ pub fn should_filter(
     browser_extensions::should_filter(event, &config.browser_extensions)?;
     legacy_browsers::should_filter(event, &config.legacy_browsers)?;
     web_crawlers::should_filter(event, &config.web_crawlers)?;
+    transaction_name::should_filter(event, &config.ignore_transactions)?;
 
     Ok(())
 }
