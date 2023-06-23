@@ -101,7 +101,7 @@ pub struct MonitorConfig {
 /// The trace context sent with a check-in.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckInTrace {
-    /// trace id of the check-in
+    /// Trace-ID of the check-in.
     #[serde(serialize_with = "uuid_simple")]
     trace_id: Uuid,
 }
