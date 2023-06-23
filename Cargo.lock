@@ -3308,6 +3308,7 @@ dependencies = [
  "axum-server",
  "backoff",
  "brotli",
+ "bytecount",
  "bytes",
  "chrono",
  "data-encoding",
