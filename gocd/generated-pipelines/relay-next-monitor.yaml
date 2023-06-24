@@ -109,6 +109,9 @@
                   "jobs": {
                      "deploy-pops-monitor": {
                         "elastic_profile_id": "relay-pop",
+                        "environment_variables": {
+                           "SENTRY_REGION": "monitor"
+                        },
                         "tasks": [
                            {
                               "script": "##!/bin/bash\n\neval $(/devinfra/scripts/regions/project_env_vars.py --region=\"${SENTRY_REGION}\")\n\n/devinfra/scripts/k8s/k8stunnel\n\n/devinfra/scripts/k8s/k8s-deploy.py \\\n    --label-selector=\"service=relay-pop\" \\\n    --image=\"us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}\" \\\n    --container-name=\"relay\"\n"

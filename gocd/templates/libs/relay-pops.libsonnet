@@ -6,6 +6,9 @@ local deploy_pop_job(region) =
   {
     timeout: 1200,
     elastic_profile_id: 'relay-pop',
+    environment_variables: {
+      SENTRY_REGION: region,
+    },
     tasks: [
       gocdtasks.script(importstr '../bash/deploy-pop.sh'),
     ],
