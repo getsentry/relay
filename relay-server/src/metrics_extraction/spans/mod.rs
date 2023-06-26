@@ -593,7 +593,7 @@ mod tests {
         let truncated = truncate_string(string.clone(), 4);
         assert_eq!(truncated, "ÆÆ");
 
-        let truncated = truncate_string(string.clone(), 5);
+        let truncated = truncate_string(string, 5);
         assert_eq!(truncated, "ÆÆ");
     }
 
