@@ -884,6 +884,26 @@
 <a href="#884" id="884">884</a>
 <a href="#885" id="885">885</a>
 <a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::{
@@ -1212,17 +1232,11 @@
 }
 
 <span class="kw">fn </span>enforce_frame_hard_limit(frames: <span class="kw-2">&amp;mut </span>Array&lt;Frame&gt;, meta: <span class="kw-2">&amp;mut </span>Meta, limit: usize) {
-    <span class="comment">// Trim down the frame list to a hard limit. Leave the last frame in place in case
-    // it&#39;s useful for debugging.
+    <span class="comment">// Trim down the frame list to a hard limit. Prioritize the last frames.
     </span><span class="kw">let </span>original_length = frames.len();
-    <span class="kw">if </span>original_length &gt;= limit {
+    <span class="kw">if </span>original_length &gt; limit {
         meta.set_original_length(<span class="prelude-val">Some</span>(original_length));
-
-        <span class="kw">let </span>last_frame = frames.pop();
-        frames.truncate(limit - <span class="number">1</span>);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(last_frame) = last_frame {
-            frames.push(last_frame);
-        }
+        <span class="kw">let _ </span>= frames.drain(<span class="number">0</span>..original_length - limit);
     }
 }
 
@@ -1660,6 +1674,32 @@
     }
 
     <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_frameqty_equals_limit() {
+        <span class="kw">fn </span>create_frame(filename: <span class="kw-2">&amp;</span>str) -&gt; Annotated&lt;Frame&gt; {
+            Annotated::new(Frame {
+                filename: Annotated::new(filename.into()),
+                ..Default::default()
+            })
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>frames = Annotated::new(<span class="macro">vec!</span>[
+            create_frame(<span class="string">&quot;foo3.py&quot;</span>),
+            create_frame(<span class="string">&quot;foo4.py&quot;</span>),
+            create_frame(<span class="string">&quot;foo5.py&quot;</span>),
+        ]);
+
+        frames
+            .apply(|f, m| {
+                enforce_frame_hard_limit(f, m, <span class="number">3</span>);
+                <span class="prelude-val">Ok</span>(())
+            })
+            .unwrap();
+
+        <span class="comment">// original_length isn&#39;t set, when limit is equal to length, as no trimming took place.
+        </span><span class="macro">assert!</span>(frames.meta().original_length().is_none());
+    }
+
+    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_frame_hard_limit() {
         <span class="kw">fn </span>create_frame(filename: <span class="kw-2">&amp;</span>str) -&gt; Annotated&lt;Frame&gt; {
             Annotated::new(Frame {
@@ -1690,8 +1730,8 @@
             frames,
             Annotated(
                 <span class="prelude-val">Some</span>(<span class="macro">vec!</span>[
-                    create_frame(<span class="string">&quot;foo1.py&quot;</span>),
-                    create_frame(<span class="string">&quot;foo2.py&quot;</span>),
+                    create_frame(<span class="string">&quot;foo3.py&quot;</span>),
+                    create_frame(<span class="string">&quot;foo4.py&quot;</span>),
                     create_frame(<span class="string">&quot;foo5.py&quot;</span>),
                 ]),
                 expected_meta
