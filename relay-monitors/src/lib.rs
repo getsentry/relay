@@ -77,7 +77,7 @@ enum IntervalName {
     Minute,
 }
 
-/// The monitor configuration playload for upserting monitors during check-in
+/// The monitor configuration payload for upserting monitors during check-in
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MonitorConfig {
     /// The monitor schedule configuration
@@ -96,6 +96,22 @@ pub struct MonitorConfig {
     /// tz database style timezone string
     #[serde(default, skip_serializing_if = "Option::is_none")]
     timezone: Option<String>,
+}
+
+/// The trace context sent with a check-in.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CheckInTrace {
+    /// Trace-ID of the check-in.
+    #[serde(serialize_with = "uuid_simple")]
+    trace_id: Uuid,
+}
+
+/// Any contexts sent in the check-in payload.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CheckInContexts {
+    /// Trace context sent with a check-in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace: Option<CheckInTrace>,
 }
 
 /// The monitor check-in payload.
@@ -122,6 +138,11 @@ pub struct CheckIn {
     /// monitor configuration to support upserts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub monitor_config: Option<MonitorConfig>,
+
+    /// Contexts describing the associated environment of the job run.
+    /// Only supports trace for now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contexts: Option<CheckInContexts>,
 }
 
 /// Normalizes a monitor check-in payload.
@@ -172,7 +193,12 @@ mod tests {
   "monitor_slug": "my-monitor",
   "status": "in_progress",
   "environment": "production",
-  "duration": 21.0
+  "duration": 21.0,
+  "contexts": {
+    "trace": {
+      "trace_id": "8f431b7aa08441bbbd5a0100fd91f9fe"
+    }
+  }
 }"#;
 
         let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
