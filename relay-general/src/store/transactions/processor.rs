@@ -196,9 +196,9 @@ impl<'r> TransactionsProcessor<'r> {
         let treat_as_url = matches!(
             source,
             Some(&TransactionSource::Url | &TransactionSource::Sanitized)
-        ) || self.name_config.normalize_legacy
+        ) || (self.name_config.normalize_legacy
             && matches!(source, None)
-            && event.transaction.value().map_or(false, |t| t.contains('/'));
+            && event.transaction.value().map_or(false, |t| t.contains('/')));
 
         if treat_as_url {
             // Normalize transaction names for URLs and Sanitized transaction sources.
