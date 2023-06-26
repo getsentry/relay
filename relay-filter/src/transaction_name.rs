@@ -18,6 +18,10 @@ pub fn should_filter(
     event: &Event,
     config: &IgnoreTransactionsFilterConfig,
 ) -> Result<(), FilterStatKey> {
+    if !config.is_enabled || config.patterns.is_empty() {
+        return Ok(());
+    }
+
     if matches(event, &config.patterns) {
         return Err(FilterStatKey::FilteredTransactions);
     }
@@ -105,6 +109,7 @@ mod tests {
         };
         let config = IgnoreTransactionsFilterConfig {
             patterns: _get_patterns(),
+            is_enabled: true,
         };
 
         let filter_result = should_filter(&event, &config);
@@ -125,6 +130,27 @@ mod tests {
             &event,
             &IgnoreTransactionsFilterConfig {
                 patterns: GlobPatterns::new(vec![]),
+                is_enabled: true,
+            },
+        );
+        assert_eq!(
+            filter_result,
+            Ok(()),
+            "Event filtered although filter should have been disabled"
+        )
+    }
+    #[test]
+    // Tests that is_enabled flag disables the transaction name filter
+    fn test_does_not_filter_when_disabled_with_flag() {
+        let event = Event {
+            transaction: Annotated::new("/health".into()),
+            ..Event::default()
+        };
+        let filter_result = should_filter(
+            &event,
+            &IgnoreTransactionsFilterConfig {
+                patterns: _get_patterns(),
+                is_enabled: false,
             },
         );
         assert_eq!(
@@ -144,6 +170,7 @@ mod tests {
             &event,
             &IgnoreTransactionsFilterConfig {
                 patterns: _get_patterns(),
+                is_enabled: true,
             },
         );
         assert_eq!(
