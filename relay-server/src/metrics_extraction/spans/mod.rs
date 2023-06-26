@@ -310,8 +310,8 @@ fn sanitized_span_description(
     Some(sanitized)
 }
 
-/// Trims the given string to ensure
-/// [`relay-metrics::AggregatorService`] doesn't drop it for being too long.
+/// Trims the given string with the given maximum bytes. Splitting only happens
+/// on char boundaries.
 ///
 /// If the string is short, it remains unchanged. If it's long, this method
 /// truncates it to the maximum allowed size and sets the last character to
