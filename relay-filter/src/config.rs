@@ -138,10 +138,12 @@ pub struct ErrorMessagesFilterConfig {
 
 /// Configuration for transaction name filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IgnoreTransactionsFilterConfig {
     /// List of patterns for ignored transactions that should be filtered.
     pub patterns: GlobPatterns,
     /// True if the filter is enabled
+    #[serde(default)]
     pub is_enabled: bool,
 }
 
