@@ -200,13 +200,13 @@ impl<'r> TransactionsProcessor<'r> {
             && matches!(source, None)
             && event.transaction.value().map_or(false, |t| t.contains('/'));
 
-        if dbg!(treat_as_url) {
+        if treat_as_url {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            dbg!(scrub_identifiers(&mut event.transaction)?);
+            scrub_identifiers(&mut event.transaction)?;
 
             // Apply rules discovered by the transaction clusterer in sentry.
-            if !dbg!(self.name_config.rules.is_empty()) {
+            if !self.name_config.rules.is_empty() {
                 self.apply_transaction_rename_rule(&mut event.transaction)?;
             }
 
