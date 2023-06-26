@@ -3922,6 +3922,11 @@
 <a href="#3922" id="3922">3922</a>
 <a href="#3923" id="3923">3923</a>
 <a href="#3924" id="3924">3924</a>
+<a href="#3925" id="3925">3925</a>
+<a href="#3926" id="3926">3926</a>
+<a href="#3927" id="3927">3927</a>
+<a href="#3928" id="3928">3928</a>
+<a href="#3929" id="3929">3929</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4474,18 +4479,23 @@
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
-    ) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>geoip_lookup = <span class="kw">match </span>config.geoip_path() {
-            <span class="prelude-val">Some</span>(p) =&gt; <span class="prelude-val">Some</span>(GeoIpLookup::open(p).context(ServiceError::GeoIp)<span class="question-mark">?</span>),
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
-        };
+    ) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
+            <span class="kw">match </span>GeoIpLookup::open(p).context(ServiceError::GeoIp) {
+                <span class="prelude-val">Ok</span>(geoip) =&gt; <span class="prelude-val">Some</span>(geoip),
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to open GeoIP db {p:?}: {err:?}&quot;</span>);
+                    <span class="prelude-val">None
+                </span>}
+            }
+        });
 
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
         </span>{
             <span class="kw">let </span>rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            <span class="self">Self </span>{
                 config,
                 rate_limiter,
                 geoip_lookup,
@@ -4493,18 +4503,18 @@
                 outcome_aggregator,
                 project_cache,
                 upstream_relay,
-            })
+            }
         }
 
         <span class="attr">#[cfg(not(feature = <span class="string">&quot;processing&quot;</span>))]
-        </span><span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+        </span><span class="self">Self </span>{
             config,
             geoip_lookup,
             envelope_manager,
             outcome_aggregator,
             project_cache,
             upstream_relay,
-        })
+        }
     }
 
     <span class="doccomment">/// Returns Ok(true) if attributes were modified.

@@ -431,8 +431,8 @@
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
-        )<span class="question-mark">?
-        </span>.start();
+        )
+        .start();
 
         <span class="kw">let </span>aggregator = AggregatorService::new(
             config.aggregator_config().clone(),
