@@ -326,17 +326,11 @@ fn trim_string(value: &mut String, meta: &mut Meta, max_chars: MaxChars) {
 }
 
 fn enforce_frame_hard_limit(frames: &mut Array<Frame>, meta: &mut Meta, limit: usize) {
-    // Trim down the frame list to a hard limit. Leave the last frame in place in case
-    // it's useful for debugging.
+    // Trim down the frame list to a hard limit. Prioritize the last frames.
     let original_length = frames.len();
-    if original_length >= limit {
+    if original_length > limit {
         meta.set_original_length(Some(original_length));
-
-        let last_frame = frames.pop();
-        frames.truncate(limit - 1);
-        if let Some(last_frame) = last_frame {
-            frames.push(last_frame);
-        }
+        let _ = frames.drain(0..original_length - limit);
     }
 }
 
@@ -774,6 +768,32 @@ mod tests {
     }
 
     #[test]
+    fn test_frameqty_equals_limit() {
+        fn create_frame(filename: &str) -> Annotated<Frame> {
+            Annotated::new(Frame {
+                filename: Annotated::new(filename.into()),
+                ..Default::default()
+            })
+        }
+
+        let mut frames = Annotated::new(vec![
+            create_frame("foo3.py"),
+            create_frame("foo4.py"),
+            create_frame("foo5.py"),
+        ]);
+
+        frames
+            .apply(|f, m| {
+                enforce_frame_hard_limit(f, m, 3);
+                Ok(())
+            })
+            .unwrap();
+
+        // original_length isn't set, when limit is equal to length, as no trimming took place.
+        assert!(frames.meta().original_length().is_none());
+    }
+
+    #[test]
     fn test_frame_hard_limit() {
         fn create_frame(filename: &str) -> Annotated<Frame> {
             Annotated::new(Frame {
@@ -804,8 +824,8 @@ mod tests {
             frames,
             Annotated(
                 Some(vec![
-                    create_frame("foo1.py"),
-                    create_frame("foo2.py"),
+                    create_frame("foo3.py"),
+                    create_frame("foo4.py"),
                     create_frame("foo5.py"),
                 ]),
                 expected_meta
