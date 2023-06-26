@@ -17,14 +17,14 @@ use crate::{
     TransactionMetricsConfig, DEFAULT_ALLOWED_DOMAINS,
 };
 
-pub struct MergedConfig {
+pub struct DynamicConfig {
     global: ProjectConfig,
     organization: ProjectConfig,
     project: ProjectConfig,
     public_key: ProjectConfig,
 }
 
-impl MergedConfig {
+impl DynamicConfig {
     pub fn allowed_domains(&self) -> impl Iterator<Item = &str> {
         // TODO: double-check that overwriting is the behavior that we want.
         let config = [&self.public_key, &self.project, &self.organization]
@@ -69,7 +69,17 @@ impl MergedConfig {
 
     /// Maximum event retention for the organization.
     pub fn event_retention(&self) -> Option<u16> {
-        todo!()
+        // Use the most local value:
+        [
+            self.public_key,
+            self.project,
+            self.organization,
+            self.global,
+        ]
+        .into_iter()
+        .map(|c| c.event_retention)
+        .flatten()
+        .next()
     }
 
     /// Usage quotas for this project.
@@ -89,7 +99,7 @@ impl MergedConfig {
     }
 
     /// Configuration for operation breakdown. Will be emitted only if present.
-    pub fn breakdowns_v2(&self) -> &Option<BreakdownsConfig> {
+    pub fn breakdowns(&self) -> &Option<BreakdownsConfig> {
         todo!()
     }
 
@@ -104,33 +114,39 @@ impl MergedConfig {
     }
 
     /// The span attributes configuration.
-    pub fn span_attributes(&self) -> BTreeSet<&SpanAttribute> {
-        // Generate new set every time to guarantee uniqueness:
-        BTreeSet::from_iter(self.all_slices().flat_map(|c| c.span_attributes.iter()))
+    pub fn span_attributes(&self) -> impl Iterator<Item = &SpanAttribute> {
+        // Combine span attributes from all slices.
+        self.all_slices()
+            .flat_map(|c| c.span_attributes.iter())
+            .unique()
     }
 
     /// Rules for applying metrics tags depending on the event's content.
     pub fn metric_conditional_tagging(&self) -> &Vec<TaggingRule> {
+        // combine all, but think carefully about precedence.
         todo!()
     }
 
     /// Exposable features enabled for this project.
-    pub fn features(&self) -> BTreeSet<&Feature> {
-        BTreeSet::from_iter(self.all_slices().flat_map(|c| c.features.iter()))
+    pub fn features(&self) -> impl Iterator<Item = &Feature> {
+        self.all_slices().flat_map(|c| c.features.iter()).unique()
     }
 
     /// Transaction renaming rules.
     pub fn tx_name_rules(&self) -> &Vec<TransactionNameRule> {
+        // combine all, but think carefully about precedence.
         todo!()
     }
 
     /// Whether or not a project is ready to mark all URL transactions as "sanitized".
-    pub fn tx_name_ready(&self) -> &bool {
-        todo!()
+    pub fn tx_name_ready(&self) -> bool {
+        // Deprecated feature flag, still serialized for external Relays.
+        self.all_slices().any(|c| c.tx_name_ready)
     }
 
     /// Span description renaming rules.
     pub fn span_description_rules(&self) -> &Option<Vec<SpanDescriptionRule>> {
+        // combine all, but think carefully about precedence.
         todo!()
     }
 
