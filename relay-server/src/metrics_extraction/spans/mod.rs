@@ -576,7 +576,7 @@ mod tests {
 
     #[test]
     fn test_truncate_string_no_panic() {
-        let string = "aÆÆ".to_owned();
+        let string = "ÆÆ".to_owned();
 
         let truncated = truncate_string(string.clone(), 0);
         assert_eq!(truncated, "");
