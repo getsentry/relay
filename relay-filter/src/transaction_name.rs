@@ -18,7 +18,7 @@ pub fn should_filter(
     event: &Event,
     config: &IgnoreTransactionsFilterConfig,
 ) -> Result<(), FilterStatKey> {
-    if !config.is_enabled || config.patterns.is_empty() {
+    if config.is_empty() {
         return Ok(());
     }
 
