@@ -181,26 +181,31 @@ impl<'r> TransactionsProcessor<'r> {
         Ok(())
     }
 
-    fn normalize_transaction_name(&self, event: &mut Event) -> ProcessingResult {
+    /// Returns `true` if the given transaction name should be treated as a URL.
+    ///
+    /// We treat a transaction as URL if one of the following conditions apply:
+    ///
+    /// 1. It is marked with `source:url`
+    /// 2. It is marked with `source:sanitized`, in which case we run normalization again.
+    /// 3. It has no source attribute because it's from an old SDK version,
+    ///    but it contains slashes and we expect it to be high-cardinality
+    ///    based on the SDK information (see [`set_default_transaction_source`]).
+    fn treat_transaction_as_url(&self, event: &Event) -> bool {
         let source = event
             .transaction_info
             .value()
             .and_then(|i| i.source.value());
 
-        // Treat the transaction a a URL in the following cases:
-        // 1. It is marked with source:url
-        // 2. It is marked with source:sanitized, in which case we run normalization again.
-        // 3. It has no source attribute because it's from an old SDK version,
-        //    but it contains slashes and we expect it to be high-cardinality
-        //    based on the sdk information (see `set_default_transaction_source`).
-        let treat_as_url = matches!(
+        matches!(
             source,
             Some(&TransactionSource::Url | &TransactionSource::Sanitized)
         ) || (self.name_config.normalize_legacy
             && matches!(source, None)
-            && event.transaction.value().map_or(false, |t| t.contains('/')));
+            && event.transaction.value().map_or(false, |t| t.contains('/')))
+    }
 
-        if treat_as_url {
+    fn normalize_transaction_name(&self, event: &mut Event) -> ProcessingResult {
+        if self.treat_transaction_as_url(event) {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
             scrub_identifiers(&mut event.transaction)?;
