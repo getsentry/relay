@@ -2381,6 +2381,9 @@ impl EnvelopeProcessorService {
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
                     rules: &state.project_state.config.tx_name_rules,
+                    normalize_legacy: state
+                        .project_state
+                        .has_feature(Feature::NormalizeLegacyTransactions),
                 },
                 device_class_synthesis_config: state
                     .project_state
@@ -3734,7 +3737,7 @@ mod tests {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
                             expiry: DateTime::<Utc>::MAX_UTC,
-                            scope: TransactionNameRuleScope::default(),
+                            deprecated1: TransactionNameRuleScope::default(),
                             redaction: RedactionRule::Replace {
                                 substitution: "*".to_owned(),
                             },

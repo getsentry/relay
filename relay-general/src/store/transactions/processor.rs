@@ -24,6 +24,9 @@ use crate::types::{
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
+    /// Apply normalization rules to transactions without source that we expect to be high-cardinality
+    /// URLs.
+    pub normalize_legacy: bool,
 }
 
 /// Rejects transactions based on required fields.
@@ -69,36 +72,31 @@ impl<'r> TransactionsProcessor<'r> {
     pub fn apply_transaction_rename_rule(
         &self,
         transaction: &mut Annotated<String>,
-        info: &mut std::option::Option<TransactionInfo>,
     ) -> ProcessingResult {
-        if let Some(info) = info.as_mut() {
-            transaction.apply(|transaction, meta| {
-                let result = self.name_config.rules.iter().find_map(|rule| {
-                    rule.match_and_apply(Cow::Borrowed(transaction), info)
-                        .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
-                });
+        transaction.apply(|transaction, meta| {
+            let result = self.name_config.rules.iter().find_map(|rule| {
+                rule.match_and_apply(Cow::Borrowed(transaction))
+                    .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
+            });
 
-                if let Some((rule, result)) = result {
-                    if *transaction != result {
-                        // If another rule was applied before, we don't want to
-                        // rename the transaction name to keep the original one.
-                        // We do want to continue adding remarks though, in
-                        // order to keep track of all rules applied.
-                        if meta.original_value().is_none() {
-                            meta.set_original_value(Some(transaction.clone()));
-                        }
-                        // add also the rule which was applied to the transaction name
-                        meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-                        *transaction = result;
-                        info.source
-                            .value_mut()
-                            .replace(TransactionSource::Sanitized);
+            if let Some((rule, result)) = result {
+                if *transaction != result {
+                    // If another rule was applied before, we don't want to
+                    // rename the transaction name to keep the original one.
+                    // We do want to continue adding remarks though, in
+                    // order to keep track of all rules applied.
+                    if meta.original_value().is_none() {
+                        meta.set_original_value(Some(transaction.clone()));
                     }
+                    // add also the rule which was applied to the transaction name
+                    meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                    *transaction = result;
                 }
+            }
 
-                Ok(())
-            })?;
-        }
+            Ok(())
+        })?;
+
         Ok(())
     }
 
@@ -184,23 +182,34 @@ impl<'r> TransactionsProcessor<'r> {
     }
 
     fn normalize_transaction_name(&self, event: &mut Event) -> ProcessingResult {
-        if matches!(
-            event.get_transaction_source(),
-            &TransactionSource::Url | &TransactionSource::Sanitized
-        ) {
+        let source = event
+            .transaction_info
+            .value()
+            .and_then(|i| i.source.value());
+
+        // Treat the transaction a a URL in the following cases:
+        // 1. It is marked with source:url
+        // 2. It is marked with source:sanitized, in which case we run normalization again.
+        // 3. It has no source attribute because it's from an old SDK version,
+        //    but it contains slashes and we expect it to be high-cardinality
+        //    based on the sdk information (see `set_default_transaction_source`).
+        let treat_as_url = matches!(
+            source,
+            Some(&TransactionSource::Url | &TransactionSource::Sanitized)
+        ) || self.name_config.normalize_legacy
+            && matches!(source, None)
+            && event.transaction.value().map_or(false, |t| t.contains('/'));
+
+        if dbg!(treat_as_url) {
             // Normalize transaction names for URLs and Sanitized transaction sources.
             // This in addition to renaming rules can catch some high cardinality parts.
-            scrub_identifiers(&mut event.transaction)?;
-        }
+            dbg!(scrub_identifiers(&mut event.transaction)?);
 
-        if !self.name_config.rules.is_empty() {
-            self.apply_transaction_rename_rule(
-                &mut event.transaction,
-                event.transaction_info.value_mut(),
-            )?;
-        }
+            // Apply rules discovered by the transaction clusterer in sentry.
+            if !dbg!(self.name_config.rules.is_empty()) {
+                self.apply_transaction_rename_rule(&mut event.transaction)?;
+            }
 
-        if matches!(event.get_transaction_source(), &TransactionSource::Url) {
             // Always mark URL transactions as sanitized, even if no modification were made by
             // clusterer rules or regex matchers. This has the consequence that the transaction name
             // is always extracted as a tag on transaction metrics.
@@ -638,7 +647,9 @@ mod tests {
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{Contexts, SpanId, TraceContext, TraceId, TransactionSource};
+    use crate::protocol::{
+        ClientSdkInfo, Contexts, SpanId, TraceContext, TraceId, TransactionSource,
+    };
     use crate::store::{
         LazyGlob, RedactionRule, SpanDescriptionRuleScope, TransactionNameRuleScope,
     };
@@ -1881,20 +1892,17 @@ mod tests {
         let rule1 = TransactionNameRule {
             pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
-            scope: Default::default(),
             redaction: Default::default(),
         };
         let rule2 = TransactionNameRule {
             pattern: LazyGlob::new("/foo/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
-            scope: Default::default(),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule3 = TransactionNameRule {
             pattern: LazyGlob::new("/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
-            scope: Default::default(),
             redaction: Default::default(),
         };
         let mut rules = vec![rule1, rule2, rule3];
@@ -1906,6 +1914,7 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ..Default::default()
                 },
                 false,
                 None,
@@ -1971,6 +1980,7 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ..Default::default()
                 },
                 false,
                 None,
@@ -2052,14 +2062,12 @@ mod tests {
         let rule1 = TransactionNameRule {
             pattern: LazyGlob::new("/foo/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
-            scope: Default::default(),
             redaction: Default::default(),
         };
         // This should not happend, such rules shouldn't be sent to relay at all.
         let rule2 = TransactionNameRule {
             pattern: LazyGlob::new("/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
-            scope: Default::default(),
             redaction: Default::default(),
         };
         let rules = vec![rule1, rule2];
@@ -2070,6 +2078,7 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    ..Default::default()
                 },
                 false,
                 None,
@@ -2115,8 +2124,7 @@ mod tests {
                     "op": "rails.request",
                     "status": "ok"
                 }
-            },
-            "client_sdk": {}
+            }
         }
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
@@ -2125,13 +2133,12 @@ mod tests {
             .as_mut()
             .unwrap()
             .client_sdk
-            .value_mut()
-            .as_mut()
-            .unwrap()
-            .name
-            .set_value(Some(sdk.into()));
+            .set_value(Some(ClientSdkInfo {
+                name: sdk.to_owned().into(),
+                ..Default::default()
+            }));
         let rules: Vec<TransactionNameRule> = serde_json::from_value(serde_json::json!([
-            {"pattern": "/user/*/**", "expiry": "3021-04-26T07:59:01+0100"}
+            {"pattern": "/user/*/**", "expiry": "3021-04-26T07:59:01+0100", "redaction": {"method": "replace"}}
         ]))
         .unwrap();
 
@@ -2140,6 +2147,7 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
+                    normalize_legacy: feature,
                 },
                 false,
                 None,
@@ -2151,21 +2159,104 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_source_javascript() {
+    fn test_normalize_legacy_javascript() {
+        // Javascript without source annotation gets sanitized.
         let event = run_with_unknown_source(true, "sentry.javascript.browser");
-        assert_annotated_snapshot!(event, @"");
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/user/*/blog/",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.javascript.browser"
+          },
+          "spans": [],
+          "_meta": {
+            "transaction": {
+              "": {
+                "rem": [
+                  [
+                    "/user/*/**",
+                    "s"
+                  ]
+                ],
+                "val": "/user/jane/blog/"
+              }
+            }
+          }
+        }
+        "###);
     }
 
     #[test]
-    fn test_empty_source_python() {
+    fn test_normalize_legacy_python() {
+        // Python without source annotation does not get sanitized, because we assume it to be
+        // low cardinality.
         let event = run_with_unknown_source(true, "sentry.python");
-        assert_annotated_snapshot!(event, @"");
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/user/jane/blog/",
+          "transaction_info": {
+            "source": "unknown"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.python"
+          },
+          "spans": []
+        }
+        "###);
     }
 
     #[test]
-    fn test_empty_source_javascript_disabled() {
+    fn test_normalize_legacy_javascript_disabled() {
+        // Sanitation is skipped when the config flag is disabled.
         let event = run_with_unknown_source(false, "sentry.javascript.browser");
-        assert_annotated_snapshot!(event, @"");
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/user/jane/blog/",
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "status": "ok",
+              "type": "trace"
+            }
+          },
+          "sdk": {
+            "name": "sentry.javascript.browser"
+          },
+          "spans": []
+        }
+        "###);
     }
 
     #[test]
@@ -2196,7 +2287,6 @@ mod tests {
         let rule = TransactionNameRule {
             pattern: LazyGlob::new("/foo/*/**".to_string()),
             expiry: Utc::now() + Duration::hours(1),
-            scope: Default::default(),
             redaction: Default::default(),
         };
 
@@ -2204,7 +2294,14 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: &[rule],
+                    ..Default::default()
+                },
+                false,
+                None,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2428,9 +2525,9 @@ mod tests {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ..Default::default()
                 },
                 false,
                 None,
@@ -2475,9 +2572,9 @@ mod tests {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/**".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ..Default::default()
                 },
                 false,
                 None,
@@ -2961,9 +3058,9 @@ mod tests {
                         // Pattern with the same format as transaction name rules.
                         pattern: LazyGlob::new("/remains/*/**".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ..Default::default()
                 },
                 true,
                 None,
@@ -3061,9 +3158,9 @@ mod tests {
                             "/applies-from-transaction-name-rules/*/untouched/**".to_owned(),
                         ),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
-                        scope: TransactionNameRuleScope::default(),
                         redaction: RedactionRule::default(),
                     }],
+                    ..Default::default()
                 },
                 true,
                 Some(&Vec::from([SpanDescriptionRule {

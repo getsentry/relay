@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use chrono::{DateTime, Utc};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
 use crate::protocol::{OperationType, TransactionInfo, TransactionSource};
 use crate::utils::Glob;
@@ -176,25 +177,18 @@ pub struct TransactionNameRule {
     pub pattern: LazyGlob,
     /// Date time when the rule expires and it should not be applied anymore.
     pub expiry: DateTime<Utc>,
-    /// Object containing transaction attributes the rules must only be applied to.
-    #[serde(default)]
-    pub scope: TransactionNameRuleScope,
     /// Object describing what to do with the matched pattern.
     pub redaction: RedactionRule,
 }
 
 impl TransactionNameRule {
     /// Checks is the current rule matches and tries to apply it.
-    pub fn match_and_apply(
-        &self,
-        mut transaction: Cow<String>,
-        transaction_info: &TransactionInfo,
-    ) -> Option<String> {
+    pub fn match_and_apply(&self, mut transaction: Cow<String>) -> Option<String> {
         let slash_is_present = transaction.ends_with('/');
         if !slash_is_present {
             transaction.to_mut().push('/');
         }
-        let is_matched = self.matches(&transaction, transaction_info);
+        let is_matched = dbg!(self.matches(&transaction));
 
         if is_matched {
             let mut result = self.apply(&transaction);
@@ -225,14 +219,8 @@ impl TransactionNameRule {
 
     /// Returns `true` if the current rule pattern matches transaction, expected transaction
     /// source, and not expired yet.
-    fn matches(&self, transaction: &str, info: &TransactionInfo) -> bool {
-        let now = Utc::now();
-        info.source
-            .value()
-            .map(|s| s == &self.scope.source)
-            .unwrap_or_default()
-            && self.expiry > now
-            && self.pattern.compiled().is_match(transaction)
+    fn matches(&self, transaction: &str) -> bool {
+        dbg!(self.expiry > Utc::now()) && dbg!(self.pattern.compiled().is_match(transaction))
     }
 }
 
@@ -264,7 +252,6 @@ mod tests {
         let result = TransactionNameRule {
             pattern: LazyGlob::new("/auth/login/*/**".to_string()),
             expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
-            scope: Default::default(),
             redaction: RedactionRule::Replace {
                 substitution: String::from(":id"),
             },
@@ -291,7 +278,6 @@ mod tests {
         let result = TransactionNameRule {
             pattern: LazyGlob::new("/auth/login/*/**".to_string()),
             expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
-            scope: Default::default(),
             redaction: RedactionRule::Replace {
                 substitution: default_substitution(),
             },
