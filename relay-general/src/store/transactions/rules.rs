@@ -3,9 +3,8 @@ use std::borrow::Cow;
 use chrono::{DateTime, Utc};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
 
-use crate::protocol::{OperationType, TransactionInfo, TransactionSource};
+use crate::protocol::{OperationType, TransactionSource};
 use crate::utils::Glob;
 
 /// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
@@ -309,9 +308,6 @@ mod tests {
         let json = r###"{
   "pattern": "/auth/login/*/**",
   "expiry": "2022-11-30T00:00:00Z",
-  "scope": {
-    "source": "url"
-  },
   "redaction": {
     "method": "replace",
     "substitution": ":id"

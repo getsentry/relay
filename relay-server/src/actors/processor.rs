@@ -2763,9 +2763,7 @@ mod tests {
     use relay_common::{DurationUnit, MetricUnit, Uuid};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
-    use relay_general::store::{
-        LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule, TransactionNameRuleScope,
-    };
+    use relay_general::store::{LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_sampling::{
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -3737,11 +3735,11 @@ mod tests {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
                             expiry: DateTime::<Utc>::MAX_UTC,
-                            deprecated1: TransactionNameRuleScope::default(),
                             redaction: RedactionRule::Replace {
                                 substitution: "*".to_owned(),
                             },
                         }],
+                        ..Default::default()
                     },
                     ..Default::default()
                 };

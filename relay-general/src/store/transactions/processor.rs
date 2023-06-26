@@ -8,7 +8,7 @@ use relay_common::SpanStatus;
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionInfo, TransactionSource,
+    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
 use crate::store::regexes::{
     CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
@@ -650,9 +650,7 @@ mod tests {
     use crate::protocol::{
         ClientSdkInfo, Contexts, SpanId, TraceContext, TraceId, TransactionSource,
     };
-    use crate::store::{
-        LazyGlob, RedactionRule, SpanDescriptionRuleScope, TransactionNameRuleScope,
-    };
+    use crate::store::{LazyGlob, RedactionRule, SpanDescriptionRuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
 
