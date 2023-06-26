@@ -15,59 +15,6 @@ use serde_json::Value;
 use crate::feature::Feature;
 use crate::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};
 
-type SparseConfig = ProjectConfig;
-
-struct DynamicConfig {
-    global: SparseConfig,
-    org: SparseConfig,
-    project: SparseConfig,
-    dsn: SparseConfig,
-}
-
-impl DynamicConfig {
-    fn split_project_config(config: ProjectConfig) -> Self {
-        let global = ProjectConfig {
-            measurements: config.measurements,
-            metric_conditional_tagging: config.metric_conditional_tagging, // ?
-            ..Default::default()
-        };
-
-        let org = ProjectConfig {
-            trusted_relays: config.trusted_relays,
-            ..Default::default()
-        };
-
-        let project = ProjectConfig {
-            pii_config: config.pii_config,
-            transaction_metrics: config.transaction_metrics,
-            span_attributes: config.span_attributes,
-            session_metrics: config.session_metrics,
-            allowed_domains: config.allowed_domains,
-            features: config.features,
-            breakdowns_v2: config.breakdowns_v2,
-            dynamic_sampling: config.dynamic_sampling,
-            datascrubbing_settings: config.datascrubbing_settings,
-            filter_settings: config.filter_settings,
-            grouping_config: config.grouping_config,
-            span_description_rules: config.span_description_rules,
-            tx_name_rules: config.tx_name_rules,
-            ..Default::default()
-        };
-
-        let dsn = ProjectConfig {
-            quotas: config.quotas,
-            ..Default::default()
-        };
-
-        Self {
-            global,
-            org,
-            project,
-            dsn,
-        }
-    }
-}
-
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -195,4 +142,151 @@ pub struct LimitedProjectConfig {
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+type SparseConfig = ProjectConfig;
+
+#[derive(Debug)]
+struct DynamicConfig {
+    global: SparseConfig,
+    org: SparseConfig,
+    project: SparseConfig,
+    dsn: SparseConfig,
+}
+
+impl From<ProjectConfig> for DynamicConfig {
+    fn from(value: ProjectConfig) -> Self {
+        Self::split_project_config(value)
+    }
+}
+
+impl DynamicConfig {
+    fn split_project_config(config: ProjectConfig) -> Self {
+        let global = ProjectConfig {
+            measurements: config.measurements,
+            metric_conditional_tagging: config.metric_conditional_tagging, // ?
+            ..Default::default()
+        };
+
+        let org = ProjectConfig {
+            trusted_relays: config.trusted_relays,
+            ..Default::default()
+        };
+
+        let project = ProjectConfig {
+            pii_config: config.pii_config,
+            transaction_metrics: config.transaction_metrics,
+            span_attributes: config.span_attributes,
+            session_metrics: config.session_metrics,
+            allowed_domains: config.allowed_domains,
+            features: config.features,
+            breakdowns_v2: config.breakdowns_v2,
+            dynamic_sampling: config.dynamic_sampling,
+            datascrubbing_settings: config.datascrubbing_settings,
+            filter_settings: config.filter_settings,
+            grouping_config: config.grouping_config,
+            span_description_rules: config.span_description_rules,
+            tx_name_rules: config.tx_name_rules,
+            ..Default::default()
+        };
+
+        let dsn = ProjectConfig {
+            quotas: config.quotas,
+            ..Default::default()
+        };
+
+        Self {
+            global,
+            org,
+            project,
+            dsn,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_auth::generate_key_pair;
+
+    use super::*;
+    use crate::ProjectConfig;
+
+    fn is_equal_dbg<T: std::fmt::Debug, U: std::fmt::Debug>(a: T, b: U) -> bool {
+        let a = format!("{a:?}");
+        let b = format!("{b:?}");
+        a == b
+    }
+
+    fn mock_config() -> ProjectConfig {
+        ProjectConfig {
+            allowed_domains: vec!["foo".to_string(), "bar".to_string()],
+            trusted_relays: vec![generate_key_pair().1],
+            pii_config: Some(PiiConfig::default()),
+            grouping_config: Some(Value::String("hey".into())),
+            filter_settings: FiltersConfig::default(),
+            datascrubbing_settings: {
+                let mut dataconf = DataScrubbingConfig::default();
+                dataconf.exclude_fields = vec!["barfoo".into()];
+                dataconf
+            },
+            event_retention: Some(42),
+            quotas: vec![],
+            dynamic_sampling: None,
+            measurements: Some(MeasurementsConfig::default()),
+            breakdowns_v2: Some(BreakdownsConfig::default()),
+            session_metrics: SessionMetricsConfig::default(),
+            transaction_metrics: None,
+            span_attributes: {
+                let mut set = BTreeSet::new();
+                set.insert(SpanAttribute::ExclusiveTime);
+                set
+            },
+            metric_conditional_tagging: vec![],
+            features: {
+                let mut set = BTreeSet::new();
+                set.insert(Feature::SessionReplay);
+                set
+            },
+            tx_name_rules: vec![],
+            tx_name_ready: true,
+            span_description_rules: Some(vec![]),
+        }
+    }
+
+    #[test]
+    fn test_foo() {
+        let config = mock_config();
+        let dynamic_config: DynamicConfig = config.clone().into();
+
+        // Checking global
+        assert!(is_equal_dbg(
+            config.measurements,
+            dynamic_config.global.measurements
+        ));
+
+        assert!(is_equal_dbg(
+            config.metric_conditional_tagging,
+            dynamic_config.global.metric_conditional_tagging
+        ));
+
+        // Checking org
+        assert!(is_equal_dbg(
+            config.trusted_relays,
+            dynamic_config.org.trusted_relays
+        ));
+
+        // Checking project
+        assert!(is_equal_dbg(
+            config.datascrubbing_settings,
+            dynamic_config.project.datascrubbing_settings
+        ));
+
+        assert!(is_equal_dbg(
+            config.allowed_domains,
+            dynamic_config.project.allowed_domains
+        ));
+
+        // Checking DSN
+        assert!(is_equal_dbg(config.quotas, dynamic_config.dsn.quotas));
+    }
 }
