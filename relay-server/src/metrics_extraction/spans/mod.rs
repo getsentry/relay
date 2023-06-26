@@ -186,11 +186,18 @@ pub(crate) fn extract_span_metrics(
                 );
 
                 if let Some(scrubbed_desc) = sanitized_description {
-                    span_tags.insert(SpanTagKey::Description, scrubbed_desc.to_owned());
+                    // Truncating the span description's tag value is, for now,
+                    // a temporary solution to not get large descriptions dropped. The
+                    // group tag mustn't be affected by this, and still be
+                    // computed from the full, untruncated description.
 
-                    let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
+                    let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
                     span_group.truncate(16);
                     span_tags.insert(SpanTagKey::Group, span_group);
+
+                    let truncated =
+                        truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
+                    span_tags.insert(SpanTagKey::Description, truncated);
                 }
             }
 
@@ -301,6 +308,32 @@ fn sanitized_span_description(
     sanitized.push_str("<unparameterized>");
 
     Some(sanitized)
+}
+
+/// Trims the given string with the given maximum bytes. Splitting only happens
+/// on char boundaries.
+///
+/// If the string is short, it remains unchanged. If it's long, this method
+/// truncates it to the maximum allowed size and sets the last character to
+/// `*`.
+fn truncate_string(mut string: String, max_bytes: usize) -> String {
+    if string.len() <= max_bytes {
+        return string;
+    }
+
+    if max_bytes == 0 {
+        return String::new();
+    }
+
+    let mut cutoff = max_bytes - 1; // Leave space for `*`
+
+    while cutoff > 0 && !string.is_char_boundary(cutoff) {
+        cutoff -= 1;
+    }
+
+    string.truncate(cutoff);
+    string.push('*');
+    string
 }
 
 /// Regex with a capture group to extract the database action from a query.
@@ -539,7 +572,30 @@ mod tests {
 
     use relay_metrics::AggregatorConfig;
 
-    use crate::metrics_extraction::spans::extract_span_metrics;
+    use crate::metrics_extraction::spans::{extract_span_metrics, truncate_string};
+
+    #[test]
+    fn test_truncate_string_no_panic() {
+        let string = "ÆÆ".to_owned();
+
+        let truncated = truncate_string(string.clone(), 0);
+        assert_eq!(truncated, "");
+
+        let truncated = truncate_string(string.clone(), 1);
+        assert_eq!(truncated, "*");
+
+        let truncated = truncate_string(string.clone(), 2);
+        assert_eq!(truncated, "*");
+
+        let truncated = truncate_string(string.clone(), 3);
+        assert_eq!(truncated, "Æ*");
+
+        let truncated = truncate_string(string.clone(), 4);
+        assert_eq!(truncated, "ÆÆ");
+
+        let truncated = truncate_string(string, 5);
+        assert_eq!(truncated, "ÆÆ");
+    }
 
     macro_rules! span_transaction_method_test {
         // Tests transaction.method is picked from the right place.
