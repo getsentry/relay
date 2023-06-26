@@ -316,13 +316,8 @@ fn sanitized_span_description(
 /// [`relay-metrics::AggregatorService`] doesn't drop it for being too long.
 ///
 /// If the description is short, it remains unchanged. If it's long, this method
-/// truncates it to the maximum allowed length and sets the last character to
-/// `*`. The maximum length is determined by [`MaxChars::TagValue`].
-///
-/// Note [`relay-metrics::AggregatorService`] is configured independently and
-/// doesn't use this type; this method uses it for simplicity, and because at
-/// the time of writing this the values are the same. If the limit this type
-/// provides is longer, this method may be ineffective.
+/// truncates it to the maximum allowed size and sets the last character to
+/// `*`.
 fn truncate_span_description(mut description: String, max_bytes: usize) -> String {
     if bytecount::num_chars(description.as_bytes()) < max_bytes {
         return description;
