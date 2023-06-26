@@ -36,7 +36,7 @@ impl DynamicConfig {
     }
 
     pub fn trusted_relays(&self) -> impl Iterator<Item = &PublicKey> {
-        self.all_slices()
+        self.all_scopes()
             .flat_map(|c| c.trusted_relays.iter())
             .unique()
     }
@@ -76,7 +76,7 @@ impl DynamicConfig {
             self.organization,
             self.global,
         ]
-        .into_iter()
+        .iter()
         .map(|c| c.event_retention)
         .flatten()
         .next()
@@ -84,8 +84,17 @@ impl DynamicConfig {
 
     /// Usage quotas for this project.
     pub fn quotas(&self) -> impl Iterator<Item = &Quota> {
-        // TODO: Verify if order matters.
-        self.all_slices().flat_map(|c| c.quotas.iter())
+        // Order of quotas does not matter semantically.
+        // Use the same order as sentry does for easier diffing.
+        // See https://github.com/getsentry/sentry/blob/7ef1718552effcdf2de5f664882fcb395841ef9f/src/sentry/quotas/redis.py#L52-L112
+        [
+            &self.project,
+            &self.organization,
+            &self.public_key,
+            &self.global, // should be empty
+        ]
+        .into_iter()
+        .flat_map(|c| c.quotas.iter())
     }
 
     /// Configuration for sampling traces, if not present there will be no sampling.
@@ -104,8 +113,19 @@ impl DynamicConfig {
     }
 
     /// Configuration for extracting metrics from sessions.
-    pub fn session_metrics(&self) -> &SessionMetricsConfig {
-        todo!()
+    pub fn session_metrics(&self) -> SessionMetricsConfig {
+        // Session metrics struct is small enough to create a new instance on the fly.
+        // Reconsider if this config grows.
+        SessionMetricsConfig {
+            // Enforce the highest version that is being required:
+            version: self
+                .all_scopes()
+                .map(|c| c.session_metrics.version)
+                .max()
+                .unwrap_or_default(),
+            // If any
+            drop: self.all_scopes().any(|c| c.session_metrics.drop),
+        }
     }
 
     /// Configuration for extracting metrics from transaction events.
@@ -116,7 +136,7 @@ impl DynamicConfig {
     /// The span attributes configuration.
     pub fn span_attributes(&self) -> impl Iterator<Item = &SpanAttribute> {
         // Combine span attributes from all slices.
-        self.all_slices()
+        self.all_scopes()
             .flat_map(|c| c.span_attributes.iter())
             .unique()
     }
@@ -129,7 +149,7 @@ impl DynamicConfig {
 
     /// Exposable features enabled for this project.
     pub fn features(&self) -> impl Iterator<Item = &Feature> {
-        self.all_slices().flat_map(|c| c.features.iter()).unique()
+        self.all_scopes().flat_map(|c| c.features.iter()).unique()
     }
 
     /// Transaction renaming rules.
@@ -141,7 +161,7 @@ impl DynamicConfig {
     /// Whether or not a project is ready to mark all URL transactions as "sanitized".
     pub fn tx_name_ready(&self) -> bool {
         // Deprecated feature flag, still serialized for external Relays.
-        self.all_slices().any(|c| c.tx_name_ready)
+        self.all_scopes().any(|c| c.tx_name_ready)
     }
 
     /// Span description renaming rules.
@@ -150,7 +170,7 @@ impl DynamicConfig {
         todo!()
     }
 
-    fn all_slices(&self) -> std::array::IntoIter<&ProjectConfig, 4> {
+    fn all_scopes(&self) -> std::array::IntoIter<&ProjectConfig, 4> {
         // TODO: name this function to make clear it goes from global to local scope.
         [
             &self.global,

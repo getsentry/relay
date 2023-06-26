@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::feature::Feature;
 use crate::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};
 
-pub const DEFAULT_ALLOWED_DOMAINS: [String; 1] = ["*".to_string()];
+pub const DEFAULT_ALLOWED_DOMAINS: [&str; 1] = ["*"];
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,7 +80,7 @@ pub struct ProjectConfig {
 impl Default for ProjectConfig {
     fn default() -> Self {
         ProjectConfig {
-            allowed_domains: DEFAULT_ALLOWED_DOMAINS.into(),
+            allowed_domains: DEFAULT_ALLOWED_DOMAINS.map(str::to_string).to_vec(),
             trusted_relays: vec![],
             pii_config: None,
             grouping_config: None,
