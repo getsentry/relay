@@ -568,7 +568,14 @@ mod tests {
 
     use relay_metrics::AggregatorConfig;
 
-    use crate::metrics_extraction::spans::extract_span_metrics;
+    use crate::metrics_extraction::spans::{extract_span_metrics, truncate_string};
+
+    #[test]
+    fn test_truncate_string_no_panic() {
+        let string = "ÆÆÆÆÆÆ".to_owned();
+        let truncated = truncate_string(string, 3);
+        assert_eq!(truncated, "Æ*");
+    }
 
     macro_rules! span_transaction_method_test {
         // Tests transaction.method is picked from the right place.
