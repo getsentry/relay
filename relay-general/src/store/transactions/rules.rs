@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::protocol::{OperationType, TransactionSource};
+use crate::protocol::OperationType;
 use crate::utils::Glob;
 
 /// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
@@ -52,21 +52,6 @@ where
     D: Deserializer<'de>,
 {
     String::deserialize(deserializer).map(LazyGlob::new)
-}
-
-/// Contains transaction attribute the rule must only be applied to.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct TransactionNameRuleScope {
-    /// The source of the transaction.
-    pub source: TransactionSource,
-}
-
-impl Default for TransactionNameRuleScope {
-    fn default() -> Self {
-        Self {
-            source: TransactionSource::Url,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
