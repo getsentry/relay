@@ -192,24 +192,39 @@ pub struct TagSpec {
     pub key: String,
 
     /// TODO(ja): Doc
-    #[serde(flatten)]
-    pub expr: TagExpression,
+    #[serde(default)]
+    pub field: Option<String>,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub value: Option<String>,
 
     /// TODO(ja): Doc
     #[serde(default)]
     pub condition: Option<RuleCondition>,
 }
 
+impl TagSpec {
+    /// TODO(ja): Doc
+    pub fn expression(&self) -> TagExpression<'_> {
+        if let Some(ref field) = self.field {
+            TagExpression::Field(field)
+        } else if let Some(ref value) = self.value {
+            TagExpression::Value(value)
+        } else {
+            TagExpression::Unknown
+        }
+    }
+}
+
 /// TODO(ja): Doc
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum TagExpression {
+#[derive(Clone, Debug, PartialEq)]
+pub enum TagExpression<'a> {
     /// TODO(ja): Doc
-    Value(String),
+    Value(&'a str),
     /// TODO(ja): Doc
-    Field(String),
+    Field(&'a str),
     /// TODO(ja): Doc
-    #[serde(other)]
     Unknown,
 }
 
@@ -222,41 +237,20 @@ mod tests {
     fn parse_tag_spec_value() {
         let json = r#"{"key":"foo","value":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();
-
-        let expected = TagSpec {
-            key: "foo".to_owned(),
-            expr: TagExpression::Value("bar".to_owned()),
-            condition: None,
-        };
-
-        assert_eq!(spec, expected);
+        assert_eq!(spec.expression(), TagExpression::Value("bar"));
     }
 
     #[test]
     fn parse_tag_spec_field() {
         let json = r#"{"key":"foo","field":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();
-
-        let expected = TagSpec {
-            key: "foo".to_owned(),
-            expr: TagExpression::Field("bar".to_owned()),
-            condition: None,
-        };
-
-        assert_eq!(spec, expected);
+        assert_eq!(spec.expression(), TagExpression::Field("bar"));
     }
 
     #[test]
     fn parse_tag_spec_unsupported() {
         let json = r#"{"key":"foo","somethingNew":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();
-
-        let expected = TagSpec {
-            key: "foo".to_owned(),
-            expr: TagExpression::Unknown,
-            condition: None,
-        };
-
-        assert_eq!(spec, expected);
+        assert_eq!(spec.expression(), TagExpression::Unknown);
     }
 }
