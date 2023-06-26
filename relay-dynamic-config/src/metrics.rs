@@ -142,6 +142,13 @@ pub struct MetricExtractionConfig {
     pub tags: Vec<TagMapping>,
 }
 
+impl MetricExtractionConfig {
+    /// Returns `true` if metric extraction is disabled.
+    pub fn is_empty(&self) -> bool {
+        self.version == 0 || (self.metrics.is_empty() && self.tags.is_empty())
+    }
+}
+
 /// TODO(ja): Doc
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
