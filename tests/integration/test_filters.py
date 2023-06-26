@@ -244,9 +244,15 @@ def test_ignore_transactions_filters_are_applied(
     project_config = mini_sentry.add_full_project_config(project_id)
     filter_settings = project_config["config"]["filterSettings"]
     if is_enabled:
-        filter_settings["ignoreTransactions"] = {"patterns": ["health*"]}
+        filter_settings["ignoreTransactions"] = {
+            "patterns": ["health*"],
+            "isEnabled": is_enabled,
+        }
     else:
-        filter_settings["ignoreTransactions"] = {"patterns": []}
+        filter_settings["ignoreTransactions"] = {
+            "patterns": [],
+            "isEnabled": is_enabled,
+        }
 
     transactions_consumer = transactions_consumer(timeout=10)
 
