@@ -51,7 +51,9 @@ impl Serialize for Feature {
             }
             Feature::DeviceClassSynthesis => "organizations:device-class-synthesis",
             Feature::SpanMetricsExtraction => "projects:span-metrics-extraction",
-            Feature::NormalizeLegacyTransactions => "organizations:normalize-legacy-transactions",
+            Feature::NormalizeLegacyTransactions => {
+                "organizations:transaction-name-normalize-legacy"
+            }
             Feature::Unknown(s) => s,
         })
     }
