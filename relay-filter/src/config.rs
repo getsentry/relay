@@ -370,7 +370,7 @@ mod tests {
             "patterns": [
               "*health*"
             ],
-            "is_enabled": true
+            "isEnabled": true
           }
         }
         "###);
