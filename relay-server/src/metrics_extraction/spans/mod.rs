@@ -317,7 +317,7 @@ fn sanitized_span_description(
 /// truncates it to the maximum allowed size and sets the last character to
 /// `*`.
 fn truncate_string(mut string: String, max_bytes: usize) -> String {
-    if string.len() < max_bytes {
+    if string.len() <= max_bytes {
         return string;
     }
 
