@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251)) 
 - Keep stackframes closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
