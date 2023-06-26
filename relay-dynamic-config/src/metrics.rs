@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 
+use relay_common::DataCategory;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -122,5 +123,133 @@ impl TransactionMetricsConfig {
     /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= TRANSACTION_EXTRACT_VERSION
+    }
+}
+
+/// TODO(ja): Doc
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricExtractionConfig {
+    /// TODO(ja): Doc
+    pub version: u16,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub metrics: Vec<MetricSpec>,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub tags: Vec<TagMapping>,
+}
+
+/// TODO(ja): Doc
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricSpec {
+    /// TODO(ja): Doc
+    pub category: DataCategory,
+
+    /// TODO(ja): Doc
+    pub mri: String,
+
+    /// TODO(ja): Doc
+    pub field: String,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub condition: Option<RuleCondition>,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub tags: Vec<TagSpec>,
+}
+
+/// TODO(ja): Doc
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagMapping {
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub metrics: Vec<String>,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub tags: Vec<TagSpec>,
+}
+
+/// TODO(ja): Doc
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagSpec {
+    /// TODO(ja): Doc
+    pub key: String,
+
+    /// TODO(ja): Doc
+    #[serde(flatten)]
+    pub expr: TagExpression,
+
+    /// TODO(ja): Doc
+    #[serde(default)]
+    pub condition: Option<RuleCondition>,
+}
+
+/// TODO(ja): Doc
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TagExpression {
+    /// TODO(ja): Doc
+    Value(String),
+    /// TODO(ja): Doc
+    Field(String),
+    /// TODO(ja): Doc
+    #[serde(other)]
+    Unknown,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use similar_asserts::assert_eq;
+
+    #[test]
+    fn parse_tag_spec_value() {
+        let json = r#"{"key":"foo","value":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+
+        let expected = TagSpec {
+            key: "foo".to_owned(),
+            expr: TagExpression::Value("bar".to_owned()),
+            condition: None,
+        };
+
+        assert_eq!(spec, expected);
+    }
+
+    #[test]
+    fn parse_tag_spec_field() {
+        let json = r#"{"key":"foo","field":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+
+        let expected = TagSpec {
+            key: "foo".to_owned(),
+            expr: TagExpression::Field("bar".to_owned()),
+            condition: None,
+        };
+
+        assert_eq!(spec, expected);
+    }
+
+    #[test]
+    fn parse_tag_spec_unsupported() {
+        let json = r#"{"key":"foo","somethingNew":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+
+        let expected = TagSpec {
+            key: "foo".to_owned(),
+            expr: TagExpression::Unknown,
+            condition: None,
+        };
+
+        assert_eq!(spec, expected);
     }
 }

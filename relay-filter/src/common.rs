@@ -98,6 +98,12 @@ impl<'de> Deserialize<'de> for GlobPatterns {
     }
 }
 
+impl PartialEq for GlobPatterns {
+    fn eq(&self, other: &Self) -> bool {
+        self.patterns == other.patterns
+    }
+}
+
 /// Identifies which filter dropped an event for which reason.
 ///
 /// Ported from Sentry's same-named "enum". The enum variants are fed into outcomes in kebap-case
