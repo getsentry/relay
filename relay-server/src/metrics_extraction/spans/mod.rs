@@ -195,7 +195,10 @@ pub(crate) fn extract_span_metrics(
                     span_group.truncate(16);
                     span_tags.insert(SpanTagKey::Group, span_group);
 
-                    let truncated = truncate_span_description(scrubbed_desc);
+                    let truncated = truncate_span_description(
+                        scrubbed_desc,
+                        aggregator_config.max_tag_value_length,
+                    );
                     span_tags.insert(SpanTagKey::Description, truncated);
                 }
             }
@@ -320,14 +323,12 @@ fn sanitized_span_description(
 /// doesn't use this type; this method uses it for simplicity, and because at
 /// the time of writing this the values are the same. If the limit this type
 /// provides is longer, this method may be ineffective.
-fn truncate_span_description(mut description: String) -> String {
-    let max_limit = 200;
-
-    if bytecount::num_chars(description.as_bytes()) < max_limit {
+fn truncate_span_description(mut description: String, max_bytes: usize) -> String {
+    if bytecount::num_chars(description.as_bytes()) < max_bytes {
         return description;
     }
 
-    let mut cutoff = max_limit - 1; // Leave space for `*`
+    let mut cutoff = max_bytes - 1; // Leave space for `*`
 
     while cutoff > 0 && description.is_char_boundary(cutoff) {
         cutoff -= 1;
