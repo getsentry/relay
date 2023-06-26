@@ -30,8 +30,8 @@ axum = { version = "0.6.15", features = ["headers", "macros", "matched-path", "m
 axum-server = "0.4.7"
 backoff = "0.4.0"
 brotli = "3.3.4"
-bytes = { version = "1.4.0" }
 bytecount = "0.6.0"
+bytes = { version = "1.4.0" }
 chrono = { version = "0.4.24", default-features = false, features = ["clock", "std", "serde"] }
 data-encoding = "2.3.3"
 flate2 = "1.0.19"
