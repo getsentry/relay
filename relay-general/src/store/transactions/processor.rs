@@ -2036,6 +2036,131 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_twice() {
+        // Simulate going through a chain of relays.
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/foo/rule-target/user/123/0/",
+            "transaction_info": {
+              "source": "url"
+            },
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request"
+                }
+            }
+        }
+        "#;
+
+        let rules = vec![TransactionNameRule {
+            pattern: LazyGlob::new("/foo/*/user/*/**".to_string()),
+            expiry: Utc::now() + Duration::hours(1),
+            redaction: Default::default(),
+        }];
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        let mut processor = TransactionsProcessor::new(
+            TransactionNameConfig {
+                rules: rules.as_ref(),
+                ..Default::default()
+            },
+            false,
+            None,
+        );
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/*/user/*/0/",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "type": "trace"
+            }
+          },
+          "spans": [],
+          "_meta": {
+            "transaction": {
+              "": {
+                "rem": [
+                  [
+                    "int",
+                    "s",
+                    22,
+                    25
+                  ],
+                  [
+                    "/foo/*/user/*/**",
+                    "s"
+                  ]
+                ],
+                "val": "/foo/rule-target/user/123/0/"
+              }
+            }
+          }
+        }
+        "###);
+
+        // Process again:
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        // _meta entry is unchanged, because only updated when "transaction" changed:
+        assert_annotated_snapshot!(event, @r###"
+        {
+          "type": "transaction",
+          "transaction": "/foo/*/user/*/0/",
+          "transaction_info": {
+            "source": "sanitized"
+          },
+          "timestamp": 1619420400.0,
+          "start_timestamp": 1619420341.0,
+          "contexts": {
+            "trace": {
+              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+              "span_id": "fa90fdead5f74053",
+              "op": "rails.request",
+              "type": "trace"
+            }
+          },
+          "spans": [],
+          "_meta": {
+            "transaction": {
+              "": {
+                "rem": [
+                  [
+                    "int",
+                    "s",
+                    22,
+                    25
+                  ],
+                  [
+                    "/foo/*/user/*/**",
+                    "s"
+                  ]
+                ],
+                "val": "/foo/rule-target/user/123/0/"
+              }
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
     fn test_transaction_name_unsupported_source() {
         let json = r#"
         {
