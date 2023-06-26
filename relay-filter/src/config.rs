@@ -138,15 +138,19 @@ pub struct ErrorMessagesFilterConfig {
 
 /// Configuration for transaction name filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IgnoreTransactionsFilterConfig {
     /// List of patterns for ignored transactions that should be filtered.
     pub patterns: GlobPatterns,
+    /// True if the filter is enabled
+    #[serde(default)]
+    pub is_enabled: bool,
 }
 
 impl IgnoreTransactionsFilterConfig {
     /// Returns true if no configuration for this filter is given.
     pub fn is_empty(&self) -> bool {
-        self.patterns.is_empty()
+        self.patterns.is_empty() || !self.is_enabled
     }
 }
 
@@ -284,6 +288,7 @@ mod tests {
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: [],
+                is_enabled: false,
             },
         }
         "###);
@@ -320,6 +325,7 @@ mod tests {
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: GlobPatterns::new(vec!["*health*".to_string()]),
+                is_enabled: true,
             },
         };
 
@@ -363,7 +369,8 @@ mod tests {
           "ignoreTransactions": {
             "patterns": [
               "*health*"
-            ]
+            ],
+            "isEnabled": true
           }
         }
         "###);
