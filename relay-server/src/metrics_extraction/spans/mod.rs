@@ -195,10 +195,8 @@ pub(crate) fn extract_span_metrics(
                     span_group.truncate(16);
                     span_tags.insert(SpanTagKey::Group, span_group);
 
-                    let truncated = truncate_span_description(
-                        scrubbed_desc,
-                        aggregator_config.max_tag_value_length,
-                    );
+                    let truncated =
+                        truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
                     span_tags.insert(SpanTagKey::Description, truncated);
                 }
             }
@@ -312,26 +310,26 @@ fn sanitized_span_description(
     Some(sanitized)
 }
 
-/// Trims the given span description to ensure
+/// Trims the given string to ensure
 /// [`relay-metrics::AggregatorService`] doesn't drop it for being too long.
 ///
-/// If the description is short, it remains unchanged. If it's long, this method
+/// If the string is short, it remains unchanged. If it's long, this method
 /// truncates it to the maximum allowed size and sets the last character to
 /// `*`.
-fn truncate_span_description(mut description: String, max_bytes: usize) -> String {
-    if bytecount::num_chars(description.as_bytes()) < max_bytes {
-        return description;
+fn truncate_string(mut string: String, max_bytes: usize) -> String {
+    if string.len() < max_bytes {
+        return string;
     }
 
     let mut cutoff = max_bytes - 1; // Leave space for `*`
 
-    while cutoff > 0 && description.is_char_boundary(cutoff) {
+    while cutoff > 0 && !string.is_char_boundary(cutoff) {
         cutoff -= 1;
     }
 
-    description.truncate(cutoff);
-    description.push('*');
-    description
+    string.truncate(cutoff);
+    string.push('*');
+    string
 }
 
 /// Regex with a capture group to extract the database action from a query.
