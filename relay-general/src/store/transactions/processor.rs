@@ -532,13 +532,12 @@ impl Processor for TransactionsProcessor<'_> {
                 .set_value(Some("<unlabeled transaction>".to_owned()))
         }
 
+        set_default_transaction_source(event);
         self.normalize_transaction_name(event)?;
 
         validate_transaction(event)?;
 
         end_all_spans(event)?;
-
-        set_default_transaction_source(event);
 
         event.process_child_values(self, state)?;
 
@@ -2100,6 +2099,73 @@ mod tests {
           "spans": []
         }
         "###);
+    }
+
+    fn run_with_unknown_source(feature: bool, sdk: &str) -> Annotated<Event> {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "/user/jane/blog/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "rails.request",
+                    "status": "ok"
+                }
+            },
+            "client_sdk": {}
+        }
+        "#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        event
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .client_sdk
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .name
+            .set_value(Some(sdk.into()));
+        let rules: Vec<TransactionNameRule> = serde_json::from_value(serde_json::json!([
+            {"pattern": "/user/*/**", "expiry": "3021-04-26T07:59:01+0100"}
+        ]))
+        .unwrap();
+
+        process_value(
+            &mut event,
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig {
+                    rules: rules.as_ref(),
+                },
+                false,
+                None,
+            ),
+            ProcessingState::root(),
+        )
+        .unwrap();
+        event
+    }
+
+    #[test]
+    fn test_empty_source_javascript() {
+        let event = run_with_unknown_source(true, "sentry.javascript.browser");
+        assert_annotated_snapshot!(event, @"");
+    }
+
+    #[test]
+    fn test_empty_source_python() {
+        let event = run_with_unknown_source(true, "sentry.python");
+        assert_annotated_snapshot!(event, @"");
+    }
+
+    #[test]
+    fn test_empty_source_javascript_disabled() {
+        let event = run_with_unknown_source(false, "sentry.javascript.browser");
+        assert_annotated_snapshot!(event, @"");
     }
 
     #[test]
