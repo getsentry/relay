@@ -381,6 +381,13 @@
 <a href="#381" id="381">381</a>
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Config structs for all filters.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -521,15 +528,19 @@
 
 <span class="doccomment">/// Configuration for transaction name filter.
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>IgnoreTransactionsFilterConfig {
     <span class="doccomment">/// List of patterns for ignored transactions that should be filtered.
     </span><span class="kw">pub </span>patterns: GlobPatterns,
+    <span class="doccomment">/// True if the filter is enabled
+    </span><span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>is_enabled: bool,
 }
 
 <span class="kw">impl </span>IgnoreTransactionsFilterConfig {
     <span class="doccomment">/// Returns true if no configuration for this filter is given.
     </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.patterns.is_empty()
+        <span class="self">self</span>.patterns.is_empty() || !<span class="self">self</span>.is_enabled
     }
 }
 
@@ -667,6 +678,7 @@
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: [],
+                is_enabled: false,
             },
         }
         &quot;###</span>);
@@ -703,6 +715,7 @@
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;*health*&quot;</span>.to_string()]),
+                is_enabled: <span class="bool-val">true</span>,
             },
         };
 
@@ -746,7 +759,8 @@
           &quot;ignoreTransactions&quot;: {
             &quot;patterns&quot;: [
               &quot;*health*&quot;
-            ]
+            ],
+            &quot;isEnabled&quot;: true
           }
         }
         &quot;###</span>);
