@@ -321,6 +321,10 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
         return string;
     }
 
+    if max_bytes == 0 {
+        return String::new();
+    }
+
     let mut cutoff = max_bytes - 1; // Leave space for `*`
 
     while cutoff > 0 && !string.is_char_boundary(cutoff) {
@@ -572,13 +576,25 @@ mod tests {
 
     #[test]
     fn test_truncate_string_no_panic() {
-        let string = "ÆÆÆÆÆÆ".to_owned();
+        let string = "aÆÆ".to_owned();
+
+        let truncated = truncate_string(string.clone(), 0);
+        assert_eq!(truncated, "");
+
+        let truncated = truncate_string(string.clone(), 1);
+        assert_eq!(truncated, "*");
+
+        let truncated = truncate_string(string.clone(), 2);
+        assert_eq!(truncated, "*");
 
         let truncated = truncate_string(string.clone(), 3);
         assert_eq!(truncated, "Æ*");
 
-        let truncated = truncate_string(string, 4);
-        assert_eq!(truncated, "Æ*");
+        let truncated = truncate_string(string.clone(), 4);
+        assert_eq!(truncated, "ÆÆ");
+
+        let truncated = truncate_string(string.clone(), 5);
+        assert_eq!(truncated, "ÆÆ");
     }
 
     macro_rules! span_transaction_method_test {
