@@ -460,7 +460,7 @@ pub struct Request {
     #[metastructure(skip_serialization = "empty")]
     pub query_string: Annotated<Query>,
 
-    /// The fragment of the request URL.
+    /// The fragment of the request URI.
     #[metastructure(pii = "true", max_chars = "summary")]
     #[metastructure(skip_serialization = "empty")]
     pub fragment: Annotated<String>,
