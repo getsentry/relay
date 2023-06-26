@@ -15,4 +15,4 @@ local pipedream_config = {
   },
 };
 
-pipedream.render(pipedream_config, relay.pipeline)
+pipedream.render(pipedream_config, relay)
