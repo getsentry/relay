@@ -32,5 +32,6 @@ jobs:
           with:
             jb-install: true
             check-for-changes: true
+            convert-to-yaml: true
             jsonnet-dir: gocd/templates
             generated-dir: gocd/generated-pipelines
