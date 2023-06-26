@@ -550,18 +550,23 @@ impl EnvelopeProcessorService {
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
-    ) -> anyhow::Result<Self> {
-        let geoip_lookup = match config.geoip_path() {
-            Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
-            None => None,
-        };
+    ) -> Self {
+        let geoip_lookup = config.geoip_path().and_then(|p| {
+            match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
+                Ok(geoip) => Some(geoip),
+                Err(err) => {
+                    relay_log::error!("failed to open GeoIP db {p:?}: {err:?}");
+                    None
+                }
+            }
+        });
 
         #[cfg(feature = "processing")]
         {
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            Ok(Self {
+            Self {
                 config,
                 rate_limiter,
                 geoip_lookup,
@@ -569,18 +574,18 @@ impl EnvelopeProcessorService {
                 outcome_aggregator,
                 project_cache,
                 upstream_relay,
-            })
+            }
         }
 
         #[cfg(not(feature = "processing"))]
-        Ok(Self {
+        Self {
             config,
             geoip_lookup,
             envelope_manager,
             outcome_aggregator,
             project_cache,
             upstream_relay,
-        })
+        }
     }
 
     /// Returns Ok(true) if attributes were modified.
