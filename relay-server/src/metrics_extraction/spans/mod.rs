@@ -11,7 +11,6 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_common::{EventType, UnixTimestamp};
 use relay_filter::csp::SchemeDomainPort;
-use relay_general::processor::MaxChars;
 use relay_general::protocol::Event;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
@@ -321,13 +320,22 @@ fn sanitized_span_description(
 /// doesn't use this type; this method uses it for simplicity, and because at
 /// the time of writing this the values are the same. If the limit this type
 /// provides is longer, this method may be ineffective.
-fn truncate_span_description(description: String) -> String {
-    let mut truncated = description;
-    if bytecount::num_chars(truncated.as_bytes()) > MaxChars::TagValue.limit() {
-        truncated.truncate(MaxChars::TagValue.limit() - 1);
-        truncated.push('*');
+fn truncate_span_description(mut description: String) -> String {
+    let max_limit = 200;
+
+    if bytecount::num_chars(description.as_bytes()) < max_limit {
+        return description;
     }
-    truncated
+
+    let mut cutoff = max_limit - 1; // Leave space for `*`
+
+    while cutoff > 0 && description.is_char_boundary(cutoff) {
+        cutoff -= 1;
+    }
+
+    description.truncate(cutoff);
+    description.push('*');
+    description
 }
 
 /// Regex with a capture group to extract the database action from a query.
