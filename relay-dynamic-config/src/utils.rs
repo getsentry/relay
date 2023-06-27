@@ -62,9 +62,19 @@ mod tests {
                 "json atom at path \".b.other\" is missing from rhs",
             ),
             (
-                // An unknown feature flag for this relay is still serialized
-                // for the following relays in chain.
+                // An unknown feature flag will not be serialized by Relay.
                 r#"{"a": 1, "features": ["organizations:is-cool"]}"#,
+                true,
+                r#"json atoms at path ".features[0]" are not equal:
+    lhs:
+        "organizations:is-cool"
+    rhs:
+        "Unknown""#,
+            ),
+            (
+                // A deprecated feature flag for this relay is still serialized
+                // for the following relays in chain.
+                r#"{"a": 1, "features": ["organizations:profiling"]}"#,
                 true,
                 "",
             ),
