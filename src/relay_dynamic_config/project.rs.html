@@ -156,7 +156,6 @@
 <a href="#156" id="156">156</a>
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
@@ -171,11 +170,10 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
 
-<span class="kw">use </span><span class="kw">crate</span>::feature::Feature;
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{
     MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-<span class="kw">use </span><span class="kw">crate</span>::ErrorBoundary;
+<span class="kw">use crate</span>::{ErrorBoundary, FeatureSet};
 
 <span class="doccomment">/// Dynamic, per-DSN configuration passed down from Sentry.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
@@ -227,8 +225,8 @@
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
     <span class="doccomment">/// Exposable features enabled for this project.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
-    </span><span class="kw">pub </span>features: BTreeSet&lt;Feature&gt;,
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;FeatureSet::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>features: FeatureSet,
     <span class="doccomment">/// Transaction renaming rules.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_rules: Vec&lt;TransactionNameRule&gt;,
@@ -259,7 +257,7 @@
             metric_extraction: Default::default(),
             span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
-            features: BTreeSet::new(),
+            features: Default::default(),
             tx_name_rules: Vec::new(),
             tx_name_ready: <span class="bool-val">false</span>,
             span_description_rules: <span class="prelude-val">None</span>,
@@ -302,8 +300,8 @@
     </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>breakdowns_v2: <span class="prelude-ty">Option</span>&lt;BreakdownsConfig&gt;,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
-    </span><span class="kw">pub </span>features: BTreeSet&lt;Feature&gt;,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;FeatureSet::is_empty&quot;</span>)]
+    </span><span class="kw">pub </span>features: FeatureSet,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_rules: Vec&lt;TransactionNameRule&gt;,
     <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as &quot;sanitized&quot;.

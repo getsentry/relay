@@ -58,64 +58,102 @@
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
 <a href="#60" id="60">60</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Features exposed by project config.
-</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash)]
+</span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 </span><span class="kw">pub enum </span>Feature {
     <span class="doccomment">/// Enables ingestion of Session Replays (Replay Recordings and Replay Events).
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:session-replay&quot;</span>)]
     </span>SessionReplay,
     <span class="doccomment">/// Enables data scrubbing of replay recording payloads.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:session-replay-recording-scrubbing&quot;</span>)]
     </span>SessionReplayRecordingScrubbing,
     <span class="doccomment">/// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:device-class-synthesis&quot;</span>)]
     </span>DeviceClassSynthesis,
     <span class="doccomment">/// Enables metric extraction from spans.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction&quot;</span>)]
     </span>SpanMetricsExtraction,
     <span class="doccomment">/// Apply transaction normalization rules to transactions from legacy SDKs.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-normalize-legacy&quot;</span>)]
     </span>NormalizeLegacyTransactions,
+
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]
+    </span>Deprecated1,
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-normalize&quot;</span>)]
+    </span>Deprecated2,
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
+    </span>Deprecated3,
+
     <span class="doccomment">/// Forward compatibility.
-    </span>Unknown(String),
+    </span><span class="attr">#[serde(other)]
+    </span>Unknown,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Feature {
+<span class="doccomment">/// A set of [`Feature`]s.
+</span><span class="attr">#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
+</span><span class="kw">pub struct </span>FeatureSet(<span class="kw">pub </span>BTreeSet&lt;Feature&gt;);
+
+<span class="kw">impl </span>FeatureSet {
+    <span class="doccomment">/// Returns `true` if the set of features is empty.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.<span class="number">0</span>.is_empty()
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>FeatureSet {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
         </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     {
-        <span class="kw">let </span>feature_name = Cow::&lt;str&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="kw">match </span>feature_name.as_ref() {
-            <span class="string">&quot;organizations:session-replay&quot; </span>=&gt; Feature::SessionReplay,
-            <span class="string">&quot;organizations:session-replay-recording-scrubbing&quot; </span>=&gt; {
-                Feature::SessionReplayRecordingScrubbing
-            }
-            <span class="string">&quot;organizations:device-class-synthesis&quot; </span>=&gt; Feature::DeviceClassSynthesis,
-            <span class="string">&quot;projects:span-metrics-extraction&quot; </span>=&gt; Feature::SpanMetricsExtraction,
-            <span class="kw">_ </span>=&gt; Feature::Unknown(feature_name.to_string()),
-        })
+        <span class="kw">let </span><span class="kw-2">mut </span>set = BTreeSet::&lt;Feature&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
+        set.remove(<span class="kw-2">&amp;</span>Feature::Unknown);
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(set))
     }
 }
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-<span class="kw">impl </span>Serialize <span class="kw">for </span>Feature {
-    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: serde::Serializer,
-    {
-        serializer.serialize_str(<span class="kw">match </span><span class="self">self </span>{
-            Feature::SessionReplay =&gt; <span class="string">&quot;organizations:session-replay&quot;</span>,
-            Feature::SessionReplayRecordingScrubbing =&gt; {
-                <span class="string">&quot;organizations:session-replay-recording-scrubbing&quot;
-            </span>}
-            Feature::DeviceClassSynthesis =&gt; <span class="string">&quot;organizations:device-class-synthesis&quot;</span>,
-            Feature::SpanMetricsExtraction =&gt; <span class="string">&quot;projects:span-metrics-extraction&quot;</span>,
-            Feature::NormalizeLegacyTransactions =&gt; {
-                <span class="string">&quot;organizations:transaction-name-normalize-legacy&quot;
-            </span>}
-            Feature::Unknown(s) =&gt; s,
-        })
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>roundtrip() {
+        <span class="kw">let </span>features: FeatureSet =
+            serde_json::from_str(<span class="string">r#&quot;[&quot;organizations:session-replay&quot;, &quot;foo&quot;]&quot;#</span>).unwrap();
+        <span class="macro">assert_eq!</span>(
+            <span class="kw-2">&amp;</span>features,
+            <span class="kw-2">&amp;</span>FeatureSet(BTreeSet::from([Feature::SessionReplay]))
+        );
+        <span class="macro">assert_eq!</span>(
+            serde_json::to_string(<span class="kw-2">&amp;</span>features).unwrap(),
+            <span class="string">r#&quot;[&quot;organizations:session-replay&quot;]&quot;#
+        </span>);
     }
 }
 </code></pre></div></section></main></body></html>

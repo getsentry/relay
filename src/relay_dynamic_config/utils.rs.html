@@ -79,6 +79,16 @@
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
@@ -143,9 +153,19 @@
                 <span class="string">&quot;json atom at path \&quot;.b.other\&quot; is missing from rhs&quot;</span>,
             ),
             (
-                <span class="comment">// An unknown feature flag for this relay is still serialized
-                // for the following relays in chain.
+                <span class="comment">// An unknown feature flag will not be serialized by Relay.
                 </span><span class="string">r#&quot;{&quot;a&quot;: 1, &quot;features&quot;: [&quot;organizations:is-cool&quot;]}&quot;#</span>,
+                <span class="bool-val">true</span>,
+                <span class="string">r#&quot;json atoms at path &quot;.features[0]&quot; are not equal:
+    lhs:
+        &quot;organizations:is-cool&quot;
+    rhs:
+        &quot;Unknown&quot;&quot;#</span>,
+            ),
+            (
+                <span class="comment">// A deprecated feature flag for this relay is still serialized
+                // for the following relays in chain.
+                </span><span class="string">r#&quot;{&quot;a&quot;: 1, &quot;features&quot;: [&quot;organizations:profiling&quot;]}&quot;#</span>,
                 <span class="bool-val">true</span>,
                 <span class="string">&quot;&quot;</span>,
             ),

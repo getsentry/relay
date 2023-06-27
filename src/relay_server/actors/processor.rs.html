@@ -6025,9 +6025,9 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
-        <span class="kw">let </span>extract_spans_metrics = project_config
-            .features
-            .contains(<span class="kw-2">&amp;</span>Feature::SpanMetricsExtraction);
+        <span class="kw">let </span>extract_spans_metrics = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtraction);
 
         <span class="kw">let </span>transaction_from_dsc = state
             .managed_envelope
