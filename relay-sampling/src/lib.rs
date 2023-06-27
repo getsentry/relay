@@ -70,7 +70,7 @@
 extern crate core;
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::net::IpAddr;
 use std::num::ParseIntError;
@@ -229,27 +229,6 @@ impl GlobCondition {
     }
 }
 
-/// Condition that cover custom operators which need
-/// special handling and have a custom implementation
-/// for each case.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CustomCondition {
-    pub name: String,
-    #[serde(default)]
-    pub value: Value,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub options: HashMap<String, Value>,
-}
-
-impl CustomCondition {
-    fn matches<T>(&self, value_provider: &T, ip_addr: Option<IpAddr>) -> bool
-    where
-        T: FieldValueProvider,
-    {
-        T::get_custom_operator(&self.name)(self, value_provider, ip_addr)
-    }
-}
-
 /// Or condition combinator.
 ///
 /// Creates a condition that is true when any
@@ -328,7 +307,6 @@ pub enum RuleCondition {
     Or(OrCondition),
     And(AndCondition),
     Not(NotCondition),
-    Custom(CustomCondition),
     #[serde(other)]
     Unsupported,
 }
@@ -356,7 +334,6 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
-            RuleCondition::Custom(_) => true,
         }
     }
     pub fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
@@ -374,7 +351,6 @@ impl RuleCondition {
             RuleCondition::Or(conditions) => conditions.matches(value, ip_addr),
             RuleCondition::Not(condition) => condition.matches(value, ip_addr),
             RuleCondition::Unsupported => false,
-            RuleCondition::Custom(condition) => condition.matches(value, ip_addr),
         }
     }
 }
@@ -597,16 +573,6 @@ impl SamplingRule {
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
-    /// returns a filtering function for custom operators.
-    /// The function returned takes the provider and a condition definition and
-    /// returns a match result
-    fn get_custom_operator(
-        name: &str,
-    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool;
-}
-
-fn no_match<T>(_condition: &CustomCondition, _slf: &T, _ip_addr: Option<IpAddr>) -> bool {
-    false
 }
 
 impl FieldValueProvider for Event {
@@ -712,13 +678,6 @@ impl FieldValueProvider for Event {
                 _ => Value::Null,
             },
 
-            // Inbound filter functions represented as fields
-            "is_local_ip" => Value::Bool(relay_filter::localhost::matches(self)),
-            "has_bad_browser_extensions" => {
-                Value::Bool(relay_filter::browser_extensions::matches(self))
-            }
-            "web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
-
             // Dynamic access to certain data bags
             _ => {
                 if let Some(rest) = field_name.strip_prefix("measurements.") {
@@ -736,82 +695,6 @@ impl FieldValueProvider for Event {
                 }
             }
         }
-    }
-
-    fn get_custom_operator(
-        name: &str,
-    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
-        match name {
-            "event.client_ip" => client_ips_matcher,
-            "event.legacy_browser" => legacy_browsers_matcher,
-            "event.error_messages" => error_messages_matcher,
-            "event.csp" => csp_matcher,
-            _ => no_match,
-        }
-    }
-}
-
-fn client_ips_matcher(
-    condition: &CustomCondition,
-    _event: &Event,
-    ip_addr: Option<IpAddr>,
-) -> bool {
-    let ips = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
-
-    if let Some(ips) = ips {
-        relay_filter::client_ips::matches(ip_addr, ips)
-    } else {
-        false
-    }
-}
-
-fn legacy_browsers_matcher(
-    condition: &CustomCondition,
-    event: &Event,
-    _ip_addr: Option<IpAddr>,
-) -> bool {
-    let browsers = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").parse().unwrap()));
-    if let Some(browsers) = browsers {
-        relay_filter::legacy_browsers::matches(event, &browsers.collect())
-    } else {
-        false
-    }
-}
-
-fn error_messages_matcher(
-    condition: &CustomCondition,
-    event: &Event,
-    _ip_addr: Option<IpAddr>,
-) -> bool {
-    let patterns = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").to_owned()));
-
-    if let Some(patterns) = patterns {
-        let globs = GlobPatterns::new(patterns.collect());
-        relay_filter::error_messages::matches(event, &globs)
-    } else {
-        false
-    }
-}
-
-fn csp_matcher(condition: &CustomCondition, event: &Event, _ip_addr: Option<IpAddr>) -> bool {
-    let sources = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
-
-    if let Some(sources) = sources {
-        relay_filter::csp::matches(event, sources)
-    } else {
-        false
     }
 }
 
@@ -850,13 +733,6 @@ impl FieldValueProvider for DynamicSamplingContext {
             },
             _ => Value::Null,
         }
-    }
-
-    fn get_custom_operator(
-        _name: &str,
-    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
-        // no custom operators for trace
-        no_match
     }
 }
 
@@ -1378,7 +1254,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use relay_general::protocol::{
-        Contexts, Csp, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
+        Contexts, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
         LenientString, LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
     };
     use relay_general::types::Annotated;
@@ -1459,26 +1335,10 @@ mod tests {
         })
     }
 
-    fn eq_bool(name: &str, value: bool) -> RuleCondition {
-        RuleCondition::Eq(EqCondition {
-            name: name.to_owned(),
-            value: Value::Bool(value),
-            options: EqCondOptions::default(),
-        })
-    }
-
     fn glob(name: &str, value: &[&str]) -> RuleCondition {
         RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
-        })
-    }
-
-    fn custom(name: &str, value: Value, options: HashMap<String, Value>) -> RuleCondition {
-        RuleCondition::Custom(CustomCondition {
-            name: name.to_owned(),
-            value,
-            options,
         })
     }
 
@@ -1775,12 +1635,6 @@ mod tests {
             Some("user-seg"),
             event.get_value("event.user.segment").as_str()
         );
-        assert_eq!(Value::Bool(true), event.get_value("event.is_local_ip"),);
-        assert_eq!(
-            Value::Bool(true),
-            event.get_value("event.has_bad_browser_extensions")
-        );
-        assert_eq!(Value::Bool(true), event.get_value("event.web_crawlers"));
         assert_eq!(
             Some("some-transaction"),
             event.get_value("event.transaction").as_str()
@@ -1808,8 +1662,8 @@ mod tests {
         assert_eq!(Value::Null, event.get_value("event.tags.doesntexist"));
     }
 
-    #[test]
     /// test extraction of field values from empty event
+    #[test]
     fn test_field_value_provider_event_empty() {
         let event = Event::default();
 
@@ -1817,12 +1671,6 @@ mod tests {
         assert_eq!(Value::Null, event.get_value("event.environment"));
         assert_eq!(Value::Null, event.get_value("event.user.id"));
         assert_eq!(Value::Null, event.get_value("event.user.segment"));
-        assert_eq!(Value::Bool(false), event.get_value("event.is_local_ip"),);
-        assert_eq!(
-            Value::Bool(false),
-            event.get_value("event.has_bad_browser_extensions")
-        );
-        assert_eq!(Value::Bool(false), event.get_value("event.web_crawlers"));
 
         // now try with an empty user
         let event = Event {
@@ -2040,30 +1888,6 @@ mod tests {
                 "environment",
                 or(vec![eq("event.environment", &["prod"], true)]),
             ),
-            ("local ip", eq_bool("event.is_local_ip", true)),
-            (
-                "bad browser extensions",
-                eq_bool("event.has_bad_browser_extensions", true),
-            ),
-            (
-                "error messages",
-                custom(
-                    "event.error_messages",
-                    Value::Array(vec![Value::String("abc".to_string())]),
-                    HashMap::new(),
-                ),
-            ),
-            (
-                "legacy browsers",
-                custom(
-                    "event.legacy_browser",
-                    Value::Array(vec![
-                        Value::String("ie10".to_string()),
-                        Value::String("safari_pre_6".to_string()),
-                    ]),
-                    HashMap::new(),
-                ),
-            ),
         ];
 
         let evt = Event {
@@ -2103,45 +1927,6 @@ mod tests {
             let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
             assert!(condition.matches(&evt, ip_addr), "{failure_name}");
         }
-    }
-
-    #[test]
-    /// test matching web crawlers
-    fn test_matches_web_crawlers() {
-        let condition = eq_bool("event.web_crawlers", true);
-
-        let evt = Event {
-            request: Annotated::new(Request {
-                headers: Annotated::new(Headers(PairList(vec![Annotated::new((
-                    Annotated::new("user-agent".into()),
-                    Annotated::new("some crawler user agent: BingBot".into()),
-                ))]))),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert!(condition.matches(&evt, None));
-    }
-
-    #[test]
-    /// test matching for csp
-    fn test_matches_csp_events() {
-        let blocked_url = "bbc.com";
-        let condition = custom(
-            "event.csp",
-            Value::Array(vec![Value::String(blocked_url.to_owned())]),
-            HashMap::new(),
-        );
-
-        let evt = Event {
-            ty: Annotated::from(EventType::Csp),
-            csp: Annotated::from(Csp {
-                blocked_uri: Annotated::from(blocked_url.to_string()),
-                ..Csp::default()
-            }),
-            ..Event::default()
-        };
-        assert!(condition.matches(&evt, None));
     }
 
     #[test]
@@ -2413,22 +2198,6 @@ mod tests {
                 "name": "field_6",
                 "value": ["3.*"]
             }]
-        },
-        {
-            "op":"custom",
-            "name": "some_custom_op",
-            "value":["default","ie_pre_9"],
-            "options": { "o1": [1,2,3]}
-        },
-        {
-            "op": "custom",
-            "name": "some_custom_op",
-            "options": {"o1":[1,2,3]}
-        },
-        {
-            "op":"custom",
-            "name": "some_custom_op",
-            "value": "some val"
         }
         ]
         "#;
@@ -2497,38 +2266,6 @@ mod tests {
                     ],
                   ),
                 ],
-              ),
-              CustomCondition(
-                op: "custom",
-                name: "some_custom_op",
-                value: [
-                  "default",
-                  "ie_pre_9",
-                ],
-                options: {
-                  "o1": [
-                    1,
-                    2,
-                    3,
-                  ],
-                },
-              ),
-              CustomCondition(
-                op: "custom",
-                name: "some_custom_op",
-                value: (),
-                options: {
-                  "o1": [
-                    1,
-                    2,
-                    3,
-                  ],
-                },
-              ),
-              CustomCondition(
-                op: "custom",
-                name: "some_custom_op",
-                value: "some val",
               ),
             ]"###);
     }
