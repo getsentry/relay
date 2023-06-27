@@ -59,7 +59,7 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
     /// Configuration for generic metrics extraction from all data categories.
-    #[serde(default, skip_serializing_if = "should_serialize_metrics_extraction")]
+    #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
     pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     /// The span attributes configuration.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
@@ -108,10 +108,10 @@ impl Default for ProjectConfig {
     }
 }
 
-fn should_serialize_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> bool {
+fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> bool {
     match boundary {
-        ErrorBoundary::Err(_) => false,
-        ErrorBoundary::Ok(config) => !config.is_empty(),
+        ErrorBoundary::Err(_) => true,
+        ErrorBoundary::Ok(config) => config.is_empty(),
     }
 }
 
