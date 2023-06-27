@@ -370,13 +370,7 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
     let match_result = if let (Ok(event), Ok(dsc)) = (event, dsc) {
-        SamplingMatch::match_against_rules(
-            rules.iter(),
-            event.value(),
-            Some(&dsc),
-            None,
-            Utc::now(),
-        )
+        SamplingMatch::match_against_rules(rules.iter(), event.value(), Some(&dsc), Utc::now())
     } else {
         None
     };
