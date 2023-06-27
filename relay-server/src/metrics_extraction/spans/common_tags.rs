@@ -35,6 +35,10 @@ pub(crate) fn common_span_tags(span: &Span, max_tag_len: usize) -> BTreeMap<Span
 }
 
 fn normalized_description(span: &Span) -> Option<String> {
+    if let Some(desc) = scrubbed_description(span) {
+        return Some(desc.to_owned());
+    }
+
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
@@ -43,14 +47,9 @@ fn normalized_description(span: &Span) -> Option<String> {
         } else {
             None
         };
-
-        let scrubbed_description = scrubbed_description(span);
         let action = http_tags::action(span);
         let domain = http_tags::domain(span);
 
-        if let Some(d) = scrubbed_description {
-            return Some(d.to_owned());
-        }
         return fallback_span_description(span_module, action.as_deref(), domain.as_deref());
     }
     None
