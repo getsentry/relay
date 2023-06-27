@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add the configuration protocol for generic metrics extraction. ([#2252](https://github.com/getsentry/relay/pull/2252))
+
 ## 0.8.27
 
 - Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251))
