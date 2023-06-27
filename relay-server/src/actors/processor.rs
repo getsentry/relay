@@ -2266,7 +2266,6 @@ impl EnvelopeProcessorService {
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
-            state.envelope().meta().client_addr(),
         );
     }
 
@@ -2297,7 +2296,6 @@ impl EnvelopeProcessorService {
                 Some(root_project_state),
                 Some(dsc),
                 None,
-                state.envelope().meta().client_addr(),
             )
         } else {
             return;

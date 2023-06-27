@@ -71,8 +71,7 @@ extern crate core;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fmt::{self, Display, Formatter};
-use std::net::IpAddr;
+use std::fmt;
 use std::num::ParseIntError;
 
 use chrono::{DateTime, Utc};
@@ -243,11 +242,11 @@ impl OrCondition {
         self.inner.iter().all(RuleCondition::supported)
     }
 
-    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
-        self.inner.iter().any(|cond| cond.matches(value, ip_addr))
+        self.inner.iter().any(|cond| cond.matches(value))
     }
 }
 
@@ -264,11 +263,11 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
-        self.inner.iter().all(|cond| cond.matches(value, ip_addr))
+        self.inner.iter().all(|cond| cond.matches(value))
     }
 }
 
@@ -286,11 +285,11 @@ impl NotCondition {
         self.inner.supported()
     }
 
-    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
-        !self.inner.matches(value, ip_addr)
+        !self.inner.matches(value)
     }
 }
 
@@ -336,7 +335,8 @@ impl RuleCondition {
             RuleCondition::Not(rule) => rule.supported(),
         }
     }
-    pub fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+
+    pub fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
@@ -347,9 +347,9 @@ impl RuleCondition {
             RuleCondition::Gt(condition) => condition.matches(value),
             RuleCondition::Lt(condition) => condition.matches(value),
             RuleCondition::Glob(condition) => condition.matches(value),
-            RuleCondition::And(conditions) => conditions.matches(value, ip_addr),
-            RuleCondition::Or(conditions) => conditions.matches(value, ip_addr),
-            RuleCondition::Not(condition) => condition.matches(value, ip_addr),
+            RuleCondition::And(conditions) => conditions.matches(value),
+            RuleCondition::Or(conditions) => conditions.matches(value),
+            RuleCondition::Not(condition) => condition.matches(value),
             RuleCondition::Unsupported => false,
         }
     }
@@ -359,8 +359,8 @@ impl RuleCondition {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct RuleId(pub u32);
 
-impl Display for RuleId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for RuleId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -791,8 +791,8 @@ impl MatchedRuleIds {
     }
 }
 
-impl Display for MatchedRuleIds {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for MatchedRuleIds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
@@ -855,7 +855,6 @@ pub fn merge_configs_and_match(
     root_sampling_config: Option<&SamplingConfig>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
-    ip_addr: Option<IpAddr>,
     now: DateTime<Utc>,
 ) -> Option<SamplingMatch> {
     // We check if there are unsupported rules in any of the two configurations.
@@ -863,7 +862,7 @@ pub fn merge_configs_and_match(
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
-    let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, ip_addr, now)?;
+    let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, now)?;
 
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
@@ -935,7 +934,6 @@ impl SamplingMatch {
         rules: I,
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
-        ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch>
     where
@@ -962,11 +960,11 @@ impl SamplingMatch {
         for rule in rules {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
-                    Some(dsc) => rule.condition.matches(dsc, ip_addr),
+                    Some(dsc) => rule.condition.matches(dsc),
                     _ => false,
                 },
                 RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
-                    Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
+                    Some(EventType::Transaction) => rule.condition.matches(event),
                     _ => false,
                 }),
                 _ => false,
@@ -1246,11 +1244,9 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
-    use chrono::Duration as DateDuration;
-    use chrono::{TimeZone, Utc};
+    use chrono::{Duration as DateDuration, TimeZone, Utc};
     use similar_asserts::assert_eq;
 
     use relay_general::protocol::{
@@ -1540,13 +1536,7 @@ mod tests {
         dsc: &DynamicSamplingContext,
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch> {
-        SamplingMatch::match_against_rules(
-            config.rules_v2.iter(),
-            Some(event),
-            Some(dsc),
-            None,
-            now,
-        )
+        SamplingMatch::match_against_rules(config.rules_v2.iter(), Some(event), Some(dsc), now)
     }
 
     fn merge_root_and_non_root_configs_with(
@@ -1871,7 +1861,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None), "{failure_name}");
+            assert!(condition.matches(&dsc), "{failure_name}");
         }
     }
 
@@ -1924,8 +1914,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-            assert!(condition.matches(&evt, ip_addr), "{failure_name}");
+            assert!(condition.matches(&evt), "{failure_name}");
         }
     }
 
@@ -1984,7 +1973,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
         }
     }
 
@@ -2043,7 +2032,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
         }
     }
 
@@ -2079,7 +2068,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
         }
     }
 
@@ -2138,7 +2127,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(!condition.matches(&dsc, None), "{failure_name}");
+            assert!(!condition.matches(&dsc), "{failure_name}");
         }
     }
 
@@ -2488,7 +2477,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing release"
         );
 
@@ -2509,7 +2498,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing user segment"
         );
 
@@ -2533,7 +2522,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing environment"
         );
 
@@ -2557,7 +2546,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing transaction"
         );
         let condition = and(vec![]);
@@ -2574,7 +2563,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing release, user segment, environment and transaction"
         );
     }
@@ -3237,7 +3226,6 @@ mod tests {
             None,
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3258,7 +3246,6 @@ mod tests {
             Some(&root_project_sampling_config),
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
@@ -3270,7 +3257,6 @@ mod tests {
             None,
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3291,7 +3277,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3312,7 +3297,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_trace_match!(result, 1.0, dsc, 6);
@@ -3333,7 +3317,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_trace_match!(result, 0.75, dsc, 2, 5, 7);
@@ -3352,7 +3335,6 @@ mod tests {
             None,
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
@@ -3372,7 +3354,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.625, event, 3);
@@ -3406,7 +3387,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3417,7 +3397,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
@@ -3438,7 +3417,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3457,7 +3435,6 @@ mod tests {
             None,
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3470,7 +3447,6 @@ mod tests {
             Some(&root_project_sampling_config),
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3493,15 +3469,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_transaction_match!(result, 0.75, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -3515,15 +3484,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_transaction_match!(result, 1.0, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -3537,15 +3499,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
     }
 
@@ -3566,15 +3521,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -3588,15 +3536,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -3610,15 +3551,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
     }
 
@@ -3650,15 +3584,8 @@ mod tests {
             mode: SamplingMode::Received,
         };
 
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert!(result.is_some());
         if let Some(SamplingMatch {
             sample_rate,
@@ -3685,7 +3612,6 @@ mod tests {
             Some(&root_sampling_config),
             Some(&dsc),
             None,
-            None,
             now,
         );
         assert_trace_match!(result, 1.0, dsc, 6);
@@ -3703,7 +3629,6 @@ mod tests {
             Some(&root_sampling_config),
             None,
             None,
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3716,7 +3641,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
 
         let result =
-            merge_configs_and_match(true, None, None, Some(&dsc), Some(&event), None, Utc::now());
+            merge_configs_and_match(true, None, None, Some(&dsc), Some(&event), Utc::now());
         assert_no_match!(result);
     }
 }
