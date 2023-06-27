@@ -16,9 +16,10 @@ use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
 
-mod cache_spans;
-mod db_spans;
-mod http_spans;
+mod cache_span_tags;
+mod common_tags;
+mod db_span_tags;
+mod http_span_tags;
 mod types;
 
 /// Extracts metrics from the spans of the given transaction, and sets common
@@ -112,39 +113,22 @@ pub(crate) fn extract_span_metrics(
                 }
 
                 let op_based_tags = if span_op.starts_with("http") {
-                    http_spans::extract_http_span_tags(span)
+                    http_span_tags::extract_http_span_tags(span)
                 } else if span_op.starts_with("db") {
-                    db_spans::extract_db_span_tags(span)
+                    db_span_tags::extract_db_span_tags(span)
                 } else if span_op.starts_with("cache") {
-                    cache_spans::extract_cache_span_tags(span)
+                    cache_span_tags::extract_cache_span_tags(span)
                 } else {
                     BTreeMap::new()
                 };
 
                 span_tags.extend(op_based_tags.into_iter());
 
-                if let Some(normalized_desc) = get_normalized_description(span) {
-                    // Truncating the span description's tag value is, for now,
-                    // a temporary solution to not get large descriptions dropped. The
-                    // group tag mustn't be affected by this, and still be
-                    // computed from the full, untruncated description.
-
-                    let mut span_group = format!("{:?}", md5::compute(&normalized_desc));
-                    span_group.truncate(16);
-                    span_tags.insert(SpanTagKey::Group, span_group);
-
-                    let truncated =
-                        truncate_string(normalized_desc, aggregator_config.max_tag_value_length);
-                    span_tags.insert(SpanTagKey::Description, truncated);
-                }
-            }
-
-            if let Some(span_status) = span.status.value() {
-                span_tags.insert(SpanTagKey::Status, span_status.to_string());
-            }
-
-            if let Some(status_code) = http_status_code_from_span(span) {
-                span_tags.insert(SpanTagKey::StatusCode, status_code);
+                let common_tags = common_tags::extract_common_span_tags(
+                    span,
+                    aggregator_config.max_tag_value_length,
+                );
+                span_tags.extend(common_tags.into_iter());
             }
 
             // Even if we emit metrics, we want this info to be duplicated in every span.
@@ -205,6 +189,7 @@ pub(crate) fn extract_span_metrics(
     Ok(())
 }
 
+// remove
 fn get_normalized_description(span: &Span) -> Option<String> {
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
@@ -310,6 +295,7 @@ fn sanitized_span_description(
     Some(sanitized)
 }
 
+// remove
 /// Trims the given string with the given maximum bytes. Splitting only happens
 /// on char boundaries.
 ///
