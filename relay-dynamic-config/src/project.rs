@@ -13,7 +13,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::feature::Feature;
-use crate::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};
+use crate::metrics::{
+    MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
+};
+use crate::ErrorBoundary;
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +58,9 @@ pub struct ProjectConfig {
     /// Configuration for extracting metrics from transaction events.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
+    /// Configuration for generic metrics extraction from all data categories.
+    #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
+    pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     /// The span attributes configuration.
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]
     pub span_attributes: BTreeSet<SpanAttribute>,
@@ -91,6 +97,7 @@ impl Default for ProjectConfig {
             breakdowns_v2: None,
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: None,
+            metric_extraction: Default::default(),
             span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
@@ -98,6 +105,13 @@ impl Default for ProjectConfig {
             tx_name_ready: false,
             span_description_rules: None,
         }
+    }
+}
+
+fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> bool {
+    match boundary {
+        ErrorBoundary::Err(_) => true,
+        ErrorBoundary::Ok(config) => !config.is_enabled(),
     }
 }
 

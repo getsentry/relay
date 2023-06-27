@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 
+use relay_common::DataCategory;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +25,7 @@ pub struct TaggingRule {
 /// Current version of metrics extraction.
 const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
+const METRIC_EXTRACTION_VERSION: u16 = 1;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -122,5 +124,185 @@ impl TransactionMetricsConfig {
     /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= TRANSACTION_EXTRACT_VERSION
+    }
+}
+
+/// Configuration for generic extraction of metrics from all data categories.
+#[derive(Clone, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricExtractionConfig {
+    /// Versioning of metrics extraction. Relay skips extraction if the version is not supported.
+    pub version: u16,
+
+    /// A list of metric specifications to extract.
+    #[serde(default)]
+    pub metrics: Vec<MetricSpec>,
+
+    /// A list of tags to add to previously extracted metrics.
+    ///
+    /// These tags add further tags to a range of metrics. If some metrics already have a matching
+    /// tag extracted, the existing tag is left unchanged.
+    #[serde(default)]
+    pub tags: Vec<TagMapping>,
+}
+
+impl MetricExtractionConfig {
+    /// Returns `true` if metric extraction is configured.
+    pub fn is_enabled(&self) -> bool {
+        self.version > 0
+            && self.version <= METRIC_EXTRACTION_VERSION
+            && !(self.metrics.is_empty() && self.tags.is_empty())
+    }
+}
+
+/// Specification for a metric to extract from some data.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetricSpec {
+    /// Category of data to extract this metric for.
+    pub category: DataCategory,
+
+    /// The Metric Resource Identifier (MRI) of the metric to extract.
+    pub mri: String,
+
+    /// A path to the field to extract the metric from.
+    ///
+    /// This value contains a fully qualified expression pointing at the data field in the payload
+    /// to extract the metric from. It follows the
+    /// [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax that is also used for
+    /// dynamic sampling.
+    ///
+    /// How the value is treated depends on the metric type:
+    ///
+    /// - **Counter** metrics are a special case, since the default product counters do not count
+    ///   any specific field but rather the occurrence of the event. As such, there is no value
+    ///   expression, and the field is set to `None`. Semantics of specifying remain undefined at
+    ///   this point.
+    /// - **Distribution** metrics require a numeric value. If the value at the specified path is
+    ///   not numeric, metric extraction will be skipped.
+    /// - **Set** metrics require a string value, which is then emitted into the set as unique
+    ///   value. Insertion of numbers and other types is undefined.
+    ///
+    /// If the field does not exist, extraction is skipped.
+    #[serde(default)]
+    pub field: Option<String>,
+
+    /// An optional condition to meet before extraction.
+    ///
+    /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
+    /// condition is specified, the metric is extracted unconditionally.
+    #[serde(default)]
+    pub condition: Option<RuleCondition>,
+
+    /// A list of tags to add to the metric.
+    ///
+    /// Tags can be conditional, see [`TagSpec`] for configuration options. For this reason, it is
+    /// possible to list tag keys multiple times, each with different conditions. The first matching
+    /// condition will be applied.
+    #[serde(default)]
+    pub tags: Vec<TagSpec>,
+}
+
+/// Mapping between extracted metrics and additional tags to extract.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagMapping {
+    /// A list of Metric Resource Identifiers (MRI) to apply tags to.
+    ///
+    /// Entries in this list can contain wildcards to match metrics with dynamic MRIs.
+    #[serde(default)]
+    pub metrics: Vec<String>,
+
+    /// A list of tags to add to the metric.
+    ///
+    /// Tags can be conditional, see [`TagSpec`] for configuration options. For this reason, it is
+    /// possible to list tag keys multiple times, each with different conditions. The first matching
+    /// condition will be applied.
+    #[serde(default)]
+    pub tags: Vec<TagSpec>,
+}
+
+/// Configuration for a tag to add to a metric.
+///
+/// Tags values can be static if defined through `value` or dynamically queried from the payload if
+/// defined through `field`. These two options are mutually exclusive, behavior is undefined if both
+/// are specified.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagSpec {
+    /// The key of the tag to extract.
+    pub key: String,
+
+    /// Path to a field containing the tag's value.
+    ///
+    /// It follows the [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax to read
+    /// data from the payload.
+    ///
+    /// Mutually exclusive with `value`.
+    #[serde(default)]
+    pub field: Option<String>,
+
+    /// Literal value of the tag.
+    ///
+    /// Mutually exclusive with `field`.
+    #[serde(default)]
+    pub value: Option<String>,
+
+    /// An optional condition to meet before extraction.
+    ///
+    /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
+    /// condition is specified, the tag is added unconditionally, provided it is not already there.
+    #[serde(default)]
+    pub condition: Option<RuleCondition>,
+}
+
+impl TagSpec {
+    /// Returns the source of tag values, either literal or a field.
+    pub fn source(&self) -> TagSource<'_> {
+        if let Some(ref field) = self.field {
+            TagSource::Field(field)
+        } else if let Some(ref value) = self.value {
+            TagSource::Literal(value)
+        } else {
+            TagSource::Unknown
+        }
+    }
+}
+
+/// Specifies how to obtain the value of a tag in [`TagSpec`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum TagSource<'a> {
+    /// A literal value.
+    Literal(&'a str),
+    /// Path to a field to evaluate.
+    Field(&'a str),
+    /// An unsupported or unknown source.
+    Unknown,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use similar_asserts::assert_eq;
+
+    #[test]
+    fn parse_tag_spec_value() {
+        let json = r#"{"key":"foo","value":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.source(), TagSource::Literal("bar"));
+    }
+
+    #[test]
+    fn parse_tag_spec_field() {
+        let json = r#"{"key":"foo","field":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.source(), TagSource::Field("bar"));
+    }
+
+    #[test]
+    fn parse_tag_spec_unsupported() {
+        let json = r#"{"key":"foo","somethingNew":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.source(), TagSource::Unknown);
     }
 }
