@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_general::protocol::Span;
 
-use crate::metrics_extraction::spans::http_span_tags;
+use crate::metrics_extraction::spans::http_tags;
 use crate::metrics_extraction::spans::types::SpanTagKey;
 use crate::metrics_extraction::utils::http_status_code_from_span;
 
@@ -48,8 +48,8 @@ fn normalized_description(span: &Span) -> Option<String> {
         };
 
         let scrubbed_description = scrubbed_description(span);
-        let action = http_span_tags::action(span);
-        let domain = http_span_tags::domain(span);
+        let action = http_tags::action(span);
+        let domain = http_tags::domain(span);
 
         if let Some(d) = scrubbed_description {
             return Some(d.to_owned());

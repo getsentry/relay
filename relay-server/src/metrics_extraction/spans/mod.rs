@@ -13,10 +13,10 @@ use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
 
-mod cache_span_tags;
+mod cache_tags;
 mod common_tags;
-mod db_span_tags;
-mod http_span_tags;
+mod db_tags;
+mod http_tags;
 mod types;
 
 /// Extracts metrics from the spans of the given transaction, and sets common
@@ -110,11 +110,11 @@ pub(crate) fn extract_span_metrics(
                 }
 
                 let op_based_tags = if span_op.starts_with("http") {
-                    http_span_tags::extract_http_span_tags(span)
+                    http_tags::extract_http_span_tags(span)
                 } else if span_op.starts_with("db") {
-                    db_span_tags::extract_db_span_tags(span)
+                    db_tags::extract_db_span_tags(span)
                 } else if span_op.starts_with("cache") {
-                    cache_span_tags::extract_cache_span_tags(span)
+                    cache_tags::extract_cache_span_tags(span)
                 } else {
                     BTreeMap::new()
                 };
