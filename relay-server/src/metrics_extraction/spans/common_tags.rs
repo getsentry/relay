@@ -42,15 +42,12 @@ fn normalized_description(span: &Span) -> Option<String> {
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-        let span_module = if span_op.starts_with("http") {
-            Some("http")
-        } else {
-            None
-        };
-        let action = http_tags::action(span);
-        let domain = http_tags::domain(span);
+        if span_op.starts_with("http") {
+            let action = http_tags::action(span);
+            let domain = http_tags::domain(span);
 
-        return fallback_span_description(span_module, action.as_deref(), domain.as_deref());
+            return fallback_span_description(action.as_deref(), domain.as_deref());
+        };
     }
     None
 }
@@ -62,21 +59,11 @@ fn scrubbed_description(span: &Span) -> Option<&str> {
         .and_then(|value| value.as_str())
 }
 
-/// Returns the sanitized span description.
+/// Returns the fallback span description for URL spans.
 ///
-/// If a scrub description is provided, that's returned. If not, a new
-/// description is built for `http*` modules with the following format:
+/// The fallback description is built with the following format:
 /// `{action} {domain}/<unparameterized>`.
-fn fallback_span_description(
-    module: Option<&str>,
-    action: Option<&str>,
-    domain: Option<&str>,
-) -> Option<String> {
-    match module {
-        Some("http") => (),
-        _ => return None,
-    };
-
+fn fallback_span_description(action: Option<&str>, domain: Option<&str>) -> Option<String> {
     let mut sanitized = String::new();
 
     if let Some(a) = action {
