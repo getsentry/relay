@@ -11,11 +11,12 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_common::{EventType, UnixTimestamp};
 use relay_filter::csp::SchemeDomainPort;
-use relay_general::protocol::Event;
+use relay_general::protocol::{Event, Span};
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
 
+mod http_spans;
 mod types;
 
 /// Extracts metrics from the spans of the given transaction, and sets common
@@ -108,9 +109,15 @@ pub(crate) fn extract_span_metrics(
                     span_tags.insert(SpanTagKey::Category, category.to_owned());
                 }
 
-                let span_module = if span_op.starts_with("http") {
-                    Some("http")
-                } else if span_op.starts_with("db") {
+                let op_based_tags = if span_op.starts_with("http") {
+                    http_spans::extract_http_span_tags(span)
+                } else {
+                    BTreeMap::new()
+                };
+
+                span_tags.extend(op_based_tags.into_iter());
+
+                let span_module = if span_op.starts_with("db") {
                     Some("db")
                 } else if span_op.starts_with("cache") {
                     Some("cache")
@@ -126,13 +133,6 @@ pub(crate) fn extract_span_metrics(
                 // or `db.operation`. This is not guaranteed, and we'll need to
                 // parse the span description in that case.
                 let action = match span_module {
-                    Some("http") => span
-                        .data
-                        .value()
-                        // TODO(iker): some SDKs extract this as method
-                        .and_then(|v| v.get("http.method"))
-                        .and_then(|method| method.as_str())
-                        .map(|s| s.to_uppercase()),
                     Some("db") => {
                         let action_from_data = span
                             .data
@@ -154,12 +154,7 @@ pub(crate) fn extract_span_metrics(
                     span_tags.insert(SpanTagKey::Action, act);
                 }
 
-                let domain = if span_op == "http.client" {
-                    span.description
-                        .value()
-                        .and_then(|url| domain_from_http_url(url))
-                        .map(|d| d.to_lowercase())
-                } else if span_op.starts_with("db") {
+                let domain = if span_op.starts_with("db") {
                     span.description
                         .value()
                         .and_then(|query| sql_table_from_query(query))
@@ -172,31 +167,18 @@ pub(crate) fn extract_span_metrics(
                     span_tags.insert(SpanTagKey::Domain, dom);
                 }
 
-                let scrubbed_description = span
-                    .data
-                    .value()
-                    .and_then(|data| data.get("description.scrubbed"))
-                    .and_then(|value| value.as_str());
-
-                let sanitized_description = sanitized_span_description(
-                    scrubbed_description,
-                    span_module,
-                    action.as_deref(),
-                    domain.as_deref(),
-                );
-
-                if let Some(scrubbed_desc) = sanitized_description {
+                if let Some(normalized_desc) = get_normalized_description(span) {
                     // Truncating the span description's tag value is, for now,
                     // a temporary solution to not get large descriptions dropped. The
                     // group tag mustn't be affected by this, and still be
                     // computed from the full, untruncated description.
 
-                    let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
+                    let mut span_group = format!("{:?}", md5::compute(&normalized_desc));
                     span_group.truncate(16);
                     span_tags.insert(SpanTagKey::Group, span_group);
 
                     let truncated =
-                        truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
+                        truncate_string(normalized_desc, aggregator_config.max_tag_value_length);
                     span_tags.insert(SpanTagKey::Description, truncated);
                 }
             }
@@ -274,6 +256,77 @@ pub(crate) fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+fn get_normalized_description(span: &Span) -> Option<String> {
+    if let Some(unsanitized_span_op) = span.op.value() {
+        let span_op = unsanitized_span_op.to_owned().to_lowercase();
+
+        let span_module = if span_op.starts_with("http") {
+            Some("http")
+        } else if span_op.starts_with("db") {
+            Some("db")
+        } else if span_op.starts_with("cache") {
+            Some("cache")
+        } else {
+            None
+        };
+
+        let scrubbed_description = span
+            .data
+            .value()
+            .and_then(|data| data.get("description.scrubbed"))
+            .and_then(|value| value.as_str());
+
+        let action = match span_module {
+            Some("http") => span
+                .data
+                .value()
+                // TODO(iker): some SDKs extract this as method
+                .and_then(|v| v.get("http.method"))
+                .and_then(|method| method.as_str())
+                .map(|s| s.to_uppercase()),
+            Some("db") => {
+                let action_from_data = span
+                    .data
+                    .value()
+                    .and_then(|v| v.get("db.operation"))
+                    .and_then(|db_op| db_op.as_str())
+                    .map(|s| s.to_uppercase());
+                action_from_data.or_else(|| {
+                    span.description
+                        .value()
+                        .and_then(|d| sql_action_from_query(d))
+                        .map(|a| a.to_uppercase())
+                })
+            }
+            _ => None,
+        };
+
+        let domain = if span_op == "http.client" {
+            span.description
+                .value()
+                .and_then(|url| domain_from_http_url(url))
+                .map(|d| d.to_lowercase())
+        } else if span_op.starts_with("db") {
+            span.description
+                .value()
+                .and_then(|query| sql_table_from_query(query))
+                .map(|t| t.to_lowercase())
+        } else {
+            None
+        };
+
+        let sanitized_description = sanitized_span_description(
+            scrubbed_description,
+            span_module,
+            action.as_deref(),
+            domain.as_deref(),
+        );
+        // dbg!(&sanitized_description);
+        return sanitized_description;
+    }
+    None
 }
 
 /// Returns the sanitized span description.
@@ -514,6 +567,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
     Some(category)
 }
 
+// remove
 fn domain_from_http_url(url: &str) -> Option<String> {
     match url.split_once(' ') {
         Some((_method, url)) => {
@@ -527,6 +581,7 @@ fn domain_from_http_url(url: &str) -> Option<String> {
     }
 }
 
+// remove
 fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
     if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
         return Some(allow_listed);
@@ -553,9 +608,11 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
     Some(replaced)
 }
 
+// remove
 /// Allow list of domains to not get subdomains scrubbed.
 const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
 
+// remove
 fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Option<String> {
     if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
         let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
