@@ -110,21 +110,19 @@ pub(crate) fn extract_span_metrics(
                 }
 
                 let op_based_tags = if span_op.starts_with("http") {
-                    http_tags::extract_http_span_tags(span)
+                    http_tags::http_span_tags(span)
                 } else if span_op.starts_with("db") {
-                    db_tags::extract_db_span_tags(span)
+                    db_tags::db_span_tags(span)
                 } else if span_op.starts_with("cache") {
-                    cache_tags::extract_cache_span_tags(span)
+                    cache_tags::cache_span_tags(span)
                 } else {
                     BTreeMap::new()
                 };
 
                 span_tags.extend(op_based_tags.into_iter());
 
-                let common_tags = common_tags::extract_common_span_tags(
-                    span,
-                    aggregator_config.max_tag_value_length,
-                );
+                let common_tags =
+                    common_tags::common_span_tags(span, aggregator_config.max_tag_value_length);
                 span_tags.extend(common_tags.into_iter());
             }
 

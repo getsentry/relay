@@ -6,10 +6,7 @@ use crate::metrics_extraction::spans::http_tags;
 use crate::metrics_extraction::spans::types::SpanTagKey;
 use crate::metrics_extraction::utils::http_status_code_from_span;
 
-pub(crate) fn extract_common_span_tags(
-    span: &Span,
-    max_tag_len: usize,
-) -> BTreeMap<SpanTagKey, String> {
+pub(crate) fn common_span_tags(span: &Span, max_tag_len: usize) -> BTreeMap<SpanTagKey, String> {
     let mut tags = BTreeMap::new();
 
     if let Some(span_status) = span.status.value() {

@@ -6,7 +6,7 @@ use relay_general::protocol::Span;
 
 use crate::metrics_extraction::spans::types::SpanTagKey;
 
-pub(crate) fn extract_http_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String> {
+pub(crate) fn http_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String> {
     let mut tags = BTreeMap::new();
 
     tags.insert(SpanTagKey::Module, "http".to_owned());
