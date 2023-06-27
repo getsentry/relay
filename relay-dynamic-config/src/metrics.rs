@@ -130,7 +130,7 @@ impl TransactionMetricsConfig {
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetricExtractionConfig {
-    /// Versioning of metrics extration. Relay skips extraction if the version is not supported.
+    /// Versioning of metrics extraction. Relay skips extraction if the version is not supported.
     pub version: u16,
 
     /// A list of metric specifications to extract.
