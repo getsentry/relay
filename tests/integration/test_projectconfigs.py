@@ -311,8 +311,10 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         }
     } == data
 
+    # Event is not propagated, relay logs an error:
     try:
         relay.send_event(project_key)
+        assert mini_sentry.captured_events.empty()
         assert {str(e) for _, e in mini_sentry.test_failures} == {
             f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
         }
@@ -341,9 +343,18 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
         }
     ]
 
-    relay.send_event(project_key)
-    relay.send_event(project_key)
-    relay.send_event(project_key)
+    try:
+        relay.send_event(project_key)
+        relay.send_event(project_key)
+        relay.send_event(project_key)
+        # Relay may have logged more errors while it was trying to fetch project configs:
+        assert not mini_sentry.test_failures or {
+            str(e) for _, e in mini_sentry.test_failures
+        } == {
+            f"Relay sent us event: error fetching project state {public_key}: missing field `type`",
+        }
+    finally:
+        mini_sentry.test_failures.clear()
     # Wait for caches to expire. And we will get into the grace period.
     time.sleep(3)
     # The state should be fixed and updated by now, since we keep re-trying to fetch new one all the time.
@@ -353,13 +364,15 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
     time.sleep(1)
 
     # We should have the previous events through now.
-    event = mini_sentry.captured_events.get(timeout=1).get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
+    for _ in range(4):
+        event = mini_sentry.captured_events.get(timeout=1).get_event()
+        assert event["logentry"] == {"formatted": "Hello, World!"}
 
     # This must succeed, since we will re-request the project state update at this point.
     relay.send_event(project_key)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
+    assert mini_sentry.captured_events.empty()
 
 
 def test_cached_project_config(mini_sentry, relay):
