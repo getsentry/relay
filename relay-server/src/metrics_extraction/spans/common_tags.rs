@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_general::protocol::Span;
 
-use crate::metrics_extraction::spans::db_span_tags::{sql_action_from_query, sql_table_from_query};
-use crate::metrics_extraction::spans::http_span_tags::domain_from_http_url;
-use crate::metrics_extraction::spans::sanitized_span_description;
+use crate::metrics_extraction::spans::http_span_tags;
 use crate::metrics_extraction::spans::types::SpanTagKey;
 use crate::metrics_extraction::utils::http_status_code_from_span;
 
@@ -22,7 +20,7 @@ pub(crate) fn extract_common_span_tags(
         tags.insert(SpanTagKey::StatusCode, status_code);
     }
 
-    if let Some(normalized_desc) = get_normalized_description(span) {
+    if let Some(normalized_desc) = normalized_description(span) {
         // Truncating the span description's tag value is, for now,
         // a temporary solution to not get large descriptions dropped. The
         // group tag mustn't be affected by this, and still be
@@ -39,75 +37,61 @@ pub(crate) fn extract_common_span_tags(
     tags
 }
 
-fn get_normalized_description(span: &Span) -> Option<String> {
+fn normalized_description(span: &Span) -> Option<String> {
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
         let span_module = if span_op.starts_with("http") {
             Some("http")
-        } else if span_op.starts_with("db") {
-            Some("db")
-        } else if span_op.starts_with("cache") {
-            Some("cache")
         } else {
             None
         };
 
-        let scrubbed_description = span
-            .data
-            .value()
-            .and_then(|data| data.get("description.scrubbed"))
-            .and_then(|value| value.as_str());
+        let scrubbed_description = scrubbed_description(span);
+        let action = http_span_tags::action(span);
+        let domain = http_span_tags::domain(span);
 
-        let action = match span_module {
-            Some("http") => span
-                .data
-                .value()
-                // TODO(iker): some SDKs extract this as method
-                .and_then(|v| v.get("http.method"))
-                .and_then(|method| method.as_str())
-                .map(|s| s.to_uppercase()),
-            Some("db") => {
-                let action_from_data = span
-                    .data
-                    .value()
-                    .and_then(|v| v.get("db.operation"))
-                    .and_then(|db_op| db_op.as_str())
-                    .map(|s| s.to_uppercase());
-                action_from_data.or_else(|| {
-                    span.description
-                        .value()
-                        .and_then(|d| sql_action_from_query(d))
-                        .map(|a| a.to_uppercase())
-                })
-            }
-            _ => None,
-        };
-
-        let domain = if span_op == "http.client" {
-            span.description
-                .value()
-                .and_then(|url| domain_from_http_url(url))
-                .map(|d| d.to_lowercase())
-        } else if span_op.starts_with("db") {
-            span.description
-                .value()
-                .and_then(|query| sql_table_from_query(query))
-                .map(|t| t.to_lowercase())
-        } else {
-            None
-        };
-
-        let sanitized_description = sanitized_span_description(
-            scrubbed_description,
-            span_module,
-            action.as_deref(),
-            domain.as_deref(),
-        );
-        // dbg!(&sanitized_description);
-        return sanitized_description;
+        if let Some(d) = scrubbed_description {
+            return Some(d.to_owned());
+        }
+        return fallback_span_description(span_module, action.as_deref(), domain.as_deref());
     }
     None
+}
+
+fn scrubbed_description(span: &Span) -> Option<&str> {
+    span.data
+        .value()
+        .and_then(|data| data.get("description.scrubbed"))
+        .and_then(|value| value.as_str())
+}
+
+/// Returns the sanitized span description.
+///
+/// If a scrub description is provided, that's returned. If not, a new
+/// description is built for `http*` modules with the following format:
+/// `{action} {domain}/<unparameterized>`.
+fn fallback_span_description(
+    module: Option<&str>,
+    action: Option<&str>,
+    domain: Option<&str>,
+) -> Option<String> {
+    match module {
+        Some("http") => {}
+        _ => return None,
+    };
+
+    let mut sanitized = String::new();
+
+    if let Some(a) = action {
+        sanitized.push_str(&format!("{a} "));
+    }
+    if let Some(d) = domain {
+        sanitized.push_str(&format!("{d}/"));
+    }
+    sanitized.push_str("<unparameterized>");
+
+    Some(sanitized)
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens

@@ -22,7 +22,7 @@ pub(crate) fn extract_http_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String
     tags
 }
 
-fn action(span: &Span) -> Option<String> {
+pub(crate) fn action(span: &Span) -> Option<String> {
     // TODO(iker): we're relying on the existance of `http.method` This is not
     // guaranteed, and we'll need to parse the span description in that case.
     span.data
@@ -33,14 +33,14 @@ fn action(span: &Span) -> Option<String> {
         .map(|s| s.to_uppercase())
 }
 
-fn domain(span: &Span) -> Option<String> {
+pub(crate) fn domain(span: &Span) -> Option<String> {
     span.description
         .value()
         .and_then(|url| domain_from_http_url(url))
         .map(|d| d.to_lowercase())
 }
 
-pub(crate) fn domain_from_http_url(url: &str) -> Option<String> {
+fn domain_from_http_url(url: &str) -> Option<String> {
     match url.split_once(' ') {
         Some((_method, url)) => {
             let domain_port = SchemeDomainPort::from(url);

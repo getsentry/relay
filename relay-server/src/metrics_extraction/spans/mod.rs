@@ -186,40 +186,6 @@ pub(crate) fn extract_span_metrics(
     Ok(())
 }
 
-/// Returns the sanitized span description.
-///
-/// If a scrub description is provided, that's returned. If not, a new
-/// description is built for `http*` modules with the following format:
-/// `{action} {domain}/<unparameterized>`.
-fn sanitized_span_description(
-    scrubbed_description: Option<&str>,
-    module: Option<&str>,
-    action: Option<&str>,
-    domain: Option<&str>,
-) -> Option<String> {
-    if let Some(scrubbed) = scrubbed_description {
-        return Some(scrubbed.to_owned());
-    }
-
-    if let Some(module) = module {
-        if !module.starts_with("http") {
-            return None;
-        }
-    }
-
-    let mut sanitized = String::new();
-
-    if let Some(transaction_method) = action {
-        sanitized.push_str(&format!("{transaction_method} "));
-    }
-    if let Some(domain) = domain {
-        sanitized.push_str(&format!("{domain}/"));
-    }
-    sanitized.push_str("<unparameterized>");
-
-    Some(sanitized)
-}
-
 /// Regex with a capture group to extract the HTTP method from a string.
 static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\s"#)
