@@ -579,6 +579,28 @@ impl Event {
 
         "unknown"
     }
+
+    /// Returns extra data at the specified path.
+    ///
+    /// The path is evaluated recursively where each path component is joined by a period (`"."`).
+    /// Periods in extra keys are not supported.
+    pub fn extra(&self, path: &str) -> Option<&Value> {
+        let mut path = path.split('.');
+
+        // Get the top-level item explicitly since, since those have a different type
+        let mut value = &self.extra.value()?.get(path.next()?)?.value()?.0;
+
+        // Iterate recursively to fetch nested values
+        for key in path {
+            if let Value::Object(ref object) = value {
+                value = object.get(key)?.value()?;
+            } else {
+                return None;
+            }
+        }
+
+        Some(value)
+    }
 }
 
 #[cfg(test)]
