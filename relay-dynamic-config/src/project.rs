@@ -12,11 +12,10 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::feature::Feature;
 use crate::metrics::{
     MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::ErrorBoundary;
+use crate::{ErrorBoundary, FeatureSet};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,8 +67,8 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
     /// Exposable features enabled for this project.
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub features: BTreeSet<Feature>,
+    #[serde(skip_serializing_if = "FeatureSet::is_empty")]
+    pub features: FeatureSet,
     /// Transaction renaming rules.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tx_name_rules: Vec<TransactionNameRule>,
@@ -100,7 +99,7 @@ impl Default for ProjectConfig {
             metric_extraction: Default::default(),
             span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
-            features: BTreeSet::new(),
+            features: Default::default(),
             tx_name_rules: Vec::new(),
             tx_name_ready: false,
             span_description_rules: None,
@@ -143,8 +142,8 @@ pub struct LimitedProjectConfig {
     pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
-    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
-    pub features: BTreeSet<Feature>,
+    #[serde(skip_serializing_if = "FeatureSet::is_empty")]
+    pub features: FeatureSet,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tx_name_rules: Vec<TransactionNameRule>,
     /// Whether or not a project is ready to mark all URL transactions as "sanitized".
