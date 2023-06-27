@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 
 use relay_general::protocol::Span;
 
+use crate::metrics_extraction::spans::db_span_tags::{sql_action_from_query, sql_table_from_query};
+use crate::metrics_extraction::spans::http_span_tags::domain_from_http_url;
+use crate::metrics_extraction::spans::sanitized_span_description;
 use crate::metrics_extraction::spans::types::SpanTagKey;
-use crate::metrics_extraction::spans::{
-    domain_from_http_url, sanitized_span_description, sql_action_from_query, sql_table_from_query,
-};
 use crate::metrics_extraction::utils::http_status_code_from_span;
 
 pub(crate) fn extract_common_span_tags(
@@ -134,4 +134,32 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
     string.truncate(cutoff);
     string.push('*');
     string
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::metrics_extraction::spans::common_tags::truncate_string;
+
+    #[test]
+    fn test_truncate_string_no_panic() {
+        let string = "ÆÆ".to_owned();
+
+        let truncated = truncate_string(string.clone(), 0);
+        assert_eq!(truncated, "");
+
+        let truncated = truncate_string(string.clone(), 1);
+        assert_eq!(truncated, "*");
+
+        let truncated = truncate_string(string.clone(), 2);
+        assert_eq!(truncated, "*");
+
+        let truncated = truncate_string(string.clone(), 3);
+        assert_eq!(truncated, "Æ*");
+
+        let truncated = truncate_string(string.clone(), 4);
+        assert_eq!(truncated, "ÆÆ");
+
+        let truncated = truncate_string(string, 5);
+        assert_eq!(truncated, "ÆÆ");
+    }
 }

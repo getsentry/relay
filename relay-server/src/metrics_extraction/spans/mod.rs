@@ -1,17 +1,14 @@
 use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::utils::extract_http_status_code;
-use crate::metrics_extraction::utils::http_status_code_from_span;
 use crate::metrics_extraction::utils::{
     extract_transaction_op, get_eventuser_tag, get_trace_context,
 };
 use crate::metrics_extraction::IntoMetric;
-use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_common::{EventType, UnixTimestamp};
-use relay_filter::csp::SchemeDomainPort;
-use relay_general::protocol::{Event, Span};
+use relay_general::protocol::Event;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
@@ -189,78 +186,6 @@ pub(crate) fn extract_span_metrics(
     Ok(())
 }
 
-// remove
-fn get_normalized_description(span: &Span) -> Option<String> {
-    if let Some(unsanitized_span_op) = span.op.value() {
-        let span_op = unsanitized_span_op.to_owned().to_lowercase();
-
-        let span_module = if span_op.starts_with("http") {
-            Some("http")
-        } else if span_op.starts_with("db") {
-            Some("db")
-        } else if span_op.starts_with("cache") {
-            Some("cache")
-        } else {
-            None
-        };
-
-        let scrubbed_description = span
-            .data
-            .value()
-            .and_then(|data| data.get("description.scrubbed"))
-            .and_then(|value| value.as_str());
-
-        let action = match span_module {
-            Some("http") => span
-                .data
-                .value()
-                // TODO(iker): some SDKs extract this as method
-                .and_then(|v| v.get("http.method"))
-                .and_then(|method| method.as_str())
-                .map(|s| s.to_uppercase()),
-            Some("db") => {
-                let action_from_data = span
-                    .data
-                    .value()
-                    .and_then(|v| v.get("db.operation"))
-                    .and_then(|db_op| db_op.as_str())
-                    .map(|s| s.to_uppercase());
-                action_from_data.or_else(|| {
-                    span.description
-                        .value()
-                        .and_then(|d| sql_action_from_query(d))
-                        .map(|a| a.to_uppercase())
-                })
-            }
-            _ => None,
-        };
-
-        let domain = if span_op == "http.client" {
-            span.description
-                .value()
-                .and_then(|url| domain_from_http_url(url))
-                .map(|d| d.to_lowercase())
-        } else if span_op.starts_with("db") {
-            span.description
-                .value()
-                .and_then(|query| sql_table_from_query(query))
-                .map(|t| t.to_lowercase())
-        } else {
-            None
-        };
-
-        let sanitized_description = sanitized_span_description(
-            scrubbed_description,
-            span_module,
-            action.as_deref(),
-            domain.as_deref(),
-        );
-        // dbg!(&sanitized_description);
-        return sanitized_description;
-    }
-    None
-}
-
 /// Returns the sanitized span description.
 ///
 /// If a scrub description is provided, that's returned. If not, a new
@@ -293,60 +218,6 @@ fn sanitized_span_description(
     sanitized.push_str("<unparameterized>");
 
     Some(sanitized)
-}
-
-// remove
-/// Trims the given string with the given maximum bytes. Splitting only happens
-/// on char boundaries.
-///
-/// If the string is short, it remains unchanged. If it's long, this method
-/// truncates it to the maximum allowed size and sets the last character to
-/// `*`.
-fn truncate_string(mut string: String, max_bytes: usize) -> String {
-    if string.len() <= max_bytes {
-        return string;
-    }
-
-    if max_bytes == 0 {
-        return String::new();
-    }
-
-    let mut cutoff = max_bytes - 1; // Leave space for `*`
-
-    while cutoff > 0 && !string.is_char_boundary(cutoff) {
-        cutoff -= 1;
-    }
-
-    string.truncate(cutoff);
-    string.push('*');
-    string
-}
-
-// remove
-/// Regex with a capture group to extract the database action from a query.
-///
-/// Currently, we're only interested in either `SELECT` or `INSERT` statements.
-static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
-
-// remove
-fn sql_action_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
-}
-
-// remove
-/// Regex with a capture group to extract the table from a database query,
-/// based on `FROM` and `INTO` keywords.
-static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
-});
-
-// remove
-/// Returns the table in the SQL query, if any.
-///
-/// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
 }
 
 /// Regex with a capture group to extract the HTTP method from a string.
@@ -504,60 +375,6 @@ fn span_op_to_category(op: &str) -> Option<&str> {
     Some(category)
 }
 
-// remove
-fn domain_from_http_url(url: &str) -> Option<String> {
-    match url.split_once(' ') {
-        Some((_method, url)) => {
-            let domain_port = SchemeDomainPort::from(url);
-            match (domain_port.domain, domain_port.port) {
-                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-// remove
-fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
-    if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
-        return Some(allow_listed);
-    }
-
-    let mut tokens = domain.rsplitn(3, '.');
-    let tld = tokens.next();
-    let domain = tokens.next();
-    let prefix = tokens.next().map(|_| "*");
-
-    let mut replaced = prefix
-        .iter()
-        .chain(domain.iter())
-        .chain(tld.iter())
-        .join(".");
-
-    if let Some(port) = port {
-        replaced = format!("{replaced}:{port}");
-    }
-
-    if replaced.is_empty() {
-        return None;
-    }
-    Some(replaced)
-}
-
-// remove
-/// Allow list of domains to not get subdomains scrubbed.
-const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
-
-// remove
-fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Option<String> {
-    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
-        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
-        return Some(with_port);
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use relay_general::protocol::{Event, Request};
@@ -566,30 +383,7 @@ mod tests {
 
     use relay_metrics::AggregatorConfig;
 
-    use crate::metrics_extraction::spans::{extract_span_metrics, truncate_string};
-
-    #[test]
-    fn test_truncate_string_no_panic() {
-        let string = "ÆÆ".to_owned();
-
-        let truncated = truncate_string(string.clone(), 0);
-        assert_eq!(truncated, "");
-
-        let truncated = truncate_string(string.clone(), 1);
-        assert_eq!(truncated, "*");
-
-        let truncated = truncate_string(string.clone(), 2);
-        assert_eq!(truncated, "*");
-
-        let truncated = truncate_string(string.clone(), 3);
-        assert_eq!(truncated, "Æ*");
-
-        let truncated = truncate_string(string.clone(), 4);
-        assert_eq!(truncated, "ÆÆ");
-
-        let truncated = truncate_string(string, 5);
-        assert_eq!(truncated, "ÆÆ");
-    }
+    use crate::metrics_extraction::spans::extract_span_metrics;
 
     macro_rules! span_transaction_method_test {
         // Tests transaction.method is picked from the right place.

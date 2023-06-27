@@ -66,7 +66,7 @@ fn db_action(span: &Span) -> Option<String> {
 static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
 
-fn sql_action_from_query(query: &str) -> Option<&str> {
+pub(crate) fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
 }
 /// Regex with a capture group to extract the table from a database query,
@@ -78,6 +78,6 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// Returns the table in the SQL query, if any.
 ///
 /// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<&str> {
+pub(crate) fn sql_table_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
 }

@@ -37,7 +37,7 @@ pub(crate) fn extract_http_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String
     tags
 }
 
-fn domain_from_http_url(url: &str) -> Option<String> {
+pub(crate) fn domain_from_http_url(url: &str) -> Option<String> {
     match url.split_once(' ') {
         Some((_method, url)) => {
             let domain_port = SchemeDomainPort::from(url);
