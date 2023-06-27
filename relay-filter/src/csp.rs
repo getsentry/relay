@@ -58,6 +58,8 @@ pub struct SchemeDomainPort {
     pub domain: Option<String>,
     /// The port of the url.
     pub port: Option<String>,
+    /// The path of the url.
+    pub path: Option<String>,
 }
 
 impl From<&str> for SchemeDomainPort {
@@ -84,10 +86,12 @@ impl From<&str> for SchemeDomainPort {
 
         //extract domain:port from the rest of the url
         let end_domain_idx = rest.find('/');
-        let domain_port = if let Some(end_domain_idx) = end_domain_idx {
-            &rest[..end_domain_idx] // remove the path from rest
+        let (domain_port, path) = if let Some(end_domain_idx) = end_domain_idx {
+            let domain = &rest[..end_domain_idx];
+            let path = &rest[end_domain_idx..];
+            (domain, Some(path.to_owned()))
         } else {
-            rest // no path, use everything
+            (rest, None)
         };
 
         //split the domain and the port
@@ -106,6 +110,7 @@ impl From<&str> for SchemeDomainPort {
             scheme,
             domain,
             port,
+            path,
         }
     }
 }
