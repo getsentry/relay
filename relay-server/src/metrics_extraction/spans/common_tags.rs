@@ -77,7 +77,7 @@ fn fallback_span_description(
     domain: Option<&str>,
 ) -> Option<String> {
     match module {
-        Some("http") => {}
+        Some("http") => (),
         _ => return None,
     };
 
