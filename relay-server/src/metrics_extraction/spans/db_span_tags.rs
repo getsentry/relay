@@ -12,10 +12,6 @@ pub(crate) fn extract_db_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String> 
 
     tags.insert(SpanTagKey::Module, "db".to_owned());
 
-    // TODO(iker): we're relying on the existance of `http.method`
-    // or `db.operation`. This is not guaranteed, and we'll need to
-    // parse the span description in that case.
-
     if let Some(action) = db_action(span) {
         tags.insert(SpanTagKey::Action, action);
     }
@@ -27,7 +23,6 @@ pub(crate) fn extract_db_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String> 
         .map(|t| t.to_lowercase())
     {
         tags.insert(SpanTagKey::Domain, domain);
-        //
     }
 
     if let Some(system) = span
