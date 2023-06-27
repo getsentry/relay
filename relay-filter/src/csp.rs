@@ -195,46 +195,73 @@ mod tests {
     #[test]
     fn test_scheme_domain_port() {
         let examples = &[
-            ("*", None, None, None),
-            ("*://*", None, None, None),
-            ("*://*:*", None, None, None),
-            ("https://*", Some("https"), None, None),
-            ("https://*.abc.net", Some("https"), Some("*.abc.net"), None),
-            ("https://*:*", Some("https"), None, None),
-            ("x.y.z", None, Some("x.y.z"), None),
-            ("x.y.z:*", None, Some("x.y.z"), None),
-            ("*://x.y.z:*", None, Some("x.y.z"), None),
-            ("*://*.x.y.z:*", None, Some("*.x.y.z"), None),
-            ("*:8000", None, None, Some("8000")),
-            ("*://*:8000", None, None, Some("8000")),
-            ("http://x.y.z", Some("http"), Some("x.y.z"), None),
-            ("http://*:8000", Some("http"), None, Some("8000")),
-            ("abc:8000", None, Some("abc"), Some("8000")),
-            ("*.abc.com:8000", None, Some("*.abc.com"), Some("8000")),
-            ("*.com:86", None, Some("*.com"), Some("86")),
+            ("*", None, None, None, None),
+            ("*://*", None, None, None, None),
+            ("*://*:*", None, None, None, None),
+            ("https://*", Some("https"), None, None, None),
             (
-                "http://abc.com:86",
+                "https://*.abc.net/def/ghi",
+                Some("https"),
+                Some("*.abc.net"),
+                None,
+                Some("/def/ghi"),
+            ),
+            (
+                "https://*:*/a/b/c",
+                Some("https"),
+                None,
+                None,
+                Some("/a/b/c"),
+            ),
+            ("x.y.z", None, Some("x.y.z"), None, None),
+            ("x.y.z:*/a/b/c", None, Some("x.y.z"), None, Some("/a/b/c")),
+            ("*://x.y.z:*", None, Some("x.y.z"), None, None),
+            ("*://*.x.y.z:*", None, Some("*.x.y.z"), None, None),
+            ("*:8000", None, None, Some("8000"), None),
+            ("*://*:8000", None, None, Some("8000"), None),
+            ("http://x.y.z", Some("http"), Some("x.y.z"), None, None),
+            (
+                "http://*:8000/a/b/c",
+                Some("http"),
+                None,
+                Some("8000"),
+                Some("/a/b/c"),
+            ),
+            ("abc:8000", None, Some("abc"), Some("8000"), None),
+            (
+                "*.abc.com:8000",
+                None,
+                Some("*.abc.com"),
+                Some("8000"),
+                None,
+            ),
+            ("*.com:86", None, Some("*.com"), Some("86"), None),
+            (
+                "http://abc.com:86/def/ghi",
                 Some("http"),
                 Some("abc.com"),
                 Some("86"),
+                Some("/def/ghi"),
             ),
             (
-                "http://x.y.z:4000",
+                "http://x.y.z:4000/a/b/c",
                 Some("http"),
                 Some("x.y.z"),
                 Some("4000"),
+                Some("/a/b/c"),
             ),
-            ("http://", Some("http"), Some(""), None),
+            ("http://", Some("http"), Some(""), None, None),
         ];
 
-        for (url, scheme, domain, port) in examples {
+        for (url, scheme, domain, port, path) in examples {
             let actual: SchemeDomainPort = (*url).into();
             assert_eq!(
-                (actual.scheme, actual.domain, actual.port),
+                (actual.scheme, actual.domain, actual.port, actual.path),
                 (
                     scheme.map(|x| x.to_string()),
                     domain.map(|x| x.to_string()),
-                    port.map(|x| x.to_string())
+                    port.map(|x| x.to_string()),
+                    path.map(|x| x.to_string())
                 )
             );
         }
