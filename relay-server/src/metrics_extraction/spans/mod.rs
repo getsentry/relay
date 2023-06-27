@@ -16,6 +16,7 @@ use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
 
+mod db_spans;
 mod http_spans;
 mod types;
 
@@ -111,15 +112,15 @@ pub(crate) fn extract_span_metrics(
 
                 let op_based_tags = if span_op.starts_with("http") {
                     http_spans::extract_http_span_tags(span)
+                } else if span_op.starts_with("db") {
+                    db_spans::extract_db_span_tags(span)
                 } else {
                     BTreeMap::new()
                 };
 
                 span_tags.extend(op_based_tags.into_iter());
 
-                let span_module = if span_op.starts_with("db") {
-                    Some("db")
-                } else if span_op.starts_with("cache") {
+                let span_module = if span_op.starts_with("cache") {
                     Some("cache")
                 } else {
                     None
@@ -127,44 +128,6 @@ pub(crate) fn extract_span_metrics(
 
                 if let Some(module) = span_module {
                     span_tags.insert(SpanTagKey::Module, module.to_owned());
-                }
-
-                // TODO(iker): we're relying on the existance of `http.method`
-                // or `db.operation`. This is not guaranteed, and we'll need to
-                // parse the span description in that case.
-                let action = match span_module {
-                    Some("db") => {
-                        let action_from_data = span
-                            .data
-                            .value()
-                            .and_then(|v| v.get("db.operation"))
-                            .and_then(|db_op| db_op.as_str())
-                            .map(|s| s.to_uppercase());
-                        action_from_data.or_else(|| {
-                            span.description
-                                .value()
-                                .and_then(|d| sql_action_from_query(d))
-                                .map(|a| a.to_uppercase())
-                        })
-                    }
-                    _ => None,
-                };
-
-                if let Some(act) = action.clone() {
-                    span_tags.insert(SpanTagKey::Action, act);
-                }
-
-                let domain = if span_op.starts_with("db") {
-                    span.description
-                        .value()
-                        .and_then(|query| sql_table_from_query(query))
-                        .map(|t| t.to_lowercase())
-                } else {
-                    None
-                };
-
-                if let Some(dom) = domain.clone() {
-                    span_tags.insert(SpanTagKey::Domain, dom);
                 }
 
                 if let Some(normalized_desc) = get_normalized_description(span) {
@@ -181,15 +144,6 @@ pub(crate) fn extract_span_metrics(
                         truncate_string(normalized_desc, aggregator_config.max_tag_value_length);
                     span_tags.insert(SpanTagKey::Description, truncated);
                 }
-            }
-
-            let system = span
-                .data
-                .value()
-                .and_then(|v| v.get("db.system"))
-                .and_then(|system| system.as_str());
-            if let Some(sys) = system {
-                span_tags.insert(SpanTagKey::System, sys.to_lowercase());
             }
 
             if let Some(span_status) = span.status.value() {
@@ -389,22 +343,26 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
     string
 }
 
+// remove
 /// Regex with a capture group to extract the database action from a query.
 ///
 /// Currently, we're only interested in either `SELECT` or `INSERT` statements.
 static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
 
+// remove
 fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
 }
 
+// remove
 /// Regex with a capture group to extract the table from a database query,
 /// based on `FROM` and `INTO` keywords.
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
 });
 
+// remove
 /// Returns the table in the SQL query, if any.
 ///
 /// If multiple tables exist, only the first one is returned.

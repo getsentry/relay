@@ -11,6 +11,9 @@ pub(crate) fn extract_http_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String
 
     tags.insert(SpanTagKey::Module, "http".to_owned());
 
+    // TODO(iker): we're relying on the existance of `http.method`
+    // or `db.operation`. This is not guaranteed, and we'll need to
+    // parse the span description in that case.
     if let Some(a) = span
         .data
         .value()
