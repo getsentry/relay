@@ -38,12 +38,6 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "ui.react",
             ),
-            "span.description": String(
-                "<unparameterized>",
-            ),
-            "span.group": String(
-                "94fcd4fe8f1cfe99",
-            ),
             "span.op": String(
                 "ui.react.render",
             ),

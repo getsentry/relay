@@ -295,6 +295,8 @@ fn sanitized_span_description(
         if !module.starts_with("http") {
             return None;
         }
+    } else {
+        return None;
     }
 
     let mut sanitized = String::new();
