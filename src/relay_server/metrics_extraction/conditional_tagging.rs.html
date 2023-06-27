@@ -39,7 +39,7 @@
     <span class="kw">for </span>rule <span class="kw">in </span>config {
         <span class="kw">if </span>!rule.condition.supported()
             || rule.target_metrics.is_empty()
-            || !rule.condition.matches(event, <span class="prelude-val">None</span>)
+            || !rule.condition.matches(event)
         {
             <span class="kw">continue</span>;
         }

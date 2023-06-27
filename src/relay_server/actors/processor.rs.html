@@ -3926,8 +3926,6 @@
 <a href="#3926" id="3926">3926</a>
 <a href="#3927" id="3927">3927</a>
 <a href="#3928" id="3928">3928</a>
-<a href="#3929" id="3929">3929</a>
-<a href="#3930" id="3930">3930</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6196,7 +6194,6 @@
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
-            state.envelope().meta().client_addr(),
         );
     }
 
@@ -6227,7 +6224,6 @@
                 <span class="prelude-val">Some</span>(root_project_state),
                 <span class="prelude-val">Some</span>(dsc),
                 <span class="prelude-val">None</span>,
-                state.envelope().meta().client_addr(),
             )
         } <span class="kw">else </span>{
             <span class="kw">return</span>;

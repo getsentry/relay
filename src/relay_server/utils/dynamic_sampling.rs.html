@@ -266,30 +266,8 @@
 <a href="#266" id="266">266</a>
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
-//!
-</span><span class="kw">use </span>std::net::IpAddr;
-
-<span class="kw">use </span>chrono::{DateTime, Utc};
+</span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::ProjectKey;
 <span class="kw">use </span>relay_general::protocol::Event;
 <span class="kw">use </span>relay_sampling::{
@@ -352,7 +330,6 @@
     root_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
     dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
     event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
-    ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     now: DateTime&lt;Utc&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt; {
     <span class="comment">// We want to extract the SamplingConfig from each project state.
@@ -366,7 +343,6 @@
         root_sampling_config,
         dsc,
         event,
-        ip_addr,
         now,
     )
 }
@@ -379,7 +355,6 @@
     root_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
     dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
     event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
-    ip_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
 ) -&gt; SamplingResult {
     <span class="kw">let </span>sampling_result = get_sampling_match_result(
         processing_enabled,
@@ -387,7 +362,6 @@
         root_project_state,
         dsc,
         event,
-        ip_addr,
         <span class="comment">// For consistency reasons we take a snapshot in time and use that time across all code that
         // requires it.
         </span>Utc::now(),
@@ -481,8 +455,7 @@
         });
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result =
-            get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
         <span class="macro">assert_eq!</span>(result, SamplingResult::Keep)
     }
 
@@ -496,8 +469,7 @@
         });
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result =
-            get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
         <span class="macro">assert_eq!</span>(
             result,
             SamplingResult::Drop(MatchedRuleIds(<span class="macro">vec!</span>[RuleId(<span class="number">1</span>)]))
@@ -521,8 +493,7 @@
         });
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result =
-            get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
         <span class="macro">assert_eq!</span>(result, SamplingResult::Keep)
     }
 
@@ -539,12 +510,10 @@
         });
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
 
-        <span class="kw">let </span>result =
-            get_sampling_result(<span class="bool-val">false</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">false</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
         <span class="macro">assert_eq!</span>(result, SamplingResult::Keep);
 
-        <span class="kw">let </span>result =
-            get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event), <span class="prelude-val">None</span>);
+        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
         <span class="macro">assert_eq!</span>(
             result,
             SamplingResult::Drop(MatchedRuleIds(<span class="macro">vec!</span>[RuleId(<span class="number">2</span>)]))
@@ -561,14 +530,7 @@
         });
         <span class="kw">let </span>dsc = mocked_simple_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;3.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
-        <span class="kw">let </span>result = get_sampling_result(
-            <span class="bool-val">true</span>,
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc),
-            <span class="prelude-val">None</span>,
-            <span class="prelude-val">None</span>,
-        );
+        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(result, SamplingResult::Keep)
     }
 }
