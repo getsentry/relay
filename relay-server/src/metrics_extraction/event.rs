@@ -95,3 +95,173 @@ fn read_metric_value(event: &Event, field: Option<&str>, ty: MetricType) -> Opti
         MetricType::Gauge => MetricValue::Gauge(event.get_value(field?).as_f64()?),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use relay_general::types::FromValue;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn extract_counter() {
+        let event_json = json!({
+            "type": "transaction",
+            "timestamp": 1597976302.0,
+        });
+        let event = Event::from_value(event_json.into());
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "c:transactions/counter@none",
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "c:transactions/counter@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn extract_distribution() {
+        let event_json = json!({
+            "type": "transaction",
+            "start_timestamp": 1597976300.0,
+            "timestamp": 1597976302.0,
+        });
+        let event = Event::from_value(event_json.into());
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "d:transactions/duration@none",
+                    "field": "event.duration",
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "d:transactions/duration@none",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn extract_set() {
+        let event_json = json!({
+            "type": "transaction",
+            "timestamp": 1597976302.0,
+            "user": {
+                "id": "4711",
+            },
+        });
+        let event = Event::from_value(event_json.into());
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "s:transactions/users@none",
+                    "field": "event.user.id",
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "s:transactions/users@none",
+                value: Set(
+                    943162418,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn extract_tag_conditions() {
+        let event_json = json!({
+            "type": "transaction",
+            "start_timestamp": 1597976300.0,
+            "timestamp": 1597976302.0,
+            "release": "myapp@1.0.0",
+        });
+        let event = Event::from_value(event_json.into());
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "c:transactions/counter@none",
+                    "tags": [
+                        {"key": "id", "value": "4711"},
+                        {"key": "release", "field": "event.release"},
+                        {
+                            "key": "fast",
+                            "value": "yes",
+                            "condition": {"op": "lt", "name": "event.duration", "value": 2000},
+                        },
+                        {
+                            "key": "fast",
+                            "value": "no",
+                            "condition": {"op": "gte", "name": "event.duration", "value": 2000},
+                        },
+                    ]
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r###"
+        [
+            Metric {
+                name: "c:transactions/counter@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {
+                    "fast": "no",
+                    "id": "4711",
+                    "release": "myapp@1.0.0",
+                },
+            },
+        ]
+        "###);
+    }
+}
