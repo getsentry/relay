@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.27
+
+- Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251))
+
 ## 0.8.26
 
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))

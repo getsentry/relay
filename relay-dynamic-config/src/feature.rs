@@ -15,6 +15,8 @@ pub enum Feature {
     DeviceClassSynthesis,
     /// Enables metric extraction from spans.
     SpanMetricsExtraction,
+    /// Apply transaction normalization rules to transactions from legacy SDKs.
+    NormalizeLegacyTransactions,
     /// Forward compatibility.
     Unknown(String),
 }
@@ -49,6 +51,9 @@ impl Serialize for Feature {
             }
             Feature::DeviceClassSynthesis => "organizations:device-class-synthesis",
             Feature::SpanMetricsExtraction => "projects:span-metrics-extraction",
+            Feature::NormalizeLegacyTransactions => {
+                "organizations:transaction-name-normalize-legacy"
+            }
             Feature::Unknown(s) => s,
         })
     }
