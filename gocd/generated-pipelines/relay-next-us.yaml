@@ -1,19 +1,20 @@
 format_version: 10
 pipelines:
-  region-deploy-relay-next-us:
+  deploy-relay-next-us:
+    display_order: 1
     environment_variables:
       SENTRY_REGION: us
-    group: relay-next-region-deployments
+    group: relay-next
     lock_behavior: unlockWhenFinished
     materials:
+      deploy-relay-next-pipeline-complete:
+        pipeline: deploy-relay-next
+        stage: pipeline-complete
       relay_repo:
         branch: master
         destination: relay
         git: git@github.com:getsentry/relay.git
         shallow_clone: true
-      upstream_pipeline:
-        pipeline: deploy-relay-next
-        stage: pipeline-complete
     stages:
       - checks:
           fetch_materials: true
