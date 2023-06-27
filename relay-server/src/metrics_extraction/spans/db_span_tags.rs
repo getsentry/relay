@@ -43,9 +43,6 @@ pub(crate) fn extract_db_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String> 
 }
 
 fn db_action(span: &Span) -> Option<String> {
-    // TODO(iker): we're relying on the existance of `http.method`
-    // or `db.operation`. This is not guaranteed, and we'll need to
-    // parse the span description in that case.
     let action_from_data = span
         .data
         .value()
@@ -69,6 +66,7 @@ static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
 pub(crate) fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
 }
+
 /// Regex with a capture group to extract the table from a database query,
 /// based on `FROM` and `INTO` keywords.
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
