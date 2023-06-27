@@ -113,7 +113,7 @@ pub struct EqCondOptions {
 }
 
 /// A condition that checks for equality
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EqCondition {
     pub name: String,
@@ -174,7 +174,7 @@ impl EqCondition {
 
 macro_rules! impl_cmp_condition {
     ($struct_name:ident, $operator:tt) => {
-        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct $struct_name {
             pub name: String,
             pub value: Number,
@@ -211,7 +211,7 @@ impl_cmp_condition!(LtCondition, <);
 impl_cmp_condition!(GtCondition, >);
 
 /// A condition that uses glob matching.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlobCondition {
     pub name: String,
     pub value: GlobPatterns,
@@ -232,7 +232,7 @@ impl GlobCondition {
 /// Condition that cover custom operators which need
 /// special handling and have a custom implementation
 /// for each case.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CustomCondition {
     pub name: String,
     #[serde(default)]
@@ -254,7 +254,7 @@ impl CustomCondition {
 ///
 /// Creates a condition that is true when any
 /// of the inner conditions are true
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrCondition {
     inner: Vec<RuleCondition>,
 }
@@ -276,7 +276,7 @@ impl OrCondition {
 ///
 /// Creates a condition that is true when all
 /// inner conditions are true.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AndCondition {
     inner: Vec<RuleCondition>,
 }
@@ -297,7 +297,7 @@ impl AndCondition {
 ///
 /// Creates a condition that is true when the wrapped
 /// condition si false.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NotCondition {
     inner: Box<RuleCondition>,
 }
@@ -316,7 +316,7 @@ impl NotCondition {
 }
 
 /// A condition from a sampling rule.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
     Eq(EqCondition),

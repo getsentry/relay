@@ -4,12 +4,18 @@
 
 **Features**:
 
-- Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251)) 
-- Keep stackframes closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
-- Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
 - Use GeoIP lookup also in non-processing Relays. Lookup from now on will be also run in light normalization. ([#2229](https://github.com/getsentry/relay/pull/2229))
 - Scrub identifiers from transactions for old SDKs. ([#2250](https://github.com/getsentry/relay/pull/2250))
+
+**Bug Fixes**:
+
+- Keep stack frames closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
+- Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
+
+**Internal**:
+
+- Add the configuration protocol for generic metrics extraction. ([#2252](https://github.com/getsentry/relay/pull/2252))
 
 ## 23.6.1
 
