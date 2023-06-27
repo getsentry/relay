@@ -2950,7 +2950,7 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
 name = "relay"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "anyhow",
  "clap 4.1.4",
@@ -2968,7 +2968,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -2984,7 +2984,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -2996,7 +2996,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.25"
+version = "0.8.27"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3015,7 +3015,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "chrono",
  "globset",
@@ -3033,7 +3033,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3053,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3061,7 +3061,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -3074,12 +3074,13 @@ dependencies = [
  "relay-sampling",
  "serde",
  "serde_json",
+ "similar-asserts",
  "smallvec",
 ]
 
 [[package]]
 name = "relay-ffi"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3087,7 +3088,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -3095,7 +3096,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "globset",
  "insta",
@@ -3111,7 +3112,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3150,7 +3151,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3160,7 +3161,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "jsonschema",
  "rdkafka",
@@ -3177,7 +3178,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "chrono",
  "console",
@@ -3192,7 +3193,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "criterion",
  "float-ord",
@@ -3212,7 +3213,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "once_cell",
  "regex",
@@ -3225,7 +3226,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -3241,7 +3242,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "insta",
  "relay-common",
@@ -3255,7 +3256,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "r2d2",
  "redis",
@@ -3266,7 +3267,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "assert-json-diff",
  "criterion",
@@ -3283,7 +3284,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "chrono",
  "insta",
@@ -3301,13 +3302,14 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "anyhow",
  "axum",
  "axum-server",
  "backoff",
  "brotli",
+ "bytecount",
  "bytes",
  "chrono",
  "data-encoding",
@@ -3363,7 +3365,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "cadence",
  "parking_lot 0.12.1",
@@ -3373,7 +3375,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "futures",
  "once_cell",
@@ -3384,7 +3386,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "23.5.2"
+version = "23.6.1"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -3731,9 +3733,9 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "0.0.29"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de282337a0c5e35a16e75c7849528b4fbaa64ac5e782fcb3ee48dc3063478a3"
+checksum = "de4ca4ac219b3d4931537aec16352fd23cf5c46c3c05045ca086e52552561e27"
 dependencies = [
  "serde",
  "serde_json",
@@ -3767,9 +3769,13 @@ version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08b268d4a40bb501e7c744c71a62744e81523a2d20e6a749e26aa4fbff6edae2"
 dependencies = [
+ "axum",
+ "http",
+ "pin-project",
  "sentry-core",
  "tower-layer",
  "tower-service",
+ "url",
 ]
 
 [[package]]

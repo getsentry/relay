@@ -6,7 +6,7 @@ expression: event
   "type": "transaction",
   "transaction": "/remains/rule-target/whatever",
   "transaction_info": {
-    "source": "url"
+    "source": "sanitized"
   },
   "timestamp": 1619420400.0,
   "start_timestamp": 1619420341.0,

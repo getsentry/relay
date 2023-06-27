@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic configuration passed down from sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.5.2"
+version = "23.6.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -27,3 +27,4 @@ smallvec = "1.10.0"
 
 [dev-dependencies]
 insta = "1.26.0"
+similar-asserts = "1.4.2"

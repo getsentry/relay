@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
+- Use GeoIP lookup also in non-processing Relays. Lookup from now on will be also run in light normalization. ([#2229](https://github.com/getsentry/relay/pull/2229))
+- Scrub identifiers from transactions for old SDKs. ([#2250](https://github.com/getsentry/relay/pull/2250))
+
+**Bug Fixes**:
+
+- Keep stack frames closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
+- Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
+
+**Internal**:
+
+- Add the configuration protocol for generic metrics extraction. ([#2252](https://github.com/getsentry/relay/pull/2252))
+
+## 23.6.1
+
+- No documented changes.
+
+## 23.6.0
+
 **Bug Fixes**:
 
 - Make counting of total profiles consistent with total transactions. ([#2163](https://github.com/getsentry/relay/pull/2163))
@@ -13,10 +34,14 @@
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
 - Reject profiles longer than 30s. ([#2168](https://github.com/getsentry/relay/pull/2168))
 - Change default topic for transaction metrics to `ingest-performance-metrics`. ([#2180](https://github.com/getsentry/relay/pull/2180))
+- Add Firefox "dead object" error to browser extension filter ([#2215](https://github.com/getsentry/relay/pull/2215))
+- Add events whose `url` starts with `file://` to localhost inbound filter ([#2214](https://github.com/getsentry/relay/pull/2214))
 
 **Internal**:
 
 - Extract app identifier from app context for profiles. ([#2172](https://github.com/getsentry/relay/pull/2172))
+- Mark all URL transactions as sanitized after applying rules. ([#2210](https://github.com/getsentry/relay/pull/2210))
+- Add limited, experimental Sentry performance monitoring. ([#2157](https://github.com/getsentry/relay/pull/2157))
 
 ## 23.5.2
 

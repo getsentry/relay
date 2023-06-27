@@ -29,7 +29,6 @@ use crate::utils::BufferGuard;
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
 pub enum ServiceError {
     /// GeoIp construction failed.
-    #[cfg(feature = "processing")]
     #[error("could not load the Geoip Db")]
     GeoIp,
 
@@ -138,7 +137,7 @@ impl ServiceState {
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
-        )?
+        )
         .start();
 
         let aggregator = AggregatorService::new(

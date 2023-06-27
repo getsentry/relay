@@ -1,7 +1,4 @@
 //! Functionality for calculating if a trace should be processed or dropped.
-//!
-use std::net::IpAddr;
-
 use chrono::{DateTime, Utc};
 use relay_common::ProjectKey;
 use relay_general::protocol::Event;
@@ -65,7 +62,6 @@ fn get_sampling_match_result(
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
-    ip_addr: Option<IpAddr>,
     now: DateTime<Utc>,
 ) -> Option<SamplingMatch> {
     // We want to extract the SamplingConfig from each project state.
@@ -79,7 +75,6 @@ fn get_sampling_match_result(
         root_sampling_config,
         dsc,
         event,
-        ip_addr,
         now,
     )
 }
@@ -92,7 +87,6 @@ pub fn get_sampling_result(
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
-    ip_addr: Option<IpAddr>,
 ) -> SamplingResult {
     let sampling_result = get_sampling_match_result(
         processing_enabled,
@@ -100,7 +94,6 @@ pub fn get_sampling_result(
         root_project_state,
         dsc,
         event,
-        ip_addr,
         // For consistency reasons we take a snapshot in time and use that time across all code that
         // requires it.
         Utc::now(),
@@ -194,8 +187,7 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result =
-            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
+        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
         assert_eq!(result, SamplingResult::Keep)
     }
 
@@ -209,8 +201,7 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result =
-            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
+        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))
@@ -234,8 +225,7 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
-        let result =
-            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
+        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
         assert_eq!(result, SamplingResult::Keep)
     }
 
@@ -252,12 +242,10 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result =
-            get_sampling_result(false, Some(&project_state), None, None, Some(&event), None);
+        let result = get_sampling_result(false, Some(&project_state), None, None, Some(&event));
         assert_eq!(result, SamplingResult::Keep);
 
-        let result =
-            get_sampling_result(true, Some(&project_state), None, None, Some(&event), None);
+        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(2)]))
@@ -274,14 +262,7 @@ mod tests {
         });
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
 
-        let result = get_sampling_result(
-            true,
-            None,
-            Some(&root_project_state),
-            Some(&dsc),
-            None,
-            None,
-        );
+        let result = get_sampling_result(true, None, Some(&root_project_state), Some(&dsc), None);
         assert_eq!(result, SamplingResult::Keep)
     }
 }

@@ -491,12 +491,12 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     ///  - `platform`: The event's platform, such as `"javascript"`.
-    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
-    ///    Sentry's SDKs and defaults to "proprietary".
     ///  - `source`: The source of the transaction name on the client. See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
-    EventTransactionSource,
+    ///  - `contains_slashes`: Whether the transaction name contains `/`. We use this as a heuristic
+    ///    to represent URL transactions.
+    EventTransaction,
     /// The number of transaction events processed grouped by transaction name modifications.
     /// This metric is tagged with:
     ///  - `source_in`: The source of the transaction name before normalization.
@@ -567,7 +567,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             RelayCounters::EventProtocol => "event.protocol",
-            RelayCounters::EventTransactionSource => "event.transaction_source",
+            RelayCounters::EventTransaction => "event.transaction",
             RelayCounters::TransactionNameChanges => "event.transaction_name_changes",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
@@ -575,6 +575,72 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
+        }
+    }
+}
+
+/// Low-cardinality platform that can be used as a statsd tag.
+pub enum PlatformTag {
+    Cocoa,
+    Csharp,
+    Edge,
+    Go,
+    Java,
+    Javascript,
+    Julia,
+    Native,
+    Node,
+    Objc,
+    Other,
+    Perl,
+    Php,
+    Python,
+    Ruby,
+    Swift,
+}
+
+impl PlatformTag {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Cocoa => "cocoa",
+            Self::Csharp => "csharp",
+            Self::Edge => "edge",
+            Self::Go => "go",
+            Self::Java => "java",
+            Self::Javascript => "javascript",
+            Self::Julia => "julia",
+            Self::Native => "native",
+            Self::Node => "node",
+            Self::Objc => "objc",
+            Self::Other => "other",
+            Self::Perl => "perl",
+            Self::Php => "php",
+            Self::Python => "python",
+            Self::Ruby => "ruby",
+            Self::Swift => "swift",
+        }
+    }
+}
+
+impl<S: AsRef<str>> From<S> for PlatformTag {
+    fn from(value: S) -> Self {
+        match value.as_ref() {
+            "cocoa" => Self::Cocoa,
+            "csharp" => Self::Csharp,
+            "edge" => Self::Edge,
+            "go" => Self::Go,
+            "java" => Self::Java,
+            "javascript" => Self::Javascript,
+            "julia" => Self::Julia,
+            "native" => Self::Native,
+            "node" => Self::Node,
+            "objc" => Self::Objc,
+            "perl" => Self::Perl,
+            "php" => Self::Php,
+            "python" => Self::Python,
+            "ruby" => Self::Ruby,
+            "swift" => Self::Swift,
+            _ => Self::Other,
         }
     }
 }

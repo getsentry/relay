@@ -336,7 +336,7 @@ impl ProjectState {
     }
 
     pub fn has_feature(&self, feature: Feature) -> bool {
-        self.config.features.contains(&feature)
+        self.config.features.0.contains(&feature)
     }
 }
 

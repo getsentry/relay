@@ -3,21 +3,72 @@ source: tools/document-pii/src/main.rs
 expression: output
 ---
 [
-    "FooBar.not_sensitive",
-    "HasGeneric.maybe_sensitive_stuff",
-    "InnerGeneric.bitcoin_wallet_key",
-    "MyStruct.foo",
-    "MyStruct.sub_struct.field2",
-    "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
-    "MyStruct.sub_struct.mystery_field.maybe_sensitive_stuff",
-    "SelfReferential.pretty_sensitive",
-    "SubStruct.field2",
-    "SubStruct.mystery_field.bitcoin_wallet_key",
-    "SubStruct.mystery_field.maybe_sensitive_stuff",
-    "WeirdType.pii_true",
-    "WeirdTypes.func.pii_true",
-    "WeirdTypes.ptr.pii_true",
-    "WeirdTypes.reference.pii_true",
-    "WeirdTypes.slice.pii_true",
-    "WeirdTypes.tuple.pii_true",
+    Output {
+        path: "FooBar.not_sensitive",
+        additional_properties: false,
+    },
+    Output {
+        path: "HasGeneric.maybe_sensitive_stuff",
+        additional_properties: false,
+    },
+    Output {
+        path: "InnerGeneric.bitcoin_wallet_key",
+        additional_properties: false,
+    },
+    Output {
+        path: "MyStruct.foo",
+        additional_properties: false,
+    },
+    Output {
+        path: "MyStruct.sub_struct.field2",
+        additional_properties: false,
+    },
+    Output {
+        path: "MyStruct.sub_struct.mystery_field.bitcoin_wallet_key",
+        additional_properties: false,
+    },
+    Output {
+        path: "MyStruct.sub_struct.mystery_field.maybe_sensitive_stuff",
+        additional_properties: false,
+    },
+    Output {
+        path: "SelfReferential.pretty_sensitive",
+        additional_properties: false,
+    },
+    Output {
+        path: "SubStruct.field2",
+        additional_properties: false,
+    },
+    Output {
+        path: "SubStruct.mystery_field.bitcoin_wallet_key",
+        additional_properties: false,
+    },
+    Output {
+        path: "SubStruct.mystery_field.maybe_sensitive_stuff",
+        additional_properties: false,
+    },
+    Output {
+        path: "WeirdType.pii_true",
+        additional_properties: false,
+    },
+    Output {
+        path: "WeirdTypes.func.pii_true",
+        additional_properties: false,
+    },
+    Output {
+        path: "WeirdTypes.ptr.pii_true",
+        additional_properties: false,
+    },
+    Output {
+        path: "WeirdTypes.reference.pii_true",
+        additional_properties: false,
+    },
+    Output {
+        path: "WeirdTypes.slice.pii_true",
+        additional_properties: false,
+    },
+    Output {
+        path: "WeirdTypes.tuple.pii_true",
+        additional_properties: false,
+    },
 ]

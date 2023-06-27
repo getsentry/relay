@@ -7,6 +7,7 @@ use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
@@ -17,6 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
@@ -25,12 +27,13 @@ use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Context::Trace;
-use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+use relay_general::protocol::{Contexts, TransactionSource};
+use relay_general::store::GeoIpLookup;
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
@@ -47,11 +50,9 @@ use relay_system::{Addr, FromMessage, NoResponse, Service};
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
-    crate::service::ServiceError,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    anyhow::Context,
     relay_general::protocol::{Context as SentryContext, ProfileContext},
-    relay_general::store::{GeoIpLookup, StoreConfig, StoreProcessor},
+    relay_general::store::{StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -66,7 +67,7 @@ use crate::extractors::RequestMeta;
 use crate::metrics_extraction::sessions::extract_session_metrics;
 use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
     ItemAction, ManagedEnvelope, SamplingResult,
@@ -537,7 +538,6 @@ pub struct EnvelopeProcessorService {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
-    #[cfg(feature = "processing")]
     geoip_lookup: Option<GeoIpLookup>,
 }
 
@@ -550,18 +550,23 @@ impl EnvelopeProcessorService {
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
-    ) -> anyhow::Result<Self> {
+    ) -> Self {
+        let geoip_lookup = config.geoip_path().and_then(|p| {
+            match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
+                Ok(geoip) => Some(geoip),
+                Err(err) => {
+                    relay_log::error!("failed to open GeoIP db {p:?}: {err:?}");
+                    None
+                }
+            }
+        });
+
         #[cfg(feature = "processing")]
         {
-            let geoip_lookup = match config.geoip_path() {
-                Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
-                None => None,
-            };
-
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            Ok(Self {
+            Self {
                 config,
                 rate_limiter,
                 geoip_lookup,
@@ -569,17 +574,18 @@ impl EnvelopeProcessorService {
                 outcome_aggregator,
                 project_cache,
                 upstream_relay,
-            })
+            }
         }
 
         #[cfg(not(feature = "processing"))]
-        Ok(Self {
+        Self {
             config,
+            geoip_lookup,
             envelope_manager,
             outcome_aggregator,
             project_cache,
             upstream_relay,
-        })
+        }
     }
 
     /// Returns Ok(true) if attributes were modified.
@@ -1065,8 +1071,16 @@ impl EnvelopeProcessorService {
 
     /// Remove profiles from the envelope if they can not be parsed
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let transaction_count: usize = state
+            .managed_envelope
+            .envelope()
+            .items()
+            .filter(|item| item.ty() == &ItemType::Transaction)
+            .count();
         let mut found_profile = false;
         state.managed_envelope.retain_items(|item| match item.ty() {
+            // Drop profile without a transaction in the same envelope.
+            ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             ItemType::Profile => {
                 if !found_profile {
                     match relay_profiling::parse_metadata(&item.payload()) {
@@ -1821,13 +1835,28 @@ impl EnvelopeProcessorService {
             event._metrics = Annotated::new(metrics);
 
             if event.ty.value() == Some(&EventType::Transaction) {
-                let source = event.get_transaction_source();
+                // The `get_transaction_source` helper maps `None` to `Unknown`. Get the value
+                // manually for a more accurate metric:
+                let source = event
+                    .transaction_info
+                    .value()
+                    .and_then(|i| i.source.value());
 
                 metric!(
-                    counter(RelayCounters::EventTransactionSource) += 1,
-                    source = &source.to_string(),
-                    sdk = envelope.meta().client_name().unwrap_or("proprietary"),
-                    platform = event.platform.as_str().unwrap_or("other"),
+                    counter(RelayCounters::EventTransaction) += 1,
+                    source = match &source {
+                        None => "none",
+                        Some(&TransactionSource::Other(_)) => "other",
+                        Some(source) => source.as_str(),
+                    },
+                    platform =
+                        PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
+                    contains_slashes =
+                        if event.transaction.as_str().unwrap_or_default().contains('/') {
+                            "true"
+                        } else {
+                            "false"
+                        }
                 );
 
                 let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
@@ -2068,9 +2097,9 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
-        let extract_spans_metrics = project_config
-            .features
-            .contains(&Feature::SpanMetricsExtraction);
+        let extract_spans_metrics = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtraction);
 
         let transaction_from_dsc = state
             .managed_envelope
@@ -2237,7 +2266,6 @@ impl EnvelopeProcessorService {
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
-            state.envelope().meta().client_addr(),
         );
     }
 
@@ -2268,7 +2296,6 @@ impl EnvelopeProcessorService {
                 Some(root_project_state),
                 Some(dsc),
                 None,
-                state.envelope().meta().client_addr(),
             )
         } else {
             return;
@@ -2357,7 +2384,9 @@ impl EnvelopeProcessorService {
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
                     rules: &state.project_state.config.tx_name_rules,
-                    ready: state.project_state.config.tx_name_ready,
+                    normalize_legacy: state
+                        .project_state
+                        .has_feature(Feature::NormalizeLegacyTransactions),
                 },
                 device_class_synthesis_config: state
                     .project_state
@@ -2368,6 +2397,7 @@ impl EnvelopeProcessorService {
                 is_renormalize: false,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
+                geoip_lookup: self.geoip_lookup.as_ref(),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
@@ -2736,9 +2766,7 @@ mod tests {
     use relay_common::{DurationUnit, MetricUnit, Uuid};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
-    use relay_general::store::{
-        LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule, TransactionNameRuleScope,
-    };
+    use relay_general::store::{LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_sampling::{
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -3094,7 +3122,6 @@ mod tests {
             upstream_relay,
             #[cfg(feature = "processing")]
             rate_limiter: None,
-            #[cfg(feature = "processing")]
             geoip_lookup: None,
         }
     }
@@ -3711,12 +3738,11 @@ mod tests {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
                             expiry: DateTime::<Utc>::MAX_UTC,
-                            scope: TransactionNameRuleScope::default(),
                             redaction: RedactionRule::Replace {
                                 substitution: "*".to_owned(),
                             },
                         }],
-                        ready: false,
+                        ..Default::default()
                     },
                     ..Default::default()
                 };
@@ -3840,5 +3866,63 @@ mod tests {
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         );
+    }
+
+    #[test]
+    fn test_geo_in_light_normalize() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                },
+                "user": {
+                    "ip_address": "2.125.160.216"
+                }
+            }
+            "###,
+        )
+        .unwrap();
+
+        let lookup =
+            GeoIpLookup::open("../relay-general/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
+                .unwrap();
+        let config = LightNormalizationConfig {
+            geoip_lookup: Some(&lookup),
+            ..Default::default()
+        };
+
+        // Extract user's geo information before normalization.
+        let user_geo = event.value().unwrap().user.value().unwrap().geo.value();
+
+        assert!(user_geo.is_none());
+
+        relay_general::store::light_normalize_event(&mut event, config).unwrap();
+
+        // Extract user's geo information after normalization.
+        let user_geo = event
+            .value()
+            .unwrap()
+            .user
+            .value()
+            .unwrap()
+            .geo
+            .value()
+            .unwrap();
+
+        assert_eq!(user_geo.country_code.value().unwrap(), "GB");
+        assert_eq!(user_geo.city.value().unwrap(), "Boxford");
     }
 }
