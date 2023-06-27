@@ -111,7 +111,7 @@ impl Default for ProjectConfig {
 fn skip_metrics_extraction(boundary: &ErrorBoundary<MetricExtractionConfig>) -> bool {
     match boundary {
         ErrorBoundary::Err(_) => true,
-        ErrorBoundary::Ok(config) => config.is_empty(),
+        ErrorBoundary::Ok(config) => !config.is_enabled(),
     }
 }
 

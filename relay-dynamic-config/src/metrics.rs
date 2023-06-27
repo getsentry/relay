@@ -25,6 +25,7 @@ pub struct TaggingRule {
 /// Current version of metrics extraction.
 const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
+const METRIC_EXTRACTION_VERSION: u16 = 1;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -146,9 +147,11 @@ pub struct MetricExtractionConfig {
 }
 
 impl MetricExtractionConfig {
-    /// Returns `true` if metric extraction is disabled.
-    pub fn is_empty(&self) -> bool {
-        self.version == 0 || (self.metrics.is_empty() && self.tags.is_empty())
+    /// Returns `true` if metric extraction is configured.
+    pub fn is_enabled(&self) -> bool {
+        self.version > 0
+            && self.version <= METRIC_EXTRACTION_VERSION
+            && !(self.metrics.is_empty() && self.tags.is_empty())
     }
 }
 
@@ -159,7 +162,7 @@ pub struct MetricSpec {
     /// Category of data to extract this metric for.
     pub category: DataCategory,
 
-    /// Identifier of the metric to extract.
+    /// The Metric Resource Identifier (MRI) of the metric to extract.
     pub mri: String,
 
     /// A path to the field to extract the metric from.
@@ -177,14 +180,14 @@ pub struct MetricSpec {
     ///   this point.
     /// - **Distribution** metrics require a numeric value. If the value at the specified path is
     ///   not numeric, metric extraction will be skipped.
-    /// - **Set** metrics are require a string value, which is then emitted into the set as unique
+    /// - **Set** metrics require a string value, which is then emitted into the set as unique
     ///   value. Insertion of numbers and other types is undefined.
     ///
     /// If the field does not exist, extraction is skipped.
     #[serde(default)]
     pub field: Option<String>,
 
-    /// An optional condition to apply before extraction.
+    /// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the metric is extracted unconditionally.
@@ -204,7 +207,7 @@ pub struct MetricSpec {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TagMapping {
-    /// A list of metrics identifiers (MRI) to apply tags to.
+    /// A list of Metric Resource Identifiers (MRI) to apply tags to.
     ///
     /// Entries in this list can contain wildcards to match metrics with dynamic MRIs.
     #[serde(default)]
@@ -232,17 +235,20 @@ pub struct TagSpec {
 
     /// Path to a field containing the tag's value.
     ///
-    /// Mutually exclusive from `value`.
+    /// It follows the [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax to read
+    /// data from the payload.
+    ///
+    /// Mutually exclusive with `value`.
     #[serde(default)]
     pub field: Option<String>,
 
     /// Literal value of the tag.
     ///
-    /// Mutually exclusive from `field`.
+    /// Mutually exclusive with `field`.
     #[serde(default)]
     pub value: Option<String>,
 
-    /// An optional condition to apply before extraction.
+    /// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the tag is added unconditionally, provided it is not already there.
