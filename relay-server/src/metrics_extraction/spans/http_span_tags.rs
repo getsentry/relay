@@ -11,29 +11,33 @@ pub(crate) fn extract_http_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String
 
     tags.insert(SpanTagKey::Module, "http".to_owned());
 
+    if let Some(action) = action(span) {
+        tags.insert(SpanTagKey::Action, action);
+    }
+
+    if let Some(d) = domain(span) {
+        tags.insert(SpanTagKey::Domain, d);
+    }
+
+    tags
+}
+
+fn action(span: &Span) -> Option<String> {
     // TODO(iker): we're relying on the existance of `http.method` This is not
     // guaranteed, and we'll need to parse the span description in that case.
-    if let Some(a) = span
-        .data
+    span.data
         .value()
         // TODO(iker): some SDKs extract this as method
         .and_then(|v| v.get("http.method"))
         .and_then(|method| method.as_str())
         .map(|s| s.to_uppercase())
-    {
-        tags.insert(SpanTagKey::Action, a);
-    }
+}
 
-    if let Some(d) = span
-        .description
+fn domain(span: &Span) -> Option<String> {
+    span.description
         .value()
         .and_then(|url| domain_from_http_url(url))
         .map(|d| d.to_lowercase())
-    {
-        tags.insert(SpanTagKey::Domain, d);
-    }
-
-    tags
 }
 
 pub(crate) fn domain_from_http_url(url: &str) -> Option<String> {
@@ -75,9 +79,6 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
     Some(replaced)
 }
 
-/// Allow list of domains to not get subdomains scrubbed.
-const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
-
 fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Option<String> {
     if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
         let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
@@ -85,3 +86,6 @@ fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Opti
     }
     None
 }
+
+/// Allow list of domains to not get subdomains scrubbed.
+const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
