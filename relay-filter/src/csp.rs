@@ -47,7 +47,7 @@ pub fn should_filter(event: &Event, config: &CspFilterConfig) -> Result<(), Filt
 
 /// A pattern used to match allowed paths.
 ///
-/// Scheme, domain and port are extracted from an url,
+/// Scheme, domain, port and the remaining path are extracted from an URL,
 /// they may be either a string (to be matched exactly, case insensitive)
 /// or None (matches anything in the respective position).
 #[derive(Hash, PartialEq, Eq)]
