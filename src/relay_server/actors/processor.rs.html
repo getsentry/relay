@@ -3927,6 +3927,7 @@
 <a href="#3927" id="3927">3927</a>
 <a href="#3928" id="3928">3928</a>
 <a href="#3929" id="3929">3929</a>
+<a href="#3930" id="3930">3930</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6315,6 +6316,9 @@
                 normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
                 transaction_name_config: TransactionNameConfig {
                     rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
+                    normalize_legacy: state
+                        .project_state
+                        .has_feature(Feature::NormalizeLegacyTransactions),
                 },
                 device_class_synthesis_config: state
                     .project_state
@@ -6694,9 +6698,7 @@
     <span class="kw">use </span>relay_common::{DurationUnit, MetricUnit, Uuid};
     <span class="kw">use </span>relay_general::pii::{DataScrubbingConfig, PiiConfig};
     <span class="kw">use </span>relay_general::protocol::{EventId, TransactionSource};
-    <span class="kw">use </span>relay_general::store::{
-        LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule, TransactionNameRuleScope,
-    };
+    <span class="kw">use </span>relay_general::store::{LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule};
     <span class="kw">use </span>relay_sampling::{
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -7668,11 +7670,11 @@
                         rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
                             pattern: LazyGlob::new(<span class="string">&quot;/foo/*/**&quot;</span>.to_owned()),
                             expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
-                            scope: TransactionNameRuleScope::default(),
                             redaction: RedactionRule::Replace {
                                 substitution: <span class="string">&quot;*&quot;</span>.to_owned(),
                             },
                         }],
+                        ..Default::default()
                     },
                     ..Default::default()
                 };

@@ -305,46 +305,13 @@
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{OperationType, TransactionInfo, TransactionSource};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::OperationType;
 <span class="kw">use </span><span class="kw">crate</span>::utils::Glob;
 
 <span class="doccomment">/// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
@@ -392,21 +359,6 @@
     </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
 {
     String::deserialize(deserializer).map(LazyGlob::new)
-}
-
-<span class="doccomment">/// Contains transaction attribute the rule must only be applied to.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-</span><span class="kw">pub struct </span>TransactionNameRuleScope {
-    <span class="doccomment">/// The source of the transaction.
-    </span><span class="kw">pub </span>source: TransactionSource,
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>TransactionNameRuleScope {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            source: TransactionSource::Url,
-        }
-    }
 }
 
 <span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
@@ -516,25 +468,18 @@
     </span><span class="kw">pub </span>pattern: LazyGlob,
     <span class="doccomment">/// Date time when the rule expires and it should not be applied anymore.
     </span><span class="kw">pub </span>expiry: DateTime&lt;Utc&gt;,
-    <span class="doccomment">/// Object containing transaction attributes the rules must only be applied to.
-    </span><span class="attr">#[serde(default)]
-    </span><span class="kw">pub </span>scope: TransactionNameRuleScope,
     <span class="doccomment">/// Object describing what to do with the matched pattern.
     </span><span class="kw">pub </span>redaction: RedactionRule,
 }
 
 <span class="kw">impl </span>TransactionNameRule {
     <span class="doccomment">/// Checks is the current rule matches and tries to apply it.
-    </span><span class="kw">pub fn </span>match_and_apply(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="kw-2">mut </span>transaction: Cow&lt;String&gt;,
-        transaction_info: <span class="kw-2">&amp;</span>TransactionInfo,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    </span><span class="kw">pub fn </span>match_and_apply(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>transaction: Cow&lt;String&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
         <span class="kw">let </span>slash_is_present = transaction.ends_with(<span class="string">&#39;/&#39;</span>);
         <span class="kw">if </span>!slash_is_present {
             transaction.to_mut().push(<span class="string">&#39;/&#39;</span>);
         }
-        <span class="kw">let </span>is_matched = <span class="self">self</span>.matches(<span class="kw-2">&amp;</span>transaction, transaction_info);
+        <span class="kw">let </span>is_matched = <span class="self">self</span>.matches(<span class="kw-2">&amp;</span>transaction);
 
         <span class="kw">if </span>is_matched {
             <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="self">self</span>.apply(<span class="kw-2">&amp;</span>transaction);
@@ -565,14 +510,8 @@
 
     <span class="doccomment">/// Returns `true` if the current rule pattern matches transaction, expected transaction
     /// source, and not expired yet.
-    </span><span class="kw">fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, transaction: <span class="kw-2">&amp;</span>str, info: <span class="kw-2">&amp;</span>TransactionInfo) -&gt; bool {
-        <span class="kw">let </span>now = Utc::now();
-        info.source
-            .value()
-            .map(|s| s == <span class="kw-2">&amp;</span><span class="self">self</span>.scope.source)
-            .unwrap_or_default()
-            &amp;&amp; <span class="self">self</span>.expiry &gt; now
-            &amp;&amp; <span class="self">self</span>.pattern.compiled().is_match(transaction)
+    </span><span class="kw">fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, transaction: <span class="kw-2">&amp;</span>str) -&gt; bool {
+        <span class="self">self</span>.expiry &gt; Utc::now() &amp;&amp; <span class="self">self</span>.pattern.compiled().is_match(transaction)
     }
 }
 
@@ -604,7 +543,6 @@
         <span class="kw">let </span>result = TransactionNameRule {
             pattern: LazyGlob::new(<span class="string">&quot;/auth/login/*/**&quot;</span>.to_string()),
             expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
-            scope: Default::default(),
             redaction: RedactionRule::Replace {
                 substitution: String::from(<span class="string">&quot;:id&quot;</span>),
             },
@@ -631,7 +569,6 @@
         <span class="kw">let </span>result = TransactionNameRule {
             pattern: LazyGlob::new(<span class="string">&quot;/auth/login/*/**&quot;</span>.to_string()),
             expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
-            scope: Default::default(),
             redaction: RedactionRule::Replace {
                 substitution: default_substitution(),
             },
@@ -663,9 +600,6 @@
         <span class="kw">let </span>json = <span class="string">r###&quot;{
   &quot;pattern&quot;: &quot;/auth/login/*/**&quot;,
   &quot;expiry&quot;: &quot;2022-11-30T00:00:00Z&quot;,
-  &quot;scope&quot;: {
-    &quot;source&quot;: &quot;url&quot;
-  },
   &quot;redaction&quot;: {
     &quot;method&quot;: &quot;replace&quot;,
     &quot;substitution&quot;: &quot;:id&quot;
