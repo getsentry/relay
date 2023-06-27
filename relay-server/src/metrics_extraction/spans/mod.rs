@@ -16,6 +16,7 @@ use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
 
+mod cache_spans;
 mod db_spans;
 mod http_spans;
 mod types;
@@ -114,21 +115,13 @@ pub(crate) fn extract_span_metrics(
                     http_spans::extract_http_span_tags(span)
                 } else if span_op.starts_with("db") {
                     db_spans::extract_db_span_tags(span)
+                } else if span_op.starts_with("cache") {
+                    cache_spans::extract_cache_span_tags(span)
                 } else {
                     BTreeMap::new()
                 };
 
                 span_tags.extend(op_based_tags.into_iter());
-
-                let span_module = if span_op.starts_with("cache") {
-                    Some("cache")
-                } else {
-                    None
-                };
-
-                if let Some(module) = span_module {
-                    span_tags.insert(SpanTagKey::Module, module.to_owned());
-                }
 
                 if let Some(normalized_desc) = get_normalized_description(span) {
                     // Truncating the span description's tag value is, for now,
