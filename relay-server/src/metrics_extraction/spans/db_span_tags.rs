@@ -16,21 +16,11 @@ pub(crate) fn extract_db_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String> 
         tags.insert(SpanTagKey::Action, action);
     }
 
-    if let Some(domain) = span
-        .description
-        .value()
-        .and_then(|query| sql_table_from_query(query))
-        .map(|t| t.to_lowercase())
-    {
+    if let Some(domain) = db_domain(span) {
         tags.insert(SpanTagKey::Domain, domain);
     }
 
-    if let Some(system) = span
-        .data
-        .value()
-        .and_then(|v| v.get("db.system"))
-        .and_then(|system| system.as_str())
-    {
+    if let Some(system) = db_system(span) {
         tags.insert(SpanTagKey::System, system.to_lowercase());
     }
 
@@ -38,13 +28,13 @@ pub(crate) fn extract_db_span_tags(span: &Span) -> BTreeMap<SpanTagKey, String> 
 }
 
 fn db_action(span: &Span) -> Option<String> {
-    let action_from_data = span
+    let from_data = span
         .data
         .value()
         .and_then(|v| v.get("db.operation"))
         .and_then(|db_op| db_op.as_str())
         .map(|s| s.to_uppercase());
-    action_from_data.or_else(|| {
+    from_data.or_else(|| {
         span.description
             .value()
             .and_then(|d| sql_action_from_query(d))
@@ -52,14 +42,25 @@ fn db_action(span: &Span) -> Option<String> {
     })
 }
 
-/// Regex with a capture group to extract the database action from a query.
-///
-/// Currently, we're only interested in either `SELECT` or `INSERT` statements.
-static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
+fn db_domain(span: &Span) -> Option<String> {
+    span.description
+        .value()
+        .and_then(|query| sql_table_from_query(query))
+        .map(|t| t.to_lowercase())
+}
 
-pub(crate) fn sql_action_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
+fn db_system(span: &Span) -> Option<&str> {
+    span.data
+        .value()
+        .and_then(|v| v.get("db.system"))
+        .and_then(|system| system.as_str())
+}
+
+/// Returns the table in the SQL query, if any.
+///
+/// If multiple tables exist, only the first one is returned.
+pub(crate) fn sql_table_from_query(query: &str) -> Option<&str> {
+    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
 }
 
 /// Regex with a capture group to extract the table from a database query,
@@ -68,9 +69,12 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
 });
 
-/// Returns the table in the SQL query, if any.
-///
-/// If multiple tables exist, only the first one is returned.
-pub(crate) fn sql_table_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
+pub(crate) fn sql_action_from_query(query: &str) -> Option<&str> {
+    extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
 }
+
+/// Regex with a capture group to extract the database action from a query.
+///
+/// Currently, we're only interested in either `SELECT` or `INSERT` statements.
+static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
