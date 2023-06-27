@@ -143,6 +143,20 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
@@ -158,7 +172,10 @@
 <span class="kw">use </span>serde_json::Value;
 
 <span class="kw">use </span><span class="kw">crate</span>::feature::Feature;
-<span class="kw">use crate</span>::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};
+<span class="kw">use </span><span class="kw">crate</span>::metrics::{
+    MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
+};
+<span class="kw">use </span><span class="kw">crate</span>::ErrorBoundary;
 
 <span class="doccomment">/// Dynamic, per-DSN configuration passed down from Sentry.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
@@ -200,6 +217,9 @@
     <span class="doccomment">/// Configuration for extracting metrics from transaction events.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>transaction_metrics: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;TransactionMetricsConfig&gt;&gt;,
+    <span class="doccomment">/// Configuration for generic metrics extraction from all data categories.
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;skip_metrics_extraction&quot;</span>)]
+    </span><span class="kw">pub </span>metric_extraction: ErrorBoundary&lt;MetricExtractionConfig&gt;,
     <span class="doccomment">/// The span attributes configuration.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>span_attributes: BTreeSet&lt;SpanAttribute&gt;,
@@ -236,6 +256,7 @@
             breakdowns_v2: <span class="prelude-val">None</span>,
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: <span class="prelude-val">None</span>,
+            metric_extraction: Default::default(),
             span_attributes: BTreeSet::new(),
             metric_conditional_tagging: Vec::new(),
             features: BTreeSet::new(),
@@ -243,6 +264,13 @@
             tx_name_ready: <span class="bool-val">false</span>,
             span_description_rules: <span class="prelude-val">None</span>,
         }
+    }
+}
+
+<span class="kw">fn </span>skip_metrics_extraction(boundary: <span class="kw-2">&amp;</span>ErrorBoundary&lt;MetricExtractionConfig&gt;) -&gt; bool {
+    <span class="kw">match </span>boundary {
+        ErrorBoundary::Err(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
+        ErrorBoundary::Ok(config) =&gt; !config.is_enabled(),
     }
 }
 

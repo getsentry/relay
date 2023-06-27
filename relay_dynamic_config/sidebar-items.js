@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["AcceptTransactionNames","ErrorBoundary","Feature"],"fn":["validate_json"],"struct":["CustomMeasurementConfig","LimitedProjectConfig","ProjectConfig","SessionMetricsConfig","TaggingRule","TransactionMetricsConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["AcceptTransactionNames","ErrorBoundary","Feature","TagSource"],"fn":["validate_json"],"struct":["CustomMeasurementConfig","LimitedProjectConfig","MetricExtractionConfig","MetricSpec","ProjectConfig","SessionMetricsConfig","TagMapping","TagSpec","TaggingRule","TransactionMetricsConfig"]};
