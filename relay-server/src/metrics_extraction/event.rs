@@ -77,7 +77,10 @@ fn extract_event_tags(event: &Event, tags: &[TagSpec]) -> BTreeMap<String, Strin
         };
 
         if let Some(value) = value_opt {
-            map.insert(tag_spec.key.clone(), value);
+            // Explicitly do not override existing tags on a metric. First condition wins.
+            if !map.contains_key(&tag_spec.key) {
+                map.insert(tag_spec.key.clone(), value);
+            }
         }
     }
 
