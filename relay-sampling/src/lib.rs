@@ -713,7 +713,8 @@ impl FieldValueProvider for Event {
                         })
                         .map_or(Value::Null, |f| Value::from(*f))
                 } else if let Some(rest) = field_name.strip_prefix("extra.") {
-                    self.extra(rest).map_or(Value::Null, |v| v.clone().into())
+                    self.extra_at(rest)
+                        .map_or(Value::Null, |v| v.clone().into())
                 } else if let Some(rest) = field_name.strip_prefix("tags.") {
                     self.tags
                         .value()

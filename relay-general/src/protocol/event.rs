@@ -584,7 +584,7 @@ impl Event {
     ///
     /// The path is evaluated recursively where each path component is joined by a period (`"."`).
     /// Periods in extra keys are not supported.
-    pub fn extra(&self, path: &str) -> Option<&Value> {
+    pub fn extra_at(&self, path: &str) -> Option<&Value> {
         let mut path = path.split('.');
 
         // Get the top-level item explicitly since, since those have a different type
@@ -832,5 +832,36 @@ mod tests {
 
         assert_eq!(event, Annotated::from_json(input).unwrap());
         assert_eq!(output, event.to_json().unwrap());
+    }
+
+    #[test]
+    fn test_extra_at() {
+        let json = serde_json::json!({
+            "extra": {
+                "a": "string1",
+                "b": 42,
+                "c": {
+                    "d": "string2",
+                    "e": null,
+                },
+            },
+        });
+
+        let event = Event::from_value(json.into());
+        let event = event.value().unwrap();
+
+        assert_eq!(
+            Some(&Value::String("string1".to_owned())),
+            event.extra_at("a")
+        );
+        assert_eq!(Some(&Value::I64(42)), event.extra_at("b"));
+        assert!(matches!(event.extra_at("c"), Some(&Value::Object(_))));
+        assert_eq!(None, event.extra_at("d"));
+        assert_eq!(
+            Some(&Value::String("string2".to_owned())),
+            event.extra_at("c.d")
+        );
+        assert_eq!(None, event.extra_at("c.e"));
+        assert_eq!(None, event.extra_at("c.f"));
     }
 }
