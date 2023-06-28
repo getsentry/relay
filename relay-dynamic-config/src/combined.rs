@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use itertools::Itertools;
 use relay_auth::PublicKey;
 use relay_filter::FiltersConfig;
@@ -71,14 +69,13 @@ impl DynamicConfig {
     pub fn event_retention(&self) -> Option<u16> {
         // Use the most local value:
         [
-            self.public_key,
-            self.project,
-            self.organization,
-            self.global,
+            &self.public_key,
+            &self.project,
+            &self.organization,
+            &self.global,
         ]
         .iter()
-        .map(|c| c.event_retention)
-        .flatten()
+        .filter_map(|c| c.event_retention)
         .next()
     }
 

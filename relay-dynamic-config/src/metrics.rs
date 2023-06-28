@@ -36,10 +36,10 @@ pub struct SessionMetricsConfig {
     /// extract metrics from sessions, and instead forwards them to the upstream.
     ///
     /// Version `0` (default) disables extraction.
-    version: u16,
+    pub(crate) version: u16,
 
     /// Drop sessions after successfully extracting metrics.
-    drop: bool,
+    pub(crate) drop: bool,
 }
 
 impl SessionMetricsConfig {

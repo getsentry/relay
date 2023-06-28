@@ -15,6 +15,7 @@ use serde_json::Value;
 use crate::feature::Feature;
 use crate::{ErrorBoundary, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig};
 
+/// The default value for allowed domains (allow all).
 pub const DEFAULT_ALLOWED_DOMAINS: [&str; 1] = ["*"];
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
