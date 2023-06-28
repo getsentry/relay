@@ -4,8 +4,6 @@ import sentry_relay
 
 import pytest
 
-from sentry_relay._compat import PY2
-
 REMARKS = [["myrule", "s", 7, 17]]
 META = {"": {"rem": REMARKS}}
 TEXT = "Hello, [redacted]!"
@@ -98,8 +96,7 @@ def test_broken_json():
     event = normalizer.normalize_event({"message": bad_str})
     assert "Hello" in event["logentry"]["formatted"]
     assert "World" in event["logentry"]["formatted"]
-    if not PY2:
-        assert event["logentry"]["formatted"] != bad_str
+    assert event["logentry"]["formatted"] != bad_str
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,3 @@
-from sentry_relay._compat import implements_to_string
 from sentry_relay._lowlevel import lib
 
 
@@ -6,7 +5,6 @@ __all__ = ["RelayError"]
 exceptions_by_code = {}
 
 
-@implements_to_string
 class RelayError(Exception):
     code = None
 

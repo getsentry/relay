@@ -165,12 +165,6 @@ clean-target-dir:
 	.venv/bin/pip install -U pip wheel
 
 .venv/python-requirements-stamp: requirements-dev.txt
-	@# Work around https://github.com/confluentinc/confluent-kafka-python/issues/1190
-	@if [ "$$(uname -sm)" = "Darwin arm64" ]; then \
-		echo "Using 'librdkafka' from homebrew to build confluent-kafka"; \
-		export C_INCLUDE_PATH="$$(brew --prefix librdkafka)/include"; \
-		export LDFLAGS="-L$$(brew --prefix librdkafka)/lib"; \
-	fi; \
 	.venv/bin/pip install -U -r requirements-dev.txt
 	# Bump the mtime of an empty file.
 	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
