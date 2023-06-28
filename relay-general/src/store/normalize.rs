@@ -40,7 +40,7 @@ mod stacktrace;
 pub mod user_agent;
 
 /// Defines a builtin measurement.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BuiltinMeasurementKey {
     name: String,
@@ -53,10 +53,10 @@ pub struct BuiltinMeasurementKey {
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    builtin_measurements: Vec<BuiltinMeasurementKey>,
+    pub builtin_measurements: Vec<BuiltinMeasurementKey>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
-    max_custom_measurements: usize,
+    pub max_custom_measurements: usize,
 }
 
 impl MeasurementsConfig {
