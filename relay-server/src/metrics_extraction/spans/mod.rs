@@ -291,11 +291,7 @@ fn sanitized_span_description(
         return Some(scrubbed.to_owned());
     }
 
-    if let Some(module) = module {
-        if !module.starts_with("http") {
-            return None;
-        }
-    } else {
+    if !module?.starts_with("http") {
         return None;
     }
 
