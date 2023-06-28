@@ -30,7 +30,7 @@ def test_store_via_ephemeral_relay(
         credentials = json.loads(
             subprocess.check_output(
                 relay_bin + ["credentials", "generate", "--stdout"],
-                universal_newlines=True,
+                text=True,
                 cwd=str(tmpdir),
             )
         )
@@ -48,15 +48,15 @@ def test_store_via_ephemeral_relay(
     if config_method == "arg":
         args += [
             "--no-processing",
-            "--upstream={}".format(upstream),
-            "--port={}".format(port),
-            "--mode={}".format(mode),
+            f"--upstream={upstream}",
+            f"--port={port}",
+            f"--mode={mode}",
         ]
         if mode == "managed":
             args += [
-                "--id={}".format(relay_id),
-                "--public-key={}".format(public_key),
-                "--secret-key={}".format(secret_key),
+                f"--id={relay_id}",
+                f"--public-key={public_key}",
+                f"--secret-key={secret_key}",
             ]
     if config_method == "env":
         env["RELAY_PROCESSING_ENABLED"] = "false"

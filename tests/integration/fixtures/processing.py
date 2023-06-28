@@ -146,7 +146,7 @@ def kafka_consumer(request, get_topic_name, processing_config):
     return inner
 
 
-class ConsumerBase(object):
+class ConsumerBase:
     def __init__(self, consumer, options, topic_name, timeout=None):
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
@@ -238,8 +238,8 @@ class OutcomesConsumer(ConsumerBase):
             outcomes = [outcome]
         else:
             outcomes = self.get_outcomes()
-            expected = set(category_value(category) for category in categories)
-            actual = set(outcome["category"] for outcome in outcomes)
+            expected = {category_value(category) for category in categories}
+            actual = {outcome["category"] for outcome in outcomes}
             assert actual == expected, (actual, expected)
 
         for outcome in outcomes:

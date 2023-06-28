@@ -127,7 +127,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
             if failure_type == "timeout":
                 time.sleep(50)  # ensure timeout
             elif failure_type == "socketerror":
-                raise socket.error()
+                raise OSError()
             else:
                 assert False
 

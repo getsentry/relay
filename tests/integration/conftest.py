@@ -62,7 +62,7 @@ def config_dir(tmpdir):
     def inner(name):
         counters.setdefault(name, 0)
         counters[name] += 1
-        return tmpdir.mkdir("{}-{}".format(name, counters[name]))
+        return tmpdir.mkdir(f"{name}-{counters[name]}")
 
     return inner
 
@@ -156,7 +156,7 @@ def _fixture_file_path_for_test_file(test_file_path, file_name):
     return path.abspath(path.join(prefix, "fixtures", test_file_name, file_name))
 
 
-class _JsonFixtureProvider(object):
+class _JsonFixtureProvider:
     def __init__(self, test_file_path: str):
         """
         Initializes a JsonFixtureProvider with the current test file path (in order to create

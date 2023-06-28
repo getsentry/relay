@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add the configuration protocol for generic metrics extraction. ([#2252](https://github.com/getsentry/relay/pull/2252))
+- Modernize python syntax. ([#2264](https://github.com/getsentry/relay/pull/2264))
 
 ## 0.8.27
 

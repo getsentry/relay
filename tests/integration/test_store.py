@@ -174,7 +174,7 @@ def test_store_static_config(mini_sentry, relay):
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("{}.json".format(project_id)).write(
+        dir.join("projects").join(f"{project_id}.json").write(
             json.dumps(project_config)
         )
 
@@ -332,7 +332,7 @@ def test_processing(
     mini_sentry.add_full_project_config(42)
 
     # create a unique message so we can make sure we don't test with stale data
-    message_text = "some message {}".format(uuid.uuid4())
+    message_text = f"some message {uuid.uuid4()}"
     event = {
         "message": message_text,
         "extra": {"msg_text": message_text},
@@ -866,7 +866,7 @@ def test_no_auth(relay, mini_sentry, mode):
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("{}.json".format(project_id)).write(
+        dir.join("projects").join(f"{project_id}.json").write(
             json.dumps(project_config)
         )
 

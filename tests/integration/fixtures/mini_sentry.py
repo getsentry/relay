@@ -30,7 +30,7 @@ def _parse_version(version):
 
 class Sentry(SentryLike):
     def __init__(self, server_address, app):
-        super(Sentry, self).__init__(server_address)
+        super().__init__(server_address)
 
         self.app = app
         self.project_configs = {}
@@ -60,7 +60,7 @@ class Sentry(SentryLike):
     def format_failures(self):
         s = ""
         for route, error in self.test_failures:
-            s += "> %s: %s\n" % (route, error)
+            s += f"> {route}: {error}\n"
         return s
 
     def add_dsn_key_to_project(self, project_id, dsn_public_key=None, numeric_id=None):

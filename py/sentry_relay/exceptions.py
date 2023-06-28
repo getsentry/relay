@@ -16,7 +16,7 @@ class RelayError(Exception):
     def __str__(self):
         rv = self.message
         if self.rust_info is not None:
-            return "%s\n\n%s" % (rv, self.rust_info)
+            return f"{rv}\n\n{self.rust_info}"
         return rv
 
 

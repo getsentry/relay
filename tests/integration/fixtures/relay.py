@@ -30,7 +30,7 @@ class Relay(SentryLike):
         options,
         version,
     ):
-        super(Relay, self).__init__(server_address, upstream, public_key)
+        super().__init__(server_address, upstream, public_key)
 
         self.process = process
         self.relay_id = relay_id
@@ -144,7 +144,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
         )
 
         # now that we have generated a credentials file get the details
-        with open(dir.join("credentials.json"), "r") as f:
+        with open(dir.join("credentials.json")) as f:
             credentials = json.load(f)
         public_key = credentials.get("public_key")
         assert public_key is not None
@@ -189,7 +189,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
 @pytest.fixture
 def latest_relay_version(get_relay_binary):
     version_str = subprocess.check_output(
-        get_relay_binary() + ["--version"], universal_newlines=True
+        get_relay_binary() + ["--version"], text=True
     ).strip()
     _the_word_relay, version = version_str.split(" ", 1)
     return version

@@ -11,7 +11,7 @@ HAPROXY_BIN = [os.environ.get("HAPROXY_BIN") or "haproxy"]
 
 class HAProxy(SentryLike):
     def __init__(self, server_address, process, upstream):
-        super(HAProxy, self).__init__(server_address, upstream)
+        super().__init__(server_address, upstream)
         self.process = process
 
 

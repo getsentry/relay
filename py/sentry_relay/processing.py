@@ -94,7 +94,7 @@ class GeoIpLookup(RustObject):
         return rv
 
     def __repr__(self):
-        return "<GeoIpLookup %r>" % (self._path,)
+        return f"<GeoIpLookup {self._path!r}>"
 
 
 class StoreNormalizer(RustObject):

@@ -11,7 +11,7 @@ GOBETWEEN_BIN = [os.environ.get("GOBETWEEN_BIN") or "gobetween"]
 
 class Gobetween(SentryLike):
     def __init__(self, server_address, process, upstream):
-        super(Gobetween, self).__init__(server_address, upstream)
+        super().__init__(server_address, upstream)
         self.process = process
 
 

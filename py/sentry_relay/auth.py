@@ -47,7 +47,7 @@ class PublicKey(RustObject):
         return decode_str(self._methodcall(lib.relay_publickey_to_string), free=True)
 
     def __repr__(self):
-        return "<%s %r>" % (self.__class__.__name__, str(self))
+        return f"<{self.__class__.__name__} {str(self)!r}>"
 
 
 class SecretKey(RustObject):
@@ -72,7 +72,7 @@ class SecretKey(RustObject):
         return decode_str(self._methodcall(lib.relay_secretkey_to_string), free=True)
 
     def __repr__(self):
-        return "<%s %r>" % (self.__class__.__name__, str(self))
+        return f"<{self.__class__.__name__} {str(self)!r}>"
 
 
 def generate_key_pair():

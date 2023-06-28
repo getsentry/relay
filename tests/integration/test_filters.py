@@ -45,7 +45,7 @@ def test_filters_are_applied(
 
     # create a unique message so we can make sure we don't test with stale data
     now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
+    message_text = f"some message {now.isoformat()}"
 
     event = {
         "message": message_text,
@@ -196,7 +196,7 @@ def test_web_crawlers_filter_are_applied(
 
     # create a unique message so we can make sure we don't test with stale data
     now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
+    message_text = f"some message {now.isoformat()}"
 
     event = {
         "message": message_text,
