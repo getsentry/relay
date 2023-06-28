@@ -3645,6 +3645,36 @@
 <a href="#3645" id="3645">3645</a>
 <a href="#3646" id="3646">3646</a>
 <a href="#3647" id="3647">3647</a>
+<a href="#3648" id="3648">3648</a>
+<a href="#3649" id="3649">3649</a>
+<a href="#3650" id="3650">3650</a>
+<a href="#3651" id="3651">3651</a>
+<a href="#3652" id="3652">3652</a>
+<a href="#3653" id="3653">3653</a>
+<a href="#3654" id="3654">3654</a>
+<a href="#3655" id="3655">3655</a>
+<a href="#3656" id="3656">3656</a>
+<a href="#3657" id="3657">3657</a>
+<a href="#3658" id="3658">3658</a>
+<a href="#3659" id="3659">3659</a>
+<a href="#3660" id="3660">3660</a>
+<a href="#3661" id="3661">3661</a>
+<a href="#3662" id="3662">3662</a>
+<a href="#3663" id="3663">3663</a>
+<a href="#3664" id="3664">3664</a>
+<a href="#3665" id="3665">3665</a>
+<a href="#3666" id="3666">3666</a>
+<a href="#3667" id="3667">3667</a>
+<a href="#3668" id="3668">3668</a>
+<a href="#3669" id="3669">3669</a>
+<a href="#3670" id="3670">3670</a>
+<a href="#3671" id="3671">3671</a>
+<a href="#3672" id="3672">3672</a>
+<a href="#3673" id="3673">3673</a>
+<a href="#3674" id="3674">3674</a>
+<a href="#3675" id="3675">3675</a>
+<a href="#3676" id="3676">3676</a>
+<a href="#3677" id="3677">3677</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -4235,6 +4265,10 @@
                 <span class="prelude-val">None </span>=&gt; Value::Null,
                 <span class="prelude-val">Some</span>(s) =&gt; s.as_str().into(),
             },
+            <span class="string">&quot;dist&quot; </span>=&gt; <span class="kw">match </span><span class="self">self</span>.dist.value() {
+                <span class="prelude-val">None </span>=&gt; Value::Null,
+                <span class="prelude-val">Some</span>(s) =&gt; s.as_str().into(),
+            },
             <span class="string">&quot;environment&quot; </span>=&gt; <span class="kw">match </span><span class="self">self</span>.environment.value() {
                 <span class="prelude-val">None </span>=&gt; Value::Null,
                 <span class="prelude-val">Some</span>(s) =&gt; s.as_str().into(),
@@ -4249,24 +4283,35 @@
                 }
                 <span class="kw">_ </span>=&gt; Value::from(<span class="string">&quot;other&quot;</span>),
             },
-            <span class="string">&quot;user.id&quot; </span>=&gt; <span class="self">self</span>.user.value().map_or(Value::Null, |user| {
-                user.id.value().map_or(Value::Null, |id| {
-                    <span class="kw">if </span>id.is_empty() {
-                        Value::Null <span class="comment">// we don&#39;t serialize empty values but check it anyway
-                    </span>} <span class="kw">else </span>{
-                        id.as_str().into()
-                    }
-                })
-            }),
-            <span class="string">&quot;user.segment&quot; </span>=&gt; <span class="self">self</span>.user.value().map_or(Value::Null, |user| {
-                user.segment.value().map_or(Value::Null, |segment| {
-                    <span class="kw">if </span>segment.is_empty() {
-                        Value::Null
-                    } <span class="kw">else </span>{
-                        segment.as_str().into()
-                    }
-                })
-            }),
+            <span class="string">&quot;user.email&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.email.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |email| email.clone().into()),
+            <span class="string">&quot;user.id&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.id.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |id| id.as_str().into()),
+            <span class="string">&quot;user.ip_address&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.ip_address.value())
+                .map_or(Value::Null, |ip| ip.as_str().into()),
+            <span class="string">&quot;user.name&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.name.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |name| name.clone().into()),
+            <span class="string">&quot;user.segment&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.segment.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |id| id.clone().into()),
 
             <span class="comment">// Partial implementation of contexts.
             </span><span class="string">&quot;contexts.device.name&quot; </span>=&gt; <span class="self">self
@@ -4332,6 +4377,21 @@
                         .filter(|measurement_name| !measurement_name.is_empty())
                         .and_then(|measurement_name| store::get_measurement(<span class="self">self</span>, measurement_name))
                         .map_or(Value::Null, Value::from)
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = field_name.strip_prefix(<span class="string">&quot;breakdowns.&quot;</span>) {
+                    rest.split_once(<span class="string">&#39;.&#39;</span>)
+                        .and_then(|(breakdown, measurement)| {
+                            <span class="self">self</span>.breakdowns
+                                .value()
+                                .and_then(|breakdowns| breakdowns.get(breakdown))
+                                .and_then(|annotated| annotated.value())
+                                .and_then(|measurements| measurements.get(measurement))
+                                .and_then(|annotated| annotated.value())
+                                .and_then(|measurement| measurement.value.value())
+                        })
+                        .map_or(Value::Null, |f| Value::from(<span class="kw-2">*</span>f))
+                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = field_name.strip_prefix(<span class="string">&quot;extra.&quot;</span>) {
+                    <span class="self">self</span>.extra_at(rest)
+                        .map_or(Value::Null, |v| v.clone().into())
                 } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = field_name.strip_prefix(<span class="string">&quot;tags.&quot;</span>) {
                     <span class="self">self</span>.tags
                         .value()
