@@ -64,8 +64,6 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::metrics_extraction::sessions::extract_session_metrics;
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
@@ -730,7 +728,7 @@ impl EnvelopeProcessorService {
             && !item.metrics_extracted()
             && !matches!(session.status, SessionStatus::Unknown(_))
         {
-            extract_session_metrics(
+            crate::metrics_extraction::sessions::extract_session_metrics(
                 &session.attributes,
                 &session,
                 client,
@@ -814,7 +812,7 @@ impl EnvelopeProcessorService {
         // Extract metrics if they haven't been extracted by a prior Relay
         if metrics_config.is_enabled() && !item.metrics_extracted() {
             for aggregate in &session.aggregates {
-                extract_session_metrics(
+                crate::metrics_extraction::sessions::extract_session_metrics(
                     &session.attributes,
                     aggregate,
                     client,
@@ -2089,13 +2087,9 @@ impl EnvelopeProcessorService {
 
         let project_config = state.project_state.config();
         let extraction_config = match project_config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref config)) => config,
+            Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => config,
             _ => return Ok(()),
         };
-
-        if !extraction_config.is_enabled() {
-            return Ok(());
-        }
 
         let extract_spans_metrics = state
             .project_state
@@ -2114,7 +2108,7 @@ impl EnvelopeProcessorService {
                 extracted_anything = &result.unwrap_or(false).to_string(),
                 {
                     // Actual logic outsourced for unit tests
-                    result = extract_transaction_metrics(
+                    result = crate::metrics_extraction::transactions::extract_transaction_metrics(
                         self.config.aggregator_config(),
                         extraction_config,
                         &project_config.metric_conditional_tagging,
@@ -2135,6 +2129,32 @@ impl EnvelopeProcessorService {
             state.managed_envelope.set_event_metrics_extracted();
         }
 
+        Ok(())
+    }
+
+    /// Extract metrics from all envelope items.
+    ///
+    /// Caveats:
+    ///  - This functionality is incomplete. At this point, extraction is implemented only for
+    ///    transaction events.
+    ///  - This function must run BEFORE `extract_transaction_metrics` to avoid double-extraction.
+    fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let config = match state.project_state.config.metric_extraction {
+            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
+            _ => return Ok(()),
+        };
+
+        if let Some(event) = state.event.value() {
+            // XXX: Since we only support transactions, we can skip generic metric extraction from
+            // events if transaction metrics have been extracted before.
+            if !state.transaction_metrics_extracted {
+                let metrics =
+                    crate::metrics_extraction::event::extract_event_metrics(event, config);
+                state.extracted_metrics.project_metrics.extend(metrics);
+            }
+        }
+
+        // NB: Other items can be added here.
         Ok(())
     }
 
@@ -2445,6 +2465,7 @@ impl EnvelopeProcessorService {
             self.normalize_dsc(state);
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
+            self.extract_metrics(state)?;
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
 
