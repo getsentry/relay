@@ -27,12 +27,12 @@ use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::Context::Trace;
+use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
-use relay_general::protocol::{Contexts, TransactionSource};
 use relay_general::store::GeoIpLookup;
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
@@ -67,8 +67,8 @@ use crate::extractors::RequestMeta;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, log_transaction_name_metrics, ChunkedFormDataAggregator, FormDataIter,
-    ItemAction, ManagedEnvelope, SamplingResult,
+    self, get_sampling_key, log_transaction_name_metrics, transaction_source_tag,
+    ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
 };
 
 /// The minimum clock drift for correction to apply.
@@ -1833,20 +1833,9 @@ impl EnvelopeProcessorService {
             event._metrics = Annotated::new(metrics);
 
             if event.ty.value() == Some(&EventType::Transaction) {
-                // The `get_transaction_source` helper maps `None` to `Unknown`. Get the value
-                // manually for a more accurate metric:
-                let source = event
-                    .transaction_info
-                    .value()
-                    .and_then(|i| i.source.value());
-
                 metric!(
                     counter(RelayCounters::EventTransaction) += 1,
-                    source = match &source {
-                        None => "none",
-                        Some(&TransactionSource::Other(_)) => "other",
-                        Some(source) => source.as_str(),
-                    },
+                    source = transaction_source_tag(event),
                     platform =
                         PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
                     contains_slashes =
