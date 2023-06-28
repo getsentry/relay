@@ -64,12 +64,38 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::EventType;
-<span class="kw">use </span>relay_general::protocol::Event;
+<span class="kw">use </span>relay_general::protocol::{Event, TransactionSource};
 <span class="kw">use </span>relay_general::types::{Annotated, RemarkType};
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::extract_http_status_code;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+
+<span class="doccomment">/// Maps the event&#39;s transaction source to a low-cardinality statsd tag.
+</span><span class="kw">pub fn </span>transaction_source_tag(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="kw-2">&amp;</span>str {
+    <span class="kw">let </span>source = event
+        .transaction_info
+        .value()
+        .and_then(|i| i.source.value());
+    <span class="kw">match </span>source {
+        <span class="prelude-val">None </span>=&gt; <span class="string">&quot;none&quot;</span>,
+        <span class="prelude-val">Some</span>(TransactionSource::Other(<span class="kw">_</span>)) =&gt; <span class="string">&quot;other&quot;</span>,
+        <span class="prelude-val">Some</span>(source) =&gt; source.as_str(),
+    }
+}
 
 <span class="doccomment">/// Log statsd metrics about transaction name modifications.
 ///
@@ -87,7 +113,7 @@
         <span class="kw">return </span>f(event);
     }
 
-    <span class="kw">let </span>old_source = inner.get_transaction_source().to_string();
+    <span class="kw">let </span>old_source = transaction_source_tag(inner).to_string();
     <span class="kw">let </span>old_remarks = inner.transaction.meta().iter_remarks().count();
 
     <span class="kw">let </span>res = f(event);
@@ -117,14 +143,14 @@
         (<span class="bool-val">false</span>, <span class="bool-val">false</span>) =&gt; <span class="string">&quot;none&quot;</span>,
     };
 
-    <span class="kw">let </span>new_source = inner.get_transaction_source();
+    <span class="kw">let </span>new_source = transaction_source_tag(inner);
     <span class="kw">let </span>is_404 = extract_http_status_code(inner).map_or(<span class="bool-val">false</span>, |s| s == <span class="string">&quot;404&quot;</span>);
 
     <span class="macro">relay_statsd::metric!</span>(
         counter(RelayCounters::TransactionNameChanges) += <span class="number">1</span>,
         source_in = old_source.as_str(),
         changes = changes,
-        source_out = new_source.as_str(),
+        source_out = new_source,
         is_404 = <span class="kw">if </span>is_404 { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
     );
 
