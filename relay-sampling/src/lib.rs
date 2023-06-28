@@ -588,6 +588,10 @@ impl FieldValueProvider for Event {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
             },
+            "dist" => match self.dist.value() {
+                None => Value::Null,
+                Some(s) => s.as_str().into(),
+            },
             "environment" => match self.environment.value() {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
@@ -602,24 +606,35 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::from("other"),
             },
-            "user.id" => self.user.value().map_or(Value::Null, |user| {
-                user.id.value().map_or(Value::Null, |id| {
-                    if id.is_empty() {
-                        Value::Null // we don't serialize empty values but check it anyway
-                    } else {
-                        id.as_str().into()
-                    }
-                })
-            }),
-            "user.segment" => self.user.value().map_or(Value::Null, |user| {
-                user.segment.value().map_or(Value::Null, |segment| {
-                    if segment.is_empty() {
-                        Value::Null
-                    } else {
-                        segment.as_str().into()
-                    }
-                })
-            }),
+            "user.email" => self
+                .user
+                .value()
+                .and_then(|user| user.email.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |email| email.clone().into()),
+            "user.id" => self
+                .user
+                .value()
+                .and_then(|user| user.id.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |id| id.as_str().into()),
+            "user.ip_address" => self
+                .user
+                .value()
+                .and_then(|user| user.ip_address.value())
+                .map_or(Value::Null, |ip| ip.as_str().into()),
+            "user.name" => self
+                .user
+                .value()
+                .and_then(|user| user.name.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |name| name.clone().into()),
+            "user.segment" => self
+                .user
+                .value()
+                .and_then(|user| user.segment.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |id| id.clone().into()),
 
             // Partial implementation of contexts.
             "contexts.device.name" => self
@@ -685,6 +700,21 @@ impl FieldValueProvider for Event {
                         .filter(|measurement_name| !measurement_name.is_empty())
                         .and_then(|measurement_name| store::get_measurement(self, measurement_name))
                         .map_or(Value::Null, Value::from)
+                } else if let Some(rest) = field_name.strip_prefix("breakdowns.") {
+                    rest.split_once('.')
+                        .and_then(|(breakdown, measurement)| {
+                            self.breakdowns
+                                .value()
+                                .and_then(|breakdowns| breakdowns.get(breakdown))
+                                .and_then(|annotated| annotated.value())
+                                .and_then(|measurements| measurements.get(measurement))
+                                .and_then(|annotated| annotated.value())
+                                .and_then(|measurement| measurement.value.value())
+                        })
+                        .map_or(Value::Null, |f| Value::from(*f))
+                } else if let Some(rest) = field_name.strip_prefix("extra.") {
+                    self.extra_at(rest)
+                        .map_or(Value::Null, |v| v.clone().into())
                 } else if let Some(rest) = field_name.strip_prefix("tags.") {
                     self.tags
                         .value()
