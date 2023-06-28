@@ -3,8 +3,8 @@ use relay_auth::PublicKey;
 use relay_filter::FiltersConfig;
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::{
-    BreakdownsConfig, BuiltinMeasurementKey, MeasurementsConfig, SpanDescriptionRule,
-    TransactionNameRule,
+    BreakdownConfig, BreakdownsConfig, BuiltinMeasurementKey, MeasurementsConfig,
+    SpanDescriptionRule, TransactionNameRule,
 };
 use relay_general::types::SpanAttribute;
 use relay_quotas::Quota;
@@ -106,8 +106,23 @@ impl DynamicConfig {
     }
 
     /// Configuration for operation breakdown. Will be emitted only if present.
-    pub fn breakdowns(&self) -> &Option<BreakdownsConfig> {
-        todo!()
+    pub fn breakdowns(&self) -> Option<BreakdownsConfig> {
+        // There seems to be a semantic difference between `breakdowns: None` and `breakdowns: []`
+        // (see `normalize_breakdowns`), so it's easiest to create a new instance on the fly here.
+        // NOTE(jjbayer): There's probably a way to solve this with iterators, but I don't want to
+        // invest the time right now.
+        let mut res: Option<BreakdownsConfig> = None;
+        for config in self.descend_from_global() {
+            if let Some(breakdowns) = &config.breakdowns_v2 {
+                for (name, config) in breakdowns.iter() {
+                    // Overwrite global with local scope:
+                    let target = res.get_or_insert(Default::default());
+                    target.0.insert(name.clone(), config.clone());
+                }
+            }
+        }
+
+        res
     }
 
     /// Configuration for extracting metrics from sessions.
