@@ -34,7 +34,7 @@ where
         return f(event);
     }
 
-    let old_source = transaction_source_tag(inner);
+    let old_source = transaction_source_tag(inner).to_string();
     let old_remarks = inner.transaction.meta().iter_remarks().count();
 
     let res = f(event);
@@ -69,7 +69,7 @@ where
 
     relay_statsd::metric!(
         counter(RelayCounters::TransactionNameChanges) += 1,
-        source_in = old_source,
+        source_in = old_source.as_str(),
         changes = changes,
         source_out = new_source,
         is_404 = if is_404 { "true" } else { "false" },
