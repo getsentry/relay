@@ -51,6 +51,7 @@ impl CronParams {
                 environment: query.environment,
                 duration: query.duration,
                 monitor_config: None,
+                contexts: None,
             })
             .map_err(BadStoreRequest::InvalidJson)?,
         );

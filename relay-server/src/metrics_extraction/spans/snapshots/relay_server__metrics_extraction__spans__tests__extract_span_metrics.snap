@@ -38,8 +38,153 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "ui.react",
             ),
+            "span.description": String(
+                "<unparameterized>",
+            ),
+            "span.group": String(
+                "94fcd4fe8f1cfe99",
+            ),
             "span.op": String(
                 "ui.react.render",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "GET http://domain.tld/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd429c44b67a3eb4",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: ~,
+        tags: ~,
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "GET",
+            ),
+            "http.status_code": String(
+                "200",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "GET",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.description": String(
+                "GET domain.tld/<unparameterized>",
+            ),
+            "span.domain": String(
+                "domain.tld",
+            ),
+            "span.group": String(
+                "acf25aaa6550d863",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "GET /hi/this/is/just/the/path",
+        op: "http.client",
+        span_id: SpanId(
+            "bd429c44b67a3eb4",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: ~,
+        tags: ~,
+        origin: ~,
+        data: {
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "GET",
+            ),
+            "http.status_code": String(
+                "200",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "GET",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.description": String(
+                "GET <unparameterized>",
+            ),
+            "span.group": String(
+                "90a40ce658beb0dd",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
             ),
             "transaction": String(
                 "gEt /api/:version/users/",
@@ -180,8 +325,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST *.domain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
+            ),
+            "span.group": String(
+                "b996518ca64bc885",
             ),
             "span.module": String(
                 "http",
@@ -254,8 +405,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST targetdomain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "targetdomain.tld:targetport",
+            ),
+            "span.group": String(
+                "554e17b498f0131d",
             ),
             "span.module": String(
                 "http",
@@ -415,8 +572,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST *.domain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
+            ),
+            "span.group": String(
+                "b996518ca64bc885",
             ),
             "span.module": String(
                 "http",
@@ -490,8 +653,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
+            "span.description": String(
+                "POST *.domain.tld:targetport/<unparameterized>",
+            ),
             "span.domain": String(
                 "*.domain.tld:targetport",
+            ),
+            "span.group": String(
+                "b996518ca64bc885",
             ),
             "span.module": String(
                 "http",

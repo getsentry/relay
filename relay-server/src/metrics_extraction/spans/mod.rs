@@ -99,19 +99,6 @@ pub(crate) fn extract_span_metrics(
         if let Some(span) = annotated_span.value_mut() {
             let mut span_tags = shared_tags.clone();
 
-            if let Some(scrubbed_description) = span
-                .data
-                .value()
-                .and_then(|data| data.get("description.scrubbed"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(SpanTagKey::Description, scrubbed_description.to_owned());
-
-                let mut span_group = format!("{:?}", md5::compute(scrubbed_description));
-                span_group.truncate(16);
-                span_tags.insert(SpanTagKey::Group, span_group);
-            }
-
             if let Some(unsanitized_span_op) = span.op.value() {
                 let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
@@ -163,7 +150,7 @@ pub(crate) fn extract_span_metrics(
                     _ => None,
                 };
 
-                if let Some(act) = action {
+                if let Some(act) = action.clone() {
                     span_tags.insert(SpanTagKey::Action, act);
                 }
 
@@ -181,8 +168,36 @@ pub(crate) fn extract_span_metrics(
                     None
                 };
 
-                if let Some(dom) = domain {
-                    span_tags.insert(SpanTagKey::Domain, dom.to_owned());
+                if let Some(dom) = domain.clone() {
+                    span_tags.insert(SpanTagKey::Domain, dom);
+                }
+
+                let scrubbed_description = span
+                    .data
+                    .value()
+                    .and_then(|data| data.get("description.scrubbed"))
+                    .and_then(|value| value.as_str());
+
+                let sanitized_description = sanitized_span_description(
+                    scrubbed_description,
+                    span_module,
+                    action.as_deref(),
+                    domain.as_deref(),
+                );
+
+                if let Some(scrubbed_desc) = sanitized_description {
+                    // Truncating the span description's tag value is, for now,
+                    // a temporary solution to not get large descriptions dropped. The
+                    // group tag mustn't be affected by this, and still be
+                    // computed from the full, untruncated description.
+
+                    let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
+                    span_group.truncate(16);
+                    span_tags.insert(SpanTagKey::Group, span_group);
+
+                    let truncated =
+                        truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
+                    span_tags.insert(SpanTagKey::Description, truncated);
                 }
             }
 
@@ -259,6 +274,66 @@ pub(crate) fn extract_span_metrics(
     }
 
     Ok(())
+}
+
+/// Returns the sanitized span description.
+///
+/// If a scrub description is provided, that's returned. If not, a new
+/// description is built for `http*` modules with the following format:
+/// `{action} {domain}/<unparameterized>`.
+fn sanitized_span_description(
+    scrubbed_description: Option<&str>,
+    module: Option<&str>,
+    action: Option<&str>,
+    domain: Option<&str>,
+) -> Option<String> {
+    if let Some(scrubbed) = scrubbed_description {
+        return Some(scrubbed.to_owned());
+    }
+
+    if let Some(module) = module {
+        if !module.starts_with("http") {
+            return None;
+        }
+    }
+
+    let mut sanitized = String::new();
+
+    if let Some(transaction_method) = action {
+        sanitized.push_str(&format!("{transaction_method} "));
+    }
+    if let Some(domain) = domain {
+        sanitized.push_str(&format!("{domain}/"));
+    }
+    sanitized.push_str("<unparameterized>");
+
+    Some(sanitized)
+}
+
+/// Trims the given string with the given maximum bytes. Splitting only happens
+/// on char boundaries.
+///
+/// If the string is short, it remains unchanged. If it's long, this method
+/// truncates it to the maximum allowed size and sets the last character to
+/// `*`.
+fn truncate_string(mut string: String, max_bytes: usize) -> String {
+    if string.len() <= max_bytes {
+        return string;
+    }
+
+    if max_bytes == 0 {
+        return String::new();
+    }
+
+    let mut cutoff = max_bytes - 1; // Leave space for `*`
+
+    while cutoff > 0 && !string.is_char_boundary(cutoff) {
+        cutoff -= 1;
+    }
+
+    string.truncate(cutoff);
+    string.push('*');
+    string
 }
 
 /// Regex with a capture group to extract the database action from a query.
@@ -471,6 +546,10 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
     if let Some(port) = port {
         replaced = format!("{replaced}:{port}");
     }
+
+    if replaced.is_empty() {
+        return None;
+    }
     Some(replaced)
 }
 
@@ -493,7 +572,30 @@ mod tests {
 
     use relay_metrics::AggregatorConfig;
 
-    use crate::metrics_extraction::spans::extract_span_metrics;
+    use crate::metrics_extraction::spans::{extract_span_metrics, truncate_string};
+
+    #[test]
+    fn test_truncate_string_no_panic() {
+        let string = "ÆÆ".to_owned();
+
+        let truncated = truncate_string(string.clone(), 0);
+        assert_eq!(truncated, "");
+
+        let truncated = truncate_string(string.clone(), 1);
+        assert_eq!(truncated, "*");
+
+        let truncated = truncate_string(string.clone(), 2);
+        assert_eq!(truncated, "*");
+
+        let truncated = truncate_string(string.clone(), 3);
+        assert_eq!(truncated, "Æ*");
+
+        let truncated = truncate_string(string.clone(), 4);
+        assert_eq!(truncated, "ÆÆ");
+
+        let truncated = truncate_string(string, 5);
+        assert_eq!(truncated, "ÆÆ");
+    }
 
     macro_rules! span_transaction_method_test {
         // Tests transaction.method is picked from the right place.
@@ -647,6 +749,30 @@ mod tests {
                     "start_timestamp": 1597976300.0000000,
                     "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                },
+                {
+                    "description": "GET http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
+                    }
+                },
+                {
+                    "description": "GET /hi/this/is/just/the/path",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.method": "GET"
+                    }
                 },
                 {
                     "description": "POST http://127.0.0.1:1234/api/hi",

@@ -6,7 +6,7 @@ pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &
     for rule in config {
         if !rule.condition.supported()
             || rule.target_metrics.is_empty()
-            || !rule.condition.matches(event, None)
+            || !rule.condition.matches(event)
         {
             continue;
         }

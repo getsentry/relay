@@ -4,8 +4,19 @@
 
 **Features**:
 
-- Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
+- Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Use GeoIP lookup also in non-processing Relays. Lookup from now on will be also run in light normalization. ([#2229](https://github.com/getsentry/relay/pull/2229))
+- Scrub identifiers from transactions for old SDKs. ([#2250](https://github.com/getsentry/relay/pull/2250))
+
+**Bug Fixes**:
+
+- Keep stack frames closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
+- Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
+
+**Internal**:
+
+- Implement basic generic metrics extraction for transaction events. ([#2252](https://github.com/getsentry/relay/pull/2252), [#2257](https://github.com/getsentry/relay/pull/2257))
+- Support more fields in dynamic sampling, metric extraction, and conditional tagging. The added fields are `dist`, `user.{email,ip_address,name}`, `breakdowns.*`, and `extra.*`. ([#2259](https://github.com/getsentry/relay/pull/2259))
 
 ## 23.6.1
 

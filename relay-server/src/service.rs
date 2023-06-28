@@ -137,7 +137,7 @@ impl ServiceState {
             outcome_aggregator.clone(),
             project_cache.clone(),
             upstream_relay.clone(),
-        )?
+        )
         .start();
 
         let aggregator = AggregatorService::new(

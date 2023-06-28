@@ -64,8 +64,6 @@ use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
-use crate::metrics_extraction::sessions::extract_session_metrics;
-use crate::metrics_extraction::transactions::extract_transaction_metrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
@@ -550,18 +548,23 @@ impl EnvelopeProcessorService {
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
-    ) -> anyhow::Result<Self> {
-        let geoip_lookup = match config.geoip_path() {
-            Some(p) => Some(GeoIpLookup::open(p).context(ServiceError::GeoIp)?),
-            None => None,
-        };
+    ) -> Self {
+        let geoip_lookup = config.geoip_path().and_then(|p| {
+            match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
+                Ok(geoip) => Some(geoip),
+                Err(err) => {
+                    relay_log::error!("failed to open GeoIP db {p:?}: {err:?}");
+                    None
+                }
+            }
+        });
 
         #[cfg(feature = "processing")]
         {
             let rate_limiter =
                 _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
 
-            Ok(Self {
+            Self {
                 config,
                 rate_limiter,
                 geoip_lookup,
@@ -569,18 +572,18 @@ impl EnvelopeProcessorService {
                 outcome_aggregator,
                 project_cache,
                 upstream_relay,
-            })
+            }
         }
 
         #[cfg(not(feature = "processing"))]
-        Ok(Self {
+        Self {
             config,
             geoip_lookup,
             envelope_manager,
             outcome_aggregator,
             project_cache,
             upstream_relay,
-        })
+        }
     }
 
     /// Returns Ok(true) if attributes were modified.
@@ -725,7 +728,7 @@ impl EnvelopeProcessorService {
             && !item.metrics_extracted()
             && !matches!(session.status, SessionStatus::Unknown(_))
         {
-            extract_session_metrics(
+            crate::metrics_extraction::sessions::extract_session_metrics(
                 &session.attributes,
                 &session,
                 client,
@@ -809,7 +812,7 @@ impl EnvelopeProcessorService {
         // Extract metrics if they haven't been extracted by a prior Relay
         if metrics_config.is_enabled() && !item.metrics_extracted() {
             for aggregate in &session.aggregates {
-                extract_session_metrics(
+                crate::metrics_extraction::sessions::extract_session_metrics(
                     &session.attributes,
                     aggregate,
                     client,
@@ -2084,17 +2087,13 @@ impl EnvelopeProcessorService {
 
         let project_config = state.project_state.config();
         let extraction_config = match project_config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref config)) => config,
+            Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => config,
             _ => return Ok(()),
         };
 
-        if !extraction_config.is_enabled() {
-            return Ok(());
-        }
-
-        let extract_spans_metrics = project_config
-            .features
-            .contains(&Feature::SpanMetricsExtraction);
+        let extract_spans_metrics = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtraction);
 
         let transaction_from_dsc = state
             .managed_envelope
@@ -2109,7 +2108,7 @@ impl EnvelopeProcessorService {
                 extracted_anything = &result.unwrap_or(false).to_string(),
                 {
                     // Actual logic outsourced for unit tests
-                    result = extract_transaction_metrics(
+                    result = crate::metrics_extraction::transactions::extract_transaction_metrics(
                         self.config.aggregator_config(),
                         extraction_config,
                         &project_config.metric_conditional_tagging,
@@ -2130,6 +2129,32 @@ impl EnvelopeProcessorService {
             state.managed_envelope.set_event_metrics_extracted();
         }
 
+        Ok(())
+    }
+
+    /// Extract metrics from all envelope items.
+    ///
+    /// Caveats:
+    ///  - This functionality is incomplete. At this point, extraction is implemented only for
+    ///    transaction events.
+    ///  - This function must run BEFORE `extract_transaction_metrics` to avoid double-extraction.
+    fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let config = match state.project_state.config.metric_extraction {
+            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
+            _ => return Ok(()),
+        };
+
+        if let Some(event) = state.event.value() {
+            // XXX: Since we only support transactions, we can skip generic metric extraction from
+            // events if transaction metrics have been extracted before.
+            if !state.transaction_metrics_extracted {
+                let metrics =
+                    crate::metrics_extraction::event::extract_event_metrics(event, config);
+                state.extracted_metrics.project_metrics.extend(metrics);
+            }
+        }
+
+        // NB: Other items can be added here.
         Ok(())
     }
 
@@ -2261,7 +2286,6 @@ impl EnvelopeProcessorService {
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
-            state.envelope().meta().client_addr(),
         );
     }
 
@@ -2292,7 +2316,6 @@ impl EnvelopeProcessorService {
                 Some(root_project_state),
                 Some(dsc),
                 None,
-                state.envelope().meta().client_addr(),
             )
         } else {
             return;
@@ -2381,6 +2404,9 @@ impl EnvelopeProcessorService {
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
                     rules: &state.project_state.config.tx_name_rules,
+                    normalize_legacy: state
+                        .project_state
+                        .has_feature(Feature::NormalizeLegacyTransactions),
                 },
                 device_class_synthesis_config: state
                     .project_state
@@ -2439,6 +2465,7 @@ impl EnvelopeProcessorService {
             self.normalize_dsc(state);
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
+            self.extract_metrics(state)?;
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
 
@@ -2760,9 +2787,7 @@ mod tests {
     use relay_common::{DurationUnit, MetricUnit, Uuid};
     use relay_general::pii::{DataScrubbingConfig, PiiConfig};
     use relay_general::protocol::{EventId, TransactionSource};
-    use relay_general::store::{
-        LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule, TransactionNameRuleScope,
-    };
+    use relay_general::store::{LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_sampling::{
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -3734,11 +3759,11 @@ mod tests {
                         rules: &[TransactionNameRule {
                             pattern: LazyGlob::new("/foo/*/**".to_owned()),
                             expiry: DateTime::<Utc>::MAX_UTC,
-                            scope: TransactionNameRuleScope::default(),
                             redaction: RedactionRule::Replace {
                                 substitution: "*".to_owned(),
                             },
                         }],
+                        ..Default::default()
                     },
                     ..Default::default()
                 };

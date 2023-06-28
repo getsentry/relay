@@ -70,9 +70,8 @@
 extern crate core;
 
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::{self, Display, Formatter};
-use std::net::IpAddr;
+use std::collections::BTreeMap;
+use std::fmt;
 use std::num::ParseIntError;
 
 use chrono::{DateTime, Utc};
@@ -113,7 +112,7 @@ pub struct EqCondOptions {
 }
 
 /// A condition that checks for equality
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EqCondition {
     pub name: String,
@@ -174,7 +173,7 @@ impl EqCondition {
 
 macro_rules! impl_cmp_condition {
     ($struct_name:ident, $operator:tt) => {
-        #[derive(Debug, Clone, Serialize, Deserialize)]
+        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
         pub struct $struct_name {
             pub name: String,
             pub value: Number,
@@ -211,7 +210,7 @@ impl_cmp_condition!(LtCondition, <);
 impl_cmp_condition!(GtCondition, >);
 
 /// A condition that uses glob matching.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GlobCondition {
     pub name: String,
     pub value: GlobPatterns,
@@ -229,32 +228,11 @@ impl GlobCondition {
     }
 }
 
-/// Condition that cover custom operators which need
-/// special handling and have a custom implementation
-/// for each case.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CustomCondition {
-    pub name: String,
-    #[serde(default)]
-    pub value: Value,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub options: HashMap<String, Value>,
-}
-
-impl CustomCondition {
-    fn matches<T>(&self, value_provider: &T, ip_addr: Option<IpAddr>) -> bool
-    where
-        T: FieldValueProvider,
-    {
-        T::get_custom_operator(&self.name)(self, value_provider, ip_addr)
-    }
-}
-
 /// Or condition combinator.
 ///
 /// Creates a condition that is true when any
 /// of the inner conditions are true
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrCondition {
     inner: Vec<RuleCondition>,
 }
@@ -264,11 +242,11 @@ impl OrCondition {
         self.inner.iter().all(RuleCondition::supported)
     }
 
-    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
-        self.inner.iter().any(|cond| cond.matches(value, ip_addr))
+        self.inner.iter().any(|cond| cond.matches(value))
     }
 }
 
@@ -276,7 +254,7 @@ impl OrCondition {
 ///
 /// Creates a condition that is true when all
 /// inner conditions are true.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AndCondition {
     inner: Vec<RuleCondition>,
 }
@@ -285,11 +263,11 @@ impl AndCondition {
     fn supported(&self) -> bool {
         self.inner.iter().all(RuleCondition::supported)
     }
-    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
-        self.inner.iter().all(|cond| cond.matches(value, ip_addr))
+        self.inner.iter().all(|cond| cond.matches(value))
     }
 }
 
@@ -297,7 +275,7 @@ impl AndCondition {
 ///
 /// Creates a condition that is true when the wrapped
 /// condition si false.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NotCondition {
     inner: Box<RuleCondition>,
 }
@@ -307,16 +285,16 @@ impl NotCondition {
         self.inner.supported()
     }
 
-    fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+    fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
-        !self.inner.matches(value, ip_addr)
+        !self.inner.matches(value)
     }
 }
 
 /// A condition from a sampling rule.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
     Eq(EqCondition),
@@ -328,7 +306,6 @@ pub enum RuleCondition {
     Or(OrCondition),
     And(AndCondition),
     Not(NotCondition),
-    Custom(CustomCondition),
     #[serde(other)]
     Unsupported,
 }
@@ -356,10 +333,10 @@ impl RuleCondition {
             RuleCondition::And(rules) => rules.supported(),
             RuleCondition::Or(rules) => rules.supported(),
             RuleCondition::Not(rule) => rule.supported(),
-            RuleCondition::Custom(_) => true,
         }
     }
-    pub fn matches<T>(&self, value: &T, ip_addr: Option<IpAddr>) -> bool
+
+    pub fn matches<T>(&self, value: &T) -> bool
     where
         T: FieldValueProvider,
     {
@@ -370,11 +347,10 @@ impl RuleCondition {
             RuleCondition::Gt(condition) => condition.matches(value),
             RuleCondition::Lt(condition) => condition.matches(value),
             RuleCondition::Glob(condition) => condition.matches(value),
-            RuleCondition::And(conditions) => conditions.matches(value, ip_addr),
-            RuleCondition::Or(conditions) => conditions.matches(value, ip_addr),
-            RuleCondition::Not(condition) => condition.matches(value, ip_addr),
+            RuleCondition::And(conditions) => conditions.matches(value),
+            RuleCondition::Or(conditions) => conditions.matches(value),
+            RuleCondition::Not(condition) => condition.matches(value),
             RuleCondition::Unsupported => false,
-            RuleCondition::Custom(condition) => condition.matches(value, ip_addr),
         }
     }
 }
@@ -383,8 +359,8 @@ impl RuleCondition {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct RuleId(pub u32);
 
-impl Display for RuleId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for RuleId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -597,16 +573,6 @@ impl SamplingRule {
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
-    /// returns a filtering function for custom operators.
-    /// The function returned takes the provider and a condition definition and
-    /// returns a match result
-    fn get_custom_operator(
-        name: &str,
-    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool;
-}
-
-fn no_match<T>(_condition: &CustomCondition, _slf: &T, _ip_addr: Option<IpAddr>) -> bool {
-    false
 }
 
 impl FieldValueProvider for Event {
@@ -619,6 +585,10 @@ impl FieldValueProvider for Event {
         match field_name {
             // Simple fields
             "release" => match self.release.value() {
+                None => Value::Null,
+                Some(s) => s.as_str().into(),
+            },
+            "dist" => match self.dist.value() {
                 None => Value::Null,
                 Some(s) => s.as_str().into(),
             },
@@ -636,24 +606,35 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::from("other"),
             },
-            "user.id" => self.user.value().map_or(Value::Null, |user| {
-                user.id.value().map_or(Value::Null, |id| {
-                    if id.is_empty() {
-                        Value::Null // we don't serialize empty values but check it anyway
-                    } else {
-                        id.as_str().into()
-                    }
-                })
-            }),
-            "user.segment" => self.user.value().map_or(Value::Null, |user| {
-                user.segment.value().map_or(Value::Null, |segment| {
-                    if segment.is_empty() {
-                        Value::Null
-                    } else {
-                        segment.as_str().into()
-                    }
-                })
-            }),
+            "user.email" => self
+                .user
+                .value()
+                .and_then(|user| user.email.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |email| email.clone().into()),
+            "user.id" => self
+                .user
+                .value()
+                .and_then(|user| user.id.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |id| id.as_str().into()),
+            "user.ip_address" => self
+                .user
+                .value()
+                .and_then(|user| user.ip_address.value())
+                .map_or(Value::Null, |ip| ip.as_str().into()),
+            "user.name" => self
+                .user
+                .value()
+                .and_then(|user| user.name.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |name| name.clone().into()),
+            "user.segment" => self
+                .user
+                .value()
+                .and_then(|user| user.segment.value())
+                .filter(|id| !id.is_empty())
+                .map_or(Value::Null, |id| id.clone().into()),
 
             // Partial implementation of contexts.
             "contexts.device.name" => self
@@ -712,13 +693,6 @@ impl FieldValueProvider for Event {
                 _ => Value::Null,
             },
 
-            // Inbound filter functions represented as fields
-            "is_local_ip" => Value::Bool(relay_filter::localhost::matches(self)),
-            "has_bad_browser_extensions" => {
-                Value::Bool(relay_filter::browser_extensions::matches(self))
-            }
-            "web_crawlers" => Value::Bool(relay_filter::web_crawlers::matches(self)),
-
             // Dynamic access to certain data bags
             _ => {
                 if let Some(rest) = field_name.strip_prefix("measurements.") {
@@ -726,6 +700,21 @@ impl FieldValueProvider for Event {
                         .filter(|measurement_name| !measurement_name.is_empty())
                         .and_then(|measurement_name| store::get_measurement(self, measurement_name))
                         .map_or(Value::Null, Value::from)
+                } else if let Some(rest) = field_name.strip_prefix("breakdowns.") {
+                    rest.split_once('.')
+                        .and_then(|(breakdown, measurement)| {
+                            self.breakdowns
+                                .value()
+                                .and_then(|breakdowns| breakdowns.get(breakdown))
+                                .and_then(|annotated| annotated.value())
+                                .and_then(|measurements| measurements.get(measurement))
+                                .and_then(|annotated| annotated.value())
+                                .and_then(|measurement| measurement.value.value())
+                        })
+                        .map_or(Value::Null, |f| Value::from(*f))
+                } else if let Some(rest) = field_name.strip_prefix("extra.") {
+                    self.extra_at(rest)
+                        .map_or(Value::Null, |v| v.clone().into())
                 } else if let Some(rest) = field_name.strip_prefix("tags.") {
                     self.tags
                         .value()
@@ -736,82 +725,6 @@ impl FieldValueProvider for Event {
                 }
             }
         }
-    }
-
-    fn get_custom_operator(
-        name: &str,
-    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
-        match name {
-            "event.client_ip" => client_ips_matcher,
-            "event.legacy_browser" => legacy_browsers_matcher,
-            "event.error_messages" => error_messages_matcher,
-            "event.csp" => csp_matcher,
-            _ => no_match,
-        }
-    }
-}
-
-fn client_ips_matcher(
-    condition: &CustomCondition,
-    _event: &Event,
-    ip_addr: Option<IpAddr>,
-) -> bool {
-    let ips = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
-
-    if let Some(ips) = ips {
-        relay_filter::client_ips::matches(ip_addr, ips)
-    } else {
-        false
-    }
-}
-
-fn legacy_browsers_matcher(
-    condition: &CustomCondition,
-    event: &Event,
-    _ip_addr: Option<IpAddr>,
-) -> bool {
-    let browsers = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").parse().unwrap()));
-    if let Some(browsers) = browsers {
-        relay_filter::legacy_browsers::matches(event, &browsers.collect())
-    } else {
-        false
-    }
-}
-
-fn error_messages_matcher(
-    condition: &CustomCondition,
-    event: &Event,
-    _ip_addr: Option<IpAddr>,
-) -> bool {
-    let patterns = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("").to_owned()));
-
-    if let Some(patterns) = patterns {
-        let globs = GlobPatterns::new(patterns.collect());
-        relay_filter::error_messages::matches(event, &globs)
-    } else {
-        false
-    }
-}
-
-fn csp_matcher(condition: &CustomCondition, event: &Event, _ip_addr: Option<IpAddr>) -> bool {
-    let sources = condition
-        .value
-        .as_array()
-        .map(|v| v.iter().map(|s| s.as_str().unwrap_or("")));
-
-    if let Some(sources) = sources {
-        relay_filter::csp::matches(event, sources)
-    } else {
-        false
     }
 }
 
@@ -850,13 +763,6 @@ impl FieldValueProvider for DynamicSamplingContext {
             },
             _ => Value::Null,
         }
-    }
-
-    fn get_custom_operator(
-        _name: &str,
-    ) -> fn(condition: &CustomCondition, slf: &Self, ip_addr: Option<IpAddr>) -> bool {
-        // no custom operators for trace
-        no_match
     }
 }
 
@@ -915,8 +821,8 @@ impl MatchedRuleIds {
     }
 }
 
-impl Display for MatchedRuleIds {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for MatchedRuleIds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
@@ -979,7 +885,6 @@ pub fn merge_configs_and_match(
     root_sampling_config: Option<&SamplingConfig>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
-    ip_addr: Option<IpAddr>,
     now: DateTime<Utc>,
 ) -> Option<SamplingMatch> {
     // We check if there are unsupported rules in any of the two configurations.
@@ -987,7 +892,7 @@ pub fn merge_configs_and_match(
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
-    let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, ip_addr, now)?;
+    let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, now)?;
 
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
@@ -1059,7 +964,6 @@ impl SamplingMatch {
         rules: I,
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
-        ip_addr: Option<IpAddr>,
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch>
     where
@@ -1086,11 +990,11 @@ impl SamplingMatch {
         for rule in rules {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
-                    Some(dsc) => rule.condition.matches(dsc, ip_addr),
+                    Some(dsc) => rule.condition.matches(dsc),
                     _ => false,
                 },
                 RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
-                    Some(EventType::Transaction) => rule.condition.matches(event, ip_addr),
+                    Some(EventType::Transaction) => rule.condition.matches(event),
                     _ => false,
                 }),
                 _ => false,
@@ -1370,15 +1274,13 @@ pub fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr as NetIpAddr, Ipv4Addr};
     use std::str::FromStr;
 
-    use chrono::Duration as DateDuration;
-    use chrono::{TimeZone, Utc};
+    use chrono::{Duration as DateDuration, TimeZone, Utc};
     use similar_asserts::assert_eq;
 
     use relay_general::protocol::{
-        Contexts, Csp, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
+        Contexts, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
         LenientString, LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
     };
     use relay_general::types::Annotated;
@@ -1459,26 +1361,10 @@ mod tests {
         })
     }
 
-    fn eq_bool(name: &str, value: bool) -> RuleCondition {
-        RuleCondition::Eq(EqCondition {
-            name: name.to_owned(),
-            value: Value::Bool(value),
-            options: EqCondOptions::default(),
-        })
-    }
-
     fn glob(name: &str, value: &[&str]) -> RuleCondition {
         RuleCondition::Glob(GlobCondition {
             name: name.to_owned(),
             value: GlobPatterns::new(value.iter().map(|s| s.to_string()).collect()),
-        })
-    }
-
-    fn custom(name: &str, value: Value, options: HashMap<String, Value>) -> RuleCondition {
-        RuleCondition::Custom(CustomCondition {
-            name: name.to_owned(),
-            value,
-            options,
         })
     }
 
@@ -1680,13 +1566,7 @@ mod tests {
         dsc: &DynamicSamplingContext,
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch> {
-        SamplingMatch::match_against_rules(
-            config.rules_v2.iter(),
-            Some(event),
-            Some(dsc),
-            None,
-            now,
-        )
+        SamplingMatch::match_against_rules(config.rules_v2.iter(), Some(event), Some(dsc), now)
     }
 
     fn merge_root_and_non_root_configs_with(
@@ -1775,12 +1655,6 @@ mod tests {
             Some("user-seg"),
             event.get_value("event.user.segment").as_str()
         );
-        assert_eq!(Value::Bool(true), event.get_value("event.is_local_ip"),);
-        assert_eq!(
-            Value::Bool(true),
-            event.get_value("event.has_bad_browser_extensions")
-        );
-        assert_eq!(Value::Bool(true), event.get_value("event.web_crawlers"));
         assert_eq!(
             Some("some-transaction"),
             event.get_value("event.transaction").as_str()
@@ -1808,8 +1682,8 @@ mod tests {
         assert_eq!(Value::Null, event.get_value("event.tags.doesntexist"));
     }
 
-    #[test]
     /// test extraction of field values from empty event
+    #[test]
     fn test_field_value_provider_event_empty() {
         let event = Event::default();
 
@@ -1817,12 +1691,6 @@ mod tests {
         assert_eq!(Value::Null, event.get_value("event.environment"));
         assert_eq!(Value::Null, event.get_value("event.user.id"));
         assert_eq!(Value::Null, event.get_value("event.user.segment"));
-        assert_eq!(Value::Bool(false), event.get_value("event.is_local_ip"),);
-        assert_eq!(
-            Value::Bool(false),
-            event.get_value("event.has_bad_browser_extensions")
-        );
-        assert_eq!(Value::Bool(false), event.get_value("event.web_crawlers"));
 
         // now try with an empty user
         let event = Event {
@@ -2023,7 +1891,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None), "{failure_name}");
+            assert!(condition.matches(&dsc), "{failure_name}");
         }
     }
 
@@ -2039,30 +1907,6 @@ mod tests {
             (
                 "environment",
                 or(vec![eq("event.environment", &["prod"], true)]),
-            ),
-            ("local ip", eq_bool("event.is_local_ip", true)),
-            (
-                "bad browser extensions",
-                eq_bool("event.has_bad_browser_extensions", true),
-            ),
-            (
-                "error messages",
-                custom(
-                    "event.error_messages",
-                    Value::Array(vec![Value::String("abc".to_string())]),
-                    HashMap::new(),
-                ),
-            ),
-            (
-                "legacy browsers",
-                custom(
-                    "event.legacy_browser",
-                    Value::Array(vec![
-                        Value::String("ie10".to_string()),
-                        Value::String("safari_pre_6".to_string()),
-                    ]),
-                    HashMap::new(),
-                ),
             ),
         ];
 
@@ -2100,48 +1944,8 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            let ip_addr = Some(NetIpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-            assert!(condition.matches(&evt, ip_addr), "{failure_name}");
+            assert!(condition.matches(&evt), "{failure_name}");
         }
-    }
-
-    #[test]
-    /// test matching web crawlers
-    fn test_matches_web_crawlers() {
-        let condition = eq_bool("event.web_crawlers", true);
-
-        let evt = Event {
-            request: Annotated::new(Request {
-                headers: Annotated::new(Headers(PairList(vec![Annotated::new((
-                    Annotated::new("user-agent".into()),
-                    Annotated::new("some crawler user agent: BingBot".into()),
-                ))]))),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert!(condition.matches(&evt, None));
-    }
-
-    #[test]
-    /// test matching for csp
-    fn test_matches_csp_events() {
-        let blocked_url = "bbc.com";
-        let condition = custom(
-            "event.csp",
-            Value::Array(vec![Value::String(blocked_url.to_owned())]),
-            HashMap::new(),
-        );
-
-        let evt = Event {
-            ty: Annotated::from(EventType::Csp),
-            csp: Annotated::from(Csp {
-                blocked_uri: Annotated::from(blocked_url.to_string()),
-                ..Csp::default()
-            }),
-            ..Event::default()
-        };
-        assert!(condition.matches(&evt, None));
     }
 
     #[test]
@@ -2199,7 +2003,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
         }
     }
 
@@ -2258,7 +2062,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
         }
     }
 
@@ -2294,7 +2098,7 @@ mod tests {
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(condition.matches(&dsc, None) == *expected, "{failure_name}");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
         }
     }
 
@@ -2353,7 +2157,7 @@ mod tests {
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
-            assert!(!condition.matches(&dsc, None), "{failure_name}");
+            assert!(!condition.matches(&dsc), "{failure_name}");
         }
     }
 
@@ -2413,22 +2217,6 @@ mod tests {
                 "name": "field_6",
                 "value": ["3.*"]
             }]
-        },
-        {
-            "op":"custom",
-            "name": "some_custom_op",
-            "value":["default","ie_pre_9"],
-            "options": { "o1": [1,2,3]}
-        },
-        {
-            "op": "custom",
-            "name": "some_custom_op",
-            "options": {"o1":[1,2,3]}
-        },
-        {
-            "op":"custom",
-            "name": "some_custom_op",
-            "value": "some val"
         }
         ]
         "#;
@@ -2497,38 +2285,6 @@ mod tests {
                     ],
                   ),
                 ],
-              ),
-              CustomCondition(
-                op: "custom",
-                name: "some_custom_op",
-                value: [
-                  "default",
-                  "ie_pre_9",
-                ],
-                options: {
-                  "o1": [
-                    1,
-                    2,
-                    3,
-                  ],
-                },
-              ),
-              CustomCondition(
-                op: "custom",
-                name: "some_custom_op",
-                value: (),
-                options: {
-                  "o1": [
-                    1,
-                    2,
-                    3,
-                  ],
-                },
-              ),
-              CustomCondition(
-                op: "custom",
-                name: "some_custom_op",
-                value: "some val",
               ),
             ]"###);
     }
@@ -2751,7 +2507,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing release"
         );
 
@@ -2772,7 +2528,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing user segment"
         );
 
@@ -2796,7 +2552,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing environment"
         );
 
@@ -2820,7 +2576,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing transaction"
         );
         let condition = and(vec![]);
@@ -2837,7 +2593,7 @@ mod tests {
         };
 
         assert!(
-            condition.matches(&dsc, None),
+            condition.matches(&dsc),
             "did not match with missing release, user segment, environment and transaction"
         );
     }
@@ -3500,7 +3256,6 @@ mod tests {
             None,
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3521,7 +3276,6 @@ mod tests {
             Some(&root_project_sampling_config),
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
@@ -3533,7 +3287,6 @@ mod tests {
             None,
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3554,7 +3307,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3575,7 +3327,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_trace_match!(result, 1.0, dsc, 6);
@@ -3596,7 +3347,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_trace_match!(result, 0.75, dsc, 2, 5, 7);
@@ -3615,7 +3365,6 @@ mod tests {
             None,
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
@@ -3635,7 +3384,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.625, event, 3);
@@ -3669,7 +3417,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3680,7 +3427,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
@@ -3701,7 +3447,6 @@ mod tests {
             Some(&root_project_sampling_config),
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3720,7 +3465,6 @@ mod tests {
             None,
             Some(&dsc),
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3733,7 +3477,6 @@ mod tests {
             Some(&root_project_sampling_config),
             None,
             Some(&event),
-            None,
             Utc::now(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
@@ -3756,15 +3499,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_transaction_match!(result, 0.75, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -3778,15 +3514,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_transaction_match!(result, 1.0, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -3800,15 +3529,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
     }
 
@@ -3829,15 +3551,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -3851,15 +3566,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -3873,15 +3581,8 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert_no_match!(result);
     }
 
@@ -3913,15 +3614,8 @@ mod tests {
             mode: SamplingMode::Received,
         };
 
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            None,
-            now,
-        );
+        let result =
+            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
         assert!(result.is_some());
         if let Some(SamplingMatch {
             sample_rate,
@@ -3948,7 +3642,6 @@ mod tests {
             Some(&root_sampling_config),
             Some(&dsc),
             None,
-            None,
             now,
         );
         assert_trace_match!(result, 1.0, dsc, 6);
@@ -3966,7 +3659,6 @@ mod tests {
             Some(&root_sampling_config),
             None,
             None,
-            None,
             Utc::now(),
         );
         assert_no_match!(result);
@@ -3979,7 +3671,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
 
         let result =
-            merge_configs_and_match(true, None, None, Some(&dsc), Some(&event), None, Utc::now());
+            merge_configs_and_match(true, None, None, Some(&dsc), Some(&event), Utc::now());
         assert_no_match!(result);
     }
 }

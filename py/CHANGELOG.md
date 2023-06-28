@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+- Add the configuration protocol for generic metrics extraction. ([#2252](https://github.com/getsentry/relay/pull/2252))
+
+## 0.8.27
+
+- Add is_enabled flag on transaction filter. ([#2251](https://github.com/getsentry/relay/pull/2251))
+
+## 0.8.26
+
+- Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Add `lock` attribute to the frame protocol. ([#2171](https://github.com/getsentry/relay/pull/2171))
+- Add trace context to CheckIns. ([#2241](https://github.com/getsentry/relay/pull/2241))
 
 ## 0.8.25
 
