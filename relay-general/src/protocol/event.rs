@@ -587,7 +587,7 @@ impl Event {
     pub fn extra_at(&self, path: &str) -> Option<&Value> {
         let mut path = path.split('.');
 
-        // Get the top-level item explicitly since, since those have a different type
+        // Get the top-level item explicitly, since those have a different type
         let mut value = &self.extra.value()?.get(path.next()?)?.value()?.0;
 
         // Iterate recursively to fetch nested values
