@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.28
 
 This release requires Python 3.8 or later.
 
