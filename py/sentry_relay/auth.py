@@ -64,8 +64,7 @@ class SecretKey(RustObject):
         return decode_str(self._methodcall(lib.relay_secretkey_sign, buf), free=True)
 
     def pack(self, data):
-        packed = json.dumps(data, separators=(",", ":"))
-        packed = packed.encode("utf8")
+        packed = json.dumps(data, separators=(",", ":")).encode("utf8")
         return packed, self.sign(packed)
 
     def __str__(self):

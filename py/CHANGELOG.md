@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+This release requires Python 3.8 or later.
+
 - Add the configuration protocol for generic metrics extraction. ([#2252](https://github.com/getsentry/relay/pull/2252))
 - Modernize python syntax. ([#2264](https://github.com/getsentry/relay/pull/2264))
 
