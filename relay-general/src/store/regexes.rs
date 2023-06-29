@@ -95,7 +95,9 @@ pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         # Capture hex.
         (([\s.+:/\-])+(?P<hex>[a-fA-F0-9]+\b)+) |
         # Capture segments, in form of`:{hi}:`
-        (([\s.+:/\-])+(?P<segment>\{[^\}]*\})+)
+        (([\s.+:/\-])+(?P<segment>\{[^\}]*\})+) |
+        # Capture everything if above regex could not match.
+        ([\s]+(?P<zero>[^:/\-]+$))
     "#,
     )
     .unwrap()
