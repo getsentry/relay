@@ -153,6 +153,18 @@
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
 
@@ -173,6 +185,10 @@
         tags: BTreeMap&lt;SpanTagKey, String&gt;,
     },
     ExclusiveTime {
+        value: f64,
+        tags: BTreeMap&lt;SpanTagKey, String&gt;,
+    },
+    ExclusiveTimeLight {
         value: f64,
         tags: BTreeMap&lt;SpanTagKey, String&gt;,
     },
@@ -202,6 +218,14 @@
             SpanMetric::ExclusiveTime { value, tags } =&gt; Metric::new_mri(
                 namespace,
                 <span class="string">&quot;exclusive_time&quot;</span>,
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                MetricValue::Distribution(value),
+                timestamp,
+                span_tag_mapping_to_string_mapping(tags),
+            ),
+            SpanMetric::ExclusiveTimeLight { value, tags } =&gt; Metric::new_mri(
+                namespace,
+                <span class="string">&quot;exclusive_time_light&quot;</span>,
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(value),
                 timestamp,
