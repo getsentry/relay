@@ -440,7 +440,7 @@ fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingA
     scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
 }
 
-fn scrub_cache_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+fn scrub_redis_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
     scrub_identifiers_with_regex(string, &CACHE_NORMALIZER_REGEX, "*")
 }
 
@@ -620,8 +620,8 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
 
     let did_scrub = match span.op.value() {
         Some(op) if op.starts_with("http") => scrub_identifiers(&mut scrubbed)?,
-        Some(op) if op.starts_with("db") => scrub_sql_queries(&mut scrubbed)?,
-        Some(op) if op.starts_with("cache") => scrub_cache_keys(&mut scrubbed)?,
+        Some(op) if op.starts_with("cache") || op == "db.redis" => scrub_redis_keys(&mut scrubbed)?,
+        Some(op) if op.starts_with("db") && op != "db.redis" => scrub_sql_queries(&mut scrubbed)?,
         Some(op) if op.starts_with("resource") => scrub_resource_identifiers(&mut scrubbed)?,
         _ => false,
     };

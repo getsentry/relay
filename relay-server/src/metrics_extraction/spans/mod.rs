@@ -992,6 +992,28 @@ mod tests {
                     }
                 },
                 {
+                    "description": "GET test:123:def",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
+                },
+                {
+                    "description": "GET lkjasdlkasjdlasjdlkasjdlkasjd",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
+                },
+                {
                     "description": "http://domain/static/myscript-v1.9.23.js",
                     "op": "resource.script",
                     "parent_span_id": "8f5a2b8768cafb4e",
