@@ -21,6 +21,10 @@ pub(crate) enum SpanMetric {
         value: f64,
         tags: BTreeMap<SpanTagKey, String>,
     },
+    ExclusiveTimeLight {
+        value: f64,
+        tags: BTreeMap<SpanTagKey, String>,
+    },
 }
 
 impl IntoMetric for SpanMetric {
@@ -47,6 +51,14 @@ impl IntoMetric for SpanMetric {
             SpanMetric::ExclusiveTime { value, tags } => Metric::new_mri(
                 namespace,
                 "exclusive_time",
+                MetricUnit::Duration(DurationUnit::MilliSecond),
+                MetricValue::Distribution(value),
+                timestamp,
+                span_tag_mapping_to_string_mapping(tags),
+            ),
+            SpanMetric::ExclusiveTimeLight { value, tags } => Metric::new_mri(
+                namespace,
+                "exclusive_time_light",
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 MetricValue::Distribution(value),
                 timestamp,

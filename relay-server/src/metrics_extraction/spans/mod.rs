@@ -255,6 +255,16 @@ pub(crate) fn extract_span_metrics(
                     }
                     .into_metric(timestamp),
                 );
+
+                let mut reduced_tags = span_tags.clone();
+                reduced_tags.remove(&SpanTagKey::Transaction);
+                metrics.push(
+                    SpanMetric::ExclusiveTimeLight {
+                        value: *exclusive_time,
+                        tags: reduced_tags.clone(),
+                    }
+                    .into_metric(timestamp),
+                );
             }
 
             if let (Some(&span_start), Some(&span_end)) =
