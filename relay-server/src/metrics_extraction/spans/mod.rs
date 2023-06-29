@@ -261,7 +261,7 @@ pub(crate) fn extract_span_metrics(
                 metrics.push(
                     SpanMetric::ExclusiveTimeLight {
                         value: *exclusive_time,
-                        tags: reduced_tags.clone(),
+                        tags: reduced_tags,
                     }
                     .into_metric(timestamp),
                 );
