@@ -1665,6 +1665,25 @@ expression: metrics
         },
     },
     Metric {
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            2000.0,
+        ),
+        timestamp: UnixTimestamp(1619420400),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "200",
+            "span.category": "db",
+            "span.description": "GET test:*:*",
+            "span.group": "2c1e35c1f77934da",
+            "span.module": "db",
+            "span.op": "db.redis",
+            "span.status": "ok",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Metric {
         name: "d:spans/duration@millisecond",
         value: Distribution(
             2000.0,
@@ -1720,6 +1739,25 @@ expression: metrics
             "span.op": "db.redis",
             "span.status": "ok",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Metric {
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            2000.0,
+        ),
+        timestamp: UnixTimestamp(1619420400),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "200",
+            "span.category": "db",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.module": "db",
+            "span.op": "db.redis",
+            "span.status": "ok",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
