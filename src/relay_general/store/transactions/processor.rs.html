@@ -3747,7 +3747,7 @@
     scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;%s&quot;</span>)
 }
 
-<span class="kw">fn </span>scrub_cache_keys(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
+<span class="kw">fn </span>scrub_redis_keys(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
     scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>CACHE_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
 }
 
@@ -3927,8 +3927,8 @@
 
     <span class="kw">let </span>did_scrub = <span class="kw">match </span>span.op.value() {
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;http&quot;</span>) =&gt; scrub_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;db&quot;</span>) =&gt; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;cache&quot;</span>) =&gt; scrub_cache_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;cache&quot;</span>) || op == <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_redis_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;db&quot;</span>) &amp;&amp; op != <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;resource&quot;</span>) =&gt; scrub_resource_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
         <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
     };
