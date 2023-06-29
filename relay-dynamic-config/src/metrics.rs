@@ -135,14 +135,14 @@ pub struct MetricExtractionConfig {
     pub version: u16,
 
     /// A list of metric specifications to extract.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub metrics: Vec<MetricSpec>,
 
     /// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagMapping>,
 }
 
@@ -184,14 +184,14 @@ pub struct MetricSpec {
     ///   value. Insertion of numbers and other types is undefined.
     ///
     /// If the field does not exist, extraction is skipped.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub field: Option<String>,
 
     /// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the metric is extracted unconditionally.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub condition: Option<RuleCondition>,
 
     /// A list of tags to add to the metric.
@@ -199,7 +199,7 @@ pub struct MetricSpec {
     /// Tags can be conditional, see [`TagSpec`] for configuration options. For this reason, it is
     /// possible to list tag keys multiple times, each with different conditions. The first matching
     /// condition will be applied.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagSpec>,
 }
 
@@ -239,20 +239,20 @@ pub struct TagSpec {
     /// data from the payload.
     ///
     /// Mutually exclusive with `value`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub field: Option<String>,
 
     /// Literal value of the tag.
     ///
     /// Mutually exclusive with `field`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
 
     /// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the tag is added unconditionally, provided it is not already there.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub condition: Option<RuleCondition>,
 }
 
