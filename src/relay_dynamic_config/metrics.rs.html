@@ -443,14 +443,14 @@
     </span><span class="kw">pub </span>version: u16,
 
     <span class="doccomment">/// A list of metric specifications to extract.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>metrics: Vec&lt;MetricSpec&gt;,
 
     <span class="doccomment">/// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>tags: Vec&lt;TagMapping&gt;,
 }
 
@@ -492,14 +492,14 @@
     ///   value. Insertion of numbers and other types is undefined.
     ///
     /// If the field does not exist, extraction is skipped.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>field: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the metric is extracted unconditionally.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>condition: <span class="prelude-ty">Option</span>&lt;RuleCondition&gt;,
 
     <span class="doccomment">/// A list of tags to add to the metric.
@@ -507,7 +507,7 @@
     /// Tags can be conditional, see [`TagSpec`] for configuration options. For this reason, it is
     /// possible to list tag keys multiple times, each with different conditions. The first matching
     /// condition will be applied.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>tags: Vec&lt;TagSpec&gt;,
 }
 
@@ -547,20 +547,20 @@
     /// data from the payload.
     ///
     /// Mutually exclusive with `value`.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>field: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// Literal value of the tag.
     ///
     /// Mutually exclusive with `field`.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>value: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// An optional condition to meet before extraction.
     ///
     /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the tag is added unconditionally, provided it is not already there.
-    </span><span class="attr">#[serde(default)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>condition: <span class="prelude-ty">Option</span>&lt;RuleCondition&gt;,
 }
 
