@@ -174,5 +174,12 @@ pub fn metric_name_tag(value: &str) -> &str {
         return "d:transactions/measurements.*";
     }
 
+    if value.starts_with("s:spans/") {
+        return "s:spans/";
+    }
+    if value.starts_with("d:spans/") {
+        return "d:spans/";
+    }
+
     "other"
 }
