@@ -1144,7 +1144,7 @@ def test_span_metrics(
     span_metrics = [
         metric for metric in metrics if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 3
+    assert len(span_metrics) == 4
     for metric in span_metrics:
         assert metric["tags"]["span.description"] == expected_description
         assert metric["tags"]["span.group"] == expected_group
