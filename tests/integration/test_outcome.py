@@ -31,7 +31,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
 
     outcomes_consumer = outcomes_consumer()
 
-    message_text = "some message {}".format(datetime.now())
+    message_text = f"some message {datetime.now()}"
     event_id = "11122233344455566677788899900011"
     start = datetime.utcnow().replace(
         microsecond=0
@@ -92,7 +92,7 @@ def test_outcomes_custom_topic(
 
     outcomes_consumer = outcomes_consumer()
 
-    message_text = "some message {}".format(datetime.now())
+    message_text = f"some message {datetime.now()}"
     event_id = "11122233344455566677788899900011"
     start = datetime.utcnow().replace(
         microsecond=0
@@ -215,7 +215,7 @@ def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_i
     """
     trace_id = trace_id or uuid.uuid4().hex
     event_id = event_id or uuid.uuid1().hex
-    message_text = "some message {}".format(datetime.now())
+    message_text = f"some message {datetime.now()}"
     if event_type == "error":
         event_body = {
             "event_id": event_id,

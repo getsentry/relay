@@ -59,7 +59,7 @@ def build_native(spec):
         def delete_scratchpad():
             try:
                 shutil.rmtree(scratchpad)
-            except (IOError, OSError):
+            except OSError:
                 pass
 
         zf = zipfile.ZipFile("rustsrc.zip")
@@ -79,7 +79,7 @@ def build_native(spec):
     def find_dylib():
         cargo_target = os.environ.get("CARGO_BUILD_TARGET")
         if cargo_target:
-            in_path = "target/%s/%s" % (cargo_target, target)
+            in_path = f"target/{cargo_target}/{target}"
         else:
             in_path = "target/%s" % target
         return build.find_dylib("relay_cabi", in_path=in_path)
@@ -109,6 +109,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     platforms="any",
+    python_requires=">=3.8",
     install_requires=['enum34>=1.1.6,<1.2.0;python_version<"3.4"', "milksnake>=0.1.2"],
     setup_requires=["milksnake>=0.1.2"],
     milksnake_tasks=[build_native],
