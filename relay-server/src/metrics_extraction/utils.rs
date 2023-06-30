@@ -33,6 +33,11 @@ pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
 
 /// Extracts the HTTP status code.
 pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
+    // For SDKs which put the HTTP status code in the event tags.
+    if let Some(status_code) = event.get_tag_value("http.status_code") {
+        return Some(status_code.to_owned());
+    }
+
     if let Some(spans) = event.spans.value() {
         for span in spans {
             if let Some(span_value) = span.value() {
