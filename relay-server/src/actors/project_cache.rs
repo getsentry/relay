@@ -529,6 +529,7 @@ impl ProjectCacheBroker {
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
         // Count org and project IDs for stats.
+        let project_keys = self.projects.len();
         let mut project_ids = HashSet::new();
         let mut org_ids = HashSet::new();
 
@@ -554,7 +555,7 @@ impl ProjectCacheBroker {
 
         metric!(
             gauge(RelayGauges::ProjectCacheKeysPerProject) =
-                self.projects.len() as f64 / project_ids.len() as f64
+                project_keys as f64 / project_ids.len() as f64
         );
         metric!(
             gauge(RelayGauges::ProjectCacheProjectsPerOrg) =
