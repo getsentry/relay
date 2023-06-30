@@ -94,7 +94,7 @@ pub enum AcceptTransactionNames {
 
 impl Default for AcceptTransactionNames {
     fn default() -> Self {
-        Self::Strict
+        Self::ClientBased
     }
 }
 
@@ -108,8 +108,10 @@ pub struct TransactionMetricsConfig {
     pub extract_custom_tags: BTreeSet<String>,
     /// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
     pub custom_measurements: CustomMeasurementConfig,
-    /// Defines whether URL transactions should be considered low cardinality.
-    pub accept_transaction_names: AcceptTransactionNames,
+    /// Deprecated. Defines whether URL transactions should be considered low cardinality.
+    /// Keep this around for external Relays.
+    #[serde(rename = "acceptTransactionNames")]
+    pub deprecated1: AcceptTransactionNames,
 }
 
 impl TransactionMetricsConfig {

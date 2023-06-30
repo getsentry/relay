@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
-use relay_dynamic_config::{AcceptTransactionNames, TaggingRule, TransactionMetricsConfig};
+use relay_dynamic_config::{TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, Context, ContextInner, Event, TraceContext, TransactionSource,
 };
@@ -20,7 +20,7 @@ use crate::metrics_extraction::utils::{
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
-use crate::utils::SamplingResult;
+use crate::utils::{transaction_source_tag, SamplingResult};
 
 pub mod types;
 
@@ -71,41 +71,42 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
     None
 }
 
-fn is_low_cardinality(source: &TransactionSource, treat_unknown_as_low_cardinality: bool) -> bool {
+fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
-        TransactionSource::Custom => true,
+        Some(TransactionSource::Custom) => true,
 
         // "url" are raw URLs, potentially containing identifiers.
-        TransactionSource::Url => false,
+        Some(TransactionSource::Url) => false,
 
         // These four are names of software components, which we assume to be low-cardinality.
-        TransactionSource::Route
-        | TransactionSource::View
-        | TransactionSource::Component
-        | TransactionSource::Task => true,
+        Some(TransactionSource::Route)
+        | Some(TransactionSource::View)
+        | Some(TransactionSource::Component)
+        | Some(TransactionSource::Task) => true,
 
         // We know now that the rules to remove high cardinality were applied, so we assume
         // low-cardinality now.
-        TransactionSource::Sanitized => true,
+        Some(TransactionSource::Sanitized) => true,
 
-        // "unknown" is the value for old SDKs that do not send a transaction source yet.
-        // Caller decides how to treat this.
-        TransactionSource::Unknown => treat_unknown_as_low_cardinality,
+        // Explicit `Unknown` is used to mark a legacy SDK that does not send the transaction name,
+        // but we assume sends low-cardinality data. See `is_high_cardinality_transaction`.
+        Some(TransactionSource::Unknown) => true,
 
         // Any other value would be an SDK bug or users manually configuring the
         // source, assume high-cardinality and drop.
-        TransactionSource::Other(_) => false,
+        Some(TransactionSource::Other(_)) => false,
+
+        // `None` is used to mark a legacy SDK that does not send the transaction name,
+        // and we assume sends high-cardinality data. See `is_high_cardinality_transaction`.
+        None => false,
     }
 }
 
 /// Decide whether we want to keep the transaction name.
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
-fn get_transaction_name(
-    event: &Event,
-    accept_transaction_names: AcceptTransactionNames,
-) -> Option<String> {
+fn get_transaction_name(event: &Event) -> Option<String> {
     let original_transaction_name = match event.transaction.value() {
         Some(name) => name,
         None => {
@@ -113,15 +114,12 @@ fn get_transaction_name(
         }
     };
 
-    // In client-based mode, handling of "unknown" sources depends on the SDK name.
-    // In strict mode, treat "unknown" as high cardinality.
-    let treat_unknown_as_low_cardinality = matches!(
-        accept_transaction_names,
-        AcceptTransactionNames::ClientBased
-    ) && !store::is_high_cardinality_sdk(event);
+    let source = event
+        .transaction_info
+        .value()
+        .and_then(|info| info.source.value());
 
-    let source = event.get_transaction_source();
-    let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
+    let use_original_name = is_low_cardinality(source);
 
     let name_used;
     let name = if use_original_name {
@@ -130,7 +128,7 @@ fn get_transaction_name(
     } else {
         // Pick a sentinel based on the transaction source:
         match source {
-            TransactionSource::Unknown | TransactionSource::Other(_) => {
+            None | Some(TransactionSource::Other(_)) => {
                 name_used = "none";
                 None
             }
@@ -143,11 +141,7 @@ fn get_transaction_name(
 
     relay_statsd::metric!(
         counter(RelayCounters::MetricsTransactionNameExtracted) += 1,
-        strategy = match &accept_transaction_names {
-            AcceptTransactionNames::ClientBased => "client-based",
-            AcceptTransactionNames::Strict => "strict",
-        },
-        source = &source.to_string(),
+        source = transaction_source_tag(event),
         sdk_name = event
             .client_sdk
             .value()
@@ -172,7 +166,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     if let Some(environment) = event.environment.as_str() {
         tags.insert(CommonTag::Environment, environment.to_string());
     }
-    if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
+    if let Some(transaction_name) = get_transaction_name(event) {
         tags.insert(CommonTag::Transaction, transaction_name);
     }
 
@@ -453,10 +447,11 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use insta;
     use relay_common::MetricUnit;
-    use relay_dynamic_config::TaggingRule;
+    use relay_dynamic_config::{AcceptTransactionNames, TaggingRule};
     use relay_general::protocol::{Contexts, Timestamp, User};
     use relay_general::store::{
-        self, BreakdownsConfig, LightNormalizationConfig, MeasurementsConfig,
+        self, set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
+        MeasurementsConfig,
     };
     use relay_general::types::Annotated;
     use relay_metrics::{DurationUnit, MetricNamespace, MetricValue};
@@ -755,6 +750,7 @@ mod tests {
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
@@ -766,6 +762,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
@@ -777,6 +774,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
@@ -788,6 +786,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
@@ -849,6 +848,7 @@ mod tests {
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
@@ -861,6 +861,7 @@ mod tests {
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
@@ -872,6 +873,7 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
+                    "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
@@ -997,53 +999,57 @@ mod tests {
         .unwrap();
 
         insta::assert_debug_snapshot!(metrics, @r###"
-            [
-                Metric {
-                    name: "d:transactions/measurements.a_custom1@none",
-                    value: Distribution(
-                        41.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+        [
+            Metric {
+                name: "d:transactions/measurements.a_custom1@none",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
-                Metric {
-                    name: "d:transactions/measurements.fcp@millisecond",
-                    value: Distribution(
-                        0.123,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "measurement_rating": "good",
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+            },
+            Metric {
+                name: "d:transactions/measurements.fcp@millisecond",
+                value: Distribution(
+                    0.123,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
-                Metric {
-                    name: "d:transactions/measurements.g_custom2@second",
-                    value: Distribution(
-                        42.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+            },
+            Metric {
+                name: "d:transactions/measurements.g_custom2@second",
+                value: Distribution(
+                    42.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
-                Metric {
-                    name: "d:transactions/duration@millisecond",
-                    value: Distribution(
-                        2000.0,
-                    ),
-                    timestamp: UnixTimestamp(1619420402),
-                    tags: {
-                        "platform": "other",
-                        "transaction.status": "unknown",
-                    },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "other",
+                    "transaction": "foo",
+                    "transaction.status": "unknown",
                 },
-            ]
+            },
+        ]
         "###);
     }
 
@@ -1413,12 +1419,15 @@ mod tests {
     }
 
     /// Helper function to check if the transaction name is set correctly
-    fn extract_transaction_name(json: &str, strategy: AcceptTransactionNames) -> Option<String> {
-        let mut config = TransactionMetricsConfig::default();
+    fn extract_transaction_name(json: &str) -> Option<String> {
+        let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
-        config.accept_transaction_names = strategy;
+
+        // Logic from `set_default_transaction_source` was previously duplicated in
+        // `extract_transaction_metrics`. Add it here such that tests can remain.
+        set_default_transaction_source(event.value_mut().as_mut().unwrap());
 
         let mut metrics = vec![];
         let mut sampling_metrics = vec![];
@@ -1495,23 +1504,6 @@ mod tests {
     }
 
     #[test]
-    fn test_js_unknown_strict() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.browser"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
-        assert!(name.is_none());
-    }
-
-    #[test]
     fn test_js_unknown_client_based() {
         let json = r#"
         {
@@ -1524,7 +1516,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
@@ -1542,7 +1534,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
@@ -1560,7 +1552,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
@@ -1578,7 +1570,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
@@ -1596,7 +1588,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
@@ -1614,7 +1606,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
@@ -1632,7 +1624,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
@@ -1650,7 +1642,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
@@ -1668,7 +1660,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
@@ -1685,7 +1677,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert!(name.is_none());
     }
 
@@ -1702,7 +1694,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
@@ -1720,7 +1712,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
@@ -1738,7 +1730,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("<< unparameterized >>".to_owned()));
     }
 
@@ -1756,7 +1748,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::Strict);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
@@ -1774,7 +1766,7 @@ mod tests {
         }
         "#;
 
-        let name = extract_transaction_name(json, AcceptTransactionNames::ClientBased);
+        let name = extract_transaction_name(json);
         assert_eq!(name, Some("foo".to_owned()));
     }
 
@@ -1796,7 +1788,7 @@ mod tests {
             ),
         ] {
             let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
-            assert_eq!(config.accept_transaction_names, expected_strategy);
+            assert_eq!(config.deprecated1, expected_strategy);
         }
     }
 

@@ -14,7 +14,7 @@ use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
     ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
     RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
-    TransactionSource, User, Values,
+    User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -538,13 +538,6 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn get_transaction_source(&self) -> &TransactionSource {
-        self.transaction_info
-            .value()
-            .and_then(|info| info.source.value())
-            .unwrap_or(&TransactionSource::Unknown)
-    }
-
     pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
         if let Some(tags) = self.tags.value() {
             tags.get(tag_key)
