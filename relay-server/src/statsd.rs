@@ -5,6 +5,12 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
+    /// The ratio between project keys (DSNs) and project IDs, i.e. the average number of keys
+    /// per project.
+    ProjectCacheKeysPerProject,
+    /// The ratio between project IDs and organization IDS, i.e. the average number of projects per
+    /// org.
+    ProjectCacheProjectsPerOrg,
     /// The number of items currently in the garbage disposal queue.
     ProjectCacheGarbageQueueSize,
     /// The number of envelopes waiting for project states in memory.
@@ -26,6 +32,8 @@ impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
+            RelayGauges::ProjectCacheKeysPerProject => "project_cache.avg_keys_per_project",
+            RelayGauges::ProjectCacheProjectsPerOrg => "project_cache.avg_projects_per_org",
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
