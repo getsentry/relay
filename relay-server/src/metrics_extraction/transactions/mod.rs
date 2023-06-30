@@ -1504,7 +1504,24 @@ mod tests {
     }
 
     #[test]
-    fn test_js_unknown_client_based() {
+    fn test_legacy_js_looks_like_url() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "transaction": "foo/",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {"trace": {}},
+            "sdk": {"name": "sentry.javascript.browser"}
+        }
+        "#;
+
+        let name = extract_transaction_name(json);
+        assert!(name.is_none());
+    }
+
+    #[test]
+    fn test_legacy_js_does_not_look_like_url() {
         let json = r#"
         {
             "type": "transaction",
@@ -1517,7 +1534,7 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json);
-        assert!(name.is_none());
+        assert_eq!(name.as_deref(), Some("foo"));
     }
 
     #[test]
@@ -1539,47 +1556,11 @@ mod tests {
     }
 
     #[test]
-    fn test_js_url_client_based() {
+    fn test_python_404() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.browser"},
-            "transaction_info": {"source": "url"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
-    }
-
-    #[test]
-    fn test_python_404_strict() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.python", "integrations":["django"]},
-            "tags": {"http.status": "404"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert!(name.is_none());
-    }
-
-    #[test]
-    fn test_python_404_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -1593,11 +1574,11 @@ mod tests {
     }
 
     #[test]
-    fn test_python_200_client_based() {
+    fn test_python_200() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -1607,15 +1588,15 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json);
-        assert_eq!(name, Some("foo".to_owned()));
+        assert_eq!(name, Some("foo/".to_owned()));
     }
 
     #[test]
-    fn test_express_options_strict() {
+    fn test_express_options() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -1629,29 +1610,11 @@ mod tests {
     }
 
     #[test]
-    fn test_express_options_client_based() {
+    fn test_express() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "sentry.javascript.node", "integrations":["Express"]},
-            "request": {"method": "OPTIONS"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert!(name.is_none());
-    }
-
-    #[test]
-    fn test_express_get_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -1661,15 +1624,15 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json);
-        assert_eq!(name, Some("foo".to_owned()));
+        assert_eq!(name, Some("foo/".to_owned()));
     }
 
     #[test]
-    fn test_other_client_unknown_strict() {
+    fn test_other_client_unknown() {
         let json = r#"
         {
             "type": "transaction",
-            "transaction": "foo",
+            "transaction": "foo/",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "contexts": {"trace": {}},
@@ -1678,28 +1641,11 @@ mod tests {
         "#;
 
         let name = extract_transaction_name(json);
-        assert!(name.is_none());
+        assert_eq!(name.as_deref(), Some("foo/"));
     }
 
     #[test]
-    fn test_other_client_unknown_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("foo".to_owned()));
-    }
-
-    #[test]
-    fn test_other_client_url_strict() {
+    fn test_other_client_url() {
         let json = r#"
         {
             "type": "transaction",
@@ -1717,43 +1663,7 @@ mod tests {
     }
 
     #[test]
-    fn test_other_client_url_client_based() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"},
-            "transaction_info": {"source": "url"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("<< unparameterized >>".to_owned()));
-    }
-
-    #[test]
-    fn test_any_client_route_strict() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "timestamp": "2021-04-26T08:00:00+0100",
-            "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
-            "sdk": {"name": "some_client"},
-            "transaction_info": {"source": "route"}
-        }
-        "#;
-
-        let name = extract_transaction_name(json);
-        assert_eq!(name, Some("foo".to_owned()));
-    }
-
-    #[test]
-    fn test_any_client_route_client_based() {
+    fn test_any_client_route() {
         let json = r#"
         {
             "type": "transaction",
@@ -1772,11 +1682,11 @@ mod tests {
 
     #[test]
     fn test_parse_transaction_name_strategy() {
-        for (config, expected_strategy) in [
-            (r#"{}"#, AcceptTransactionNames::Strict),
+        for (config_str, expected_strategy) in [
+            (r#"{}"#, AcceptTransactionNames::ClientBased),
             (
                 r#"{"acceptTransactionNames": "unknown-strategy"}"#,
-                AcceptTransactionNames::Strict,
+                AcceptTransactionNames::ClientBased,
             ),
             (
                 r#"{"acceptTransactionNames": "strict"}"#,
@@ -1787,8 +1697,8 @@ mod tests {
                 AcceptTransactionNames::ClientBased,
             ),
         ] {
-            let config: TransactionMetricsConfig = serde_json::from_str(config).unwrap();
-            assert_eq!(config.deprecated1, expected_strategy);
+            let config: TransactionMetricsConfig = serde_json::from_str(config_str).unwrap();
+            assert_eq!(config.deprecated1, expected_strategy, "{}", config_str);
         }
     }
 

@@ -324,11 +324,8 @@ fn validate_transaction(event: &mut Event) -> ProcessingResult {
 /// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
 /// but for old SDKs, we fall back to this list.
 pub fn is_high_cardinality_sdk(event: &Event) -> bool {
-    let client_sdk = match event.client_sdk.value() {
-        Some(info) => info,
-        None => {
-            return false;
-        }
+    let Some(client_sdk) = event.client_sdk.value() else {
+        return false;
     };
 
     let sdk_name = client_sdk
@@ -427,6 +424,8 @@ pub fn set_default_transaction_source(event: &mut Event) {
 
 fn is_high_cardinality_transaction(event: &Event) -> bool {
     let transaction = event.transaction.as_str().unwrap_or_default();
+    // We treat transactions from legacy SDKs as URLs if they contain slashes.
+    // Otherwise, we assume low cardinality.
     transaction.contains('/') && is_high_cardinality_sdk(event)
 }
 
