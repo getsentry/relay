@@ -8,8 +8,8 @@ pub enum RelayGauges {
     /// The ratio between project keys (DSNs) and project IDs, i.e. the average number of keys
     /// per project.
     ProjectCacheKeysPerProject,
-    /// The ratio between project IDs and organization IDS, i.e. the average number of projects per
-    /// org.
+    /// The ratio between project IDs and organization IDs, i.e. the average number of projects per
+    /// organization.
     ProjectCacheProjectsPerOrg,
     /// The number of items currently in the garbage disposal queue.
     ProjectCacheGarbageQueueSize,
