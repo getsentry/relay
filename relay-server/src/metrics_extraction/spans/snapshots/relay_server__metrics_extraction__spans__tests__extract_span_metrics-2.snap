@@ -11,7 +11,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "ui.react",
             "span.op": "ui.react.render",
             "transaction": "gEt /api/:version/users/",
@@ -27,7 +27,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "ui.react",
             "span.op": "ui.react.render",
             "transaction": "gEt /api/:version/users/",
@@ -43,7 +43,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "ui.react",
             "span.op": "ui.react.render",
             "transaction.method": "POST",
@@ -58,7 +58,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "ui.react",
             "span.op": "ui.react.render",
             "transaction": "gEt /api/:version/users/",
@@ -74,7 +74,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET domain.tld/<unparameterized>",
@@ -95,7 +95,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET domain.tld/<unparameterized>",
@@ -116,7 +116,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET domain.tld/<unparameterized>",
@@ -136,7 +136,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET domain.tld/<unparameterized>",
@@ -157,7 +157,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET <unparameterized>",
@@ -177,7 +177,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET <unparameterized>",
@@ -197,7 +197,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET <unparameterized>",
@@ -216,7 +216,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "GET",
             "span.category": "http",
             "span.description": "GET <unparameterized>",
@@ -236,7 +236,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*/api/hi",
@@ -259,7 +259,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*/api/hi",
@@ -282,7 +282,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*/api/hi",
@@ -304,7 +304,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://*/api/hi",
@@ -327,7 +327,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -350,7 +350,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -373,7 +373,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -395,7 +395,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -418,7 +418,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST targetdomain.tld:targetport/<unparameterized>",
@@ -441,7 +441,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST targetdomain.tld:targetport/<unparameterized>",
@@ -464,7 +464,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST targetdomain.tld:targetport/<unparameterized>",
@@ -486,7 +486,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST targetdomain.tld:targetport/<unparameterized>",
@@ -509,7 +509,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain:targetport/api/id/*",
@@ -532,7 +532,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain:targetport/api/id/*",
@@ -555,7 +555,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain:targetport/api/id/*",
@@ -577,7 +577,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST http://targetdomain:targetport/api/id/*",
@@ -600,7 +600,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -623,7 +623,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -646,7 +646,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -668,7 +668,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -691,7 +691,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -714,7 +714,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -737,7 +737,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -759,7 +759,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "POST",
             "span.category": "http",
             "span.description": "POST *.domain.tld:targetport/<unparameterized>",
@@ -782,7 +782,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -805,7 +805,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -828,7 +828,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -850,7 +850,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -873,7 +873,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "select column FROM table WHERE id IN (%s)",
@@ -895,7 +895,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "select column FROM table WHERE id IN (%s)",
@@ -917,7 +917,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "select column FROM table WHERE id IN (%s)",
@@ -938,7 +938,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "select column FROM table WHERE id IN (%s)",
@@ -960,7 +960,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -981,7 +981,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -1002,7 +1002,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -1022,7 +1022,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -1043,7 +1043,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "from_date",
@@ -1064,7 +1064,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "from_date",
@@ -1085,7 +1085,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "from_date",
@@ -1105,7 +1105,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "from_date",
@@ -1126,7 +1126,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -1146,7 +1146,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -1166,7 +1166,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -1185,7 +1185,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
             "span.domain": "table",
@@ -1205,7 +1205,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.domain": "table",
@@ -1226,7 +1226,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.domain": "table",
@@ -1247,7 +1247,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.domain": "table",
@@ -1267,7 +1267,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.domain": "table",
@@ -1288,7 +1288,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
@@ -1311,7 +1311,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
@@ -1334,7 +1334,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
@@ -1356,7 +1356,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
@@ -1379,7 +1379,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
@@ -1402,7 +1402,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
@@ -1425,7 +1425,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
@@ -1447,7 +1447,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
@@ -1470,7 +1470,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
@@ -1491,7 +1491,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
@@ -1512,7 +1512,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
@@ -1532,7 +1532,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
@@ -1553,7 +1553,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "cache",
             "span.description": "GET cache:user:*",
             "span.group": "325fa5feb926f121",
@@ -1573,7 +1573,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "cache",
             "span.description": "GET cache:user:*",
             "span.group": "325fa5feb926f121",
@@ -1593,7 +1593,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "cache",
             "span.description": "GET cache:user:*",
             "span.group": "325fa5feb926f121",
@@ -1612,7 +1612,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "cache",
             "span.description": "GET cache:user:*",
             "span.group": "325fa5feb926f121",
@@ -1632,7 +1632,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET test:*:*",
             "span.group": "2c1e35c1f77934da",
@@ -1652,7 +1652,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET test:*:*",
             "span.group": "2c1e35c1f77934da",
@@ -1672,7 +1672,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET test:*:*",
             "span.group": "2c1e35c1f77934da",
@@ -1691,7 +1691,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET test:*:*",
             "span.group": "2c1e35c1f77934da",
@@ -1711,7 +1711,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -1731,7 +1731,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -1751,7 +1751,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -1770,7 +1770,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "db",
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
@@ -1790,7 +1790,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "resource",
             "span.description": "http://domain/static/myscript-*.js",
             "span.group": "022f81fdf31228bf",
@@ -1809,7 +1809,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "resource",
             "span.description": "http://domain/static/myscript-*.js",
             "span.group": "022f81fdf31228bf",
@@ -1828,7 +1828,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "resource",
             "span.description": "http://domain/static/myscript-*.js",
             "span.group": "022f81fdf31228bf",
@@ -1846,7 +1846,7 @@ expression: metrics
         timestamp: UnixTimestamp(1619420400),
         tags: {
             "environment": "fake_environment",
-            "http.status_code": "200",
+            "http.status_code": "500",
             "span.category": "resource",
             "span.description": "http://domain/static/myscript-*.js",
             "span.group": "022f81fdf31228bf",

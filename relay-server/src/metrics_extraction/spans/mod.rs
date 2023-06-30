@@ -737,6 +737,9 @@ mod tests {
                     "country_code": "US"
                 }
             },
+            "tags": {
+                "http.status_code": 500
+            },
             "contexts": {
                 "trace": {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
