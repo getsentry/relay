@@ -31,7 +31,7 @@ The `gocd/templates/relay.jsonnet` file is the entry point for the
 relay pipelines.
 
 `gocd/templates/libs/*.libsonnet` define the pipeline behaviors for
-deploy relay and relay-pops. These libraries are use to create a
+deploy relay and relay-pops. These libraries are used to create a
 GoCD pipeline, following the same naming as the
 [GoCD yaml pipelines](https://github.com/tomzo/gocd-yaml-config-plugin#readme).
 
