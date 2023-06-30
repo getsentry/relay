@@ -1069,6 +1069,9 @@
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
 <a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::extract_http_status_code;
@@ -1807,6 +1810,9 @@
                 &quot;geo&quot;: {
                     &quot;country_code&quot;: &quot;US&quot;
                 }
+            },
+            &quot;tags&quot;: {
+                &quot;http.status_code&quot;: 500
             },
             &quot;contexts&quot;: {
                 &quot;trace&quot;: {
