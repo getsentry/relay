@@ -2077,7 +2077,7 @@ impl EnvelopeProcessorService {
         let project_config = state.project_state.config();
         let extraction_config = match project_config.transaction_metrics {
             Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => config,
-            _ => return Ok(()),
+            _ => return dbg!(Ok(())),
         };
 
         let extract_spans_metrics = state
@@ -2090,7 +2090,7 @@ impl EnvelopeProcessorService {
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
 
-        if let Some(event) = state.event.value_mut() {
+        if let Some(event) = dbg!(state.event.value_mut()) {
             let result;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
@@ -2268,7 +2268,7 @@ impl EnvelopeProcessorService {
                 self.compute_sampling_decision(state);
             }
             EventType::Transaction => {
-                dbg!(state);
+                dbg!();
             }
             _ => {
                 dbg!("!!@#!@#");
