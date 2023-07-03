@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::error::Error;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
@@ -446,6 +447,35 @@ impl Services {
     }
 }
 
+/// Tracks how many projects are accessed every second.
+#[derive(Debug)]
+struct AccessTracker {
+    keys: HashSet<ProjectKey>,
+    last_reset: Instant,
+}
+
+impl AccessTracker {
+    fn new() -> Self {
+        Self {
+            keys: Default::default(),
+            last_reset: Instant::now(),
+        }
+    }
+
+    fn track(&mut self, project_key: ProjectKey) {
+        let now = Instant::now();
+        if (now - self.last_reset) > Duration::from_secs(1) {
+            let count = self.keys.len();
+            // When we get < 1 access per second, this will log results from the past.
+            // Does not matter for our use case though.
+            metric!(gauge(RelayGauges::ProjectCacheKeysAccessed) = count as u64);
+            self.keys.clear();
+            self.last_reset = now;
+        }
+        self.keys.insert(project_key);
+    }
+}
+
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -456,6 +486,7 @@ struct ProjectCacheBroker {
     services: Services,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
+    access: AccessTracker,
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
@@ -571,6 +602,7 @@ impl ProjectCacheBroker {
 
     fn get_or_create_project(&mut self, project_key: ProjectKey) -> &mut Project {
         metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
+        self.access.track(project_key);
 
         let config = self.config.clone();
 
@@ -684,6 +716,7 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
+        self.access.track(project_key);
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::error!(
                 tags.project_key = %project_key,
@@ -708,7 +741,10 @@ impl ProjectCacheBroker {
         }) = project.check_envelope(managed_envelope, self.services.outcome_aggregator.clone())
         {
             let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
-                .and_then(|key| self.projects.get(&key))
+                .and_then(|key| {
+                    self.access.track(project_key);
+                    self.projects.get(&key)
+                })
                 .and_then(|p| p.valid_state());
 
             let mut process = ProcessEnvelope {
@@ -904,6 +940,7 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 projects: hashbrown::HashMap::new(),
+                access: AccessTracker::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
                 services,
@@ -1025,6 +1062,7 @@ mod tests {
             ProjectCacheBroker {
                 config: config.clone(),
                 projects: hashbrown::HashMap::new(),
+                access: AccessTracker::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),
                 services,
