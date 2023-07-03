@@ -2260,7 +2260,9 @@ impl EnvelopeProcessorService {
             EventType::Default | EventType::Error => {
                 self.tag_error_with_sampling_decision(state);
             }
-            EventType::Transaction => {
+            // Skipping DS if relay doesn't support incoming metrics extraction version, to stop
+            // premature dropping of events.
+            EventType::Transaction if state.transaction_metrics_extracted => {
                 self.compute_sampling_decision(state);
             }
             _ => {}
