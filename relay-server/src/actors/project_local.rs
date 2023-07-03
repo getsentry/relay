@@ -107,9 +107,11 @@ async fn load_local_states(
             }
         }
 
-        let arc = Arc::new(sanitized);
-        for key in &arc.public_keys {
-            states.insert(key.public_key, arc.clone());
+        // Keep a separate project state per key.
+        let keys = std::mem::take(&mut sanitized.public_keys);
+        for key in keys {
+            sanitized.public_keys = smallvec::smallvec![key.clone()];
+            states.insert(key.public_key, Arc::new(sanitized.clone()));
         }
     }
 
