@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::error::Error;
 use std::sync::Arc;
 
@@ -528,9 +528,18 @@ impl ProjectCacheBroker {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
-        let expired = self
-            .projects
-            .drain_filter(|_, entry| entry.last_updated_at() + delta <= eviction_start);
+        // Count org and project IDs for stats.
+        let project_keys = self.projects.len();
+        let mut project_ids = HashSet::new();
+        let mut org_ids = HashSet::new();
+
+        let expired = self.projects.drain_filter(|_, entry| {
+            if let Some(scoping) = entry.scoping() {
+                project_ids.insert(scoping.project_id);
+                org_ids.insert(scoping.organization_id);
+            }
+            entry.last_updated_at() + delta <= eviction_start
+        });
 
         // Defer dropping the projects to a dedicated thread:
         let mut count = 0;
@@ -543,6 +552,15 @@ impl ProjectCacheBroker {
             count += 1;
         }
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += count);
+
+        metric!(
+            gauge(RelayGauges::ProjectCacheKeysPerProject) =
+                project_keys as f64 / project_ids.len() as f64
+        );
+        metric!(
+            gauge(RelayGauges::ProjectCacheProjectsPerOrg) =
+                project_ids.len() as f64 / org_ids.len() as f64
+        );
 
         // Log garbage queue size:
         let queue_size = self.garbage_disposal.queue_size() as f64;
