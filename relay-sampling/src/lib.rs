@@ -692,6 +692,23 @@ impl FieldValueProvider for Event {
                 }
                 _ => Value::Null,
             },
+            "release.version.build" => self
+                .parse_release()
+                .as_ref()
+                .and_then(|r| r.version())
+                .and_then(|v| v.build_code())
+                .map_or(Value::Null, Value::from),
+            "release.package" => self
+                .parse_release()
+                .as_ref()
+                .and_then(|r| r.package())
+                .map_or(Value::Null, Value::from),
+            "release.version.short" => self
+                .parse_release()
+                .as_ref()
+                .and_then(|r| r.version())
+                .map(|v| v.raw_short())
+                .map_or(Value::Null, Value::from),
 
             // Dynamic access to certain data bags
             _ => {

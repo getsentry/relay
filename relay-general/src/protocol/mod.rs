@@ -33,7 +33,7 @@ mod user;
 mod user_report;
 mod utils;
 
-pub use sentry_release_parser::{validate_environment, validate_release};
+pub use sentry_release_parser::{validate_environment, validate_release, Release as ParsedRelease};
 
 pub use self::breadcrumb::*;
 pub use self::breakdowns::*;

@@ -120,7 +120,7 @@ fn get_transaction_name(
         AcceptTransactionNames::ClientBased
     ) && !store::is_high_cardinality_sdk(event);
 
-    let source = event.get_transaction_source();
+    let source = event.transaction_source();
     let use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
 
     let name_used;
