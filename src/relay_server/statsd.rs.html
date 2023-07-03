@@ -652,6 +652,11 @@
 <a href="#652" id="652">652</a>
 <a href="#653" id="653">653</a>
 <a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -667,6 +672,10 @@
     </span>ProjectCacheProjectsPerOrg,
     <span class="doccomment">/// The number of items currently in the garbage disposal queue.
     </span>ProjectCacheGarbageQueueSize,
+    <span class="doccomment">/// The number of accessed projects per second.
+    ///
+    /// This is intended as a temporary metric, can be removed once the experiment is over.
+    </span>ProjectCacheKeysAccessed,
     <span class="doccomment">/// The number of envelopes waiting for project states in memory.
     ///
     /// This number is always &lt;= `EnvelopeQueueSize`.
@@ -689,6 +698,7 @@
             RelayGauges::ProjectCacheKeysPerProject =&gt; <span class="string">&quot;project_cache.avg_keys_per_project&quot;</span>,
             RelayGauges::ProjectCacheProjectsPerOrg =&gt; <span class="string">&quot;project_cache.avg_projects_per_org&quot;</span>,
             RelayGauges::ProjectCacheGarbageQueueSize =&gt; <span class="string">&quot;project_cache.garbage.queue_size&quot;</span>,
+            RelayGauges::ProjectCacheKeysAccessed =&gt; <span class="string">&quot;project_cache.keys_accessed&quot;</span>,
             RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">&quot;buffer.envelopes_mem_count&quot;</span>,
             RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">&quot;buffer.envelopes_disk_count&quot;</span>,
         }
