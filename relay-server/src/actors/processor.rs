@@ -2258,14 +2258,21 @@ impl EnvelopeProcessorService {
         // - Computing the actual sampling decision on an incoming transaction.
         match state.event_type().unwrap_or_default() {
             EventType::Default | EventType::Error => {
+                dbg!("hey");
                 self.tag_error_with_sampling_decision(state);
             }
             // Skipping DS if relay doesn't support incoming metrics extraction version, to stop
             // premature dropping of events.
             EventType::Transaction if state.transaction_metrics_extracted => {
+                dbg!("nice");
                 self.compute_sampling_decision(state);
             }
-            _ => {}
+            EventType::Transaction => {
+                dbg!(state);
+            }
+            _ => {
+                dbg!("!!@#!@#");
+            }
         }
     }
 

@@ -149,10 +149,9 @@ pub struct MetricExtractionConfig {
 impl MetricExtractionConfig {
     /// Returns `true` if metric extraction is configured.
     pub fn is_enabled(&self) -> bool {
-        return true;
-        let _ = self.version > 0
+        self.version > 0
             && self.version <= METRIC_EXTRACTION_VERSION
-            && !(self.metrics.is_empty() && self.tags.is_empty());
+            && !(self.metrics.is_empty() && self.tags.is_empty())
     }
 }
 
