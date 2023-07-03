@@ -2112,7 +2112,7 @@ impl EnvelopeProcessorService {
                 }
             );
 
-            result?;
+            dbg!(result?);
 
             state.transaction_metrics_extracted = true;
             state.managed_envelope.set_event_metrics_extracted();
