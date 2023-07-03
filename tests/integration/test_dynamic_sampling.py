@@ -89,7 +89,7 @@ def _add_sampling_config(
     Adds a sampling configuration rule to a project configuration
     """
     ds = config["config"].setdefault("dynamicSampling", {})
-    config["transactionMetrics"] = {
+    config["config"]["transactionMetrics"] = {
         "version": 1,
     }
     # We set the old rules v1 as empty array.
