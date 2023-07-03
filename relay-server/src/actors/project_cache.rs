@@ -463,14 +463,13 @@ impl AccessTracker {
     }
 
     fn track(&mut self, project_key: ProjectKey) {
-        let now = Instant::now();
-        if (now - self.last_reset) > Duration::from_secs(1) {
+        if self.last_reset.elapsed() > Duration::from_secs(1) {
             let count = self.keys.len();
             // When we get < 1 access per second, this will log results from the past.
             // Does not matter for our use case though.
             metric!(gauge(RelayGauges::ProjectCacheKeysAccessed) = count as u64);
             self.keys.clear();
-            self.last_reset = now;
+            self.last_reset = Instant::now();
         }
         self.keys.insert(project_key);
     }
