@@ -568,7 +568,7 @@ impl Event {
             .unwrap_or(false)
     }
 
-    /// Return the identifier of the client SDK if available.
+    /// Returns the identifier of the client SDK if available.
     ///
     /// Sentry's own SDKs use a naming schema prefixed with `sentry.`. Defaults to `"unknown"`.
     pub fn sdk_name(&self) -> &str {
@@ -581,7 +581,7 @@ impl Event {
         "unknown"
     }
 
-    /// Return the version of the client SDK if available.
+    /// Returns the version of the client SDK if available.
     ///
     /// Defaults to `"unknown"`.
     pub fn sdk_version(&self) -> &str {
