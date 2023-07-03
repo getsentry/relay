@@ -1107,7 +1107,25 @@
 <a href="#1107" id="1107">1107</a>
 <a href="#1108" id="1108">1108</a>
 <a href="#1109" id="1109">1109</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -1637,9 +1655,18 @@
         <span class="kw">let </span>eviction_start = Instant::now();
         <span class="kw">let </span>delta = <span class="number">2 </span>* <span class="self">self</span>.config.project_cache_expiry() + <span class="self">self</span>.config.project_grace_period();
 
-        <span class="kw">let </span>expired = <span class="self">self
-            </span>.projects
-            .drain_filter(|<span class="kw">_</span>, entry| entry.last_updated_at() + delta &lt;= eviction_start);
+        <span class="comment">// Count org and project IDs for stats.
+        </span><span class="kw">let </span>project_keys = <span class="self">self</span>.projects.len();
+        <span class="kw">let </span><span class="kw-2">mut </span>project_ids = HashSet::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>org_ids = HashSet::new();
+
+        <span class="kw">let </span>expired = <span class="self">self</span>.projects.drain_filter(|<span class="kw">_</span>, entry| {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(scoping) = entry.scoping() {
+                project_ids.insert(scoping.project_id);
+                org_ids.insert(scoping.organization_id);
+            }
+            entry.last_updated_at() + delta &lt;= eviction_start
+        });
 
         <span class="comment">// Defer dropping the projects to a dedicated thread:
         </span><span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0</span>;
@@ -1652,6 +1679,15 @@
             count += <span class="number">1</span>;
         }
         <span class="macro">metric!</span>(counter(RelayCounters::EvictingStaleProjectCaches) += count);
+
+        <span class="macro">metric!</span>(
+            gauge(RelayGauges::ProjectCacheKeysPerProject) =
+                project_keys <span class="kw">as </span>f64 / project_ids.len() <span class="kw">as </span>f64
+        );
+        <span class="macro">metric!</span>(
+            gauge(RelayGauges::ProjectCacheProjectsPerOrg) =
+                project_ids.len() <span class="kw">as </span>f64 / org_ids.len() <span class="kw">as </span>f64
+        );
 
         <span class="comment">// Log garbage queue size:
         </span><span class="kw">let </span>queue_size = <span class="self">self</span>.garbage_disposal.queue_size() <span class="kw">as </span>f64;
