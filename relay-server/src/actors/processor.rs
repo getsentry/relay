@@ -2944,6 +2944,68 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_dsc_respects_metrics_extracted() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let service: EnvelopeProcessorService = create_test_processor(config);
+
+        // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
+        let get_state = |metrics_extracted: bool| {
+            let event = Event {
+                id: Annotated::new(EventId::new()),
+                ty: Annotated::new(EventType::Transaction),
+                transaction: Annotated::new("testing".to_owned()),
+                ..Event::default()
+            };
+
+            let project_state = state_with_rule_and_condition(
+                Some(0.0),
+                RuleType::Transaction,
+                SamplingMode::Received,
+                RuleCondition::all(),
+            );
+
+            ProcessEnvelopeState {
+                event: Annotated::from(event),
+                transaction_metrics_extracted: metrics_extracted,
+                metrics: Default::default(),
+                sample_rates: None,
+                sampling_result: SamplingResult::Keep,
+                extracted_metrics: Default::default(),
+                project_state: Arc::new(project_state),
+                sampling_project_state: None,
+                project_id: ProjectId::new(42),
+                managed_envelope: ManagedEnvelope::new(
+                    new_envelope(false, "foo"),
+                    TestSemaphore::new(42).try_acquire().unwrap(),
+                    outcome_aggregator.clone(),
+                    test_store.clone(),
+                ),
+                has_profile: false,
+            }
+        };
+
+        // If metrics have not been extracted, DS isn't run, meaning it'll keep the event no matter what.
+        let mut state = get_state(false);
+        service.run_dynamic_sampling(&mut state);
+        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+
+        // Otherwise, the event might be dropped, as is done here.
+        let mut state = get_state(true);
+        service.run_dynamic_sampling(&mut state);
+        assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
+    }
+
+    #[tokio::test]
     async fn test_it_keeps_or_drops_transactions() {
         relay_test::setup();
 
