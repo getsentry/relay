@@ -2033,7 +2033,7 @@
         AcceptTransactionNames::ClientBased
     ) &amp;&amp; !store::is_high_cardinality_sdk(event);
 
-    <span class="kw">let </span>source = event.get_transaction_source();
+    <span class="kw">let </span>source = event.transaction_source();
     <span class="kw">let </span>use_original_name = is_low_cardinality(source, treat_unknown_as_low_cardinality);
 
     <span class="kw">let </span>name_used;

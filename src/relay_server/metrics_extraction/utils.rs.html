@@ -189,7 +189,7 @@
 <span class="doccomment">/// Extracts the HTTP status code.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_http_status_code(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="comment">// For SDKs which put the HTTP status code in the event tags.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = event.get_tag_value(<span class="string">&quot;http.status_code&quot;</span>) {
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = event.tag_value(<span class="string">&quot;http.status_code&quot;</span>) {
         <span class="kw">return </span><span class="prelude-val">Some</span>(status_code.to_owned());
     }
 

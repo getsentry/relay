@@ -3661,7 +3661,7 @@
         <span class="kw">return </span><span class="bool-val">true</span>;
     }
 
-    <span class="kw">let </span>is_http_status_404 = event.get_tag_value(<span class="string">&quot;http.status_code&quot;</span>) == <span class="prelude-val">Some</span>(<span class="string">&quot;404&quot;</span>);
+    <span class="kw">let </span>is_http_status_404 = event.tag_value(<span class="string">&quot;http.status_code&quot;</span>) == <span class="prelude-val">Some</span>(<span class="string">&quot;404&quot;</span>);
     <span class="kw">if </span>sdk_name == <span class="string">&quot;sentry.python&quot; </span>&amp;&amp; is_http_status_404 &amp;&amp; client_sdk.has_integration(<span class="string">&quot;django&quot;</span>) {
         <span class="kw">return </span><span class="bool-val">true</span>;
     }

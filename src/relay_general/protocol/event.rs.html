@@ -865,6 +865,24 @@
 <a href="#865" id="865">865</a>
 <a href="#866" id="866">866</a>
 <a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1405,14 +1423,21 @@
 }
 
 <span class="kw">impl </span>Event {
-    <span class="kw">pub fn </span>get_transaction_source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TransactionSource {
+    <span class="doccomment">/// Returns the source of the transaction name if specified by the client.
+    ///
+    /// See the [type docs](TransactionSource) for more information.
+    </span><span class="kw">pub fn </span>transaction_source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TransactionSource {
         <span class="self">self</span>.transaction_info
             .value()
             .and_then(|info| info.source.value())
             .unwrap_or(<span class="kw-2">&amp;</span>TransactionSource::Unknown)
     }
 
-    <span class="kw">pub fn </span>get_tag_value(<span class="kw-2">&amp;</span><span class="self">self</span>, tag_key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
+    <span class="doccomment">/// Returns the value of a tag with the given key.
+    ///
+    /// If tags are specified in a pair list and the tag is declared multiple times, this function
+    /// returns the first match.
+    </span><span class="kw">pub fn </span>tag_value(<span class="kw-2">&amp;</span><span class="self">self</span>, tag_key: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = <span class="self">self</span>.tags.value() {
             tags.get(tag_key)
         } <span class="kw">else </span>{
@@ -1420,14 +1445,18 @@
         </span>}
     }
 
-    <span class="kw">pub fn </span>has_module(<span class="kw-2">&amp;</span><span class="self">self</span>, module_name: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    <span class="doccomment">/// Returns `true` if [`modules`](Self::modules) contains the given module.
+    </span><span class="kw">pub fn </span>has_module(<span class="kw-2">&amp;</span><span class="self">self</span>, module_name: <span class="kw-2">&amp;</span>str) -&gt; bool {
         <span class="self">self</span>.modules
             .value()
             .map(|m| m.contains_key(module_name))
             .unwrap_or(<span class="bool-val">false</span>)
     }
 
-    <span class="kw">pub fn </span>sdk_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+    <span class="doccomment">/// Returns the identifier of the client SDK if available.
+    ///
+    /// Sentry&#39;s own SDKs use a naming schema prefixed with `sentry.`. Defaults to `&quot;unknown&quot;`.
+    </span><span class="kw">pub fn </span>sdk_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sdk) = <span class="self">self</span>.client_sdk.value() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = client_sdk.name.as_str() {
                 <span class="kw">return </span>name;
@@ -1437,7 +1466,10 @@
         <span class="string">&quot;unknown&quot;
     </span>}
 
-    <span class="kw">pub fn </span>sdk_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+    <span class="doccomment">/// Returns the version of the client SDK if available.
+    ///
+    /// Defaults to `&quot;unknown&quot;`.
+    </span><span class="kw">pub fn </span>sdk_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sdk) = <span class="self">self</span>.client_sdk.value() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(version) = client_sdk.version.as_str() {
                 <span class="kw">return </span>version;
@@ -1467,6 +1499,10 @@
         }
 
         <span class="prelude-val">Some</span>(value)
+    }
+
+    <span class="kw">pub fn </span>parse_release(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw">crate</span>::protocol::ParsedRelease&gt; {
+        sentry_release_parser::Release::parse(<span class="self">self</span>.release.as_str()<span class="question-mark">?</span>).ok()
     }
 }
 
