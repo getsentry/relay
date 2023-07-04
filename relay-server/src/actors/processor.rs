@@ -2264,8 +2264,10 @@ impl EnvelopeProcessorService {
                 self.tag_error_with_sampling_decision(state);
             }
             EventType::Transaction => {
-                if let ErrorBoundary::Ok(config) = &state.project_state.config.metric_extraction {
-                    if config.version > 0 && config.version <= METRIC_EXTRACTION_VERSION {
+                if let ErrorBoundary::Ok(config) =
+                    dbg!(&state.project_state.config.metric_extraction)
+                {
+                    if dbg!(config.version > 0 && config.version <= METRIC_EXTRACTION_VERSION) {
                         self.compute_sampling_decision(state);
                     }
                 }
@@ -2463,10 +2465,12 @@ impl EnvelopeProcessorService {
             self.light_normalize_event(state)?;
             self.normalize_dsc(state);
             self.filter_event(state)?;
-            self.run_dynamic_sampling(state);
-            self.extract_metrics(state)?;
-            self.extract_transaction_metrics(state)?;
-            self.sample_envelope(state)?;
+            {
+                self.run_dynamic_sampling(state);
+                self.extract_metrics(state)?;
+                self.extract_transaction_metrics(state)?;
+                self.sample_envelope(state)?;
+            }
 
             if_processing!({
                 self.store_process_event(state)?;
