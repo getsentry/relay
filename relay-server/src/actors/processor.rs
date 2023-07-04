@@ -2267,7 +2267,8 @@ impl EnvelopeProcessorService {
                 if let ErrorBoundary::Ok(config) =
                     dbg!(&state.project_state.config.metric_extraction)
                 {
-                    if dbg!(config.version > 0 && config.version <= METRIC_EXTRACTION_VERSION) {
+                    if dbg!(config.version > 0) && dbg!(config.version) <= METRIC_EXTRACTION_VERSION
+                    {
                         self.compute_sampling_decision(state);
                     }
                 }
