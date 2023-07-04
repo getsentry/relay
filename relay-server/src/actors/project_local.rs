@@ -249,4 +249,37 @@ mod tests {
             project_key,
         )
     }
+
+    #[tokio::test]
+    async fn test_multi_pub_static_config() {
+        let temp = tempfile::tempdir().unwrap();
+
+        let tmp_project_file = "111111.json";
+        let project_key1 = ProjectKey::parse("55f6b2d962564e99832a39890ee4573e").unwrap();
+        let project_key2 = ProjectKey::parse("55bbb2d96256bb9983bb39890bb457bb").unwrap();
+
+        let mut tmp_project_state = ProjectState::allowed();
+        tmp_project_state.public_keys.extend(vec![
+            PublicKeyConfig {
+                public_key: project_key1,
+                numeric_id: None,
+            },
+            PublicKeyConfig {
+                public_key: project_key2,
+                numeric_id: None,
+            },
+        ]);
+
+        // create the project file
+        let project_state = serde_json::to_string(&tmp_project_state).unwrap();
+        tokio::fs::write(temp.path().join(tmp_project_file), project_state.as_bytes())
+            .await
+            .unwrap();
+
+        let extracted_project_state = load_local_states(temp.path()).await.unwrap();
+
+        assert_eq!(extracted_project_state.len(), 2);
+        assert!(extracted_project_state.get(&project_key1).is_some());
+        assert!(extracted_project_state.get(&project_key2).is_some());
+    }
 }
