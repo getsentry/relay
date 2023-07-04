@@ -73,6 +73,11 @@ def _outcomes_enabled_config():
             "batch_size": 1,
             "batch_interval": 1,
             "source": "relay",
+        },
+        "config": {
+            "transactionMetrics": {
+                "version": 1,
+            }
         }
     }
 
