@@ -13,10 +13,6 @@ pub enum RelayGauges {
     ProjectCacheProjectsPerOrg,
     /// The number of items currently in the garbage disposal queue.
     ProjectCacheGarbageQueueSize,
-    /// The number of accessed projects per second.
-    ///
-    /// This is intended as a temporary metric, can be removed once the experiment is over.
-    ProjectCacheKeysAccessed,
     /// The number of envelopes waiting for project states in memory.
     ///
     /// This number is always <= `EnvelopeQueueSize`.
@@ -39,7 +35,6 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheKeysPerProject => "project_cache.avg_keys_per_project",
             RelayGauges::ProjectCacheProjectsPerOrg => "project_cache.avg_projects_per_org",
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
-            RelayGauges::ProjectCacheKeysAccessed => "project_cache.keys_accessed",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
         }
