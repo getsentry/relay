@@ -2261,15 +2261,14 @@ impl EnvelopeProcessorService {
                 dbg!("hey");
                 self.tag_error_with_sampling_decision(state);
             }
-            // Skipping DS if relay doesn't support incoming metrics extraction version, to stop
-            // premature dropping of events.
-            EventType::Transaction if state.transaction_metrics_extracted => {
-                dbg!("nice");
-                self.compute_sampling_decision(state);
-            }
             EventType::Transaction => {
-                dbg!();
+                if let ErrorBoundary::Ok(config) = &state.project_state.config.metric_extraction {
+                    if config.is_enabled() {
+                        self.compute_sampling_decision(state);
+                    }
+                }
             }
+
             _ => {
                 dbg!("!!@#!@#");
             }
@@ -2463,9 +2462,9 @@ impl EnvelopeProcessorService {
             self.normalize_dsc(state);
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
-            self.extract_metrics(state)?;
             self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
+            self.extract_metrics(state)?;
 
             if_processing!({
                 self.store_process_event(state)?;
