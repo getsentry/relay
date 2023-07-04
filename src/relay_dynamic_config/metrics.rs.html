@@ -306,6 +306,7 @@
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -387,22 +388,21 @@
 /// The version is an integer scalar, incremented by one on each new version.
 </span><span class="kw">const </span>TRANSACTION_EXTRACT_VERSION: u16 = <span class="number">1</span>;
 
-<span class="doccomment">/// Defines whether URL transactions should be considered low cardinality.
+<span class="doccomment">/// Deprecated. Defines whether URL transactions should be considered low cardinality.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub enum </span>AcceptTransactionNames {
-    <span class="doccomment">/// For some SDKs, accept all transaction names, while for others, apply strict rules.
-    </span>ClientBased,
-
     <span class="doccomment">/// Only accept transaction names with a low-cardinality source.
-    /// Any value other than &quot;clientBased&quot; will be interpreted as &quot;strict&quot;.
-    </span><span class="attr">#[serde(other)]
     </span>Strict,
+
+    <span class="doccomment">/// For some SDKs, accept all transaction names, while for others, apply strict rules.
+    </span><span class="attr">#[serde(other)]
+    </span>ClientBased,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AcceptTransactionNames {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Strict
+        <span class="self">Self</span>::ClientBased
     }
 }
 
@@ -416,8 +416,10 @@
     </span><span class="kw">pub </span>extract_custom_tags: BTreeSet&lt;String&gt;,
     <span class="doccomment">/// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
     </span><span class="kw">pub </span>custom_measurements: CustomMeasurementConfig,
-    <span class="doccomment">/// Defines whether URL transactions should be considered low cardinality.
-    </span><span class="kw">pub </span>accept_transaction_names: AcceptTransactionNames,
+    <span class="doccomment">/// Deprecated. Defines whether URL transactions should be considered low cardinality.
+    /// Keep this around for external Relays.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;acceptTransactionNames&quot;</span>)]
+    </span><span class="kw">pub </span>deprecated1: AcceptTransactionNames,
 }
 
 <span class="kw">impl </span>TransactionMetricsConfig {

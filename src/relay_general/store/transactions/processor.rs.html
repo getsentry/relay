@@ -3305,6 +3305,12 @@
 <a href="#3305" id="3305">3305</a>
 <a href="#3306" id="3306">3306</a>
 <a href="#3307" id="3307">3307</a>
+<a href="#3308" id="3308">3308</a>
+<a href="#3309" id="3309">3309</a>
+<a href="#3310" id="3310">3310</a>
+<a href="#3311" id="3311">3311</a>
+<a href="#3312" id="3312">3312</a>
+<a href="#3313" id="3313">3313</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3631,11 +3637,8 @@
 /// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
 /// but for old SDKs, we fall back to this list.
 </span><span class="kw">pub fn </span>is_high_cardinality_sdk(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
-    <span class="kw">let </span>client_sdk = <span class="kw">match </span>event.client_sdk.value() {
-        <span class="prelude-val">Some</span>(info) =&gt; info,
-        <span class="prelude-val">None </span>=&gt; {
-            <span class="kw">return </span><span class="bool-val">false</span>;
-        }
+    <span class="kw">let </span><span class="prelude-val">Some</span>(client_sdk) = event.client_sdk.value() <span class="kw">else </span>{
+        <span class="kw">return </span><span class="bool-val">false</span>;
     };
 
     <span class="kw">let </span>sdk_name = client_sdk
@@ -3716,18 +3719,27 @@
 /// not extracted as a tag on the corresponding metrics, because
 ///     source == null &lt;=&gt; transaction name == null
 /// See `relay_server::metrics_extraction::transactions::get_transaction_name`.
-</span><span class="kw">fn </span>set_default_transaction_source(event: <span class="kw-2">&amp;mut </span>Event) {
+</span><span class="kw">pub fn </span>set_default_transaction_source(event: <span class="kw-2">&amp;mut </span>Event) {
     <span class="kw">let </span>source = event
         .transaction_info
         .value()
         .and_then(|info| info.source.value());
 
-    <span class="kw">if </span>source.is_none() &amp;&amp; !is_high_cardinality_sdk(event) {
-        <span class="kw">let </span>transaction_info = event.transaction_info.get_or_insert_with(Default::default);
+    <span class="kw">if </span>source.is_none() &amp;&amp; !is_high_cardinality_transaction(event) {
+        <span class="comment">// Assume low cardinality, set transaction source &quot;Unknown&quot; to signal that the transaction
+        // tag can be safely added to transaction metrics.
+        </span><span class="kw">let </span>transaction_info = event.transaction_info.get_or_insert_with(Default::default);
         transaction_info
             .source
             .set_value(<span class="prelude-val">Some</span>(TransactionSource::Unknown));
     }
+}
+
+<span class="kw">fn </span>is_high_cardinality_transaction(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
+    <span class="kw">let </span>transaction = event.transaction.as_str().unwrap_or_default();
+    <span class="comment">// We treat transactions from legacy SDKs as URLs if they contain slashes.
+    // Otherwise, we assume low cardinality.
+    </span>transaction.contains(<span class="string">&#39;/&#39;</span>) &amp;&amp; is_high_cardinality_sdk(event)
 }
 
 <span class="doccomment">/// Normalize the given string.
