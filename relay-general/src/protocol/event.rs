@@ -14,7 +14,7 @@ use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
     ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
     RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
-    TransactionSource, User, Values,
+    User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -538,16 +538,6 @@ pub struct Event {
 }
 
 impl Event {
-    /// Returns the source of the transaction name if specified by the client.
-    ///
-    /// See the [type docs](TransactionSource) for more information.
-    pub fn transaction_source(&self) -> &TransactionSource {
-        self.transaction_info
-            .value()
-            .and_then(|info| info.source.value())
-            .unwrap_or(&TransactionSource::Unknown)
-    }
-
     /// Returns the value of a tag with the given key.
     ///
     /// If tags are specified in a pair list and the tag is declared multiple times, this function

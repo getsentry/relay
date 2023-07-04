@@ -324,11 +324,8 @@ fn validate_transaction(event: &mut Event) -> ProcessingResult {
 /// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
 /// but for old SDKs, we fall back to this list.
 pub fn is_high_cardinality_sdk(event: &Event) -> bool {
-    let client_sdk = match event.client_sdk.value() {
-        Some(info) => info,
-        None => {
-            return false;
-        }
+    let Some(client_sdk) = event.client_sdk.value() else {
+        return false;
     };
 
     let sdk_name = client_sdk
@@ -409,18 +406,27 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
 /// not extracted as a tag on the corresponding metrics, because
 ///     source == null <=> transaction name == null
 /// See `relay_server::metrics_extraction::transactions::get_transaction_name`.
-fn set_default_transaction_source(event: &mut Event) {
+pub fn set_default_transaction_source(event: &mut Event) {
     let source = event
         .transaction_info
         .value()
         .and_then(|info| info.source.value());
 
-    if source.is_none() && !is_high_cardinality_sdk(event) {
+    if source.is_none() && !is_high_cardinality_transaction(event) {
+        // Assume low cardinality, set transaction source "Unknown" to signal that the transaction
+        // tag can be safely added to transaction metrics.
         let transaction_info = event.transaction_info.get_or_insert_with(Default::default);
         transaction_info
             .source
             .set_value(Some(TransactionSource::Unknown));
     }
+}
+
+fn is_high_cardinality_transaction(event: &Event) -> bool {
+    let transaction = event.transaction.as_str().unwrap_or_default();
+    // We treat transactions from legacy SDKs as URLs if they contain slashes.
+    // Otherwise, we assume low cardinality.
+    transaction.contains('/') && is_high_cardinality_sdk(event)
 }
 
 /// Normalize the given string.

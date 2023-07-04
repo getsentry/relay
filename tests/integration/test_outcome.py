@@ -1211,10 +1211,13 @@ def test_profile_outcomes(
     for outcome in outcomes:
         outcome.pop("timestamp")
 
-    metrics = metrics_by_name(metrics_consumer, 3)
-    assert (
-        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
-    )
+    metrics = [
+        m
+        for m in metrics_consumer.get_metrics()
+        if m["name"] == "d:transactions/duration@millisecond"
+    ]
+    assert len(metrics) == 2
+    assert all(metric["tags"]["has_profile"] == "true" for metric in metrics)
 
     assert outcomes == expected_outcomes, outcomes
 

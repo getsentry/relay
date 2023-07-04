@@ -6,7 +6,7 @@
 
 - Add filter based on transaction names. ([#2118](https://github.com/getsentry/relay/pull/2118))
 - Use GeoIP lookup also in non-processing Relays. Lookup from now on will be also run in light normalization. ([#2229](https://github.com/getsentry/relay/pull/2229))
-- Scrub identifiers from transactions for old SDKs. ([#2250](https://github.com/getsentry/relay/pull/2250))
+- Metrics extracted from transactions from old SDKs now get a useful `transaction` tag. ([#2250](https://github.com/getsentry/relay/pull/2250), [#2272](https://github.com/getsentry/relay/pull/2272)).
 
 **Bug Fixes**:
 
