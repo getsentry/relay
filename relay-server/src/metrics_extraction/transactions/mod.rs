@@ -72,34 +72,34 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
 }
 
 fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
+    // `None` is used to mark a legacy SDK that does not send the transaction name,
+    // and we assume sends high-cardinality data. See `is_high_cardinality_transaction`.
+    let Some(source) = source else { return false };
+
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
-        Some(TransactionSource::Custom) => true,
+        TransactionSource::Custom => true,
 
         // "url" are raw URLs, potentially containing identifiers.
-        Some(TransactionSource::Url) => false,
+        TransactionSource::Url => false,
 
         // These four are names of software components, which we assume to be low-cardinality.
-        Some(TransactionSource::Route)
-        | Some(TransactionSource::View)
-        | Some(TransactionSource::Component)
-        | Some(TransactionSource::Task) => true,
+        TransactionSource::Route
+        | TransactionSource::View
+        | TransactionSource::Component
+        | TransactionSource::Task => true,
 
         // We know now that the rules to remove high cardinality were applied, so we assume
         // low-cardinality now.
-        Some(TransactionSource::Sanitized) => true,
+        TransactionSource::Sanitized => true,
 
         // Explicit `Unknown` is used to mark a legacy SDK that does not send the transaction name,
         // but we assume sends low-cardinality data. See `is_high_cardinality_transaction`.
-        Some(TransactionSource::Unknown) => true,
+        TransactionSource::Unknown => true,
 
         // Any other value would be an SDK bug or users manually configuring the
         // source, assume high-cardinality and drop.
-        Some(TransactionSource::Other(_)) => false,
-
-        // `None` is used to mark a legacy SDK that does not send the transaction name,
-        // and we assume sends high-cardinality data. See `is_high_cardinality_transaction`.
-        None => false,
+        TransactionSource::Other(_) => false,
     }
 }
 
