@@ -111,6 +111,9 @@ class Sentry(SentryLike):
             "lastChange": datetime.datetime.utcnow().isoformat() + "Z",
             "config": {
                 "allowedDomains": ["*"],
+                "transactionMetrics": {
+                    "version": 1
+                },
                 "trustedRelays": list(self.iter_public_keys()),
                 "piiConfig": {
                     "rules": {},
