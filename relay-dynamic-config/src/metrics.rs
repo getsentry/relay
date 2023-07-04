@@ -25,7 +25,7 @@ pub struct TaggingRule {
 /// Current version of metrics extraction.
 const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
-const METRIC_EXTRACTION_VERSION: u16 = 1;
+pub const METRIC_EXTRACTION_VERSION: u16 = 1;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
