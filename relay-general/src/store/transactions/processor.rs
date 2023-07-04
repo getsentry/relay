@@ -354,7 +354,7 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
         return true;
     }
 
-    let is_http_status_404 = event.get_tag_value("http.status_code") == Some("404");
+    let is_http_status_404 = event.tag_value("http.status_code") == Some("404");
     if sdk_name == "sentry.python" && is_http_status_404 && client_sdk.has_integration("django") {
         return true;
     }
