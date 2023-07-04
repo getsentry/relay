@@ -1148,3 +1148,51 @@ def test_span_metrics(
     for metric in span_metrics:
         assert metric["tags"]["span.description"] == expected_description
         assert metric["tags"]["span.group"] == expected_group
+
+
+def test_generic_metric_extraction(mini_sentry, relay):
+    PROJECT_ID = 42
+    mini_sentry.add_full_project_config(PROJECT_ID)
+
+    config = mini_sentry.project_configs[PROJECT_ID]["config"]
+    config["metricExtraction"] = {
+        "version": 1,
+        "metrics": [
+            {
+                "category": "transaction",
+                "mri": "c:transactions/on_demand@none",
+                "condition": {"op": "gte", "name": "event.duration", "value": 1000.0},
+                "tags": [{"key": "query_hash", "value": "c91c2e4d"}],
+            }
+        ],
+    }
+
+    transaction = generate_transaction_item()
+    timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
+
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay.send_transaction(PROJECT_ID, transaction)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert envelope.items[0].headers.get("type") == "transaction"
+    assert not envelope.items[0].headers.get("metrics_extracted")
+    # NOTE: metrics_extracted should be set to True, but Relay requires the older transaction
+    # metrics extraction to be configured for that. Update this test assertion once Relay is fixed.
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    item = envelope.items[0]
+    assert item.headers.get("type") == "metric_buckets"
+    metrics = json.loads(item.get_bytes().decode())
+
+    assert metrics == [
+        {
+            "timestamp": int(timestamp.timestamp()),
+            "width": 1,
+            "name": "c:transactions/on_demand@none",
+            "type": "c",
+            "value": 1.0,
+            "tags": {"query_hash": "c91c2e4d"},
+        }
+    ]
