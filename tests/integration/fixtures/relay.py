@@ -119,6 +119,9 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             "cache": {"batch_interval": 0},
             "logging": {"level": "trace"},
             "http": {"timeout": 2},
+            "transactionMetrics": {
+                "version": 1,
+            },
             "processing": {"enabled": False, "kafka_config": [], "redis": ""},
             "outcomes": {
                 # Allow fastest possible aggregation:
