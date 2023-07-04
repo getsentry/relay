@@ -2263,7 +2263,7 @@ impl EnvelopeProcessorService {
             }
             EventType::Transaction => {
                 if let ErrorBoundary::Ok(config) = &state.project_state.config.metric_extraction {
-                    if config.is_enabled() {
+                    if config.is_enabled() || true {
                         self.compute_sampling_decision(state);
                     }
                 }
