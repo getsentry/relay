@@ -16,7 +16,7 @@
 **Internal**:
 
 - Implement basic generic metrics extraction for transaction events. ([#2252](https://github.com/getsentry/relay/pull/2252), [#2257](https://github.com/getsentry/relay/pull/2257))
-- Support more fields in dynamic sampling, metric extraction, and conditional tagging. The added fields are `dist`, `user.{email,ip_address,name}`, `breakdowns.*`, and `extra.*`. ([#2259](https://github.com/getsentry/relay/pull/2259))
+- Support more fields in dynamic sampling, metric extraction, and conditional tagging. The added fields are `dist`, `release.*`, `user.{email,ip_address,name}`, `breakdowns.*`, and `extra.*`. ([#2259](https://github.com/getsentry/relay/pull/2259), [#2276](https://github.com/getsentry/relay/pull/2276))
 
 ## 23.6.1
 
