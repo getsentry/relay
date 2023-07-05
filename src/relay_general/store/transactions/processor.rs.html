@@ -3226,91 +3226,6 @@
 <a href="#3226" id="3226">3226</a>
 <a href="#3227" id="3227">3227</a>
 <a href="#3228" id="3228">3228</a>
-<a href="#3229" id="3229">3229</a>
-<a href="#3230" id="3230">3230</a>
-<a href="#3231" id="3231">3231</a>
-<a href="#3232" id="3232">3232</a>
-<a href="#3233" id="3233">3233</a>
-<a href="#3234" id="3234">3234</a>
-<a href="#3235" id="3235">3235</a>
-<a href="#3236" id="3236">3236</a>
-<a href="#3237" id="3237">3237</a>
-<a href="#3238" id="3238">3238</a>
-<a href="#3239" id="3239">3239</a>
-<a href="#3240" id="3240">3240</a>
-<a href="#3241" id="3241">3241</a>
-<a href="#3242" id="3242">3242</a>
-<a href="#3243" id="3243">3243</a>
-<a href="#3244" id="3244">3244</a>
-<a href="#3245" id="3245">3245</a>
-<a href="#3246" id="3246">3246</a>
-<a href="#3247" id="3247">3247</a>
-<a href="#3248" id="3248">3248</a>
-<a href="#3249" id="3249">3249</a>
-<a href="#3250" id="3250">3250</a>
-<a href="#3251" id="3251">3251</a>
-<a href="#3252" id="3252">3252</a>
-<a href="#3253" id="3253">3253</a>
-<a href="#3254" id="3254">3254</a>
-<a href="#3255" id="3255">3255</a>
-<a href="#3256" id="3256">3256</a>
-<a href="#3257" id="3257">3257</a>
-<a href="#3258" id="3258">3258</a>
-<a href="#3259" id="3259">3259</a>
-<a href="#3260" id="3260">3260</a>
-<a href="#3261" id="3261">3261</a>
-<a href="#3262" id="3262">3262</a>
-<a href="#3263" id="3263">3263</a>
-<a href="#3264" id="3264">3264</a>
-<a href="#3265" id="3265">3265</a>
-<a href="#3266" id="3266">3266</a>
-<a href="#3267" id="3267">3267</a>
-<a href="#3268" id="3268">3268</a>
-<a href="#3269" id="3269">3269</a>
-<a href="#3270" id="3270">3270</a>
-<a href="#3271" id="3271">3271</a>
-<a href="#3272" id="3272">3272</a>
-<a href="#3273" id="3273">3273</a>
-<a href="#3274" id="3274">3274</a>
-<a href="#3275" id="3275">3275</a>
-<a href="#3276" id="3276">3276</a>
-<a href="#3277" id="3277">3277</a>
-<a href="#3278" id="3278">3278</a>
-<a href="#3279" id="3279">3279</a>
-<a href="#3280" id="3280">3280</a>
-<a href="#3281" id="3281">3281</a>
-<a href="#3282" id="3282">3282</a>
-<a href="#3283" id="3283">3283</a>
-<a href="#3284" id="3284">3284</a>
-<a href="#3285" id="3285">3285</a>
-<a href="#3286" id="3286">3286</a>
-<a href="#3287" id="3287">3287</a>
-<a href="#3288" id="3288">3288</a>
-<a href="#3289" id="3289">3289</a>
-<a href="#3290" id="3290">3290</a>
-<a href="#3291" id="3291">3291</a>
-<a href="#3292" id="3292">3292</a>
-<a href="#3293" id="3293">3293</a>
-<a href="#3294" id="3294">3294</a>
-<a href="#3295" id="3295">3295</a>
-<a href="#3296" id="3296">3296</a>
-<a href="#3297" id="3297">3297</a>
-<a href="#3298" id="3298">3298</a>
-<a href="#3299" id="3299">3299</a>
-<a href="#3300" id="3300">3300</a>
-<a href="#3301" id="3301">3301</a>
-<a href="#3302" id="3302">3302</a>
-<a href="#3303" id="3303">3303</a>
-<a href="#3304" id="3304">3304</a>
-<a href="#3305" id="3305">3305</a>
-<a href="#3306" id="3306">3306</a>
-<a href="#3307" id="3307">3307</a>
-<a href="#3308" id="3308">3308</a>
-<a href="#3309" id="3309">3309</a>
-<a href="#3310" id="3310">3310</a>
-<a href="#3311" id="3311">3311</a>
-<a href="#3312" id="3312">3312</a>
-<a href="#3313" id="3313">3313</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3337,9 +3252,6 @@
 </span><span class="kw">pub struct </span>TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt; {
     <span class="doccomment">/// Rules for identifier replacement that were discovered by Sentry&#39;s transaction clusterer.
     </span><span class="kw">pub </span>rules: <span class="kw-2">&amp;</span><span class="lifetime">&#39;r </span>[TransactionNameRule],
-    <span class="doccomment">/// Apply normalization rules to transactions without source that we expect to be high-cardinality
-    /// URLs.
-    </span><span class="kw">pub </span>normalize_legacy: bool,
 }
 
 <span class="doccomment">/// Rejects transactions based on required fields.
@@ -3512,8 +3424,7 @@
         <span class="macro">matches!</span>(
             source,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized)
-        ) || (<span class="self">self</span>.name_config.normalize_legacy
-            &amp;&amp; <span class="macro">matches!</span>(source, <span class="prelude-val">None</span>)
+        ) || (<span class="macro">matches!</span>(source, <span class="prelude-val">None</span>)
             &amp;&amp; event.transaction.value().map_or(<span class="bool-val">false</span>, |t| t.contains(<span class="string">&#39;/&#39;</span>)))
     }
 
@@ -4713,44 +4624,6 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_default_transaction_source_none() {
-        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r###&quot;
-            {
-                &quot;type&quot;: &quot;transaction&quot;,
-                &quot;transaction&quot;: &quot;/&quot;,
-                &quot;timestamp&quot;: 946684810.0,
-                &quot;start_timestamp&quot;: 946684800.0,
-                &quot;contexts&quot;: {
-                    &quot;trace&quot;: {
-                    &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-                    &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
-                    &quot;op&quot;: &quot;http.server&quot;,
-                    &quot;type&quot;: &quot;trace&quot;
-                    }
-                },
-                &quot;sdk&quot;: {
-                    &quot;name&quot;: &quot;sentry.javascript.browser&quot;
-                },
-                &quot;spans&quot;: []
-            }
-        &quot;###</span>,
-        )
-        .unwrap();
-
-        process_value(
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .unwrap();
-
-        <span class="kw">let </span>transaction_info = <span class="kw-2">&amp;</span>event.value().unwrap().transaction_info;
-
-        <span class="macro">assert!</span>(transaction_info.value().is_none());
-    }
-
-    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_allows_valid_transaction_event_with_spans() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
 
@@ -5236,7 +5109,6 @@
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5302,7 +5174,6 @@
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5392,7 +5263,6 @@
         <span class="kw">let </span><span class="kw-2">mut </span>processor = TransactionsProcessor::new(
             TransactionNameConfig {
                 rules: rules.as_ref(),
-                ..Default::default()
             },
             <span class="bool-val">false</span>,
             <span class="prelude-val">None</span>,
@@ -5525,7 +5395,6 @@
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5557,7 +5426,7 @@
         &quot;###</span>);
     }
 
-    <span class="kw">fn </span>run_with_unknown_source(feature: bool, sdk: <span class="kw-2">&amp;</span>str) -&gt; Annotated&lt;Event&gt; {
+    <span class="kw">fn </span>run_with_unknown_source(sdk: <span class="kw-2">&amp;</span>str) -&gt; Annotated&lt;Event&gt; {
         <span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
@@ -5594,7 +5463,6 @@
             <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    normalize_legacy: feature,
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -5608,7 +5476,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_legacy_javascript() {
         <span class="comment">// Javascript without source annotation gets sanitized.
-        </span><span class="kw">let </span>event = run_with_unknown_source(<span class="bool-val">true</span>, <span class="string">&quot;sentry.javascript.browser&quot;</span>);
+        </span><span class="kw">let </span>event = run_with_unknown_source(<span class="string">&quot;sentry.javascript.browser&quot;</span>);
         <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
@@ -5652,7 +5520,7 @@
     </span><span class="kw">fn </span>test_normalize_legacy_python() {
         <span class="comment">// Python without source annotation does not get sanitized, because we assume it to be
         // low cardinality.
-        </span><span class="kw">let </span>event = run_with_unknown_source(<span class="bool-val">true</span>, <span class="string">&quot;sentry.python&quot;</span>);
+        </span><span class="kw">let </span>event = run_with_unknown_source(<span class="string">&quot;sentry.python&quot;</span>);
         <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
@@ -5673,33 +5541,6 @@
           },
           &quot;sdk&quot;: {
             &quot;name&quot;: &quot;sentry.python&quot;
-          },
-          &quot;spans&quot;: []
-        }
-        &quot;###</span>);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_normalize_legacy_javascript_disabled() {
-        <span class="comment">// Sanitation is skipped when the config flag is disabled.
-        </span><span class="kw">let </span>event = run_with_unknown_source(<span class="bool-val">false</span>, <span class="string">&quot;sentry.javascript.browser&quot;</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
-        {
-          &quot;type&quot;: &quot;transaction&quot;,
-          &quot;transaction&quot;: &quot;/user/jane/blog/&quot;,
-          &quot;timestamp&quot;: 1619420400.0,
-          &quot;start_timestamp&quot;: 1619420341.0,
-          &quot;contexts&quot;: {
-            &quot;trace&quot;: {
-              &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
-              &quot;span_id&quot;: &quot;fa90fdead5f74053&quot;,
-              &quot;op&quot;: &quot;rails.request&quot;,
-              &quot;status&quot;: &quot;ok&quot;,
-              &quot;type&quot;: &quot;trace&quot;
-            }
-          },
-          &quot;sdk&quot;: {
-            &quot;name&quot;: &quot;sentry.javascript.browser&quot;
           },
           &quot;spans&quot;: []
         }
@@ -5741,14 +5582,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: <span class="kw-2">&amp;</span>[rule],
-                    ..Default::default()
-                },
-                <span class="bool-val">false</span>,
-                <span class="prelude-val">None</span>,
-            ),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] }, <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
             ProcessingState::root(),
         )
         .unwrap();
@@ -5974,7 +5808,6 @@
                         expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -6021,7 +5854,6 @@
                         expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
@@ -6507,7 +6339,6 @@
                         expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 <span class="bool-val">true</span>,
                 <span class="prelude-val">None</span>,
@@ -6607,7 +6438,6 @@
                         expiry: Utc.with_ymd_and_hms(<span class="number">3000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 <span class="bool-val">true</span>,
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Vec::from([SpanDescriptionRule {
