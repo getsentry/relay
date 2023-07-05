@@ -22,9 +22,7 @@ use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{
-    ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig, METRIC_EXTRACTION_VERSION,
-};
+use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -2267,11 +2265,11 @@ impl EnvelopeProcessorService {
                 if let Some(ErrorBoundary::Ok(config)) =
                     dbg!(&state.project_state.config.transaction_metrics)
                 {
-                    dbg!(config.is_enabled());
-                    if dbg!(config.version > 0) && dbg!(config.version) <= METRIC_EXTRACTION_VERSION
-                    {
+                    if config.is_enabled() {
                         self.compute_sampling_decision(state);
                     }
+                } else {
+                    dbg!("nope");
                 }
             }
 
