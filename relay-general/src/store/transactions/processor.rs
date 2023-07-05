@@ -24,9 +24,6 @@ use crate::types::{
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
-    /// Apply normalization rules to transactions without source that we expect to be high-cardinality
-    /// URLs.
-    pub normalize_legacy: bool,
 }
 
 /// Rejects transactions based on required fields.
@@ -199,8 +196,7 @@ impl<'r> TransactionsProcessor<'r> {
         matches!(
             source,
             Some(&TransactionSource::Url | &TransactionSource::Sanitized)
-        ) || (self.name_config.normalize_legacy
-            && matches!(source, None)
+        ) || (matches!(source, None)
             && event.transaction.value().map_or(false, |t| t.contains('/')))
     }
 
@@ -1400,44 +1396,6 @@ mod tests {
     }
 
     #[test]
-    fn test_default_transaction_source_none() {
-        let mut event = Annotated::<Event>::from_json(
-            r###"
-            {
-                "type": "transaction",
-                "transaction": "/",
-                "timestamp": 946684810.0,
-                "start_timestamp": 946684800.0,
-                "contexts": {
-                    "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "http.server",
-                    "type": "trace"
-                    }
-                },
-                "sdk": {
-                    "name": "sentry.javascript.browser"
-                },
-                "spans": []
-            }
-        "###,
-        )
-        .unwrap();
-
-        process_value(
-            &mut event,
-            &mut TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .unwrap();
-
-        let transaction_info = &event.value().unwrap().transaction_info;
-
-        assert!(transaction_info.value().is_none());
-    }
-
-    #[test]
     fn test_allows_valid_transaction_event_with_spans() {
         let mut event = new_test_event();
 
@@ -2244,7 +2202,7 @@ mod tests {
         "###);
     }
 
-    fn run_with_unknown_source(feature: bool, sdk: &str) -> Annotated<Event> {
+    fn run_with_unknown_source(sdk: &str) -> Annotated<Event> {
         let json = r#"
         {
             "type": "transaction",
@@ -2281,7 +2239,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    normalize_legacy: feature,
                 },
                 false,
                 None,
@@ -2295,7 +2252,7 @@ mod tests {
     #[test]
     fn test_normalize_legacy_javascript() {
         // Javascript without source annotation gets sanitized.
-        let event = run_with_unknown_source(true, "sentry.javascript.browser");
+        let event = run_with_unknown_source("sentry.javascript.browser");
         assert_annotated_snapshot!(event, @r###"
         {
           "type": "transaction",
@@ -2339,7 +2296,7 @@ mod tests {
     fn test_normalize_legacy_python() {
         // Python without source annotation does not get sanitized, because we assume it to be
         // low cardinality.
-        let event = run_with_unknown_source(true, "sentry.python");
+        let event = run_with_unknown_source("sentry.python");
         assert_annotated_snapshot!(event, @r###"
         {
           "type": "transaction",
@@ -2360,33 +2317,6 @@ mod tests {
           },
           "sdk": {
             "name": "sentry.python"
-          },
-          "spans": []
-        }
-        "###);
-    }
-
-    #[test]
-    fn test_normalize_legacy_javascript_disabled() {
-        // Sanitation is skipped when the config flag is disabled.
-        let event = run_with_unknown_source(false, "sentry.javascript.browser");
-        assert_annotated_snapshot!(event, @r###"
-        {
-          "type": "transaction",
-          "transaction": "/user/jane/blog/",
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "sdk": {
-            "name": "sentry.javascript.browser"
           },
           "spans": []
         }

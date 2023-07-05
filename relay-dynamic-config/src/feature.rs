@@ -19,10 +19,6 @@ pub enum Feature {
     /// Enables metric extraction from spans.
     #[serde(rename = "projects:span-metrics-extraction")]
     SpanMetricsExtraction,
-    /// Apply transaction normalization rules to transactions from legacy SDKs.
-    #[serde(rename = "organizations:transaction-name-normalize-legacy")]
-    NormalizeLegacyTransactions,
-
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
     Deprecated1,
