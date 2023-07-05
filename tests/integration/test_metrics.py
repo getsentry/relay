@@ -177,6 +177,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     metrics = metrics_by_name(metrics_consumer, 2)
 
     assert metrics["c:transactions/foo@none"] == {
+        "headers": {"namespace": "transactions"},
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
@@ -188,6 +189,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     }
 
     assert metrics["c:transactions/bar@second"] == {
+        "headers": {"namespace": "transactions"},
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
@@ -246,6 +248,7 @@ def test_metrics_with_sharded_kafka(
 
     metrics2 = metrics_by_name(m2, 2)
     assert metrics2["c:transactions/foo@none"] == {
+        "headers": {"namespace": "transactions"},
         "org_id": 5,
         "project_id": project_id,
         "retention_days": 90,
@@ -257,6 +260,7 @@ def test_metrics_with_sharded_kafka(
     }
 
     assert metrics2["c:transactions/bar@second"] == {
+        "headers": {"namespace": "transactions"},
         "org_id": 5,
         "project_id": project_id,
         "retention_days": 90,
@@ -296,6 +300,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
     metric = metrics_consumer.get_metric(timeout=6)
     metric.pop("timestamp")
     assert metric == {
+        "headers": {"namespace": "transactions"},
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
@@ -496,6 +501,7 @@ def test_session_metrics_processing(
 
     expected_timestamp = int(started.timestamp())
     assert metrics["c:sessions/session@none"] == {
+        "headers": {"namespace": "sessions"},
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -512,6 +518,7 @@ def test_session_metrics_processing(
     }
 
     assert metrics["s:sessions/user@none"] == {
+        "headers": {"namespace": "sessions"},
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -647,6 +654,7 @@ def test_transaction_metrics(
     metrics = metrics_by_name(metrics_consumer, 5)
     common = {
         "timestamp": int(timestamp.timestamp()),
+        "headers": {"namespace": "transactions"},
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -681,6 +689,7 @@ def test_transaction_metrics(
     }
     assert metrics["c:transactions/count_per_root_project@none"] == {
         "timestamp": int(timestamp.timestamp()),
+        "headers": {"namespace": "transactions"},
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
@@ -749,6 +758,7 @@ def test_transaction_metrics_count_per_root_project(
 
     assert metrics_by_project[41]["c:transactions/count_per_root_project@none"] == {
         "timestamp": int(timestamp.timestamp()),
+        "headers": {"namespace": "transactions"},
         "org_id": 1,
         "project_id": 41,
         "retention_days": 90,
@@ -759,6 +769,7 @@ def test_transaction_metrics_count_per_root_project(
     }
     assert metrics_by_project[42]["c:transactions/count_per_root_project@none"] == {
         "timestamp": int(timestamp.timestamp()),
+        "headers": {"namespace": "transactions"},
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,

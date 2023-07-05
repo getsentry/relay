@@ -529,13 +529,15 @@ impl StoreService {
     fn send_metric_message(
         &self,
         organization_id: u64,
-        message: MetricKafkaMessage,
+        mut message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
-        let topic = match mri.map(|mri| mri.namespace) {
-            Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
-            Ok(MetricNamespace::Spans) => KafkaTopic::MetricsTransactions,
-            Ok(MetricNamespace::Sessions) => KafkaTopic::MetricsSessions,
+        let (topic, namespace) = match mri.map(|mri| mri.namespace) {
+            Ok(namespace @ MetricNamespace::Transactions) => {
+                (KafkaTopic::MetricsTransactions, namespace)
+            }
+            Ok(namespace @ MetricNamespace::Spans) => (KafkaTopic::MetricsTransactions, namespace),
+            Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
                     |scope| {
@@ -548,6 +550,9 @@ impl StoreService {
                 return Ok(());
             }
         };
+        message
+            .headers
+            .insert("namespace".to_string(), namespace.to_string());
 
         self.produce(topic, organization_id, KafkaMessage::Metric(message))?;
         metric!(
@@ -572,6 +577,7 @@ impl StoreService {
                 MetricKafkaMessage {
                     org_id,
                     project_id,
+                    headers: BTreeMap::new(),
                     name: bucket.name,
                     value: bucket.value,
                     timestamp: bucket.timestamp,
@@ -953,6 +959,7 @@ struct MetricKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
     name: String,
+    headers: BTreeMap<String, String>,
     #[serde(flatten)]
     value: BucketValue,
     timestamp: UnixTimestamp,
@@ -1036,6 +1043,21 @@ impl Message for KafkaMessage {
         }
 
         *uuid.as_bytes()
+    }
+
+    fn headers(&self) -> Option<&BTreeMap<String, String>> {
+        match self {
+            KafkaMessage::Event(_)
+            | KafkaMessage::Attachment(_)
+            | KafkaMessage::AttachmentChunk(_)
+            | KafkaMessage::UserReport(_)
+            | KafkaMessage::Session(_)
+            | KafkaMessage::Profile(_)
+            | KafkaMessage::ReplayEvent(_)
+            | KafkaMessage::ReplayRecordingNotChunked(_)
+            | KafkaMessage::CheckIn(_) => None,
+            KafkaMessage::Metric(message) => Some(&message.headers),
+        }
     }
 
     /// Serializes the message into its binary format.
