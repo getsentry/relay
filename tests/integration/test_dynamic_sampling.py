@@ -81,7 +81,7 @@ def _outcomes_enabled_config():
             "transactionMetrics": {
                 "version": 1,
             }
-        }
+        },
     }
 
 
@@ -97,9 +97,6 @@ def _add_sampling_config(
     Adds a sampling configuration rule to a project configuration
     """
     ds = config["config"].setdefault("dynamicSampling", {})
-    config["config"]["transactionMetrics"] = {
-        "version": 1,
-    }
     # We set the old rules v1 as empty array.
     ds.setdefault("rules", [])
     # We set the new rules v2 as empty array, and we add rules to it.
