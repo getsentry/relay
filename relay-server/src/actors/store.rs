@@ -529,7 +529,7 @@ impl StoreService {
     fn send_metric_message(
         &self,
         organization_id: u64,
-        mut message: MetricKafkaMessage,
+        message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let (topic, namespace) = match mri.map(|mri| mri.namespace) {
@@ -550,11 +550,13 @@ impl StoreService {
                 return Ok(());
             }
         };
-        message
-            .headers
-            .insert("namespace".to_string(), namespace.to_string());
+        let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
-        self.produce(topic, organization_id, KafkaMessage::Metric(message))?;
+        self.produce(
+            topic,
+            organization_id,
+            KafkaMessage::Metric { headers, message },
+        )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "metric"
@@ -577,7 +579,6 @@ impl StoreService {
                 MetricKafkaMessage {
                     org_id,
                     project_id,
-                    headers: BTreeMap::new(),
                     name: bucket.name,
                     value: bucket.value,
                     timestamp: bucket.timestamp,
@@ -959,8 +960,6 @@ struct MetricKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
     name: String,
-    #[serde(skip)]
-    headers: BTreeMap<String, String>,
     #[serde(flatten)]
     value: BucketValue,
     timestamp: UnixTimestamp,
@@ -1001,7 +1000,12 @@ enum KafkaMessage {
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
     Session(SessionKafkaMessage),
-    Metric(MetricKafkaMessage),
+    Metric {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: MetricKafkaMessage,
+    },
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
@@ -1016,7 +1020,7 @@ impl Message for KafkaMessage {
             KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
             KafkaMessage::Session(_) => "session",
-            KafkaMessage::Metric(_) => "metric",
+            KafkaMessage::Metric { .. } => "metric",
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
@@ -1032,7 +1036,7 @@ impl Message for KafkaMessage {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
-            Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
+            Self::Metric { .. } => Uuid::nil(),     // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
@@ -1047,18 +1051,12 @@ impl Message for KafkaMessage {
     }
 
     fn headers(&self) -> Option<&BTreeMap<String, String>> {
-        match self {
-            KafkaMessage::Event(_)
-            | KafkaMessage::Attachment(_)
-            | KafkaMessage::AttachmentChunk(_)
-            | KafkaMessage::UserReport(_)
-            | KafkaMessage::Session(_)
-            | KafkaMessage::Profile(_)
-            | KafkaMessage::ReplayEvent(_)
-            | KafkaMessage::ReplayRecordingNotChunked(_)
-            | KafkaMessage::CheckIn(_) => None,
-            KafkaMessage::Metric(message) => Some(&message.headers),
+        if let KafkaMessage::Metric { headers, .. } = &self {
+            if !headers.is_empty() {
+                return Some(headers);
+            }
         }
+        None
     }
 
     /// Serializes the message into its binary format.
@@ -1067,7 +1065,7 @@ impl Message for KafkaMessage {
             KafkaMessage::Session(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
-            KafkaMessage::Metric(message) => {
+            KafkaMessage::Metric { message, .. } => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) => {
