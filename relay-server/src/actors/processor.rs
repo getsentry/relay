@@ -2264,9 +2264,10 @@ impl EnvelopeProcessorService {
                 self.tag_error_with_sampling_decision(state);
             }
             EventType::Transaction => {
-                if let ErrorBoundary::Ok(config) =
-                    dbg!(&state.project_state.config.metric_extraction)
+                if let Some(ErrorBoundary::Ok(config)) =
+                    dbg!(&state.project_state.config.transaction_metrics)
                 {
+                    dbg!(config.is_enabled());
                     if dbg!(config.version > 0) && dbg!(config.version) <= METRIC_EXTRACTION_VERSION
                     {
                         self.compute_sampling_decision(state);
