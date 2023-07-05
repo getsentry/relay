@@ -606,7 +606,6 @@ def test_rate_limit_metrics_buckets(
 
     assert produced_buckets == [
         {
-            "headers": {"namespace": "sessions"},
             "name": "d:sessions/duration@second",
             "org_id": 1,
             "project_id": 42,
@@ -616,7 +615,6 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
         {
-            "headers": {"namespace": "sessions"},
             "name": "d:sessions/session@none",
             "org_id": 1,
             "retention_days": 90,
@@ -626,7 +624,6 @@ def test_rate_limit_metrics_buckets(
             "value": 1.0,
         },
         {
-            "headers": {"namespace": "sessions"},
             "name": "d:sessions/session@user",
             "org_id": 1,
             "retention_days": 90,
@@ -636,7 +633,6 @@ def test_rate_limit_metrics_buckets(
             "value": [1254],
         },
         {
-            "headers": {"namespace": "transactions"},
             "name": "d:transactions/duration@millisecond",
             "org_id": 1,
             "retention_days": 90,
@@ -646,7 +642,6 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 2.0, 3.0],
         },
         {
-            "headers": {"namespace": "transactions"},
             "name": "d:transactions/duration@millisecond",
             "org_id": 1,
             "retention_days": 90,
@@ -656,7 +651,6 @@ def test_rate_limit_metrics_buckets(
             "value": violating_bucket,
         },
         {
-            "headers": {"namespace": "transactions"},
             "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
             "retention_days": 90,
@@ -666,7 +660,6 @@ def test_rate_limit_metrics_buckets(
             "value": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
         {
-            "headers": {"namespace": "transactions"},
             "name": "d:transactions/measurements.lcp@millisecond",
             "org_id": 1,
             "retention_days": 90,

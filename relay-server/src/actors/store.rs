@@ -959,6 +959,7 @@ struct MetricKafkaMessage {
     org_id: u64,
     project_id: ProjectId,
     name: String,
+    #[serde(skip)]
     headers: BTreeMap<String, String>,
     #[serde(flatten)]
     value: BucketValue,
