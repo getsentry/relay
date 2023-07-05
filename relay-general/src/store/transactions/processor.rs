@@ -1881,7 +1881,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -1947,7 +1946,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -2037,7 +2035,6 @@ mod tests {
         let mut processor = TransactionsProcessor::new(
             TransactionNameConfig {
                 rules: rules.as_ref(),
-                ..Default::default()
             },
             false,
             None,
@@ -2170,7 +2167,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -2358,14 +2354,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[rule],
-                    ..Default::default()
-                },
-                false,
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2591,7 +2580,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -2638,7 +2626,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -3124,7 +3111,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 None,
@@ -3224,7 +3210,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 Some(&Vec::from([SpanDescriptionRule {
