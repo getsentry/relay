@@ -31,11 +31,12 @@ def _session_payload(timestamp: datetime, started: datetime):
 
 
 def metrics_by_name(metrics_consumer, count, timeout=None):
-    metrics = {}
+    metrics = {"headers": {}}
 
     for _ in range(count):
-        metric = metrics_consumer.get_metric(timeout)
+        metric, metric_headers = metrics_consumer.get_metric(timeout)
         metrics[metric["name"]] = metric
+        metrics["headers"][metric["name"]] = metric_headers
 
     metrics_consumer.assert_empty()
     return metrics
@@ -49,7 +50,7 @@ def metrics_by_name_group_by_project(metrics_consumer, timeout=None):
     metrics_by_project = defaultdict(dict)
     while True:
         try:
-            metric = metrics_consumer.get_metric(timeout)
+            metric, _ = metrics_consumer.get_metric(timeout)
             metrics_by_project[metric["project_id"]][metric["name"]] = metric
         except AssertionError:
             metrics_consumer.assert_empty()
@@ -176,6 +177,9 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
+    assert metrics["headers"]["c:transactions/foo@none"] == [
+        ("namespace", b"transactions")
+    ]
     assert metrics["c:transactions/foo@none"] == {
         "org_id": 1,
         "project_id": project_id,
@@ -187,6 +191,9 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "timestamp": timestamp,
     }
 
+    assert metrics["headers"]["c:transactions/bar@second"] == [
+        ("namespace", b"transactions")
+    ]
     assert metrics["c:transactions/bar@second"] == {
         "org_id": 1,
         "project_id": project_id,
@@ -293,7 +300,7 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
 
     upstream.send_metrics(project_id, f"transactions/foo:3|c", timestamp)
 
-    metric = metrics_consumer.get_metric(timeout=6)
+    metric, _ = metrics_consumer.get_metric(timeout=6)
     metric.pop("timestamp")
     assert metric == {
         "org_id": 1,
@@ -456,6 +463,7 @@ def test_session_metrics_extracted_only_once(
 
     # if it is not 1 it means the session was extracted multiple times
     assert metrics["c:sessions/session@none"]["value"] == 1.0
+    assert metrics["headers"]["c:sessions/session@none"] == [("namespace", b"sessions")]
 
 
 @pytest.mark.parametrize(
@@ -1060,6 +1068,7 @@ def test_limit_custom_measurements(
     # Expect exactly 4 metrics:
     # (transaction.duration, transactions.count_per_root_project, 1 builtin, 1 custom)
     metrics = metrics_by_name(metrics_consumer, 4)
+    metrics.pop("headers")
 
     assert metrics.keys() == {
         "d:transactions/duration@millisecond",
@@ -1142,10 +1151,13 @@ def test_span_metrics(
 
     metrics = metrics_consumer.get_metrics()
     span_metrics = [
-        metric for metric in metrics if metric["name"].startswith("spans", 2)
+        (metric, headers)
+        for metric, headers in metrics
+        if metric["name"].startswith("spans", 2)
     ]
     assert len(span_metrics) == 4
-    for metric in span_metrics:
+    for metric, headers in span_metrics:
+        assert headers == [("namespace", b"spans")]
         assert metric["tags"]["span.description"] == expected_description
         assert metric["tags"]["span.group"] == expected_group
 

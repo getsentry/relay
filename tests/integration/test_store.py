@@ -596,8 +596,8 @@ def test_rate_limit_metrics_buckets(
             make_bucket("d:sessions/session@user", "s", [1254]),
         ],
     )
-
-    produced_buckets = list(metrics_consumer.get_metrics(timeout=4))
+    metrics = [m for m, _ in metrics_consumer.get_metrics(timeout=4)]
+    produced_buckets = metrics
 
     # Sort buckets to prevent ordering flakiness:
     produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
