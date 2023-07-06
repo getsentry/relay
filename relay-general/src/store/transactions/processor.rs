@@ -11,7 +11,7 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
 use crate::store::regexes::{
-    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
+    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
     SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
 };
 use crate::store::SpanDescriptionRule;
@@ -443,7 +443,16 @@ fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingA
 }
 
 fn scrub_redis_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    scrub_identifiers_with_regex(string, &CACHE_NORMALIZER_REGEX, "*")
+    let parts = string
+        .as_str()
+        .and_then(|s| REDIS_COMMAND_REGEX.captures(s))
+        .map(|caps| (caps.name("command"), caps.name("args")));
+    *string = Annotated::new(match parts {
+        Some((Some(command), Some(_args))) => command.as_str().to_owned() + " *",
+        Some((Some(command), None)) => command.as_str().into(),
+        None | Some((None, _)) => "*".into(),
+    });
+    Ok(true)
 }
 
 fn scrub_resource_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
@@ -2992,16 +3001,58 @@ mod tests {
 
     span_description_test!(
         span_description_scrub_cache,
-        "abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
+        "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
-        "abc:*:*:*:*:*:zookeeper"
+        "GET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_set,
+        "SET mykey myvalue",
+        "db.redis",
+        "SET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_set_quoted,
+        r#"SET mykey 'multi: part, value'"#,
+        "db.redis",
+        "SET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_whitespace,
+        " GET  asdf:123",
+        "db.redis",
+        "GET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_no_args,
+        "EXEC",
+        "db.redis",
+        "EXEC"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_invalid,
+        "What a beautiful day!",
+        "db.redis",
+        "*"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_long_command,
+        "ACL SETUSER jane",
+        "db.redis",
+        "ACL SETUSER *"
     );
 
     span_description_test!(
         span_description_scrub_nothing_cache,
         "abc-dontscrubme-meneither:stillno:ohplsstop",
         "cache.get_item",
-        ""
+        "*"
     );
 
     span_description_test!(
