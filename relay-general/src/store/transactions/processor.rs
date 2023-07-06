@@ -2804,7 +2804,7 @@ mod tests {
         span_description_scrub_various_parameterized_ins_percentage,
         "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s)"
+        "SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)"
     );
 
     span_description_test!(
