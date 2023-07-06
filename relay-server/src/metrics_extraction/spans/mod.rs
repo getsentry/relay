@@ -348,7 +348,7 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 ///
 /// Currently, we're only interested in either `SELECT` or `INSERT` statements.
 static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT))"#).unwrap());
+    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE))"#).unwrap());
 
 fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
