@@ -3277,6 +3277,12 @@
 <a href="#3277" id="3277">3277</a>
 <a href="#3278" id="3278">3278</a>
 <a href="#3279" id="3279">3279</a>
+<a href="#3280" id="3280">3280</a>
+<a href="#3281" id="3281">3281</a>
+<a href="#3282" id="3282">3282</a>
+<a href="#3283" id="3283">3283</a>
+<a href="#3284" id="3284">3284</a>
+<a href="#3285" id="3285">3285</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3714,11 +3720,10 @@
 
 <span class="doccomment">/// Normalize the given SQL-query-like string.
 </span><span class="kw">fn </span>scrub_sql_queries(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    <span class="kw">if </span>is_sql_query_scrubbed(string) {
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">true</span>);
-    }
+    <span class="kw">let </span><span class="kw-2">mut </span>mark_as_scrubbed = is_sql_query_scrubbed(string);
+    mark_as_scrubbed |= scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;%s&quot;</span>)<span class="question-mark">?</span>;
 
-    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;%s&quot;</span>)
+    <span class="prelude-val">Ok</span>(mark_as_scrubbed)
 }
 
 <span class="kw">fn </span>scrub_redis_keys(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
@@ -6093,14 +6098,14 @@
         span_description_scrub_various_parameterized_ins_percentage,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)&quot;
+        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_various_parameterized_ins_dollar,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN ($1, $2, $3)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT count() FROM table WHERE id IN ($1, $2, $3)&quot;
+        <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -6122,6 +6127,13 @@
         <span class="string">&quot;select count() from table where id in (100, 101, 102)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;select count() from table where id in (%s)&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_mixed,
+        <span class="string">&quot;UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;UPDATE foo SET a = %s, b = log(e + %s) * %s + %s WHERE %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
