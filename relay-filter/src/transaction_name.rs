@@ -2,18 +2,24 @@
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
+use relay_common::EventType;
 use relay_general::protocol::Event;
 
 use crate::{FilterStatKey, GlobPatterns, IgnoreTransactionsFilterConfig};
 
 fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return false;
+    }
+
     event
         .transaction
         .value()
         .map_or(false, |transaction| patterns.is_match(transaction))
 }
 
-/// Filters transaction events for calls to healthcheck endpoints
+/// Filters [Transaction](EventType::Transaction) events based on a list of provided transaction
+/// name globs.
 pub fn should_filter(
     event: &Event,
     config: &IgnoreTransactionsFilterConfig,
