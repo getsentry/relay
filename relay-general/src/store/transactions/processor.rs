@@ -435,11 +435,10 @@ fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingA
 
 /// Normalize the given SQL-query-like string.
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    if is_sql_query_scrubbed(string) {
-        return Ok(true);
-    }
+    let mut mark_as_scrubbed = is_sql_query_scrubbed(string);
+    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")?;
 
-    scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
+    Ok(mark_as_scrubbed)
 }
 
 fn scrub_redis_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
@@ -2805,14 +2804,14 @@ mod tests {
         span_description_scrub_various_parameterized_ins_percentage,
         "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)"
+        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s)"
     );
 
     span_description_test!(
         span_description_scrub_various_parameterized_ins_dollar,
         "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN ($1, $2, $3)"
+        "SELECT count() FROM table WHERE id IN (%s)"
     );
 
     span_description_test!(
@@ -2834,6 +2833,13 @@ mod tests {
         "select count() from table where id in (100, 101, 102)",
         "db.sql.query",
         "select count() from table where id in (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_mixed,
+        "UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true",
+        "db.sql.query",
+        "UPDATE foo SET a = %s, b = log(e + %s) * %s + %s WHERE %s"
     );
 
     span_description_test!(

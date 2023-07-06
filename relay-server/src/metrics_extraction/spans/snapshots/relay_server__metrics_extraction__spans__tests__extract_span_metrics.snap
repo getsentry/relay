@@ -1243,7 +1243,7 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "description.scrubbed": String(
-                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
+                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
             ),
             "environment": String(
                 "fake_environment",
@@ -1261,13 +1261,13 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
+                "SELECT %s.%s FROM %s WHERE %s.%s = %s",
             ),
             "span.domain": String(
                 "table",
             ),
             "span.group": String(
-                "8ea340ad7f24b50a",
+                "c55478a060a56db3",
             ),
             "span.module": String(
                 "db",
