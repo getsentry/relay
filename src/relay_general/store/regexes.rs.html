@@ -114,22 +114,6 @@
 <a href="#114" id="114">114</a>
 <a href="#115" id="115">115</a>
 <a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -215,25 +199,9 @@
 </span><span class="kw">pub static </span>SQL_ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; =
     Lazy::new(|| Regex::new(<span class="string">r#&quot;/\?|\$1|%s&quot;#</span>).unwrap());
 
-<span class="doccomment">/// Regex with multiple capture groups for cache tokens we should scrub.
-///
-/// The regex attempts to identify all tokens based on hex chars and segments,
-/// excluding the first token. A segment is a string inside curly braces after a
-/// separator, for example `notsegment:{segment}:notsegment`.
-</span><span class="kw">pub static </span>CACHE_NORMALIZER_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(
-        <span class="string">r#&quot;(?xi)
-        # Don&#39;t scrub the first segment.
-        # Capture hex.
-        (([\s.+:/\-])+(?P&lt;hex&gt;[a-fA-F0-9]+\b)+) |
-        # Capture segments, in form of`:{hi}:`
-        (([\s.+:/\-])+(?P&lt;segment&gt;\{[^\}]*\})+) |
-        # Capture everything if above regex could not match.
-        ([\s]+(?P&lt;zero&gt;[^:/\-]+$))
-    &quot;#</span>,
-    )
-    .unwrap()
-});
+<span class="doccomment">/// Captures initial all-caps words as redis command, the rest as arguments.
+</span><span class="kw">pub static </span>REDIS_COMMAND_REGEX: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r#&quot;\s*(?P&lt;command&gt;[A-Z]+(\s+[A-Z]+)*\b)(?P&lt;args&gt;.+)?&quot;#</span>).unwrap());
 
 <span class="doccomment">/// Regex with multiple capture groups for resource tokens we should scrub.
 ///
