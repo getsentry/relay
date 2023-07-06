@@ -90,14 +90,9 @@ pub static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
 /// separator, for example `notsegment:{segment}:notsegment`.
 pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?xi)
+        r#"(?x)
         # Don't scrub the first segment.
-        # Capture hex.
-        (([\s.+:/\-])+(?P<hex>[a-fA-F0-9]+\b)+) |
-        # Capture segments, in form of`:{hi}:`
-        (([\s.+:/\-])+(?P<segment>\{[^\}]*\})+) |
-        # Capture everything if above regex could not match.
-        ([\s]+(?P<zero>[^:/\-]+$))
+        (\s*[A-Z]+\s+)*(?P<args>.+)
     "#,
     )
     .unwrap()

@@ -2992,9 +2992,44 @@ mod tests {
 
     span_description_test!(
         span_description_scrub_cache,
-        "abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
+        "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
-        "abc:*:*:*:*:*:zookeeper"
+        "GET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_set,
+        "SET mykey myvalue",
+        "db.redis",
+        "SET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_whitespace,
+        " GET  asdf:123",
+        "db.redis",
+        " GET  *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_no_args,
+        "EXEC",
+        "db.redis",
+        "EXEC"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_invalid,
+        "What a beautiful day!",
+        "db.redis",
+        "*"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_long_command,
+        "ACL SETUSER jane",
+        "db.redis",
+        "ACL SETUSER *"
     );
 
     span_description_test!(
