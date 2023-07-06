@@ -245,7 +245,7 @@ where
         // then at the redundant parsing.
 
         while let Some(raw) = v.next_element::<&'de RawValue>()? {
-            let helper = serde_json::from_str::<TypeHelper>(raw.get()).unwrap();
+            let helper = serde_json::from_str::<TypeHelper>(raw.get()).map_err(s2d)?;
             // Scrub only sentry-specific events and serialize all others without modification.
             if helper.ty == Self::SENTRY_EVENT_TYPE {
                 seq.serialize_element(&ScrubbedValue(raw, self.scrubber.clone()))
