@@ -180,22 +180,76 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering based on whether the endpoint called is a healthcheck endpoint.
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
-</span><span class="kw">use </span>relay_general::protocol::Event;
+</span><span class="kw">use </span>relay_common::EventType;
+<span class="kw">use </span>relay_general::protocol::Event;
 
 <span class="kw">use crate</span>::{FilterStatKey, GlobPatterns, IgnoreTransactionsFilterConfig};
 
 <span class="kw">fn </span>matches(event: <span class="kw-2">&amp;</span>Event, patterns: <span class="kw-2">&amp;</span>GlobPatterns) -&gt; bool {
+    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    }
+
     event
         .transaction
         .value()
         .map_or(<span class="bool-val">false</span>, |transaction| patterns.is_match(transaction))
 }
 
-<span class="doccomment">/// Filters transaction events for calls to healthcheck endpoints
+<span class="doccomment">/// Filters [Transaction](EventType::Transaction) events based on a list of provided transaction
+/// name globs.
 </span><span class="kw">pub fn </span>should_filter(
     event: <span class="kw-2">&amp;</span>Event,
     config: <span class="kw-2">&amp;</span>IgnoreTransactionsFilterConfig,
@@ -239,6 +293,7 @@
         <span class="kw">for </span>name <span class="kw">in </span>transaction_names {
             <span class="kw">let </span>event = Event {
                 transaction: Annotated::new(name.into()),
+                ty: Annotated::new(EventType::Transaction),
                 ..Event::default()
             };
             <span class="macro">assert!</span>(matches(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>patterns), <span class="string">&quot;Did not match `{name}`&quot;</span>)
@@ -263,6 +318,7 @@
         <span class="kw">for </span>name <span class="kw">in </span>transaction_names {
             <span class="kw">let </span>event = Event {
                 transaction: Annotated::new(name.into()),
+                ty: Annotated::new(EventType::Transaction),
                 ..Event::default()
             };
             <span class="macro">assert!</span>(
@@ -275,7 +331,10 @@
     <span class="comment">// test it doesn&#39;t match when the transaction name is missing
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_does_not_match_missing_transaction() {
-        <span class="kw">let </span>event = Event { ..Event::default() };
+        <span class="kw">let </span>event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            ..Event::default()
+        };
         <span class="kw">let </span>patterns = _get_patterns();
         <span class="macro">assert!</span>(
             !matches(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>patterns),
@@ -287,6 +346,7 @@
     </span><span class="kw">fn </span>test_filters_when_matching() {
         <span class="kw">let </span>event = Event {
             transaction: Annotated::new(<span class="string">&quot;/health&quot;</span>.into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         <span class="kw">let </span>config = IgnoreTransactionsFilterConfig {
@@ -306,6 +366,7 @@
     </span><span class="kw">fn </span>test_does_not_filter_when_disabled() {
         <span class="kw">let </span>event = Event {
             transaction: Annotated::new(<span class="string">&quot;/health&quot;</span>.into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         <span class="kw">let </span>filter_result = should_filter(
@@ -326,6 +387,7 @@
     </span><span class="kw">fn </span>test_does_not_filter_when_disabled_with_flag() {
         <span class="kw">let </span>event = Event {
             transaction: Annotated::new(<span class="string">&quot;/health&quot;</span>.into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         <span class="kw">let </span>filter_result = should_filter(
@@ -346,6 +408,7 @@
     </span><span class="kw">fn </span>test_does_not_filter_when_not_matching() {
         <span class="kw">let </span>event = Event {
             transaction: Annotated::new(<span class="string">&quot;/a/b/c&quot;</span>.into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         <span class="kw">let </span>filter_result = should_filter(
@@ -360,6 +423,39 @@
             <span class="prelude-val">Ok</span>(()),
             <span class="string">&quot;Event filtered although filter should have not matched&quot;
         </span>)
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_only_filters_transactions_not_anything_else() {
+        <span class="kw">let </span>config = IgnoreTransactionsFilterConfig {
+            patterns: _get_patterns(),
+            is_enabled: <span class="bool-val">true</span>,
+        };
+
+        <span class="kw">for </span>event_type <span class="kw">in </span>[EventType::Transaction, EventType::Error, EventType::Csp] {
+            <span class="kw">let </span>expect_to_filter = event_type == EventType::Transaction;
+            <span class="kw">let </span>event = Event {
+                transaction: Annotated::new(<span class="string">&quot;/health&quot;</span>.into()),
+                ty: Annotated::new(event_type),
+                ..Event::default()
+            };
+            <span class="kw">let </span>filter_result = should_filter(<span class="kw-2">&amp;</span>event, <span class="kw-2">&amp;</span>config);
+
+            <span class="kw">if </span>expect_to_filter {
+                <span class="macro">assert_eq!</span>(
+                    filter_result,
+                    <span class="prelude-val">Err</span>(FilterStatKey::FilteredTransactions),
+                    <span class="string">&quot;Event was not filtered &quot;
+                </span>);
+            } <span class="kw">else </span>{
+                <span class="macro">assert_eq!</span>(
+                    filter_result,
+                    <span class="prelude-val">Ok</span>(()),
+                    <span class="string">&quot;Event filtered for event_type={} although filter should have not matched&quot;</span>,
+                    event_type
+                )
+            }
+        }
     }
 }
 </code></pre></div></section></main></body></html>
