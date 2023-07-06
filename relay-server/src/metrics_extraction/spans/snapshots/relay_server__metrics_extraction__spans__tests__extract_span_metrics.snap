@@ -1397,7 +1397,7 @@ expression: event.value().unwrap().spans
                 false,
             ),
             "description.scrubbed": String(
-                "GET cache:user:*",
+                "GET *",
             ),
             "environment": String(
                 "fake_environment",
@@ -1412,10 +1412,10 @@ expression: event.value().unwrap().spans
                 "cache",
             ),
             "span.description": String(
-                "GET cache:user:*",
+                "GET *",
             ),
             "span.group": String(
-                "325fa5feb926f121",
+                "37e3d9fab1ae9162",
             ),
             "span.module": String(
                 "cache",
@@ -1465,7 +1465,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "GET test:*:*",
+                "GET *",
             ),
             "environment": String(
                 "fake_environment",
@@ -1480,10 +1480,10 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "GET test:*:*",
+                "GET *",
             ),
             "span.group": String(
-                "2c1e35c1f77934da",
+                "37e3d9fab1ae9162",
             ),
             "span.module": String(
                 "db",

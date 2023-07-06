@@ -83,20 +83,9 @@ pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
 pub static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
 
-/// Regex with multiple capture groups for cache tokens we should scrub.
-///
-/// The regex attempts to identify all tokens based on hex chars and segments,
-/// excluding the first token. A segment is a string inside curly braces after a
-/// separator, for example `notsegment:{segment}:notsegment`.
-pub static CACHE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r#"(?x)
-        # Don't scrub the first segment.
-        (\s*[A-Z]+\s+)*(?P<args>.+)
-    "#,
-    )
-    .unwrap()
-});
+/// Captures initial all-caps words as redis command, the rest as arguments.
+pub static REDIS_COMMAND_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"\s*(?P<command>[A-Z]+(\s+[A-Z]+)*\b)(?P<args>.+)?"#).unwrap());
 
 /// Regex with multiple capture groups for resource tokens we should scrub.
 ///
