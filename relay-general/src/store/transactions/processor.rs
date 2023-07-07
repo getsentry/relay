@@ -11,7 +11,7 @@ use crate::protocol::{
     Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
 use crate::store::regexes::{
-    CACHE_NORMALIZER_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
+    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
     SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
 };
 use crate::store::SpanDescriptionRule;
@@ -24,9 +24,6 @@ use crate::types::{
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
-    /// Apply normalization rules to transactions without source that we expect to be high-cardinality
-    /// URLs.
-    pub normalize_legacy: bool,
 }
 
 /// Rejects transactions based on required fields.
@@ -199,8 +196,7 @@ impl<'r> TransactionsProcessor<'r> {
         matches!(
             source,
             Some(&TransactionSource::Url | &TransactionSource::Sanitized)
-        ) || (self.name_config.normalize_legacy
-            && matches!(source, None)
+        ) || (matches!(source, None)
             && event.transaction.value().map_or(false, |t| t.contains('/')))
     }
 
@@ -439,15 +435,23 @@ fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingA
 
 /// Normalize the given SQL-query-like string.
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    if is_sql_query_scrubbed(string) {
-        return Ok(true);
-    }
+    let mut mark_as_scrubbed = is_sql_query_scrubbed(string);
+    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")?;
 
-    scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")
+    Ok(mark_as_scrubbed)
 }
 
 fn scrub_redis_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    scrub_identifiers_with_regex(string, &CACHE_NORMALIZER_REGEX, "*")
+    let parts = string
+        .as_str()
+        .and_then(|s| REDIS_COMMAND_REGEX.captures(s))
+        .map(|caps| (caps.name("command"), caps.name("args")));
+    *string = Annotated::new(match parts {
+        Some((Some(command), Some(_args))) => command.as_str().to_owned() + " *",
+        Some((Some(command), None)) => command.as_str().into(),
+        None | Some((None, _)) => "*".into(),
+    });
+    Ok(true)
 }
 
 fn scrub_resource_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
@@ -1400,44 +1404,6 @@ mod tests {
     }
 
     #[test]
-    fn test_default_transaction_source_none() {
-        let mut event = Annotated::<Event>::from_json(
-            r###"
-            {
-                "type": "transaction",
-                "transaction": "/",
-                "timestamp": 946684810.0,
-                "start_timestamp": 946684800.0,
-                "contexts": {
-                    "trace": {
-                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                    "span_id": "fa90fdead5f74053",
-                    "op": "http.server",
-                    "type": "trace"
-                    }
-                },
-                "sdk": {
-                    "name": "sentry.javascript.browser"
-                },
-                "spans": []
-            }
-        "###,
-        )
-        .unwrap();
-
-        process_value(
-            &mut event,
-            &mut TransactionsProcessor::default(),
-            ProcessingState::root(),
-        )
-        .unwrap();
-
-        let transaction_info = &event.value().unwrap().transaction_info;
-
-        assert!(transaction_info.value().is_none());
-    }
-
-    #[test]
     fn test_allows_valid_transaction_event_with_spans() {
         let mut event = new_test_event();
 
@@ -1923,7 +1889,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -1989,7 +1954,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -2079,7 +2043,6 @@ mod tests {
         let mut processor = TransactionsProcessor::new(
             TransactionNameConfig {
                 rules: rules.as_ref(),
-                ..Default::default()
             },
             false,
             None,
@@ -2212,7 +2175,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -2244,7 +2206,7 @@ mod tests {
         "###);
     }
 
-    fn run_with_unknown_source(feature: bool, sdk: &str) -> Annotated<Event> {
+    fn run_with_unknown_source(sdk: &str) -> Annotated<Event> {
         let json = r#"
         {
             "type": "transaction",
@@ -2281,7 +2243,6 @@ mod tests {
             &mut TransactionsProcessor::new(
                 TransactionNameConfig {
                     rules: rules.as_ref(),
-                    normalize_legacy: feature,
                 },
                 false,
                 None,
@@ -2295,7 +2256,7 @@ mod tests {
     #[test]
     fn test_normalize_legacy_javascript() {
         // Javascript without source annotation gets sanitized.
-        let event = run_with_unknown_source(true, "sentry.javascript.browser");
+        let event = run_with_unknown_source("sentry.javascript.browser");
         assert_annotated_snapshot!(event, @r###"
         {
           "type": "transaction",
@@ -2339,7 +2300,7 @@ mod tests {
     fn test_normalize_legacy_python() {
         // Python without source annotation does not get sanitized, because we assume it to be
         // low cardinality.
-        let event = run_with_unknown_source(true, "sentry.python");
+        let event = run_with_unknown_source("sentry.python");
         assert_annotated_snapshot!(event, @r###"
         {
           "type": "transaction",
@@ -2360,33 +2321,6 @@ mod tests {
           },
           "sdk": {
             "name": "sentry.python"
-          },
-          "spans": []
-        }
-        "###);
-    }
-
-    #[test]
-    fn test_normalize_legacy_javascript_disabled() {
-        // Sanitation is skipped when the config flag is disabled.
-        let event = run_with_unknown_source(false, "sentry.javascript.browser");
-        assert_annotated_snapshot!(event, @r###"
-        {
-          "type": "transaction",
-          "transaction": "/user/jane/blog/",
-          "timestamp": 1619420400.0,
-          "start_timestamp": 1619420341.0,
-          "contexts": {
-            "trace": {
-              "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-              "span_id": "fa90fdead5f74053",
-              "op": "rails.request",
-              "status": "ok",
-              "type": "trace"
-            }
-          },
-          "sdk": {
-            "name": "sentry.javascript.browser"
           },
           "spans": []
         }
@@ -2428,14 +2362,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: &[rule],
-                    ..Default::default()
-                },
-                false,
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2661,7 +2588,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -2708,7 +2634,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 false,
                 None,
@@ -2888,14 +2813,14 @@ mod tests {
         span_description_scrub_various_parameterized_ins_percentage,
         "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)"
+        "SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)"
     );
 
     span_description_test!(
         span_description_scrub_various_parameterized_ins_dollar,
         "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
         "db.sql.query",
-        "SELECT count() FROM table WHERE id IN ($1, $2, $3)"
+        "SELECT count() FROM table WHERE id IN (%s)"
     );
 
     span_description_test!(
@@ -2917,6 +2842,13 @@ mod tests {
         "select count() from table where id in (100, 101, 102)",
         "db.sql.query",
         "select count() from table where id in (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_mixed,
+        "UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true",
+        "db.sql.query",
+        "UPDATE foo SET a = %s, b = log(e + %s) * %s + %s WHERE %s"
     );
 
     span_description_test!(
@@ -3075,16 +3007,58 @@ mod tests {
 
     span_description_test!(
         span_description_scrub_cache,
-        "abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
+        "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
-        "abc:*:*:*:*:*:zookeeper"
+        "GET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_set,
+        "SET mykey myvalue",
+        "db.redis",
+        "SET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_set_quoted,
+        r#"SET mykey 'multi: part, value'"#,
+        "db.redis",
+        "SET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_whitespace,
+        " GET  asdf:123",
+        "db.redis",
+        "GET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_no_args,
+        "EXEC",
+        "db.redis",
+        "EXEC"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_invalid,
+        "What a beautiful day!",
+        "db.redis",
+        "*"
+    );
+
+    span_description_test!(
+        span_description_scrub_redis_long_command,
+        "ACL SETUSER jane",
+        "db.redis",
+        "ACL SETUSER *"
     );
 
     span_description_test!(
         span_description_scrub_nothing_cache,
         "abc-dontscrubme-meneither:stillno:ohplsstop",
         "cache.get_item",
-        ""
+        "*"
     );
 
     span_description_test!(
@@ -3194,7 +3168,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 None,
@@ -3294,7 +3267,6 @@ mod tests {
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
-                    ..Default::default()
                 },
                 true,
                 Some(&Vec::from([SpanDescriptionRule {

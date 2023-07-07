@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Metrics protocol and processing"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.6.1"
+version = "23.6.2"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -23,7 +23,7 @@ thiserror = "1.0.38"
 tokio = { version = "1.28.0", features = ["macros", "time"] }
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 insta = "1.19.0"
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
 relay-test = { path = "../relay-test" }

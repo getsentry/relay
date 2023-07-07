@@ -168,8 +168,10 @@ pub(crate) fn extract_span_metrics(
                     None
                 };
 
-                if let Some(dom) = domain.clone() {
-                    span_tags.insert(SpanTagKey::Domain, dom);
+                if !span_op.starts_with("db.redis") {
+                    if let Some(dom) = domain.clone() {
+                        span_tags.insert(SpanTagKey::Domain, dom);
+                    }
                 }
 
                 let scrubbed_description = span
@@ -965,20 +967,6 @@ mod tests {
                     }
                 },
                 {
-                    "description": "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
-                    "op": "db",
-                    "parent_span_id": "8f5a2b8768cafb4e",
-                    "span_id": "bb7af8b99e95af5f",
-                    "start_timestamp": 1597976300.0000000,
-                    "timestamp": 1597976302.0000000,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "status": "ok",
-                    "data": {
-                        "db.system": "MyDatabase",
-                        "db.operation": "SELECT"
-                    }
-                },
-                {
                     "description": "SAVEPOINT save_this_one",
                     "op": "db",
                     "parent_span_id": "8f5a2b8768cafb4e",
@@ -1017,6 +1005,17 @@ mod tests {
                 },
                 {
                     "description": "GET lkjasdlkasjdlasjdlkasjdlkasjd",
+                    "op": "db.redis",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
+                },
+                {
+                    "description": "SET 'aaa:bbb:123:zzz' '{\"from json\": \"no\"}'",
                     "op": "db.redis",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bb7af8b99e95af5f",

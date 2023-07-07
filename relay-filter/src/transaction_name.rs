@@ -2,18 +2,24 @@
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
+use relay_common::EventType;
 use relay_general::protocol::Event;
 
 use crate::{FilterStatKey, GlobPatterns, IgnoreTransactionsFilterConfig};
 
 fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return false;
+    }
+
     event
         .transaction
         .value()
         .map_or(false, |transaction| patterns.is_match(transaction))
 }
 
-/// Filters transaction events for calls to healthcheck endpoints
+/// Filters [Transaction](EventType::Transaction) events based on a list of provided transaction
+/// name globs.
 pub fn should_filter(
     event: &Event,
     config: &IgnoreTransactionsFilterConfig,
@@ -57,6 +63,7 @@ mod tests {
         for name in transaction_names {
             let event = Event {
                 transaction: Annotated::new(name.into()),
+                ty: Annotated::new(EventType::Transaction),
                 ..Event::default()
             };
             assert!(matches(&event, &patterns), "Did not match `{name}`")
@@ -81,6 +88,7 @@ mod tests {
         for name in transaction_names {
             let event = Event {
                 transaction: Annotated::new(name.into()),
+                ty: Annotated::new(EventType::Transaction),
                 ..Event::default()
             };
             assert!(
@@ -93,7 +101,10 @@ mod tests {
     // test it doesn't match when the transaction name is missing
     #[test]
     fn test_does_not_match_missing_transaction() {
-        let event = Event { ..Event::default() };
+        let event = Event {
+            ty: Annotated::new(EventType::Transaction),
+            ..Event::default()
+        };
         let patterns = _get_patterns();
         assert!(
             !matches(&event, &patterns),
@@ -105,6 +116,7 @@ mod tests {
     fn test_filters_when_matching() {
         let event = Event {
             transaction: Annotated::new("/health".into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         let config = IgnoreTransactionsFilterConfig {
@@ -124,6 +136,7 @@ mod tests {
     fn test_does_not_filter_when_disabled() {
         let event = Event {
             transaction: Annotated::new("/health".into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         let filter_result = should_filter(
@@ -144,6 +157,7 @@ mod tests {
     fn test_does_not_filter_when_disabled_with_flag() {
         let event = Event {
             transaction: Annotated::new("/health".into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         let filter_result = should_filter(
@@ -164,6 +178,7 @@ mod tests {
     fn test_does_not_filter_when_not_matching() {
         let event = Event {
             transaction: Annotated::new("/a/b/c".into()),
+            ty: Annotated::new(EventType::Transaction),
             ..Event::default()
         };
         let filter_result = should_filter(
@@ -178,5 +193,38 @@ mod tests {
             Ok(()),
             "Event filtered although filter should have not matched"
         )
+    }
+
+    #[test]
+    fn test_only_filters_transactions_not_anything_else() {
+        let config = IgnoreTransactionsFilterConfig {
+            patterns: _get_patterns(),
+            is_enabled: true,
+        };
+
+        for event_type in [EventType::Transaction, EventType::Error, EventType::Csp] {
+            let expect_to_filter = event_type == EventType::Transaction;
+            let event = Event {
+                transaction: Annotated::new("/health".into()),
+                ty: Annotated::new(event_type),
+                ..Event::default()
+            };
+            let filter_result = should_filter(&event, &config);
+
+            if expect_to_filter {
+                assert_eq!(
+                    filter_result,
+                    Err(FilterStatKey::FilteredTransactions),
+                    "Event was not filtered "
+                );
+            } else {
+                assert_eq!(
+                    filter_result,
+                    Ok(()),
+                    "Event filtered for event_type={} although filter should have not matched",
+                    event_type
+                )
+            }
+        }
     }
 }
