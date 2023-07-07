@@ -1502,6 +1502,74 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
+        description: "SET 'aaa:bbb:123:zzz' '{\"from json\": \"no\"}'",
+        op: "db.redis",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "description.scrubbed": String(
+                "SET *",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.category": String(
+                "db",
+            ),
+            "span.description": String(
+                "SET *",
+            ),
+            "span.group": String(
+                "46b2cac4b418f556",
+            ),
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db.redis",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
         description: "http://domain/static/myscript-v1.9.23.js",
         op: "resource.script",
         span_id: SpanId(

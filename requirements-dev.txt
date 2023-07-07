@@ -7,7 +7,7 @@ black==22.10.0
 blinker==1.5
 click==8.0.4
 flake8==6.0.0
-confluent-kafka==1.9.2
+confluent-kafka==2.1.1
 flask==2.2.2
 msgpack==1.0.4
 pytest-localserver==0.7.0
