@@ -2970,7 +2970,7 @@ mod tests {
         let service: EnvelopeProcessorService = create_test_processor(config);
 
         // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
-        let get_state = |metrics_extracted: bool| {
+        let get_state = |version: u16| {
             let event = Event {
                 id: Annotated::new(EventId::new()),
                 ty: Annotated::new(EventType::Transaction),
@@ -2978,16 +2978,22 @@ mod tests {
                 ..Event::default()
             };
 
-            let project_state = state_with_rule_and_condition(
+            let mut project_state = state_with_rule_and_condition(
                 Some(0.0),
                 RuleType::Transaction,
                 SamplingMode::Received,
                 RuleCondition::all(),
             );
 
+            project_state.config.metric_extraction =
+                ErrorBoundary::Ok(relay_dynamic_config::MetricExtractionConfig {
+                    version,
+                    ..Default::default()
+                });
+
             ProcessEnvelopeState {
                 event: Annotated::from(event),
-                transaction_metrics_extracted: metrics_extracted,
+                transaction_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
@@ -3006,12 +3012,12 @@ mod tests {
         };
 
         // If metrics have not been extracted, DS isn't run, meaning it'll keep the event no matter what.
-        let mut state = get_state(false);
+        let mut state = get_state(0);
         service.run_dynamic_sampling(&mut state);
         assert!(matches!(state.sampling_result, SamplingResult::Keep));
 
         // Otherwise, the event might be dropped, as is done here.
-        let mut state = get_state(true);
+        let mut state = get_state(1);
         service.run_dynamic_sampling(&mut state);
         assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
     }
