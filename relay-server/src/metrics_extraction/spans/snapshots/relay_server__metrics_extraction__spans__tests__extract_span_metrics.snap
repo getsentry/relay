@@ -1221,6 +1221,145 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
+        description: "DELETE FROM table WHERE conditions",
+        op: "db",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "db.system": String(
+                "MyDatabase",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "DELETE",
+            ),
+            "span.category": String(
+                "db",
+            ),
+            "span.domain": String(
+                "table",
+            ),
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.system": String(
+                "mydatabase",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "UPDATE table WHERE conditions",
+        op: "db",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "db.system": String(
+                "MyDatabase",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "UPDATE",
+            ),
+            "span.category": String(
+                "db",
+            ),
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.system": String(
+                "mydatabase",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
         description: "SAVEPOINT save_this_one",
         op: "db",
         span_id: SpanId(
