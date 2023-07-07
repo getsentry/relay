@@ -1071,6 +1071,32 @@
 <a href="#1071" id="1071">1071</a>
 <a href="#1072" id="1072">1072</a>
 <a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::extract_http_status_code;
@@ -1421,9 +1447,9 @@
 
 <span class="doccomment">/// Regex with a capture group to extract the database action from a query.
 ///
-/// Currently, we&#39;re only interested in either `SELECT` or `INSERT` statements.
+/// Currently, we&#39;re only interested in `SELECT`, `INSERT`, `DELETE` and `UPDATE` statements.
 </span><span class="kw">static </span>SQL_ACTION_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r#&quot;(?i)(?P&lt;action&gt;(SELECT|INSERT))&quot;#</span>).unwrap());
+    Lazy::new(|| Regex::new(<span class="string">r#&quot;(?i)(?P&lt;action&gt;(SELECT|INSERT|DELETE|UPDATE))&quot;#</span>).unwrap());
 
 <span class="kw">fn </span>sql_action_from_query(query: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
     extract_captured_substring(query, <span class="kw-2">&amp;</span>SQL_ACTION_EXTRACTOR_REGEX)
@@ -2037,6 +2063,32 @@
                     &quot;data&quot;: {
                         &quot;db.system&quot;: &quot;MyDatabase&quot;,
                         &quot;db.operation&quot;: &quot;SELECT&quot;
+                    }
+                },
+                {
+                    &quot;description&quot;: &quot;DELETE FROM table WHERE conditions&quot;,
+                    &quot;op&quot;: &quot;db&quot;,
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976302.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    }
+                },
+                {
+                    &quot;description&quot;: &quot;UPDATE table WHERE conditions&quot;,
+                    &quot;op&quot;: &quot;db&quot;,
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976302.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;db.system&quot;: &quot;MyDatabase&quot;
                     }
                 },
                 {
