@@ -346,7 +346,7 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 
 /// Regex with a capture group to extract the database action from a query.
 ///
-/// Currently, we're only interested in either `SELECT` or `INSERT` statements.
+/// Currently, we're only interested in `SELECT`, `INSERT`, `DELETE` and `UPDATE` statements.
 static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE))"#).unwrap());
 
@@ -962,6 +962,32 @@ mod tests {
                     "data": {
                         "db.system": "MyDatabase",
                         "db.operation": "SELECT"
+                    }
+                },
+                {
+                    "description": "DELETE FROM table WHERE conditions",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
+                    }
+                },
+                {
+                    "description": "UPDATE table WHERE conditions",
+                    "op": "db",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
                     }
                 },
                 {
