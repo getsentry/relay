@@ -2269,6 +2269,7 @@ impl EnvelopeProcessorService {
                         self.compute_sampling_decision(state);
                     }
                 } else {
+                    self.compute_sampling_decision(state);
                     dbg!("nope");
                 }
             }
