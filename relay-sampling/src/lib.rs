@@ -1468,6 +1468,7 @@ mod tests {
             sample_rate: None,
             user: TraceUserContext::default(),
             replay_id: None,
+            sampled: None,
             other: BTreeMap::new(),
         }
     }
@@ -1564,6 +1565,7 @@ mod tests {
                 user_id: user_id.to_string(),
             },
             replay_id,
+            sampled: None,
             other: Default::default(),
         }
     }
@@ -1584,6 +1586,7 @@ mod tests {
             user: Default::default(),
             other: Default::default(),
             replay_id: None,
+            sampled: None,
         }
     }
 
@@ -1847,6 +1850,7 @@ mod tests {
             transaction: Some("transaction1".into()),
             sample_rate: None,
             replay_id: Some(replay_id),
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -1887,6 +1891,7 @@ mod tests {
             transaction: None,
             sample_rate: None,
             replay_id: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.release"));
@@ -1905,6 +1910,7 @@ mod tests {
             transaction: None,
             sample_rate: None,
             replay_id: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
@@ -2013,6 +2019,7 @@ mod tests {
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2125,6 +2132,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2184,6 +2192,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2220,6 +2229,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2279,6 +2289,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2630,6 +2641,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2651,6 +2663,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2672,6 +2685,7 @@ mod tests {
                 user_id: "user-id".to_owned(),
             },
             replay_id: None,
+            sampled: None,
             environment: None,
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2696,6 +2710,7 @@ mod tests {
                 user_id: "user-id".to_owned(),
             },
             replay_id: None,
+            sampled: None,
             environment: Some("debug".to_string()),
             transaction: None,
             sample_rate: None,
@@ -2713,6 +2728,7 @@ mod tests {
             release: None,
             user: TraceUserContext::default(),
             replay_id: None,
+            sampled: None,
             environment: None,
             transaction: None,
             sample_rate: None,
