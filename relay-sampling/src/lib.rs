@@ -1229,6 +1229,43 @@ mod sample_rate_as_string {
     }
 }
 
+mod sampled_as_string {
+    use super::*;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
+            Some(value) => value,
+            None => return Ok(None),
+        };
+
+        if value == "true" {
+            Ok(Some(true))
+        } else if value == "false" {
+            Ok(Some(false))
+        } else {
+            Err(serde::de::Error::custom(
+                "the `sampled` value can only be `true` or `false`",
+            ))
+        }
+    }
+
+    pub fn serialize<S>(value: &Option<bool>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(v) => {
+                let value_str = if *v { "true" } else { "false" };
+                serializer.serialize_str(value_str)
+            }
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
 /// DynamicSamplingContext created by the first Sentry SDK in the call chain.
 ///
 /// Because SDKs need to funnel this data through the baggage header, this needs to be
@@ -1266,6 +1303,13 @@ pub struct DynamicSamplingContext {
     pub user: TraceUserContext,
     /// If the event occurred during a session replay, the associated replay_id is added to the DSC.
     pub replay_id: Option<Uuid>,
+    /// Set to true if the transaction starting the trace has been kept by client side sampling.
+    #[serde(
+        default,
+        with = "sampled_as_string",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sampled: Option<bool>,
     /// Additional arbitrary fields for forwards compatibility.
     #[serde(flatten, default)]
     pub other: BTreeMap<String, Value>,
@@ -1287,7 +1331,9 @@ impl DynamicSamplingContext {
 
         let contexts = event.contexts.value()?;
         let context = contexts.get(TraceContext::default_key())?.value()?;
-        let Context::Trace(ref trace) = context.0 else { return None };
+        let Context::Trace(ref trace) = context.0 else {
+            return None
+        };
         let trace_id = trace.trace_id.value()?;
         let trace_id = trace_id.0.parse().ok()?;
 
@@ -1310,6 +1356,7 @@ impl DynamicSamplingContext {
                     .unwrap_or_default()
                     .to_owned(),
             },
+            sampled: None,
             other: Default::default(),
         })
     }

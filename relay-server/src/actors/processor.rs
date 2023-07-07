@@ -2299,13 +2299,31 @@ impl EnvelopeProcessorService {
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
         ) {
-            utils::get_sampling_result(
-                self.config.processing_enabled(),
-                None,
-                Some(root_project_state),
-                Some(dsc),
-                None,
-            )
+            // In case the dsc doesn't have a transaction, we don't want to tag it. This can happen
+            // since in tracing without performance we can have a trace that is not made up of
+            // transactions.
+            // In addition, if the sampled field is not set, we prefer to not tag the error since
+            // we have no clue on whether the head of the trace was kept or dropped on the client
+            // side.
+            if let (Some(_), Some(sampled)) = (&dsc.transaction, &dsc.sampled) {
+                match sampled {
+                    // If the head of the trace was kept on the client, we assume that each
+                    // component of the trace will be sampled on each client, thus we can run
+                    // dynamic sampling.
+                    true => utils::get_sampling_result(
+                        self.config.processing_enabled(),
+                        None,
+                        Some(root_project_state),
+                        Some(dsc),
+                        None,
+                    ),
+                    // If the head of the trace was dropped on the client we will immediately mark
+                    // the trace as not fully sampled.
+                    false => SamplingResult::Drop(MatchedRuleIds(vec![])),
+                }
+            } else {
+                return;
+            }
         } else {
             return;
         };
@@ -3255,6 +3273,7 @@ mod tests {
             environment: None,
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: Some(true),
             other: BTreeMap::new(),
         };
         envelope.set_dsc(dsc);
@@ -3343,6 +3362,65 @@ mod tests {
         if let Trace(context) = trace_context {
             assert!(context.sampled.value().unwrap())
         }
+
+        // We test with incoming dsc that contains `sampled = false`.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: Some(false),
+            other: BTreeMap::new(),
+        };
+        envelope.set_dsc(dsc);
+        envelope.add_item(mocked_error_item());
+        let sampling_project_state = project_state_with_single_rule(0.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key())
+            .unwrap();
+
+        assert!(matches!(trace_context, Trace(..)));
+        if let Trace(context) = trace_context {
+            assert!(!context.sampled.value().unwrap())
+        }
+
+        // We test with incoming dsc that doesn't have a transaction set.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: None,
+            sample_rate: None,
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+        envelope.set_dsc(dsc);
+        envelope.add_item(mocked_error_item());
+        let sampling_project_state = project_state_with_single_rule(0.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+
+        assert!(event.contexts.value().is_none());
 
         // We test the tagging when root project state and dsc are none.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
