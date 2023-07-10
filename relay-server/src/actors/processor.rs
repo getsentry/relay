@@ -3269,7 +3269,7 @@ mod tests {
             .parse()
             .unwrap();
         let request_meta = RequestMeta::new(dsn);
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -3333,7 +3333,7 @@ mod tests {
         let request_meta = RequestMeta::new(dsn);
 
         // We test tagging with an incoming event that has already been tagged by downstream Relay.
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let mut item = Item::new(ItemType::Event);
         item.set_payload(
             ContentType::Json,
