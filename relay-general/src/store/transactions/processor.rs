@@ -8,7 +8,7 @@ use relay_common::SpanStatus;
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
+    Context, ContextInner, Event, EventType, Span, Timestamp, TraceContext, TransactionSource,
 };
 use crate::store::regexes::{
     REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
@@ -226,22 +226,6 @@ impl<'r> TransactionsProcessor<'r> {
         }
 
         Ok(())
-    }
-}
-
-/// Get the value for a measurement, e.g. lcp -> event.measurements.lcp
-pub fn get_measurement(transaction: &Event, name: &str) -> Option<f64> {
-    let measurements = transaction.measurements.value()?;
-    let annotated = measurements.get(name)?;
-    let value = annotated.value().and_then(|m| m.value.value())?;
-    Some(*value)
-}
-
-pub fn get_transaction_op(transaction: &Event) -> Option<&str> {
-    let context = transaction.contexts.value()?.get("trace")?.value()?;
-    match **context {
-        Context::Trace(ref trace_context) => Some(trace_context.op.value()?),
-        _ => None,
     }
 }
 
