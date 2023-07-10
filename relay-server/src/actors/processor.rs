@@ -2322,13 +2322,16 @@ impl EnvelopeProcessorService {
                     false => SamplingResult::Drop(MatchedRuleIds(vec![])),
                 }
             } else {
+                relay_log::trace!("unable to tag error because of dsc contents");
                 return;
             }
         } else {
+            relay_log::trace!("unable to tag error because root project state or dsc are missing");
             return;
         };
 
         let Some(event) = state.event.value_mut() else {
+            relay_log::trace!("unable to tag error because envelope doesn't contain an event");
             return;
         };
 
@@ -2356,8 +2359,12 @@ impl EnvelopeProcessorService {
                     SamplingResult::Keep => true,
                     SamplingResult::Drop(_) => false,
                 };
-                relay_log::trace!("tagging error with `sampled = {}` flag", sampled);
+                relay_log::trace!("tagged error with `sampled = {}` flag", sampled);
                 boxed_context.sampled = Annotated::new(sampled);
+            } else {
+                relay_log::trace!(
+                    "unable to tag error because it was already tagged by another Relay"
+                );
             }
         }
     }
@@ -3262,7 +3269,6 @@ mod tests {
             .parse()
             .unwrap();
         let request_meta = RequestMeta::new(dsn);
-
         let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
