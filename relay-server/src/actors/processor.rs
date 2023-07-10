@@ -3316,8 +3316,17 @@ mod tests {
         if let Trace(context) = trace_context {
             assert!(!context.sampled.value().unwrap())
         }
+    }
 
-        // We test the tagging is not performed when an event is already tagged.
+    #[tokio::test]
+    async fn test_error_is_not_tagged_if_already_tagged() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        // We test tagging with an incoming event that has already been tagged by downstream Relay.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
         let mut item = Item::new(ItemType::Event);
         item.set_payload(
@@ -3343,8 +3352,6 @@ mod tests {
             }"#,
         );
         envelope.add_item(item);
-        // We want the sampling result to be Drop, so that we can show how sampled is still kept to
-        // to true.
         let sampling_project_state = project_state_with_single_rule(0.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope,
@@ -3362,8 +3369,17 @@ mod tests {
         if let Trace(context) = trace_context {
             assert!(context.sampled.value().unwrap())
         }
+    }
 
-        // We test with incoming dsc that contains `sampled = false`.
+    #[tokio::test]
+    async fn test_error_is_not_tagged_if_inputs_are_invalid() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        // We test tagging with an incoming dsc that has `sampled = false`.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -3397,7 +3413,7 @@ mod tests {
             assert!(!context.sampled.value().unwrap())
         }
 
-        // We test with incoming dsc that doesn't have a transaction set.
+        // We test tagging with an incoming dsc that doesn't have a transaction set.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -3422,7 +3438,7 @@ mod tests {
 
         assert!(event.contexts.value().is_none());
 
-        // We test the tagging when root project state and dsc are none.
+        // We test tagging when root project state and dsc are none.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         envelope.add_item(mocked_error_item());
         let new_envelope = process_envelope_with_root_project_state(envelope, None);
