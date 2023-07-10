@@ -43,17 +43,15 @@ use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
 pub struct RequestUpdate {
     /// The public key to fetch the project by.
     project_key: ProjectKey,
-    global_config: bool,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
     no_cache: bool,
 }
 
 impl RequestUpdate {
-    pub fn new(project_key: ProjectKey, global_config: bool, no_cache: bool) -> Self {
+    pub fn new(project_key: ProjectKey, no_cache: bool) -> Self {
         Self {
             project_key,
-            global_config,
             no_cache,
         }
     }
@@ -448,15 +446,6 @@ impl Services {
     }
 }
 
-#[derive(Debug)]
-struct GlobalConfig;
-
-impl GlobalConfig {
-    fn new() -> Self {
-        todo!()
-    }
-}
-
 /// Main broker of the [`ProjectCacheService`].
 ///
 /// This handles incoming public messages, merges resolved project states, and maintains the actual
@@ -467,7 +456,6 @@ struct ProjectCacheBroker {
     services: Services,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
-    global_config: GlobalConfig,
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
@@ -605,7 +593,6 @@ impl ProjectCacheBroker {
     fn handle_request_update(&mut self, message: RequestUpdate) {
         let RequestUpdate {
             project_key,
-            global_config,
             no_cache,
         } = message;
 
@@ -899,7 +886,6 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 projects: hashbrown::HashMap::new(),
-                global_config: GlobalConfig::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
                 services,
@@ -1021,7 +1007,6 @@ mod tests {
             ProjectCacheBroker {
                 config: config.clone(),
                 projects: hashbrown::HashMap::new(),
-                global_config: GlobalConfig::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),
                 services,
