@@ -2967,14 +2967,12 @@ mod tests {
 
         // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
         let get_state = |version: u16| {
-            dbg!();
             let event = Event {
                 id: Annotated::new(EventId::new()),
                 ty: Annotated::new(EventType::Transaction),
                 transaction: Annotated::new("testing".to_owned()),
                 ..Event::default()
             };
-            dbg!();
 
             let mut project_state = state_with_rule_and_condition(
                 Some(0.0),
@@ -2982,7 +2980,6 @@ mod tests {
                 SamplingMode::Received,
                 RuleCondition::all(),
             );
-            dbg!();
 
             project_state.config.transaction_metrics =
                 ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
@@ -2990,7 +2987,6 @@ mod tests {
                     ..Default::default()
                 })
                 .into();
-            dbg!();
 
             ProcessEnvelopeState {
                 event: Annotated::from(event),
@@ -3012,16 +3008,12 @@ mod tests {
             }
         };
 
-        dbg!("@@@@@@@@@@@@@@@");
         let mut state = get_state(0);
-        dbg!();
         service.run_dynamic_sampling(&mut state);
         assert!(matches!(state.sampling_result, SamplingResult::Keep));
-        dbg!("################");
-        // Otherwise, the event might be dropped, as is done here.
         let mut state = get_state(1);
         service.run_dynamic_sampling(&mut state);
-        //       assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
+        assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
     }
 
     #[tokio::test]
