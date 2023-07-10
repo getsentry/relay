@@ -3691,6 +3691,70 @@
 <a href="#3691" id="3691">3691</a>
 <a href="#3692" id="3692">3692</a>
 <a href="#3693" id="3693">3693</a>
+<a href="#3694" id="3694">3694</a>
+<a href="#3695" id="3695">3695</a>
+<a href="#3696" id="3696">3696</a>
+<a href="#3697" id="3697">3697</a>
+<a href="#3698" id="3698">3698</a>
+<a href="#3699" id="3699">3699</a>
+<a href="#3700" id="3700">3700</a>
+<a href="#3701" id="3701">3701</a>
+<a href="#3702" id="3702">3702</a>
+<a href="#3703" id="3703">3703</a>
+<a href="#3704" id="3704">3704</a>
+<a href="#3705" id="3705">3705</a>
+<a href="#3706" id="3706">3706</a>
+<a href="#3707" id="3707">3707</a>
+<a href="#3708" id="3708">3708</a>
+<a href="#3709" id="3709">3709</a>
+<a href="#3710" id="3710">3710</a>
+<a href="#3711" id="3711">3711</a>
+<a href="#3712" id="3712">3712</a>
+<a href="#3713" id="3713">3713</a>
+<a href="#3714" id="3714">3714</a>
+<a href="#3715" id="3715">3715</a>
+<a href="#3716" id="3716">3716</a>
+<a href="#3717" id="3717">3717</a>
+<a href="#3718" id="3718">3718</a>
+<a href="#3719" id="3719">3719</a>
+<a href="#3720" id="3720">3720</a>
+<a href="#3721" id="3721">3721</a>
+<a href="#3722" id="3722">3722</a>
+<a href="#3723" id="3723">3723</a>
+<a href="#3724" id="3724">3724</a>
+<a href="#3725" id="3725">3725</a>
+<a href="#3726" id="3726">3726</a>
+<a href="#3727" id="3727">3727</a>
+<a href="#3728" id="3728">3728</a>
+<a href="#3729" id="3729">3729</a>
+<a href="#3730" id="3730">3730</a>
+<a href="#3731" id="3731">3731</a>
+<a href="#3732" id="3732">3732</a>
+<a href="#3733" id="3733">3733</a>
+<a href="#3734" id="3734">3734</a>
+<a href="#3735" id="3735">3735</a>
+<a href="#3736" id="3736">3736</a>
+<a href="#3737" id="3737">3737</a>
+<a href="#3738" id="3738">3738</a>
+<a href="#3739" id="3739">3739</a>
+<a href="#3740" id="3740">3740</a>
+<a href="#3741" id="3741">3741</a>
+<a href="#3742" id="3742">3742</a>
+<a href="#3743" id="3743">3743</a>
+<a href="#3744" id="3744">3744</a>
+<a href="#3745" id="3745">3745</a>
+<a href="#3746" id="3746">3746</a>
+<a href="#3747" id="3747">3747</a>
+<a href="#3748" id="3748">3748</a>
+<a href="#3749" id="3749">3749</a>
+<a href="#3750" id="3750">3750</a>
+<a href="#3751" id="3751">3751</a>
+<a href="#3752" id="3752">3752</a>
+<a href="#3753" id="3753">3753</a>
+<a href="#3754" id="3754">3754</a>
+<a href="#3755" id="3755">3755</a>
+<a href="#3756" id="3756">3756</a>
+<a href="#3757" id="3757">3757</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -3776,7 +3840,9 @@
 
 <span class="kw">use </span>relay_common::{EventType, ProjectKey, Uuid};
 <span class="kw">use </span>relay_filter::GlobPatterns;
-<span class="kw">use </span>relay_general::protocol::{Context, Event, TraceContext};
+<span class="kw">use </span>relay_general::protocol::{
+    BrowserContext, Context, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
+};
 <span class="kw">use </span>relay_general::store;
 
 <span class="doccomment">/// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
@@ -4260,6 +4326,56 @@
     }
 }
 
+<span class="doccomment">/// Get the numeric measurement value.
+///
+/// The name is provided without a prefix, for example `&quot;lcp&quot;` loads `event.measurements.lcp`.
+</span><span class="kw">fn </span>get_measurement(event: <span class="kw-2">&amp;</span>Event, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+    <span class="kw">let </span>measurements = event.measurements.value()<span class="question-mark">?</span>;
+    <span class="kw">let </span>annotated = measurements.get(name)<span class="question-mark">?</span>;
+    <span class="kw">let </span>value = annotated.value().and_then(|m| m.value.value())<span class="question-mark">?</span>;
+    <span class="prelude-val">Some</span>(<span class="kw-2">*</span>value)
+}
+
+<span class="doccomment">/// Returns the trace context of the event if present.
+</span><span class="kw">fn </span>get_trace_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TraceContext&gt; {
+    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;trace&quot;</span>)<span class="question-mark">? </span>{
+        Context::Trace(<span class="kw-2">ref </span>trace_context) =&gt; <span class="prelude-val">Some</span>(trace_context),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    }
+}
+
+<span class="doccomment">/// Returns the device context of the event if present.
+</span><span class="kw">fn </span>get_device_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DeviceContext&gt; {
+    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;device&quot;</span>)<span class="question-mark">? </span>{
+        Context::Device(<span class="kw-2">ref </span>device_context) =&gt; <span class="prelude-val">Some</span>(device_context),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    }
+}
+
+<span class="doccomment">/// Returns the os context of the event if present.
+</span><span class="kw">fn </span>get_os_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>OsContext&gt; {
+    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;os&quot;</span>)<span class="question-mark">? </span>{
+        Context::Os(<span class="kw-2">ref </span>os_context) =&gt; <span class="prelude-val">Some</span>(os_context),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    }
+}
+
+<span class="doccomment">/// Returns the browser context of the event if present.
+</span><span class="kw">fn </span>get_browser_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BrowserContext&gt; {
+    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;browser&quot;</span>)<span class="question-mark">? </span>{
+        Context::Browser(<span class="kw-2">ref </span>browser_context) =&gt; <span class="prelude-val">Some</span>(browser_context),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    }
+}
+
+<span class="doccomment">/// Returns the response context of the event if present.
+</span><span class="kw">fn </span>get_response_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ResponseContext&gt; {
+    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;response&quot;</span>)<span class="question-mark">? </span>{
+        Context::Response(<span class="kw-2">ref </span>response_context) =&gt; <span class="prelude-val">Some</span>(response_context),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    }
+}
+
 <span class="doccomment">/// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
@@ -4294,86 +4410,98 @@
                 <span class="prelude-val">Some</span>(s) =&gt; s.as_str().into(),
             },
             <span class="string">&quot;platform&quot; </span>=&gt; <span class="kw">match </span><span class="self">self</span>.platform.value() {
-                <span class="prelude-val">Some</span>(platform) <span class="kw">if </span>store::is_valid_platform(platform) =&gt; {
-                    Value::String(platform.clone())
-                }
+                <span class="prelude-val">Some</span>(platform) <span class="kw">if </span>store::is_valid_platform(platform) =&gt; platform.clone().into(),
                 <span class="kw">_ </span>=&gt; Value::from(<span class="string">&quot;other&quot;</span>),
             },
-            <span class="string">&quot;user.email&quot; </span>=&gt; <span class="self">self
+
+            <span class="comment">// Fields in top level structures (called &quot;interfaces&quot; in Sentry)
+            </span><span class="string">&quot;user.email&quot; </span>=&gt; <span class="self">self
                 </span>.user
                 .value()
-                .and_then(|user| user.email.value())
+                .and_then(|user| user.email.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |email| email.clone().into()),
+                .map_or(Value::Null, Value::from),
             <span class="string">&quot;user.id&quot; </span>=&gt; <span class="self">self
                 </span>.user
                 .value()
-                .and_then(|user| user.id.value())
+                .and_then(|user| user.id.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |id| id.as_str().into()),
+                .map_or(Value::Null, Value::from),
             <span class="string">&quot;user.ip_address&quot; </span>=&gt; <span class="self">self
                 </span>.user
                 .value()
-                .and_then(|user| user.ip_address.value())
-                .map_or(Value::Null, |ip| ip.as_str().into()),
+                .and_then(|user| user.ip_address.as_str())
+                .map_or(Value::Null, Value::from),
             <span class="string">&quot;user.name&quot; </span>=&gt; <span class="self">self
                 </span>.user
                 .value()
-                .and_then(|user| user.name.value())
+                .and_then(|user| user.name.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |name| name.clone().into()),
+                .map_or(Value::Null, Value::from),
             <span class="string">&quot;user.segment&quot; </span>=&gt; <span class="self">self
                 </span>.user
                 .value()
-                .and_then(|user| user.segment.value())
+                .and_then(|user| user.segment.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |id| id.clone().into()),
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;user.geo.city&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.city.as_str())
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;user.geo.country_code&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.country_code.as_str())
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;user.geo.region&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.region.as_str())
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;user.geo.subdivision&quot; </span>=&gt; <span class="self">self
+                </span>.user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.subdivision.as_str())
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;request.method&quot; </span>=&gt; <span class="self">self
+                </span>.request
+                .value()
+                .and_then(|request| request.method.as_str())
+                .map_or(Value::Null, Value::from),
 
             <span class="comment">// Partial implementation of contexts.
-            </span><span class="string">&quot;contexts.device.name&quot; </span>=&gt; <span class="self">self
-                </span>.contexts
-                .value()
-                .and_then(|contexts| contexts.get(<span class="string">&quot;device&quot;</span>))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| <span class="kw">match </span>context.<span class="number">0 </span>{
-                    Context::Device(<span class="kw-2">ref </span>device) =&gt; device.name.as_str(),
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-                })
+            </span><span class="string">&quot;contexts.device.name&quot; </span>=&gt; get_device_context(<span class="self">self</span>)
+                .and_then(|device| device.name.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.device.family&quot; </span>=&gt; <span class="self">self
-                </span>.contexts
-                .value()
-                .and_then(|contexts| contexts.get(<span class="string">&quot;device&quot;</span>))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| <span class="kw">match </span>context.<span class="number">0 </span>{
-                    Context::Device(<span class="kw-2">ref </span>device) =&gt; device.family.as_str(),
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-                })
+            <span class="string">&quot;contexts.device.family&quot; </span>=&gt; get_device_context(<span class="self">self</span>)
+                .and_then(|device| device.family.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.os.name&quot; </span>=&gt; <span class="self">self
-                </span>.contexts
-                .value()
-                .and_then(|contexts| contexts.get(<span class="string">&quot;os&quot;</span>))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| <span class="kw">match </span>context.<span class="number">0 </span>{
-                    Context::Os(<span class="kw-2">ref </span>os) =&gt; os.name.as_str(),
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-                })
+            <span class="string">&quot;contexts.os.name&quot; </span>=&gt; get_os_context(<span class="self">self</span>)
+                .and_then(|os| os.name.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.os.version&quot; </span>=&gt; <span class="self">self
-                </span>.contexts
-                .value()
-                .and_then(|contexts| contexts.get(<span class="string">&quot;os&quot;</span>))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| <span class="kw">match </span>context.<span class="number">0 </span>{
-                    Context::Os(<span class="kw-2">ref </span>os) =&gt; os.version.as_str(),
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-                })
+            <span class="string">&quot;contexts.os.version&quot; </span>=&gt; get_os_context(<span class="self">self</span>)
+                .and_then(|os| os.version.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.trace.op&quot; </span>=&gt; <span class="kw">match </span>(<span class="self">self</span>.ty.value(), store::get_transaction_op(<span class="self">self</span>)) {
-                (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction), <span class="prelude-val">Some</span>(op_name)) =&gt; Value::String(op_name.to_owned()),
-                <span class="kw">_ </span>=&gt; Value::Null,
-            },
+            <span class="string">&quot;contexts.browser.name&quot; </span>=&gt; get_browser_context(<span class="self">self</span>)
+                .and_then(|browser| browser.name.as_str())
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;contexts.browser.version&quot; </span>=&gt; get_browser_context(<span class="self">self</span>)
+                .and_then(|browser| browser.version.as_str())
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;contexts.trace.status&quot; </span>=&gt; get_trace_context(<span class="self">self</span>)
+                .and_then(|trace| trace.status.value())
+                .map_or(Value::Null, |status| status.as_str().into()),
+            <span class="string">&quot;contexts.trace.op&quot; </span>=&gt; get_trace_context(<span class="self">self</span>)
+                .and_then(|trace| trace.op.as_str())
+                .map_or(Value::Null, Value::from),
+            <span class="string">&quot;contexts.response.status_code&quot; </span>=&gt; get_response_context(<span class="self">self</span>)
+                .and_then(|response| response.status_code.value().copied())
+                .map_or(Value::Null, Value::from),
 
             <span class="comment">// Computed fields (see Discover)
             </span><span class="string">&quot;duration&quot; </span>=&gt; <span class="kw">match </span>(<span class="self">self</span>.ty.value(), store::validate_timestamps(<span class="self">self</span>)) {
@@ -4407,7 +4535,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(rest) = field_name.strip_prefix(<span class="string">&quot;measurements.&quot;</span>) {
                     rest.strip_suffix(<span class="string">&quot;.value&quot;</span>)
                         .filter(|measurement_name| !measurement_name.is_empty())
-                        .and_then(|measurement_name| store::get_measurement(<span class="self">self</span>, measurement_name))
+                        .and_then(|measurement_name| get_measurement(<span class="self">self</span>, measurement_name))
                         .map_or(Value::Null, Value::from)
                 } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = field_name.strip_prefix(<span class="string">&quot;breakdowns.&quot;</span>) {
                     rest.split_once(<span class="string">&#39;.&#39;</span>)

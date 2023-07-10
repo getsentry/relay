@@ -150,9 +150,6 @@
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
 <a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_general::protocol::{Context, ContextInner, Event, Span, TraceContext, User};
 <span class="kw">use </span>relay_general::types::Annotated;
 
@@ -287,14 +284,11 @@
 </span>}
 
 <span class="kw">pub fn </span>get_trace_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TraceContext&gt; {
-    <span class="kw">let </span>contexts = event.contexts.value()<span class="question-mark">?</span>;
-    <span class="kw">let </span>trace = contexts.get(<span class="string">&quot;trace&quot;</span>).and_then(Annotated::value);
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(trace_context))) = trace {
-        <span class="kw">return </span><span class="prelude-val">Some</span>(trace_context.as_ref());
+    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;trace&quot;</span>)<span class="question-mark">? </span>{
+        Context::Trace(<span class="kw-2">ref </span>trace_context) =&gt; <span class="prelude-val">Some</span>(trace_context),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
-
-    <span class="prelude-val">None
-</span>}
+}
 
 <span class="kw">pub fn </span>extract_transaction_op(trace_context: <span class="kw-2">&amp;</span>TraceContext) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>op = trace_context.op.value()<span class="question-mark">?</span>;

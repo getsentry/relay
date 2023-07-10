@@ -3267,22 +3267,6 @@
 <a href="#3267" id="3267">3267</a>
 <a href="#3268" id="3268">3268</a>
 <a href="#3269" id="3269">3269</a>
-<a href="#3270" id="3270">3270</a>
-<a href="#3271" id="3271">3271</a>
-<a href="#3272" id="3272">3272</a>
-<a href="#3273" id="3273">3273</a>
-<a href="#3274" id="3274">3274</a>
-<a href="#3275" id="3275">3275</a>
-<a href="#3276" id="3276">3276</a>
-<a href="#3277" id="3277">3277</a>
-<a href="#3278" id="3278">3278</a>
-<a href="#3279" id="3279">3279</a>
-<a href="#3280" id="3280">3280</a>
-<a href="#3281" id="3281">3281</a>
-<a href="#3282" id="3282">3282</a>
-<a href="#3283" id="3283">3283</a>
-<a href="#3284" id="3284">3284</a>
-<a href="#3285" id="3285">3285</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3511,22 +3495,6 @@
         }
 
         <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="doccomment">/// Get the value for a measurement, e.g. lcp -&gt; event.measurements.lcp
-</span><span class="kw">pub fn </span>get_measurement(transaction: <span class="kw-2">&amp;</span>Event, name: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
-    <span class="kw">let </span>measurements = transaction.measurements.value()<span class="question-mark">?</span>;
-    <span class="kw">let </span>annotated = measurements.get(name)<span class="question-mark">?</span>;
-    <span class="kw">let </span>value = annotated.value().and_then(|m| m.value.value())<span class="question-mark">?</span>;
-    <span class="prelude-val">Some</span>(<span class="kw-2">*</span>value)
-}
-
-<span class="kw">pub fn </span>get_transaction_op(transaction: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-    <span class="kw">let </span>context = transaction.contexts.value()<span class="question-mark">?</span>.get(<span class="string">&quot;trace&quot;</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
-    <span class="kw">match </span><span class="kw-2">**</span>context {
-        Context::Trace(<span class="kw-2">ref </span>trace_context) =&gt; <span class="prelude-val">Some</span>(trace_context.op.value()<span class="question-mark">?</span>),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
 }
 

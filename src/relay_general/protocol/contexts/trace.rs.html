@@ -444,7 +444,7 @@
         </span><span class="self">Self</span>: Sized,
         S: Serializer,
     {
-        Serialize::serialize(<span class="kw-2">&amp;</span><span class="self">self</span>.to_string(), s)
+        Serialize::serialize(<span class="self">self</span>.as_str(), s)
     }
 }
 
