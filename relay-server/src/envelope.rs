@@ -538,7 +538,7 @@ impl Item {
     pub fn outcome_category(&self, indexed: bool) -> Option<DataCategory> {
         match self.ty() {
             ItemType::Event => Some(DataCategory::Error),
-            ItemType::Transaction => Some(if dbg!(indexed) {
+            ItemType::Transaction => Some(if indexed {
                 DataCategory::TransactionIndexed
             } else {
                 DataCategory::Transaction

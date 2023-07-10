@@ -2077,7 +2077,7 @@ impl EnvelopeProcessorService {
         let project_config = state.project_state.config();
         let extraction_config = match project_config.transaction_metrics {
             Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => config,
-            _ => return dbg!(Ok(())),
+            _ => return Ok(()),
         };
 
         let extract_spans_metrics = state
@@ -2090,7 +2090,7 @@ impl EnvelopeProcessorService {
             .dsc()
             .and_then(|dsc| dsc.transaction.as_deref());
 
-        if let Some(event) = dbg!(state.event.value_mut()) {
+        if let Some(event) = state.event.value_mut() {
             let result;
             metric!(
                 timer(RelayTimers::TransactionMetricsExtraction),
@@ -2112,7 +2112,7 @@ impl EnvelopeProcessorService {
                 }
             );
 
-            dbg!(result?);
+            result?;
 
             state.transaction_metrics_extracted = true;
             state.managed_envelope.set_event_metrics_extracted();
@@ -2258,25 +2258,21 @@ impl EnvelopeProcessorService {
         // - Computing the actual sampling decision on an incoming transaction.
         match state.event_type().unwrap_or_default() {
             EventType::Default | EventType::Error => {
-                dbg!("hey");
                 self.tag_error_with_sampling_decision(state);
             }
             EventType::Transaction => {
                 if let Some(ErrorBoundary::Ok(config)) =
-                    dbg!(&state.project_state.config.transaction_metrics)
+                    &state.project_state.config.transaction_metrics
                 {
                     if config.is_enabled() {
                         self.compute_sampling_decision(state);
                     }
                 } else {
                     self.compute_sampling_decision(state);
-                    dbg!("nope");
                 }
             }
 
-            _ => {
-                dbg!("!!@#!@#");
-            }
+            _ => {}
         }
     }
 
