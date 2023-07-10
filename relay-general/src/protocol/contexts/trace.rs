@@ -186,7 +186,7 @@ impl IntoValue for SpanStatus {
         Self: Sized,
         S: Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(self.as_str(), s)
     }
 }
 
