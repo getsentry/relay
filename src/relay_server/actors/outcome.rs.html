@@ -951,6 +951,7 @@
 <a href="#951" id="951">951</a>
 <a href="#952" id="952">952</a>
 <a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final &quot;fate&quot; of an envelope item. As such, for every item exactly one
@@ -1766,6 +1767,7 @@
             topic,
             organization_id,
             key.as_bytes(),
+            <span class="prelude-val">None</span>,
             <span class="string">&quot;outcome&quot;</span>,
             payload.as_bytes(),
         );
