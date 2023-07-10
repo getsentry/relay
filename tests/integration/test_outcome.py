@@ -1213,7 +1213,7 @@ def test_profile_outcomes(
 
     metrics = [
         m
-        for m in metrics_consumer.get_metrics()
+        for m, _ in metrics_consumer.get_metrics()
         if m["name"] == "d:transactions/duration@millisecond"
     ]
     assert len(metrics) == 2

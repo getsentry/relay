@@ -813,6 +813,7 @@ impl OutcomeBroker {
             topic,
             organization_id,
             key.as_bytes(),
+            None,
             "outcome",
             payload.as_bytes(),
         );
