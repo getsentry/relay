@@ -448,6 +448,11 @@ impl Project {
         }
     }
 
+    /// Return `true` if the backoff currently in progress.
+    pub fn backoff_started(&self) -> bool {
+        self.backoff.started()
+    }
+
     /// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
     pub fn next_fetch_attempt(&self) -> Option<Instant> {
         self.next_fetch_attempt

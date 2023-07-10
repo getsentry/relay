@@ -467,6 +467,10 @@ struct ProjectCacheBroker {
 }
 
 impl ProjectCacheBroker {
+    /// Hours to wait till the [`ProjectState`] is evictd from the cache if the current incident is
+    /// ongoing, e.g. backoff is initiated and new proejct state cannot be fetched.
+    const INCIDENT_EVICTON_TIMEOUT: u32 = 12;
+
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
         self.index.entry(key.own_key).or_default().insert(key);
@@ -526,11 +530,16 @@ impl ProjectCacheBroker {
     /// [`super::project_upstream`].
     fn evict_stale_project_caches(&mut self) {
         let eviction_start = Instant::now();
-        let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
+        let mut delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
-        let expired = self
-            .projects
-            .drain_filter(|_, entry| entry.last_updated_at() + delta <= eviction_start);
+        let expired = self.projects.drain_filter(|_, entry| {
+            // If for some reasons the project cannot be updated, we avoid evicting its envelopes
+            // for the next 12 hours.
+            if entry.backoff_started() {
+                delta *= Self::INCIDENT_EVICTON_TIMEOUT
+            }
+            entry.last_updated_at() + delta <= eviction_start
+        });
 
         // Defer dropping the projects to a dedicated thread:
         let mut count = 0;
