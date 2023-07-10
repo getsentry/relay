@@ -8,7 +8,7 @@ use relay_common::SpanStatus;
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{
-    Context, ContextInner, Event, EventType, Span, Timestamp, TraceContext, TransactionSource,
+    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
 };
 use crate::store::regexes::{
     REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
