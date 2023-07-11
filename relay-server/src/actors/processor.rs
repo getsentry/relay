@@ -1853,13 +1853,12 @@ impl EnvelopeProcessorService {
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
 
-                let otel_context = event
+                let has_otel = event
                     .contexts
                     .value()
-                    .and_then(|contexts| contexts.get("otel"))
-                    .and_then(Annotated::value);
+                    .map_or(false, |contexts| contexts.has("otel"));
 
-                if otel_context.is_some() {
+                if has_otel {
                     metric!(
                         counter(RelayCounters::OpenTelemetryEvent) += 1,
                         sdk = envelope.meta().client_name().unwrap_or("proprietary"),
@@ -3435,7 +3434,7 @@ mod tests {
         assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
         // But we still get correct browser and version number
         let contexts = event.contexts.into_value().unwrap();
-        let browser = contexts.get("browser").unwrap();
+        let browser = contexts.0.get("browser").unwrap();
         assert_eq!(
             r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
             browser.to_json().unwrap()

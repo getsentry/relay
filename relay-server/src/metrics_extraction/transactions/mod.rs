@@ -2,11 +2,8 @@ use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{TaggingRule, TransactionMetricsConfig};
-use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource,
-};
+use relay_general::protocol::{AsPair, Context, Event, TraceContext, TransactionSource};
 use relay_general::store;
-use relay_general::types::Annotated;
 use relay_metrics::{AggregatorConfig, Metric};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -40,10 +37,8 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 
 /// Extract the browser name from the [`Context::Browser`] context.
 fn extract_browser_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let browser = contexts.get("browser").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Browser(browser_context))) = browser {
-        return browser_context.name.value().cloned();
+    if let Context::Browser(browser) = event.contexts.value()?.get_context("browser")? {
+        return browser.name.value().cloned();
     }
 
     None
@@ -51,10 +46,8 @@ fn extract_browser_name(event: &Event) -> Option<String> {
 
 /// Extract the OS name from the [`Context::Os`] context.
 fn extract_os_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let os = contexts.get("os").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Os(os_context))) = os {
-        return os_context.name.value().cloned();
+    if let Context::Os(os) = event.contexts.value()?.get_context("os")? {
+        return os.name.value().cloned();
     }
 
     None

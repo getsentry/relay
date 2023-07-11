@@ -1,5 +1,4 @@
-use relay_general::protocol::{Context, ContextInner, Event, Span, TraceContext, User};
-use relay_general::types::Annotated;
+use relay_general::protocol::{Context, Event, Span, TraceContext, User};
 
 /// Extract the HTTP status code from the span data.
 pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
@@ -69,8 +68,7 @@ pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
 
     // For SDKs which put the HTTP status code in the `Response` context.
     if let Some(contexts) = event.contexts.value() {
-        let response = contexts.get("response").and_then(Annotated::value);
-        if let Some(ContextInner(Context::Response(response_context))) = response {
+        if let Some(Context::Response(response_context)) = contexts.get_context("response") {
             let status_code = response_context
                 .status_code
                 .value()

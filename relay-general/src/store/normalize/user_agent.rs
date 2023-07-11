@@ -34,13 +34,13 @@ pub fn normalize_user_agent_info_generic(
     platform: &Annotated<String>,
     user_agent_info: &RawUserAgentInfo<&str>,
 ) {
-    if !contexts.contains_key(BrowserContext::default_key()) {
+    if !contexts.has(BrowserContext::default_key()) {
         if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
             contexts.add(Context::Browser(Box::new(browser_context)));
         }
     }
 
-    if !contexts.contains_key(DeviceContext::default_key()) {
+    if !contexts.has(DeviceContext::default_key()) {
         if let Some(device_context) = DeviceContext::from_hints_or_ua(user_agent_info) {
             contexts.add(Context::Device(Box::new(device_context)));
         }
@@ -56,12 +56,9 @@ pub fn normalize_user_agent_info_generic(
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
     };
-    if !contexts.contains_key(os_context_key) {
+    if !contexts.has(os_context_key) {
         if let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
-            contexts.insert(
-                os_context_key.to_owned(),
-                Annotated::new(Context::Os(Box::new(os_context)).into()),
-            );
+            contexts.insert(os_context_key.to_owned(), Context::Os(Box::new(os_context)));
         }
     }
 }
@@ -143,7 +140,7 @@ mod tests {
     fn test_skip_unrecognizable_user_agent() {
         let mut event = testutils::get_event_with_user_agent("a dont no");
         normalize_user_agent(&mut event);
-        assert!(event.contexts.value().unwrap().is_empty());
+        assert!(event.contexts.value().unwrap().0.is_empty());
     }
 
     #[test]

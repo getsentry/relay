@@ -3,8 +3,7 @@ use std::collections::BTreeMap;
 use chrono::SecondsFormat;
 
 use relay_common::SpanStatus;
-use relay_general::protocol::{AppContext, AsPair, Context, ContextInner, Event, TraceContext};
-use relay_general::types::Annotated;
+use relay_general::protocol::{AppContext, AsPair, Context, Event, TraceContext};
 
 pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
@@ -96,27 +95,27 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 }
 
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    let contexts = event.contexts.value()?;
-    let trace = contexts
-        .get(TraceContext::default_key())
-        .and_then(Annotated::value);
-    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
-        return Some(trace_context.as_ref());
-    }
+    let context = event
+        .contexts
+        .value()?
+        .get_context(TraceContext::default_key())?;
 
-    None
+    match context {
+        Context::Trace(app) => Some(app),
+        _ => None,
+    }
 }
 
 fn get_app_context(event: &Event) -> Option<&AppContext> {
-    let contexts = event.contexts.value()?;
-    let app = contexts
-        .get(AppContext::default_key())
-        .and_then(Annotated::value);
-    if let Some(ContextInner(Context::App(app_context))) = app {
-        return Some(app_context.as_ref());
-    }
+    let context = event
+        .contexts
+        .value()?
+        .get_context(AppContext::default_key())?;
 
-    None
+    match context {
+        Context::App(app) => Some(app),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

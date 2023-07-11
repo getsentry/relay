@@ -158,58 +158,90 @@ impl From<Context> for ContextInner {
 pub struct Contexts(pub Object<ContextInner>);
 
 impl Contexts {
+    /// Creates an empty contexts map.
     pub fn new() -> Contexts {
         Contexts(Object::<ContextInner>::new())
     }
 
-    /// Adds a context to self under the default key for the Context
+    /// Inserts a context under the default key for the context.
+    // TODO(ja): Make this the context trait instead
     pub fn add(&mut self, context: Context) {
         if let Some(key) = context.default_key() {
-            self.insert(key.to_owned(), Annotated::new(ContextInner(context)));
+            self.insert(key.to_owned(), context);
         }
     }
 
+    /// Inserts a context under a custom given key.
+    ///
+    /// By convention, every typed context has a default key that it is inserted with. Use
+    /// [`add`](Self::add) to insert such contexts, instead.
+    // TODO(ja): Make this the context trait instead
+    pub fn insert(&mut self, key: String, context: Context) {
+        self.0.insert(key, Annotated::new(ContextInner(context)));
+    }
+
+    /// Returns `true` if a context with the provided key is present in the map.
+    pub fn has<S>(&self, key: S) -> bool
+    where
+        S: AsRef<str>,
+    {
+        self.0.contains_key(key.as_ref())
+    }
+
     /// Returns the context at the specified key or constructs it if not present.
+    // TODO(ja): Add an alternate API that returns a directly casted context
     pub fn get_or_insert_with<F, S>(&mut self, key: S, context_builder: F) -> &mut Context
     where
         F: FnOnce() -> Context,
         S: Into<String>,
     {
         &mut *self
+            .0
             .entry(key.into())
             .or_insert_with(Annotated::empty)
             .value_mut()
             .get_or_insert_with(|| ContextInner(context_builder()))
     }
 
+    /// Returns a mutable reference to the context specified by `key`.
     pub fn get_context_mut<S>(&mut self, key: S) -> Option<&mut Context>
     where
         S: AsRef<str>,
     {
-        Some(&mut self.get_mut(key.as_ref())?.value_mut().as_mut()?.0)
+        Some(&mut self.0.get_mut(key.as_ref())?.value_mut().as_mut()?.0)
     }
 
+    /// Returns a reference to the context specified by `key`.
     pub fn get_context<S>(&self, key: S) -> Option<&Context>
     where
         S: AsRef<str>,
     {
-        Some(&self.get(key.as_ref())?.value().as_ref()?.0)
+        Some(&self.0.get(key.as_ref())?.value().as_ref()?.0)
+    }
+
+    /// Removes a context from the map, returning the context it was previously in the map.
+    pub fn remove<S>(&mut self, key: S) -> Option<Context>
+    where
+        S: AsRef<str>,
+    {
+        let inner = self.0.remove(key.as_ref())?;
+        Some(inner.into_value()?.0)
     }
 }
 
-impl std::ops::Deref for Contexts {
-    type Target = Object<ContextInner>;
+// impl std::ops::Deref for Contexts {
+//     type Target = Object<ContextInner>;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
 
-impl std::ops::DerefMut for Contexts {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+// impl std::ops::DerefMut for Contexts {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.0
+//     }
+// }
 
 impl FromValue for Contexts {
     fn from_value(mut annotated: Annotated<Value>) -> Annotated<Self> {

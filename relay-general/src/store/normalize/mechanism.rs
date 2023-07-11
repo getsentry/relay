@@ -1,6 +1,6 @@
 #[cfg(test)]
 use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};
-use crate::protocol::{Context, ContextInner, Event, Mechanism};
+use crate::protocol::{Context, Event, Mechanism};
 use crate::types::{Annotated, Error, ProcessingAction, ProcessingResult};
 
 fn get_errno_name(errno: i64, os_hint: OsHint) -> Option<&'static str> {
@@ -580,11 +580,9 @@ impl OsHint {
         }
 
         if let Some(contexts) = event.contexts.value() {
-            if let Some(context) = contexts.get("os") {
-                if let Some(&ContextInner(Context::Os(ref os_context))) = context.value() {
-                    if let Some(name) = os_context.name.as_str() {
-                        return Self::from_name(name);
-                    }
+            if let Some(Context::Os(ref os_context)) = contexts.get_context("os") {
+                if let Some(name) = os_context.name.as_str() {
+                    return Self::from_name(name);
                 }
             }
         }

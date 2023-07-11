@@ -649,16 +649,9 @@ mod tests {
         let mut processor = TrimmingProcessor::new();
         process_value(&mut contexts, &mut processor, ProcessingState::root()).unwrap();
 
+        let contexts = contexts.value().unwrap();
         for i in 1..2 {
-            let other = match contexts
-                .value()
-                .unwrap()
-                .get(&format!("despacito{i}"))
-                .unwrap()
-                .value()
-                .unwrap()
-                .0
-            {
+            let other = match contexts.get_context(&format!("despacito{i}")).unwrap() {
                 Context::Other(ref x) => x,
                 _ => panic!("Context has changed type!"),
             };

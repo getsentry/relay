@@ -1286,10 +1286,9 @@ impl DynamicSamplingContext {
         }
 
         let contexts = event.contexts.value()?;
-        let context = contexts.get(TraceContext::default_key())?.value()?;
-        let Context::Trace(ref trace) = context.0 else { return None };
-        let trace_id = trace.trace_id.value()?;
-        let trace_id = trace_id.0.parse().ok()?;
+        let context = contexts.get_context(TraceContext::default_key())?;
+        let Context::Trace(ref trace) = context else { return None };
+        let trace_id = trace.trace_id.value()?.0.parse().ok()?;
 
         let user = event.user.value();
 

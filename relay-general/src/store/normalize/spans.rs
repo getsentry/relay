@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
-use crate::protocol::{Context, ContextInner, Contexts, Event, Span, SpanId};
+use crate::protocol::{Context, Contexts, Event, Span, SpanId};
 use crate::store::normalize::breakdowns::TimeWindowSpan;
 use crate::types::{Annotated, SpanAttribute};
 
@@ -44,14 +44,12 @@ fn set_event_exclusive_time(
     contexts: &mut Contexts,
     span_map: &HashMap<SpanId, Vec<TimeWindowSpan>>,
 ) {
-    let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
-        Some(Some(ContextInner(Context::Trace(trace_context)))) => trace_context,
-        _ => return,
+    let Some(Context::Trace(trace_context)) = contexts.get_context_mut("trace") else {
+        return
     };
 
-    let span_id = match trace_context.span_id.value() {
-        Some(span_id) => span_id,
-        _ => return,
+    let Some(span_id) = trace_context.span_id.value() else {
+        return
     };
 
     let child_intervals = span_map
@@ -200,33 +198,24 @@ mod tests {
         })
     }
 
-    fn extract_exclusive_time(span: Span) -> (SpanId, f64) {
+    fn extract_exclusive_time(span: &Span) -> (&SpanId, f64) {
         (
-            span.span_id.into_value().unwrap(),
-            span.exclusive_time.into_value().unwrap(),
+            span.span_id.value().unwrap(),
+            *span.exclusive_time.value().unwrap(),
         )
     }
 
-    fn extract_span_exclusive_times(event: Event) -> HashMap<SpanId, f64> {
-        let mut exclusive_times: HashMap<SpanId, f64> = event
-            .clone()
-            .spans
-            .into_value()
-            .unwrap()
-            .into_iter()
-            .map(|span| extract_exclusive_time(span.into_value().unwrap()))
+    fn extract_span_exclusive_times(event: &Event) -> HashMap<&SpanId, f64> {
+        let spans = event.spans.value().unwrap();
+        let mut exclusive_times: HashMap<_, _> = spans
+            .iter()
+            .filter_map(Annotated::value)
+            .map(extract_exclusive_time)
             .collect();
 
-        let context = event
-            .contexts
-            .into_value()
-            .unwrap()
-            .get("trace")
-            .unwrap()
-            .clone();
-
-        if let Context::Trace(trace_context) = &*context.into_value().unwrap() {
-            let transaction_span_id: SpanId = trace_context.span_id.value().unwrap().clone();
+        let context = event.contexts.value().unwrap().get_context("trace");
+        if let Context::Trace(ref trace_context) = context.unwrap() {
+            let transaction_span_id = trace_context.span_id.value().unwrap();
             let transaction_exclusive_time = *trace_context.exclusive_time.value().unwrap();
             exclusive_times.insert(transaction_span_id, transaction_exclusive_time);
         }
@@ -269,31 +258,16 @@ mod tests {
         );
 
         // do not insert `exclusive-time`
-        let config = BTreeSet::new();
+        normalize_spans(&mut event, &BTreeSet::default());
 
-        normalize_spans(&mut event, &config);
-
-        let context = event
-            .contexts
-            .into_value()
-            .unwrap()
-            .get("trace")
-            .unwrap()
-            .clone();
-
-        if let Context::Trace(trace_context) = &*context.into_value().unwrap() {
+        let context = event.contexts.value().unwrap().get_context("trace");
+        if let Context::Trace(ref trace_context) = context.unwrap() {
             assert!(trace_context.exclusive_time.value().is_none());
         }
 
-        let has_exclusive_times: Vec<bool> = event
-            .spans
-            .into_value()
-            .unwrap()
-            .into_iter()
-            .map(|span| span.into_value().unwrap().exclusive_time.value().is_none())
-            .collect();
-
-        assert_eq!(has_exclusive_times, vec![true, true, true]);
+        for span in event.spans.value().unwrap() {
+            assert_eq!(span.value().unwrap().exclusive_time.value(), None)
+        }
     }
 
     #[test]
@@ -332,22 +306,16 @@ mod tests {
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
-
         normalize_spans(&mut event, &config);
 
-        let exclusive_times = extract_span_exclusive_times(event);
-
         assert_eq!(
-            exclusive_times,
-            vec![
-                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 1123.0),
-                (SpanId("bbbbbbbbbbbbbbbb".to_string()), 3000.0),
-                (SpanId("cccccccccccccccc".to_string()), 2500.0),
-                (SpanId("dddddddddddddddd".to_string()), 1877.0)
-            ]
-            .iter()
-            .cloned()
-            .collect()
+            extract_span_exclusive_times(&event),
+            HashMap::from_iter([
+                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 1123.0),
+                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 3000.0),
+                (&SpanId("cccccccccccccccc".to_string()), 2500.0),
+                (&SpanId("dddddddddddddddd".to_string()), 1877.0)
+            ]),
         );
     }
 
@@ -387,22 +355,16 @@ mod tests {
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
-
         normalize_spans(&mut event, &config);
 
-        let exclusive_times = extract_span_exclusive_times(event);
-
         assert_eq!(
-            exclusive_times,
-            vec![
-                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
-                (SpanId("cccccccccccccccc".to_string()), 400.0),
-                (SpanId("dddddddddddddddd".to_string()), 200.0),
-            ]
-            .iter()
-            .cloned()
-            .collect()
+            extract_span_exclusive_times(&event),
+            HashMap::from_iter([
+                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
+                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
+                (&SpanId("cccccccccccccccc".to_string()), 400.0),
+                (&SpanId("dddddddddddddddd".to_string()), 200.0),
+            ])
         );
     }
 
@@ -442,22 +404,16 @@ mod tests {
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
-
         normalize_spans(&mut event, &config);
 
-        let exclusive_times = extract_span_exclusive_times(event);
-
         assert_eq!(
-            exclusive_times,
-            vec![
-                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
-                (SpanId("cccccccccccccccc".to_string()), 400.0),
-                (SpanId("dddddddddddddddd".to_string()), 400.0),
-            ]
-            .iter()
-            .cloned()
-            .collect()
+            extract_span_exclusive_times(&event),
+            HashMap::from_iter([
+                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
+                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 400.0),
+                (&SpanId("cccccccccccccccc".to_string()), 400.0),
+                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+            ])
         );
     }
 
@@ -497,22 +453,16 @@ mod tests {
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
-
         normalize_spans(&mut event, &config);
 
-        let exclusive_times = extract_span_exclusive_times(event);
-
         assert_eq!(
-            exclusive_times,
-            vec![
-                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (SpanId("bbbbbbbbbbbbbbbb".to_string()), 1000.0),
-                (SpanId("cccccccccccccccc".to_string()), 400.0),
-                (SpanId("dddddddddddddddd".to_string()), 400.0),
-            ]
-            .iter()
-            .cloned()
-            .collect()
+            extract_span_exclusive_times(&event),
+            HashMap::from_iter([
+                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
+                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 1000.0),
+                (&SpanId("cccccccccccccccc".to_string()), 400.0),
+                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+            ])
         );
     }
 
@@ -552,22 +502,16 @@ mod tests {
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
-
         normalize_spans(&mut event, &config);
 
-        let exclusive_times = extract_span_exclusive_times(event);
-
         assert_eq!(
-            exclusive_times,
-            vec![
-                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (SpanId("bbbbbbbbbbbbbbbb".to_string()), 200.0),
-                (SpanId("cccccccccccccccc".to_string()), 600.0),
-                (SpanId("dddddddddddddddd".to_string()), 600.0),
-            ]
-            .iter()
-            .cloned()
-            .collect()
+            extract_span_exclusive_times(&event),
+            HashMap::from_iter([
+                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
+                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 200.0),
+                (&SpanId("cccccccccccccccc".to_string()), 600.0),
+                (&SpanId("dddddddddddddddd".to_string()), 600.0),
+            ])
         );
     }
 
@@ -607,22 +551,16 @@ mod tests {
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
-
         normalize_spans(&mut event, &config);
 
-        let exclusive_times = extract_span_exclusive_times(event);
-
         assert_eq!(
-            exclusive_times,
-            vec![
-                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (SpanId("bbbbbbbbbbbbbbbb".to_string()), 0.0),
-                (SpanId("cccccccccccccccc".to_string()), 800.0),
-                (SpanId("dddddddddddddddd".to_string()), 800.0),
-            ]
-            .iter()
-            .cloned()
-            .collect()
+            extract_span_exclusive_times(&event),
+            HashMap::from_iter([
+                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
+                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 0.0),
+                (&SpanId("cccccccccccccccc".to_string()), 800.0),
+                (&SpanId("dddddddddddddddd".to_string()), 800.0),
+            ])
         );
     }
 
@@ -664,22 +602,16 @@ mod tests {
 
         let mut config = BTreeSet::new();
         config.insert(SpanAttribute::ExclusiveTime);
-
         normalize_spans(&mut event, &config);
 
-        let exclusive_times = extract_span_exclusive_times(event);
-
         assert_eq!(
-            exclusive_times,
-            vec![
-                (SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
-                (SpanId("bbbbbbbbbbbbbbbb".to_string()), 600.0),
-                (SpanId("cccccccccccccccc".to_string()), 400.0),
-                (SpanId("dddddddddddddddd".to_string()), 400.0),
-            ]
-            .iter()
-            .cloned()
-            .collect()
+            extract_span_exclusive_times(&event),
+            HashMap::from_iter([
+                (&SpanId("aaaaaaaaaaaaaaaa".to_string()), 4000.0),
+                (&SpanId("bbbbbbbbbbbbbbbb".to_string()), 600.0),
+                (&SpanId("cccccccccccccccc".to_string()), 400.0),
+                (&SpanId("dddddddddddddddd".to_string()), 400.0),
+            ])
         );
     }
 }
