@@ -263,7 +263,7 @@ fn validate_transaction(event: &mut Event) -> ProcessingResult {
 
     let Some(trace_context) = event.context_mut::<TraceContext>() else {
         return Err(ProcessingAction::InvalidTransaction(
-            "context at event.contexts.trace must be of type trace.",
+            "missing valid trace context",
         ));
     };
 
@@ -767,7 +767,7 @@ mod tests {
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
-                "trace context hard-required for transaction events"
+                "missing valid trace context"
             ))
         );
     }
@@ -791,7 +791,7 @@ mod tests {
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
-                "trace context hard-required for transaction events"
+                "missing valid trace context"
             ))
         );
     }
@@ -819,7 +819,7 @@ mod tests {
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
-                "trace context hard-required for transaction events"
+                "missing valid trace context"
             ))
         );
     }
