@@ -18,6 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
@@ -220,16 +221,8 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     }
 }
 
-#[derive(Debug, Default)]
-struct ExtractedMetrics {
-    /// Metrics associated with the project that the transaction belongs to.
-    project_metrics: Vec<Metric>,
-    /// Metrics associated with the sampling project (a.k.a. root or head project)
-    /// which started the trace. See [`ProcessEnvelopeState::sampling_project_state`].
-    sampling_metrics: Vec<Metric>,
-}
-
 impl ExtractedMetrics {
+    // TODO(ja): Move
     fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
         let project_key = envelope.meta().public_key();
 
@@ -2064,82 +2057,73 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Extract metrics for transaction events with breakdowns and measurements.
-    fn extract_transaction_metrics(
-        &self,
-        state: &mut ProcessEnvelopeState,
-    ) -> Result<(), ProcessingError> {
-        if state.transaction_metrics_extracted {
-            // Nothing to do here.
-            return Ok(());
-        }
-
-        let project_config = state.project_state.config();
-        let extraction_config = match project_config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => config,
-            _ => return Ok(()),
-        };
-
-        let extract_spans_metrics = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction);
-
-        let transaction_from_dsc = state
-            .managed_envelope
-            .envelope()
-            .dsc()
-            .and_then(|dsc| dsc.transaction.as_deref());
-
-        if let Some(event) = state.event.value_mut() {
-            let result;
-            metric!(
-                timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = &result.unwrap_or(false).to_string(),
-                {
-                    // Actual logic outsourced for unit tests
-                    result = crate::metrics_extraction::transactions::extract_transaction_metrics(
-                        self.config.aggregator_config(),
-                        extraction_config,
-                        &project_config.metric_conditional_tagging,
-                        extract_spans_metrics,
-                        event,
-                        transaction_from_dsc,
-                        &state.sampling_result,
-                        state.has_profile,
-                        &mut state.extracted_metrics.project_metrics,
-                        &mut state.extracted_metrics.sampling_metrics,
-                    );
-                }
-            );
-
-            result?;
-
-            state.transaction_metrics_extracted = true;
-            state.managed_envelope.set_event_metrics_extracted();
-        }
-
-        Ok(())
-    }
-
     /// Extract metrics from all envelope items.
     ///
     /// Caveats:
     ///  - This functionality is incomplete. At this point, extraction is implemented only for
     ///    transaction events.
-    ///  - This function must run BEFORE `extract_transaction_metrics` to avoid double-extraction.
     fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let config = match state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
-            _ => return Ok(()),
-        };
+        // TODO: Make span metrics extraction immutable
+        if let Some(event) = state.event.value_mut() {
+            if state.transaction_metrics_extracted {
+                return Ok(());
+            }
 
-        if let Some(event) = state.event.value() {
-            // XXX: Since we only support transactions, we can skip generic metric extraction from
-            // events if transaction metrics have been extracted before.
-            if !state.transaction_metrics_extracted {
-                let metrics =
-                    crate::metrics_extraction::event::extract_event_metrics(event, config);
+            match state.project_state.config.metric_extraction {
+                ErrorBoundary::Ok(ref config) if config.is_enabled() => {
+                    let metrics =
+                        crate::metrics_extraction::event::extract_event_metrics(event, config);
+                    state.transaction_metrics_extracted |= !metrics.is_empty();
+                    state.extracted_metrics.project_metrics.extend(metrics);
+                }
+                _ => (),
+            }
+
+            match state.project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => {
+                    let transaction_from_dsc = state
+                        .managed_envelope
+                        .envelope()
+                        .dsc()
+                        .and_then(|dsc| dsc.transaction.as_deref());
+
+                    let extractor = TransactionExtractor {
+                        aggregator_config: self.config.aggregator_config(),
+                        config,
+                        transaction_from_dsc,
+                        sampling_result: &state.sampling_result,
+                        has_profile: state.has_profile,
+                    };
+
+                    let mut extracted = extractor.extract(event)?;
+
+                    // TODO: Move conditional tagging to generic metrics extraction
+                    let tagging_config = &state.project_state.config.metric_conditional_tagging;
+                    crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
+                        event,
+                        tagging_config,
+                        &mut extracted.project_metrics,
+                    );
+
+                    state.extracted_metrics.extend(extracted);
+                    state.transaction_metrics_extracted |= true;
+                }
+                _ => (),
+            }
+
+            if state
+                .project_state
+                .has_feature(Feature::SpanMetricsExtraction)
+            {
+                let metrics = crate::metrics_extraction::spans::extract_span_metrics(
+                    self.config.aggregator_config(),
+                    event,
+                )?;
                 state.extracted_metrics.project_metrics.extend(metrics);
+            }
+
+            if state.transaction_metrics_extracted {
+                state.managed_envelope.set_event_metrics_extracted();
             }
         }
 
@@ -2452,7 +2436,6 @@ impl EnvelopeProcessorService {
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
             self.extract_metrics(state)?;
-            self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
 
             if_processing!({
