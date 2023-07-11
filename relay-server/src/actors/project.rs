@@ -536,7 +536,7 @@ impl Project {
         if let Some(next_attempt_at) = self.next_fetch_attempt {
             return next_attempt_at <= Instant::now();
         }
-        // Initiate a first attemt.
+        // Initiate a first attempt.
         self.backoff.next_backoff();
         true
     }
@@ -965,7 +965,7 @@ mod tests {
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it's the first attemt, we get Duration of 0.
+        //   it's the first attempt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
