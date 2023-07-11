@@ -77,31 +77,6 @@ pub enum Context {
     Other(#[metastructure(pii = "true")] Object<Value>),
 }
 
-// impl Context {
-//     /// Represents the key under which a particular context type will be inserted in a Contexts object
-//     ///
-//     /// See [`Contexts::add`]
-//     pub fn default_key(&self) -> Option<&'static str> {
-//         match &self {
-//             Context::Device(_) => Some(DeviceContext::default_key()),
-//             Context::Os(_) => Some(OsContext::default_key()),
-//             Context::Runtime(_) => Some(RuntimeContext::default_key()),
-//             Context::App(_) => Some(AppContext::default_key()),
-//             Context::Browser(_) => Some(BrowserContext::default_key()),
-//             Context::Reprocessing(_) => Some(ReprocessingContext::default_key()),
-//             Context::Gpu(_) => Some(GpuContext::default_key()),
-//             Context::Trace(_) => Some(TraceContext::default_key()),
-//             Context::Profile(_) => Some(ProfileContext::default_key()),
-//             Context::Monitor(_) => Some(MonitorContext::default_key()),
-//             Context::Replay(_) => Some(ReplayContext::default_key()),
-//             Context::Response(_) => Some(ResponseContext::default_key()),
-//             Context::Otel(_) => Some(OtelContext::default_key()),
-//             Context::CloudResource(_) => Some(CloudResourceContext::default_key()),
-//             Context::Other(_) => None,
-//         }
-//     }
-// }
-
 /// Trait to get the Context both from the user agent string and also the new client hints.
 /// With an automatically derived function which tries to first get the context from client hints,
 /// if that fails it tries for the user agent string.
