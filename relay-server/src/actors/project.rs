@@ -532,10 +532,13 @@ impl Project {
     }
 
     /// Returns `true` if backoff expired and new attempt can be triggered.
-    fn can_fetch(&self) -> bool {
-        self.next_fetch_attempt
-            .map(|next_attempt_at| next_attempt_at <= Instant::now())
-            .unwrap_or(true)
+    fn can_fetch(&mut self) -> bool {
+        if let Some(next_attempt_at) = self.next_fetch_attempt {
+            return next_attempt_at <= Instant::now();
+        }
+        // Initiate a first attemt.
+        self.backoff.next_backoff();
+        true
     }
 
     /// Triggers a debounced refresh of the project state.
@@ -557,7 +560,7 @@ impl Project {
 
         if should_fetch {
             channel.no_cache(no_cache);
-            let attempts = self.backoff.attempt() + 1;
+            let attempts = self.backoff.attempt();
             relay_log::debug!(
                 "project {} state requested {attempts} times",
                 self.project_key
@@ -715,7 +718,7 @@ impl Project {
         // If the state is still invalid, return back the taken channel and schedule state update.
         if state.invalid() {
             self.state_channel = Some(channel);
-            let attempts = self.backoff.attempt() + 1;
+            let attempts = self.backoff.attempt();
             relay_log::debug!(
                 "project {} state requested {attempts} times",
                 self.project_key
