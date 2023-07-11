@@ -3332,19 +3332,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_sampled_with_incoming_invalid_boolean() {
-        let json = r#"
-        {
-            "trace_id": "00000000-0000-0000-0000-000000000000",
-            "public_key": "abd0f232775f45feab79864e580d160b",
-            "user_id": "hello",
-            "sampled": tru
-        }
-        "#;
-        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
-    }
-
-    #[test]
     fn test_parse_sampled_with_incoming_invalid_boolean_as_string() {
         let json = r#"
         {
@@ -3354,7 +3341,18 @@ mod tests {
             "sampled": "tru"
         }
         "#;
-        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "user_id": "hello",
+          "replay_id": None,
+        }
+        "###);
     }
 
     #[test]
