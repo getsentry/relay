@@ -13,6 +13,7 @@ use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
+use crate::actors::global_config::{GlobalConfigMessage, GlobalConfigService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -52,6 +53,7 @@ pub struct Registry {
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
+    pub global_config: Addr<GlobalConfigMessage>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
 }
@@ -186,6 +188,8 @@ impl ServiceState {
         .spawn_handler(project_cache_rx);
         drop(guard);
 
+        let global_config = GlobalConfigService::new(project_cache.clone()).start();
+
         let health_check = HealthCheckService::new(
             config.clone(),
             aggregator.clone(),
@@ -210,6 +214,7 @@ impl ServiceState {
             envelope_manager,
             test_store,
             relay_cache,
+            global_config,
             project_cache,
             upstream_relay,
         };
