@@ -1221,7 +1221,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
+        description: "DELETE FROM table WHERE conditions",
         op: "db",
         span_id: SpanId(
             "bb7af8b99e95af5f",
@@ -1236,14 +1236,8 @@ expression: event.value().unwrap().spans
         tags: ~,
         origin: ~,
         data: {
-            "db.operation": String(
-                "SELECT",
-            ),
             "db.system": String(
                 "MyDatabase",
-            ),
-            "description.scrubbed": String(
-                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
             ),
             "environment": String(
                 "fake_environment",
@@ -1255,19 +1249,81 @@ expression: event.value().unwrap().spans
                 "1.2.3",
             ),
             "span.action": String(
-                "SELECT",
+                "DELETE",
             ),
             "span.category": String(
                 "db",
             ),
-            "span.description": String(
-                "SELECT 'TABLE'.'col' FROM 'TABLE' WHERE 'TABLE'.'col' = %s",
-            ),
             "span.domain": String(
                 "table",
             ),
-            "span.group": String(
-                "8ea340ad7f24b50a",
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.system": String(
+                "mydatabase",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "UPDATE table WHERE conditions",
+        op: "db",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "db.system": String(
+                "MyDatabase",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "UPDATE",
+            ),
+            "span.category": String(
+                "db",
             ),
             "span.module": String(
                 "db",
@@ -1397,7 +1453,7 @@ expression: event.value().unwrap().spans
                 false,
             ),
             "description.scrubbed": String(
-                "GET cache:user:*",
+                "GET *",
             ),
             "environment": String(
                 "fake_environment",
@@ -1412,10 +1468,10 @@ expression: event.value().unwrap().spans
                 "cache",
             ),
             "span.description": String(
-                "GET cache:user:*",
+                "GET *",
             ),
             "span.group": String(
-                "325fa5feb926f121",
+                "37e3d9fab1ae9162",
             ),
             "span.module": String(
                 "cache",
@@ -1465,7 +1521,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "GET test:*:*",
+                "GET *",
             ),
             "environment": String(
                 "fake_environment",
@@ -1480,10 +1536,10 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "GET test:*:*",
+                "GET *",
             ),
             "span.group": String(
-                "2c1e35c1f77934da",
+                "37e3d9fab1ae9162",
             ),
             "span.module": String(
                 "db",
@@ -1552,6 +1608,74 @@ expression: event.value().unwrap().spans
             ),
             "span.group": String(
                 "37e3d9fab1ae9162",
+            ),
+            "span.module": String(
+                "db",
+            ),
+            "span.op": String(
+                "db.redis",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "SET 'aaa:bbb:123:zzz' '{\"from json\": \"no\"}'",
+        op: "db.redis",
+        span_id: SpanId(
+            "bb7af8b99e95af5f",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "description.scrubbed": String(
+                "SET *",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.category": String(
+                "db",
+            ),
+            "span.description": String(
+                "SET *",
+            ),
+            "span.group": String(
+                "46b2cac4b418f556",
             ),
             "span.module": String(
                 "db",

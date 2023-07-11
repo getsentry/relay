@@ -79,22 +79,21 @@ pub struct CustomMeasurementConfig {
 /// The version is an integer scalar, incremented by one on each new version.
 const TRANSACTION_EXTRACT_VERSION: u16 = 1;
 
-/// Defines whether URL transactions should be considered low cardinality.
+/// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum AcceptTransactionNames {
-    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
-    ClientBased,
-
     /// Only accept transaction names with a low-cardinality source.
-    /// Any value other than "clientBased" will be interpreted as "strict".
-    #[serde(other)]
     Strict,
+
+    /// For some SDKs, accept all transaction names, while for others, apply strict rules.
+    #[serde(other)]
+    ClientBased,
 }
 
 impl Default for AcceptTransactionNames {
     fn default() -> Self {
-        Self::Strict
+        Self::ClientBased
     }
 }
 
@@ -108,8 +107,10 @@ pub struct TransactionMetricsConfig {
     pub extract_custom_tags: BTreeSet<String>,
     /// Deprecated in favor of top-level config field. Still here to be forwarded to external relays.
     pub custom_measurements: CustomMeasurementConfig,
-    /// Defines whether URL transactions should be considered low cardinality.
-    pub accept_transaction_names: AcceptTransactionNames,
+    /// Deprecated. Defines whether URL transactions should be considered low cardinality.
+    /// Keep this around for external Relays.
+    #[serde(rename = "acceptTransactionNames")]
+    pub deprecated1: AcceptTransactionNames,
 }
 
 impl TransactionMetricsConfig {

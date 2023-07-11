@@ -14,7 +14,7 @@ use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
     ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
     RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
-    TransactionSource, User, Values,
+    User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -538,14 +538,11 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn get_transaction_source(&self) -> &TransactionSource {
-        self.transaction_info
-            .value()
-            .and_then(|info| info.source.value())
-            .unwrap_or(&TransactionSource::Unknown)
-    }
-
-    pub fn get_tag_value(&self, tag_key: &str) -> Option<&str> {
+    /// Returns the value of a tag with the given key.
+    ///
+    /// If tags are specified in a pair list and the tag is declared multiple times, this function
+    /// returns the first match.
+    pub fn tag_value(&self, tag_key: &str) -> Option<&str> {
         if let Some(tags) = self.tags.value() {
             tags.get(tag_key)
         } else {
@@ -553,6 +550,7 @@ impl Event {
         }
     }
 
+    /// Returns `true` if [`modules`](Self::modules) contains the given module.
     pub fn has_module(&self, module_name: &str) -> bool {
         self.modules
             .value()
@@ -560,6 +558,9 @@ impl Event {
             .unwrap_or(false)
     }
 
+    /// Returns the identifier of the client SDK if available.
+    ///
+    /// Sentry's own SDKs use a naming schema prefixed with `sentry.`. Defaults to `"unknown"`.
     pub fn sdk_name(&self) -> &str {
         if let Some(client_sdk) = self.client_sdk.value() {
             if let Some(name) = client_sdk.name.as_str() {
@@ -570,6 +571,9 @@ impl Event {
         "unknown"
     }
 
+    /// Returns the version of the client SDK if available.
+    ///
+    /// Defaults to `"unknown"`.
     pub fn sdk_version(&self) -> &str {
         if let Some(client_sdk) = self.client_sdk.value() {
             if let Some(version) = client_sdk.version.as_str() {
@@ -600,6 +604,10 @@ impl Event {
         }
 
         Some(value)
+    }
+
+    pub fn parse_release(&self) -> Option<crate::protocol::ParsedRelease> {
+        sentry_release_parser::Release::parse(self.release.as_str()?).ok()
     }
 }
 
