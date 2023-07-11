@@ -286,7 +286,7 @@ fn validate_transaction(event: &mut Event) -> ProcessingResult {
 /// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
 /// transaction names. These cases are considered as high-cardinality.
 ///
-/// See [https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19]
+/// See <https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19>
 const RUBY_URL_STATUSES: &[SpanStatus] = &[
     SpanStatus::InvalidArgument,
     SpanStatus::Unauthenticated,

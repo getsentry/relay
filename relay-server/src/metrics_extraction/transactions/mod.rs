@@ -37,13 +37,13 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     Some(method.clone())
 }
 
-/// Extract the browser name from the [`Context::Browser`] context.
+/// Extract the browser name from the [`BrowserContext`] context.
 fn extract_browser_name(event: &Event) -> Option<String> {
     let browser = event.context::<BrowserContext>()?;
     browser.name.value().cloned()
 }
 
-/// Extract the OS name from the [`Context::Os`] context.
+/// Extract the OS name from the [`OsContext`] context.
 fn extract_os_name(event: &Event) -> Option<String> {
     let os = event.context::<OsContext>()?;
     os.name.value().cloned()
