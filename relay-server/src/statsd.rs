@@ -312,10 +312,6 @@ pub enum RelayTimers {
     TimestampDelay,
     /// The time it takes the outcome aggregator to flush aggregated outcomes.
     OutcomeAggregatorFlushTime,
-
-    /// Time in milliseconds spent on converting a transaction event into a metric.
-    TransactionMetricsExtraction,
-
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
 }
@@ -347,7 +343,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
-            RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
         }
     }

@@ -194,7 +194,7 @@ impl Display for CommonTag {
     }
 }
 
-/// Error returned from [`super::extract_transaction_metrics`].
+/// Error returned from transaction metrics extraction.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ExtractMetricsError {
     /// The start or end timestamps are missing from the event payload.

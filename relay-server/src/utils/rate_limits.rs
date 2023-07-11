@@ -1122,7 +1122,7 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_transaction_metrics_extracted() {
+    fn test_enforce_event_metrics_extracted() {
         let mut envelope = envelope![Transaction];
         set_extracted(&mut envelope, ItemType::Transaction);
         let config = config_with_tx_metrics();
@@ -1156,7 +1156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_transaction_metrics_extracted_no_indexing_quota() {
+    fn test_enforce_event_metrics_extracted_no_indexing_quota() {
         let mut envelope = envelope![Transaction];
         set_extracted(&mut envelope, ItemType::Transaction);
         let config = config_with_tx_metrics();
