@@ -1245,9 +1245,9 @@ mod sampled_as_string {
             Value::String(str_value) if str_value == "true" => Ok(Some(true)),
             Value::String(str_value) if str_value == "false" => Ok(Some(false)),
             Value::Bool(bool_value) => Ok(Some(bool_value)),
-            _ => Err(serde::de::Error::custom(
-                "the `sampled` value can only be `true` or `false`",
-            )),
+            // Since we want to be extra lenient, we will silently fallback to `None` in case of
+            // any parsing issues.
+            _ => Ok(None),
         }
     }
 
