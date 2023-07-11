@@ -448,7 +448,7 @@ impl Project {
         }
     }
 
-    /// Return `true` if the backoff currently in progress.
+    /// Return `true` if the backoff is currently in progress.
     pub fn backoff_started(&self) -> bool {
         self.backoff.started()
     }

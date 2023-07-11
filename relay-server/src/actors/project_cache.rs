@@ -528,9 +528,10 @@ impl ProjectCacheBroker {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
-        // Remove only un-unsed project states.
-        // If the project cannot be fetched because of the network outage, still keep it and all
-        // linked envelopes if any.
+        // Remove only unsed project states.
+        //
+        // If the project cannot be fetched because of the network outage, etc., still keep it
+        // and all spooled envleopes if any.
         let expired = self.projects.drain_filter(|_, entry| {
             !entry.backoff_started() && entry.last_updated_at() + delta <= eviction_start
         });
