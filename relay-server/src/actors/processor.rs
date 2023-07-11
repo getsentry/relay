@@ -257,7 +257,7 @@ struct ProcessEnvelopeState {
     event: Annotated<Event>,
 
     /// Track whether transaction metrics were already extracted.
-    transaction_metrics_extracted: bool,
+    event_metrics_extracted: bool,
 
     /// Partial metrics of the Event during construction.
     ///
@@ -1355,7 +1355,7 @@ impl EnvelopeProcessorService {
 
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
-            transaction_metrics_extracted: false,
+            event_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
             sampling_result: SamplingResult::Keep,
@@ -1684,7 +1684,7 @@ impl EnvelopeProcessorService {
         } else if let Some(mut item) = transaction_item {
             relay_log::trace!("processing json transaction");
             sample_rates = item.take_sample_rates();
-            state.transaction_metrics_extracted = item.metrics_extracted();
+            state.event_metrics_extracted = item.metrics_extracted();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
@@ -2030,7 +2030,7 @@ impl EnvelopeProcessorService {
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         if let Some(category) = event_category {
-            envelope_limiter.assume_event(category, state.transaction_metrics_extracted);
+            envelope_limiter.assume_event(category, state.event_metrics_extracted);
         }
 
         let scoping = state.managed_envelope.scoping();
@@ -2065,7 +2065,7 @@ impl EnvelopeProcessorService {
     fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // TODO: Make span metrics extraction immutable
         if let Some(event) = state.event.value_mut() {
-            if state.transaction_metrics_extracted {
+            if state.event_metrics_extracted {
                 return Ok(());
             }
 
@@ -2073,7 +2073,7 @@ impl EnvelopeProcessorService {
                 ErrorBoundary::Ok(ref config) if config.is_enabled() => {
                     let metrics =
                         crate::metrics_extraction::event::extract_event_metrics(event, config);
-                    state.transaction_metrics_extracted |= !metrics.is_empty();
+                    state.event_metrics_extracted |= !metrics.is_empty();
                     state.extracted_metrics.project_metrics.extend(metrics);
                 }
                 _ => (),
@@ -2106,7 +2106,7 @@ impl EnvelopeProcessorService {
                     );
 
                     state.extracted_metrics.extend(extracted);
-                    state.transaction_metrics_extracted |= true;
+                    state.event_metrics_extracted |= true;
                 }
                 _ => (),
             }
@@ -2122,7 +2122,7 @@ impl EnvelopeProcessorService {
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
 
-            if state.transaction_metrics_extracted {
+            if state.event_metrics_extracted {
                 state.managed_envelope.set_event_metrics_extracted();
             }
         }
@@ -2222,7 +2222,7 @@ impl EnvelopeProcessorService {
         event_item.set_payload(ContentType::Json, data);
 
         // If transaction metrics were extracted, set the corresponding item header
-        event_item.set_metrics_extracted(state.transaction_metrics_extracted);
+        event_item.set_metrics_extracted(state.event_metrics_extracted);
 
         // If there are sample rates, write them back to the envelope. In processing mode, sample
         // rates have been removed from the state and burnt into the event via `finalize_event`.
@@ -2954,7 +2954,7 @@ mod tests {
 
             let mut state = ProcessEnvelopeState {
                 event: Annotated::from(event.clone()),
-                transaction_metrics_extracted: false,
+                event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
