@@ -146,7 +146,7 @@ pub struct Contexts(pub Object<ContextInner>);
 impl Contexts {
     /// Creates an empty contexts map.
     pub fn new() -> Contexts {
-        Contexts(Object::<ContextInner>::new())
+        Contexts(Object::new())
     }
 
     /// Inserts a context under the default key for the context.
@@ -265,15 +265,13 @@ mod tests {
     fn test_untagged_context_deserialize() {
         let json = r#"{"os": {"name": "Linux"}}"#;
 
-        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+        let mut map = Contexts::new();
+        map.add(Context::Os(Box::new(OsContext {
             name: Annotated::new("Linux".to_string()),
             ..Default::default()
-        }))));
-        let mut map = Object::new();
-        map.insert("os".to_string(), os_context);
-        let contexts = Annotated::new(Contexts(map));
+        })));
 
-        assert_eq!(contexts, Annotated::from_json(json).unwrap());
+        assert_eq!(Annotated::new(map), Annotated::from_json(json).unwrap());
     }
 
     #[test]
@@ -281,22 +279,17 @@ mod tests {
         let json =
             r#"{"os":{"name":"Linux","type":"os"},"runtime":{"name":"rustc","type":"runtime"}}"#;
 
-        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+        let mut map = Contexts::new();
+        map.add(Context::Os(Box::new(OsContext {
             name: Annotated::new("Linux".to_string()),
             ..Default::default()
-        }))));
+        })));
+        map.add(Context::Runtime(Box::new(RuntimeContext {
+            name: Annotated::new("rustc".to_string()),
+            ..Default::default()
+        })));
 
-        let runtime_context =
-            Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-                name: Annotated::new("rustc".to_string()),
-                ..Default::default()
-            }))));
-
-        let mut map = Object::new();
-        map.insert("os".to_string(), os_context);
-        map.insert("runtime".to_string(), runtime_context);
-        let contexts = Annotated::new(Contexts(map));
-
+        let contexts = Annotated::new(map);
         assert_eq!(contexts, Annotated::from_json(json).unwrap());
         assert_eq!(json, contexts.to_json().unwrap());
     }
@@ -304,18 +297,15 @@ mod tests {
     #[test]
     fn test_context_processing() {
         let mut event = Annotated::new(Event {
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "runtime".to_owned(),
-                    Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-                        name: Annotated::new("php".to_owned()),
-                        version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(Context::Runtime(Box::new(RuntimeContext {
+                    name: Annotated::new("php".to_owned()),
+                    version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
+                    ..Default::default()
+                })));
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 

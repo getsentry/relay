@@ -393,8 +393,8 @@ mod tests {
     use super::*;
     use crate::processor::MaxChars;
     use crate::protocol::{
-        Breadcrumb, Context, ContextInner, Contexts, Event, Exception, ExtraValue, Frame,
-        RawStacktrace, TagEntry, Tags, Values,
+        Breadcrumb, Context, Contexts, Event, Exception, ExtraValue, Frame, RawStacktrace,
+        TagEntry, Tags, Values,
     };
     use crate::types::{
         Annotated, Map, Meta, Object, Remark, RemarkType, SerializableAnnotated, Value,
@@ -629,7 +629,7 @@ mod tests {
 
     #[test]
     fn test_custom_context_trimming() {
-        let mut contexts = Object::new();
+        let mut contexts = Contexts::new();
         for i in 1..2 {
             contexts.insert(format!("despacito{i}"), {
                 let mut context = Object::new();
@@ -641,11 +641,11 @@ mod tests {
                     "bar".to_string(),
                     Annotated::new(Value::String("a".repeat(5000))),
                 );
-                Annotated::new(ContextInner(Context::Other(context)))
+                Context::Other(context)
             });
         }
 
-        let mut contexts = Annotated::new(Contexts(contexts));
+        let mut contexts = Annotated::new(contexts);
         let mut processor = TrimmingProcessor::new();
         process_value(&mut contexts, &mut processor, ProcessingState::root()).unwrap();
 

@@ -144,10 +144,8 @@ mod tests {
 
     use super::*;
     use crate::protocol::{
-        Context, ContextInner, Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext,
-        TraceId,
+        Context, Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext, TraceId,
     };
-    use crate::types::Object;
 
     fn make_event(
         start: Timestamp,
@@ -159,20 +157,15 @@ mod tests {
             ty: EventType::Transaction.into(),
             start_timestamp: Annotated::new(start),
             timestamp: Annotated::new(end),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId(span_id.into())),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(Context::Trace(Box::new(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId(span_id.into())),
+                    ..Default::default()
+                })));
+                Annotated::new(contexts)
+            },
             spans: spans.into(),
             ..Default::default()
         }
