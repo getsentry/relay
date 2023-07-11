@@ -337,6 +337,67 @@
 <a href="#337" id="337">337</a>
 <a href="#338" id="338">338</a>
 <a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">pub use </span>app::<span class="kw-2">*</span>;
 <span class="kw">mod </span>browser;
@@ -416,31 +477,6 @@
     </span>Other(<span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)] </span>Object&lt;Value&gt;),
 }
 
-<span class="kw">impl </span>Context {
-    <span class="doccomment">/// Represents the key under which a particular context type will be inserted in a Contexts object
-    ///
-    /// See [`Contexts::add`]
-    </span><span class="kw">pub fn </span>default_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
-            Context::Device(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(DeviceContext::default_key()),
-            Context::Os(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(OsContext::default_key()),
-            Context::Runtime(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(RuntimeContext::default_key()),
-            Context::App(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(AppContext::default_key()),
-            Context::Browser(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(BrowserContext::default_key()),
-            Context::Reprocessing(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ReprocessingContext::default_key()),
-            Context::Gpu(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(GpuContext::default_key()),
-            Context::Trace(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(TraceContext::default_key()),
-            Context::Profile(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ProfileContext::default_key()),
-            Context::Monitor(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(MonitorContext::default_key()),
-            Context::Replay(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ReplayContext::default_key()),
-            Context::Response(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(ResponseContext::default_key()),
-            Context::Otel(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(OtelContext::default_key()),
-            Context::CloudResource(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(CloudResourceContext::default_key()),
-            Context::Other(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-        }
-    }
-}
-
 <span class="doccomment">/// Trait to get the Context both from the user agent string and also the new client hints.
 /// With an automatically derived function which tries to first get the context from client hints,
 /// if that fails it tries for the user agent string.
@@ -458,27 +494,13 @@
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>ContextInner(<span class="attr">#[metastructure(bag_size = <span class="string">&quot;large&quot;</span>)] </span><span class="kw">pub </span>Context);
 
-<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>ContextInner {
-    <span class="kw">type </span>Target = Context;
-
-    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
-    </span>}
-}
-
-<span class="kw">impl </span>std::ops::DerefMut <span class="kw">for </span>ContextInner {
-    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
-    </span>}
-}
-
 <span class="kw">impl </span>From&lt;Context&gt; <span class="kw">for </span>ContextInner {
     <span class="kw">fn </span>from(c: Context) -&gt; ContextInner {
         ContextInner(c)
     }
 }
 
-<span class="doccomment">/// The Contexts Interface provides additional context data. Typically, this is data related to the
+<span class="doccomment">/// The Contexts interface provides additional context data. Typically, this is data related to the
 /// current user and the environment. For example, the device or application version. Its canonical
 /// name is `contexts`.
 ///
@@ -497,57 +519,138 @@
 </span><span class="kw">pub struct </span>Contexts(<span class="kw">pub </span>Object&lt;ContextInner&gt;);
 
 <span class="kw">impl </span>Contexts {
-    <span class="kw">pub fn </span>new() -&gt; Contexts {
-        Contexts(Object::&lt;ContextInner&gt;::new())
+    <span class="doccomment">/// Creates an empty contexts map.
+    </span><span class="kw">pub fn </span>new() -&gt; Contexts {
+        Contexts(Object::new())
     }
 
-    <span class="doccomment">/// Adds a context to self under the default key for the Context
-    </span><span class="kw">pub fn </span>add(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: Context) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = context.default_key() {
-            <span class="self">self</span>.insert(key.to_owned(), Annotated::new(ContextInner(context)));
+    <span class="doccomment">/// Inserts a context under the default key for the context.
+    </span><span class="kw">pub fn </span>add&lt;C&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, context: C)
+    <span class="kw">where
+        </span>C: DefaultContext,
+    {
+        <span class="self">self</span>.insert(C::default_key().to_owned(), context.into_context());
+    }
+
+    <span class="doccomment">/// Inserts a context under a custom given key.
+    ///
+    /// By convention, every typed context has a default key. Use [`add`](Self::add) to insert such
+    /// contexts, instead.
+    </span><span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: String, context: Context) {
+        <span class="self">self</span>.<span class="number">0</span>.insert(key, Annotated::new(ContextInner(context)));
+    }
+
+    <span class="doccomment">/// Returns `true` if a matching context resides in the map at its default key.
+    </span><span class="kw">pub fn </span>contains&lt;C&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool
+    <span class="kw">where
+        </span>C: DefaultContext,
+    {
+        <span class="comment">// Use `get` to perform a type check.
+        </span><span class="self">self</span>.get::&lt;C&gt;().is_some()
+    }
+
+    <span class="doccomment">/// Returns `true` if a context with the provided key is present in the map.
+    ///
+    /// By convention, every typed context has a default key. Use [`contains`](Self::contains) to
+    /// check such contexts, instead.
+    </span><span class="kw">pub fn </span>contains_key&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, key: S) -&gt; bool
+    <span class="kw">where
+        </span>S: AsRef&lt;str&gt;,
+    {
+        <span class="self">self</span>.<span class="number">0</span>.contains_key(key.as_ref())
+    }
+
+    <span class="doccomment">/// Returns the context at its default key or constructs it if not present.
+    </span><span class="kw">pub fn </span>get_or_default&lt;C&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>C
+    <span class="kw">where
+        </span>C: DefaultContext,
+    {
+        <span class="kw">if </span>!<span class="self">self</span>.contains::&lt;C&gt;() {
+            <span class="self">self</span>.add(C::default());
         }
+
+        <span class="self">self</span>.get_mut().unwrap()
     }
 
     <span class="doccomment">/// Returns the context at the specified key or constructs it if not present.
+    ///
+    /// By convention, every typed context has a default key. Use
+    /// [`get_or_default`](Self::get_or_default) to insert such contexts, instead.
     </span><span class="kw">pub fn </span>get_or_insert_with&lt;F, S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: S, context_builder: F) -&gt; <span class="kw-2">&amp;mut </span>Context
     <span class="kw">where
         </span>F: FnOnce() -&gt; Context,
         S: Into&lt;String&gt;,
     {
-        <span class="kw-2">&amp;mut *</span><span class="self">self
+        <span class="kw-2">&amp;mut </span><span class="self">self
+            </span>.<span class="number">0
             </span>.entry(key.into())
             .or_insert_with(Annotated::empty)
             .value_mut()
             .get_or_insert_with(|| ContextInner(context_builder()))
+            .<span class="number">0
+    </span>}
+
+    <span class="doccomment">/// Returns a reference to the default context by type.
+    </span><span class="kw">pub fn </span>get&lt;C&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>C&gt;
+    <span class="kw">where
+        </span>C: DefaultContext,
+    {
+        C::cast(<span class="self">self</span>.get_key(C::default_key())<span class="question-mark">?</span>)
     }
 
-    <span class="kw">pub fn </span>get_context_mut&lt;S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: S) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Context&gt;
+    <span class="doccomment">/// Returns a mutable reference to the default context by type.
+    </span><span class="kw">pub fn </span>get_mut&lt;C&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>C&gt;
+    <span class="kw">where
+        </span>C: DefaultContext,
+    {
+        C::cast_mut(<span class="self">self</span>.get_key_mut(C::default_key())<span class="question-mark">?</span>)
+    }
+
+    <span class="doccomment">/// Returns a reference to the context specified by `key`.
+    ///
+    /// By convention, every typed context has a default key. Use [`get`](Self::get) to retrieve
+    /// such contexts, instead.
+    </span><span class="kw">pub fn </span>get_key&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, key: S) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Context&gt;
     <span class="kw">where
         </span>S: AsRef&lt;str&gt;,
     {
-        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span><span class="self">self</span>.get_mut(key.as_ref())<span class="question-mark">?</span>.value_mut().as_mut()<span class="question-mark">?</span>.<span class="number">0</span>)
+        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.get(key.as_ref())<span class="question-mark">?</span>.value().as_ref()<span class="question-mark">?</span>.<span class="number">0</span>)
     }
 
-    <span class="kw">pub fn </span>get_context&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, key: S) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Context&gt;
+    <span class="doccomment">/// Returns a mutable reference to the context specified by `key`.
+    ///
+    /// By convention, every typed context has a default key. Use [`get_mut`](Self::get_mut) to
+    /// retrieve such contexts, instead.
+    </span><span class="kw">pub fn </span>get_key_mut&lt;S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: S) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Context&gt;
     <span class="kw">where
         </span>S: AsRef&lt;str&gt;,
     {
-        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.get(key.as_ref())<span class="question-mark">?</span>.value().as_ref()<span class="question-mark">?</span>.<span class="number">0</span>)
+        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0</span>.get_mut(key.as_ref())<span class="question-mark">?</span>.value_mut().as_mut()<span class="question-mark">?</span>.<span class="number">0</span>)
     }
-}
 
-<span class="kw">impl </span>std::ops::Deref <span class="kw">for </span>Contexts {
-    <span class="kw">type </span>Target = Object&lt;ContextInner&gt;;
+    <span class="doccomment">/// Removes a context from the map, returning the context it was previously in the map.
+    ///
+    /// Returns `Some` if a matching context was removed from the default key. If the context at the
+    /// default key does not have a matching type, it is removed but `None` is returned.
+    </span><span class="kw">pub fn </span>remove&lt;C&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;C&gt;
+    <span class="kw">where
+        </span>C: DefaultContext,
+    {
+        <span class="kw">let </span>context = <span class="self">self</span>.remove_key(C::default_key())<span class="question-mark">?</span>;
+        C::from_context(context)
+    }
 
-    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
-    </span>}
-}
-
-<span class="kw">impl </span>std::ops::DerefMut <span class="kw">for </span>Contexts {
-    <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="number">0
-    </span>}
+    <span class="doccomment">/// Removes a context from the map, returning the context it was previously in the map.
+    ///
+    /// By convention, every typed context has a default key. Use [`remove`](Self::remove) to
+    /// retrieve such contexts, instead.
+    </span><span class="kw">pub fn </span>remove_key&lt;S&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: S) -&gt; <span class="prelude-ty">Option</span>&lt;Context&gt;
+    <span class="kw">where
+        </span>S: AsRef&lt;str&gt;,
+    {
+        <span class="kw">let </span>inner = <span class="self">self</span>.<span class="number">0</span>.remove(key.as_ref())<span class="question-mark">?</span>;
+        <span class="prelude-val">Some</span>(inner.into_value()<span class="question-mark">?</span>.<span class="number">0</span>)
+    }
 }
 
 <span class="kw">impl </span>FromValue <span class="kw">for </span>Contexts {
@@ -566,6 +669,35 @@
         }
         FromValue::from_value(annotated).map_value(Contexts)
     }
+}
+
+<span class="doccomment">/// A well-known context in the [`Contexts`] interface.
+///
+/// These contexts have a [default key](Self::default_key) in the contexts map and can be
+/// constructed as an empty default value.
+</span><span class="kw">pub trait </span>DefaultContext: Default {
+    <span class="doccomment">/// The default key at which this context resides in [`Contexts`].
+    </span><span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+
+    <span class="doccomment">/// Converts this context type from a generic context type.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    </span><span class="kw">fn </span>from_context(context: Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt;;
+
+    <span class="doccomment">/// Casts a reference to this context type from a generic context type.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    </span><span class="kw">fn </span>cast(context: <span class="kw-2">&amp;</span>Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="self">Self</span>&gt;;
+
+    <span class="doccomment">/// Casts a mutable reference to this context type from a generic context type.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    </span><span class="kw">fn </span>cast_mut(context: <span class="kw-2">&amp;mut </span>Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;;
+
+    <span class="doccomment">/// Boxes this context type in the generic context wrapper.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    </span><span class="kw">fn </span>into_context(<span class="self">self</span>) -&gt; Context;
 }
 
 <span class="attr">#[cfg(test)]
@@ -599,15 +731,13 @@
     </span><span class="kw">fn </span>test_untagged_context_deserialize() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;os&quot;: {&quot;name&quot;: &quot;Linux&quot;}}&quot;#</span>;
 
-        <span class="kw">let </span>os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+        <span class="kw">let </span><span class="kw-2">mut </span>map = Contexts::new();
+        map.add(OsContext {
             name: Annotated::new(<span class="string">&quot;Linux&quot;</span>.to_string()),
             ..Default::default()
-        }))));
-        <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
-        map.insert(<span class="string">&quot;os&quot;</span>.to_string(), os_context);
-        <span class="kw">let </span>contexts = Annotated::new(Contexts(map));
+        });
 
-        <span class="macro">assert_eq!</span>(contexts, Annotated::from_json(json).unwrap());
+        <span class="macro">assert_eq!</span>(Annotated::new(map), Annotated::from_json(json).unwrap());
     }
 
     <span class="attr">#[test]
@@ -615,22 +745,17 @@
         <span class="kw">let </span>json =
             <span class="string">r#&quot;{&quot;os&quot;:{&quot;name&quot;:&quot;Linux&quot;,&quot;type&quot;:&quot;os&quot;},&quot;runtime&quot;:{&quot;name&quot;:&quot;rustc&quot;,&quot;type&quot;:&quot;runtime&quot;}}&quot;#</span>;
 
-        <span class="kw">let </span>os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+        <span class="kw">let </span><span class="kw-2">mut </span>map = Contexts::new();
+        map.add(OsContext {
             name: Annotated::new(<span class="string">&quot;Linux&quot;</span>.to_string()),
             ..Default::default()
-        }))));
+        });
+        map.add(RuntimeContext {
+            name: Annotated::new(<span class="string">&quot;rustc&quot;</span>.to_string()),
+            ..Default::default()
+        });
 
-        <span class="kw">let </span>runtime_context =
-            Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-                name: Annotated::new(<span class="string">&quot;rustc&quot;</span>.to_string()),
-                ..Default::default()
-            }))));
-
-        <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
-        map.insert(<span class="string">&quot;os&quot;</span>.to_string(), os_context);
-        map.insert(<span class="string">&quot;runtime&quot;</span>.to_string(), runtime_context);
-        <span class="kw">let </span>contexts = Annotated::new(Contexts(map));
-
+        <span class="kw">let </span>contexts = Annotated::new(map);
         <span class="macro">assert_eq!</span>(contexts, Annotated::from_json(json).unwrap());
         <span class="macro">assert_eq!</span>(json, contexts.to_json().unwrap());
     }
@@ -638,18 +763,15 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_context_processing() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;runtime&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-                        name: Annotated::new(<span class="string">&quot;php&quot;</span>.to_owned()),
-                        version: Annotated::new(<span class="string">&quot;7.1.20-1+ubuntu16.04.1+deb.sury.org+1&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(RuntimeContext {
+                    name: Annotated::new(<span class="string">&quot;php&quot;</span>.to_owned()),
+                    version: Annotated::new(<span class="string">&quot;7.1.20-1+ubuntu16.04.1+deb.sury.org+1&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 

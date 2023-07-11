@@ -229,9 +229,6 @@
 <a href="#229" id="229">229</a>
 <a href="#230" id="230">230</a>
 <a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{Breadcrumb, Event};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ErrorKind, Meta, Object, ProcessingResult, Value};
@@ -312,7 +309,7 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, ContextInner, Contexts, OsContext, User, Values};
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, Contexts, OsContext, User, Values};
     <span class="kw">use </span><span class="kw">crate</span>::testutils::get_value;
 
     <span class="attr">#[test]
@@ -400,14 +397,11 @@
         os.other
             .insert(<span class="string">&quot;foo&quot;</span>.to_string(), Annotated::from(Value::U64(<span class="number">42</span>)));
 
-        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-        contexts.insert(
-            <span class="string">&quot;renamed&quot;</span>.to_string(),
-            Annotated::from(ContextInner(Context::Os(Box::new(os)))),
-        );
+        <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+        contexts.insert(<span class="string">&quot;renamed&quot;</span>.to_string(), Context::Os(Box::new(os)));
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::new(Event {
-            contexts: Annotated::from(Contexts(contexts.clone())),
+            contexts: Annotated::new(contexts.clone()),
             ..Default::default()
         });
 
@@ -418,7 +412,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).<span class="number">0</span>, contexts);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(event.<span class="macro">contexts!</span>).<span class="number">0</span>, contexts.<span class="number">0</span>);
     }
 
     <span class="attr">#[test]

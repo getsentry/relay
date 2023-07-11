@@ -412,19 +412,6 @@
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
 <a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_general::protocol::{
@@ -629,32 +616,19 @@
     <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::default);
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(memory_physical) = runtime_props.memory_stats_total_physical.take() {
-        <span class="kw">let </span>device_context = contexts.get_or_insert_with(DeviceContext::default_key(), || {
-            Context::Device(Box::default())
-        });
-
-        <span class="kw">if let </span>Context::Device(device_context) = device_context {
-            device_context.memory_size = Annotated::new(memory_physical);
-        }
+        <span class="kw">let </span>device_context = contexts.get_or_default::&lt;DeviceContext&gt;();
+        device_context.memory_size = Annotated::new(memory_physical);
     }
 
     <span class="comment">// OS information is likely overwritten by Minidump processing later.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(os_major) = runtime_props.misc_os_version_major.take() {
-        <span class="kw">let </span>os_context =
-            contexts.get_or_insert_with(OsContext::default_key(), || Context::Os(Box::default()));
-
-        <span class="kw">if let </span>Context::Os(os_context) = os_context {
-            os_context.name = Annotated::new(os_major);
-        }
+        <span class="kw">let </span>os_context = contexts.get_or_default::&lt;OsContext&gt;();
+        os_context.name = Annotated::new(os_major);
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
-        <span class="kw">let </span>gpu_context =
-            contexts.get_or_insert_with(GpuContext::default_key(), || Context::Gpu(Box::default()));
-
-        <span class="kw">if let </span>Context::Gpu(gpu_context) = gpu_context {
-            gpu_context.name = Annotated::new(gpu_brand);
-        }
+        <span class="kw">let </span>gpu_context = contexts.get_or_default::&lt;GpuContext&gt;();
+        gpu_context.name = Annotated::new(gpu_brand);
     }
 
     <span class="kw">if </span>runtime_props.is_assert.unwrap_or(<span class="bool-val">false</span>) {

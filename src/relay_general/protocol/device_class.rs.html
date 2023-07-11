@@ -183,16 +183,14 @@
 <a href="#183" id="183">183</a>
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, Contexts};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Contexts, DeviceContext};
 
-<span class="attr">#[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq)]
+<span class="attr">#[derive(Clone, Copy, Debug, FromValue, IntoValue, Empty, PartialEq)]
 </span><span class="kw">pub struct </span>DeviceClass(<span class="kw">pub </span>u64);
 
 <span class="kw">const </span>GIB: u64 = <span class="number">1024 </span>* <span class="number">1024 </span>* <span class="number">1024</span>;
@@ -203,35 +201,33 @@
     <span class="kw">pub const </span>HIGH: <span class="self">Self </span>= <span class="self">Self</span>(<span class="number">3</span>);
 
     <span class="kw">pub fn </span>from_contexts(contexts: <span class="kw-2">&amp;</span>Contexts) -&gt; <span class="prelude-ty">Option</span>&lt;DeviceClass&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(Context::Device(<span class="kw-2">ref </span>device)) = contexts.get_context(<span class="string">&quot;device&quot;</span>) {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(family) = device.family.value() {
-                <span class="kw">if </span>family == <span class="string">&quot;iPhone&quot; </span>|| family == <span class="string">&quot;iOS&quot; </span>|| family == <span class="string">&quot;iOS-Device&quot; </span>{
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(model) = device.model.value() {
-                        <span class="kw">return </span>APPLE_DEVICE_MODEL_TO_CLASS_MAP.get(model.as_str()).cloned();
-                    }
-                    <span class="kw">return </span><span class="prelude-val">None</span>;
-                } <span class="kw">else if let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>freq), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proc), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>mem)) = (
-                    device.processor_frequency.value(),
-                    device.processor_count.value(),
-                    device.memory_size.value(),
-                ) {
-                    <span class="kw">if </span>freq &lt; <span class="number">2000 </span>|| proc &lt; <span class="number">8 </span>|| mem &lt; <span class="number">4 </span>* GIB {
-                        <span class="kw">return </span><span class="prelude-val">Some</span>(DeviceClass::LOW);
-                    } <span class="kw">else if </span>freq &lt; <span class="number">2500 </span>|| mem &lt; <span class="number">6 </span>* GIB {
-                        <span class="kw">return </span><span class="prelude-val">Some</span>(DeviceClass::MEDIUM);
-                    } <span class="kw">else </span>{
-                        <span class="kw">return </span><span class="prelude-val">Some</span>(DeviceClass::HIGH);
-                    }
-                }
+        <span class="kw">let </span>device = contexts.get::&lt;DeviceContext&gt;()<span class="question-mark">?</span>;
+        <span class="kw">let </span>family = device.family.value()<span class="question-mark">?</span>;
+
+        <span class="kw">if </span>family == <span class="string">&quot;iPhone&quot; </span>|| family == <span class="string">&quot;iOS&quot; </span>|| family == <span class="string">&quot;iOS-Device&quot; </span>{
+            <span class="kw">let </span>model = device.model.as_str()<span class="question-mark">?</span>;
+            APPLE_DEVICE_MODEL_TO_CLASS_MAP.get(model).copied()
+        } <span class="kw">else if let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>freq), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>proc), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>mem)) = (
+            device.processor_frequency.value(),
+            device.processor_count.value(),
+            device.memory_size.value(),
+        ) {
+            <span class="kw">if </span>freq &lt; <span class="number">2000 </span>|| proc &lt; <span class="number">8 </span>|| mem &lt; <span class="number">4 </span>* GIB {
+                <span class="prelude-val">Some</span>(DeviceClass::LOW)
+            } <span class="kw">else if </span>freq &lt; <span class="number">2500 </span>|| mem &lt; <span class="number">6 </span>* GIB {
+                <span class="prelude-val">Some</span>(DeviceClass::MEDIUM)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">Some</span>(DeviceClass::HIGH)
             }
-        }
-        <span class="prelude-val">None
-    </span>}
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
+    }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>DeviceClass {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="self">self</span>.<span class="number">0</span>.to_string().fmt(f)
+        <span class="self">self</span>.<span class="number">0</span>.fmt(f)
     }
 }
 

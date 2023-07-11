@@ -564,49 +564,6 @@
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
 <a href="#566" id="566">566</a>
-<a href="#567" id="567">567</a>
-<a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
-<a href="#577" id="577">577</a>
-<a href="#578" id="578">578</a>
-<a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -926,8 +883,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::pii::{DataScrubbingConfig, PiiProcessor};
     <span class="kw">use </span><span class="kw">crate</span>::processor::{process_value, ProcessingState};
     <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-        BrowserContext, Context, ContextInner, DeviceContext, EventId, OsContext, Replay, TagEntry,
-        Tags,
+        BrowserContext, Context, DeviceContext, EventId, OsContext, Replay, TagEntry, Tags,
     };
     <span class="kw">use </span><span class="kw">crate</span>::testutils::get_value;
     <span class="kw">use </span><span class="kw">crate</span>::types::Annotated;
@@ -1008,25 +964,6 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_set_user_agent_meta() {
-        <span class="kw">let </span>os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
-            name: Annotated::new(<span class="string">&quot;Mac OS X&quot;</span>.to_string()),
-            version: Annotated::new(<span class="string">&quot;&gt;=10.15.7&quot;</span>.to_string()),
-            ..Default::default()
-        }))));
-        <span class="kw">let </span>browser_context =
-            Annotated::new(ContextInner(Context::Browser(Box::new(BrowserContext {
-                name: Annotated::new(<span class="string">&quot;Safari&quot;</span>.to_string()),
-                version: Annotated::new(<span class="string">&quot;15.5&quot;</span>.to_string()),
-                ..Default::default()
-            }))));
-        <span class="kw">let </span>device_context =
-            Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
-                family: Annotated::new(<span class="string">&quot;Mac&quot;</span>.to_string()),
-                brand: Annotated::new(<span class="string">&quot;Apple&quot;</span>.to_string()),
-                model: Annotated::new(<span class="string">&quot;Mac&quot;</span>.to_string()),
-                ..Default::default()
-            }))));
-
         <span class="comment">// Parse user input.
         </span><span class="kw">let </span>payload = <span class="macro">include_str!</span>(<span class="string">&quot;../../tests/fixtures/replays/replay.json&quot;</span>);
 
@@ -1034,30 +971,32 @@
         <span class="kw">let </span>replay_value = replay.value_mut().as_mut().unwrap();
         replay_value.normalize(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
-        <span class="kw">let </span>loaded_browser_context = replay_value
-            .contexts
-            .value()
-            .unwrap()
-            .get(<span class="string">&quot;browser&quot;</span>)
-            .unwrap();
-
-        <span class="kw">let </span>loaded_os_context = replay_value
-            .contexts
-            .value()
-            .unwrap()
-            .get(<span class="string">&quot;client_os&quot;</span>)
-            .unwrap();
-
-        <span class="kw">let </span>loaded_device_context = replay_value
-            .contexts
-            .value()
-            .unwrap()
-            .get(<span class="string">&quot;device&quot;</span>)
-            .unwrap();
-
-        <span class="macro">assert_eq!</span>(loaded_browser_context, <span class="kw-2">&amp;</span>browser_context);
-        <span class="macro">assert_eq!</span>(loaded_os_context, <span class="kw-2">&amp;</span>os_context);
-        <span class="macro">assert_eq!</span>(loaded_device_context, <span class="kw-2">&amp;</span>device_context);
+        <span class="kw">let </span>contexts = replay_value.contexts.value().unwrap();
+        <span class="macro">assert_eq!</span>(
+            contexts.get::&lt;BrowserContext&gt;(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>BrowserContext {
+                name: Annotated::new(<span class="string">&quot;Safari&quot;</span>.to_string()),
+                version: Annotated::new(<span class="string">&quot;15.5&quot;</span>.to_string()),
+                ..Default::default()
+            })
+        );
+        <span class="macro">assert_eq!</span>(
+            contexts.get_key(<span class="string">&quot;client_os&quot;</span>),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Context::Os(Box::new(OsContext {
+                name: Annotated::new(<span class="string">&quot;Mac OS X&quot;</span>.to_string()),
+                version: Annotated::new(<span class="string">&quot;&gt;=10.15.7&quot;</span>.to_string()),
+                ..Default::default()
+            })))
+        );
+        <span class="macro">assert_eq!</span>(
+            contexts.get::&lt;DeviceContext&gt;(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>DeviceContext {
+                family: Annotated::new(<span class="string">&quot;Mac&quot;</span>.to_string()),
+                brand: Annotated::new(<span class="string">&quot;Apple&quot;</span>.to_string()),
+                model: Annotated::new(<span class="string">&quot;Mac&quot;</span>.to_string()),
+                ..Default::default()
+            })
+        );
     }
 
     <span class="attr">#[test]
@@ -1069,22 +1008,14 @@
 
         <span class="comment">// No user object and no ip-address was provided.
         </span>replay.normalize(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
-        <span class="kw">let </span>user = replay.user.value();
-        <span class="macro">assert!</span>(user.is_none());
+        <span class="macro">assert_eq!</span>(replay.user.value(), <span class="prelude-val">None</span>);
 
         <span class="comment">// No user object but an ip-address was provided.
         </span><span class="kw">let </span>ip_address = IpAddr::V4(Ipv4Addr::new(<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>));
         replay.normalize(<span class="prelude-val">Some</span>(ip_address), <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
-        <span class="kw">let </span>ip_addr = replay
-            .user
-            .value()
-            .unwrap()
-            .ip_address
-            .value()
-            .unwrap()
-            .as_str();
-        <span class="macro">assert!</span>(ip_addr == <span class="string">&quot;127.0.0.1&quot;</span>);
+        <span class="kw">let </span>ipaddr = replay.user.value().unwrap().ip_address.as_str();
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;127.0.0.1&quot;</span>), ipaddr);
     }
 
     <span class="attr">#[test]
@@ -1099,16 +1030,8 @@
         <span class="kw">let </span>replay_value = replay.value_mut().as_mut().unwrap();
         replay_value.normalize(<span class="prelude-val">Some</span>(ip_address), <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
-        <span class="kw">let </span>ipaddr = replay_value
-            .user
-            .value_mut()
-            .as_ref()
-            .unwrap()
-            .ip_address
-            .value()
-            .unwrap()
-            .as_str();
-        <span class="macro">assert!</span>(<span class="string">&quot;127.0.0.1&quot; </span>== ipaddr);
+        <span class="kw">let </span>ipaddr = replay_value.user.value().unwrap().ip_address.as_str();
+        <span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;127.0.0.1&quot;</span>), ipaddr);
     }
 
     <span class="attr">#[test]
@@ -1120,10 +1043,10 @@
         replay_value.normalize(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>RawUserAgentInfo::default());
 
         <span class="kw">let </span>user = replay_value.user.value().unwrap();
-        <span class="macro">assert!</span>(user.ip_address.value().unwrap().as_str() == <span class="string">&quot;127.1.1.1&quot;</span>);
-        <span class="macro">assert!</span>(user.username.value().is_none());
-        <span class="macro">assert!</span>(user.email.value().unwrap().as_str() == <span class="string">&quot;email@sentry.io&quot;</span>);
-        <span class="macro">assert!</span>(user.id.value().unwrap().as_str() == <span class="string">&quot;1&quot;</span>);
+        <span class="macro">assert_eq!</span>(user.ip_address.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;127.1.1.1&quot;</span>));
+        <span class="macro">assert_eq!</span>(user.username.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(user.email.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;email@sentry.io&quot;</span>));
+        <span class="macro">assert_eq!</span>(user.id.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;1&quot;</span>));
     }
 
     <span class="attr">#[test]
@@ -1137,29 +1060,20 @@
         process_value(<span class="kw-2">&amp;mut </span>replay, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
         <span class="comment">// Ip-address was removed.
-        </span><span class="kw">let </span>ip_address = <span class="macro">get_value!</span>(replay.user.ip_address);
-        <span class="macro">assert!</span>(ip_address.is_none());
+        </span><span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(replay.user.ip_address), <span class="prelude-val">None</span>);
 
-        <span class="kw">let </span>maybe_credit_card = replay
-            .value()
-            .unwrap()
-            .tags
-            .value()
-            .unwrap()
-            .get(<span class="string">&quot;credit-card&quot;</span>);
-
-        <span class="macro">assert_eq!</span>(maybe_credit_card, <span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>));
+        <span class="kw">let </span>replay_value = replay.value().unwrap();
+        <span class="kw">let </span>credit_card = replay_value.tags.value().unwrap().get(<span class="string">&quot;credit-card&quot;</span>);
+        <span class="macro">assert_eq!</span>(credit_card, <span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>));
 
         <span class="comment">// Assert URLs field scrubs array items.
-        </span><span class="kw">let </span>maybe_url_0 = replay.value().unwrap().urls.value().unwrap().get(<span class="number">0</span>);
-        <span class="kw">let </span>maybe_url_1 = replay.value().unwrap().urls.value().unwrap().get(<span class="number">1</span>);
-        <span class="kw">let </span>maybe_url_2 = replay.value().unwrap().urls.value().unwrap().get(<span class="number">2</span>);
+        </span><span class="kw">let </span>urls = replay_value.urls.value().unwrap();
         <span class="macro">assert_eq!</span>(
-            maybe_url_0.map(|i| i.as_str()),
-            <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;sentry.io?ssn=[Filtered]&quot;</span>))
+            urls.get(<span class="number">0</span>).and_then(|a| a.as_str()),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;sentry.io?ssn=[Filtered]&quot;</span>)
         );
-        <span class="macro">assert_eq!</span>(maybe_url_1.map(|i| i.as_str()), <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>)));
-        <span class="macro">assert_eq!</span>(maybe_url_2.map(|i| i.as_str()), <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>)));
+        <span class="macro">assert_eq!</span>(urls.get(<span class="number">1</span>).and_then(|a| a.as_str()), <span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>));
+        <span class="macro">assert_eq!</span>(urls.get(<span class="number">2</span>).and_then(|a| a.as_str()), <span class="prelude-val">Some</span>(<span class="string">&quot;[Filtered]&quot;</span>));
     }
 
     <span class="attr">#[test]

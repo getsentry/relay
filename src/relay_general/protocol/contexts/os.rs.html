@@ -309,6 +309,30 @@
 <a href="#309" id="309">309</a>
 <a href="#310" id="310">310</a>
 <a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{FromUserAgentInfo, LenientString};
 <span class="kw">use </span><span class="kw">crate</span>::store::user_agent::{get_version, is_known};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Object, Value};
@@ -353,11 +377,35 @@
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
-<span class="kw">impl </span>OsContext {
-    <span class="doccomment">/// The key under which an os context is generally stored (in `Contexts`)
-    </span><span class="kw">pub fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+<span class="kw">impl </span><span class="kw">super</span>::DefaultContext <span class="kw">for </span>OsContext {
+    <span class="kw">fn </span>default_key() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
         <span class="string">&quot;os&quot;
     </span>}
+
+    <span class="kw">fn </span>from_context(context: <span class="kw">super</span>::Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">match </span>context {
+            <span class="kw">super</span>::Context::Os(c) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>c),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">fn </span>cast(context: <span class="kw-2">&amp;</span><span class="kw">super</span>::Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="self">Self</span>&gt; {
+        <span class="kw">match </span>context {
+            <span class="kw">super</span>::Context::Os(c) =&gt; <span class="prelude-val">Some</span>(c),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">fn </span>cast_mut(context: <span class="kw-2">&amp;mut </span><span class="kw">super</span>::Context) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt; {
+        <span class="kw">match </span>context {
+            <span class="kw">super</span>::Context::Os(c) =&gt; <span class="prelude-val">Some</span>(c),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">fn </span>into_context(<span class="self">self</span>) -&gt; <span class="kw">super</span>::Context {
+        <span class="kw">super</span>::Context::Os(Box::new(<span class="self">self</span>))
+    }
 }
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>OsContext {

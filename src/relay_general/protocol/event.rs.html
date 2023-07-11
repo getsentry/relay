@@ -873,6 +873,16 @@
 <a href="#873" id="873">873</a>
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -886,10 +896,10 @@
 <span class="kw">use </span><span class="kw">crate</span>::macros::derive_string_meta_structure;
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
-    ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
-    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
-    User, Values,
+    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, DefaultContext, Exception,
+    ExpectCt, ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements,
+    Metrics, RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
+    TransactionInfo, User, Values,
 };
 <span class="kw">use </span><span class="kw">crate</span>::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -1483,6 +1493,16 @@
 
     <span class="kw">pub fn </span>parse_release(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw">crate</span>::protocol::ParsedRelease&gt; {
         sentry_release_parser::Release::parse(<span class="self">self</span>.release.as_str()<span class="question-mark">?</span>).ok()
+    }
+
+    <span class="doccomment">/// Returns a reference to the context if it exists in its default key.
+    </span><span class="kw">pub fn </span>context&lt;C: DefaultContext&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>C&gt; {
+        <span class="self">self</span>.contexts.value()<span class="question-mark">?</span>.get()
+    }
+
+    <span class="doccomment">/// Returns a mutable reference to the context if it exists in its default key.
+    </span><span class="kw">pub fn </span>context_mut&lt;C: DefaultContext&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>C&gt; {
+        <span class="self">self</span>.contexts.value_mut().as_mut()<span class="question-mark">?</span>.get_mut()
     }
 }
 

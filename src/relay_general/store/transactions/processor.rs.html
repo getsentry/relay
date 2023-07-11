@@ -3203,84 +3203,6 @@
 <a href="#3203" id="3203">3203</a>
 <a href="#3204" id="3204">3204</a>
 <a href="#3205" id="3205">3205</a>
-<a href="#3206" id="3206">3206</a>
-<a href="#3207" id="3207">3207</a>
-<a href="#3208" id="3208">3208</a>
-<a href="#3209" id="3209">3209</a>
-<a href="#3210" id="3210">3210</a>
-<a href="#3211" id="3211">3211</a>
-<a href="#3212" id="3212">3212</a>
-<a href="#3213" id="3213">3213</a>
-<a href="#3214" id="3214">3214</a>
-<a href="#3215" id="3215">3215</a>
-<a href="#3216" id="3216">3216</a>
-<a href="#3217" id="3217">3217</a>
-<a href="#3218" id="3218">3218</a>
-<a href="#3219" id="3219">3219</a>
-<a href="#3220" id="3220">3220</a>
-<a href="#3221" id="3221">3221</a>
-<a href="#3222" id="3222">3222</a>
-<a href="#3223" id="3223">3223</a>
-<a href="#3224" id="3224">3224</a>
-<a href="#3225" id="3225">3225</a>
-<a href="#3226" id="3226">3226</a>
-<a href="#3227" id="3227">3227</a>
-<a href="#3228" id="3228">3228</a>
-<a href="#3229" id="3229">3229</a>
-<a href="#3230" id="3230">3230</a>
-<a href="#3231" id="3231">3231</a>
-<a href="#3232" id="3232">3232</a>
-<a href="#3233" id="3233">3233</a>
-<a href="#3234" id="3234">3234</a>
-<a href="#3235" id="3235">3235</a>
-<a href="#3236" id="3236">3236</a>
-<a href="#3237" id="3237">3237</a>
-<a href="#3238" id="3238">3238</a>
-<a href="#3239" id="3239">3239</a>
-<a href="#3240" id="3240">3240</a>
-<a href="#3241" id="3241">3241</a>
-<a href="#3242" id="3242">3242</a>
-<a href="#3243" id="3243">3243</a>
-<a href="#3244" id="3244">3244</a>
-<a href="#3245" id="3245">3245</a>
-<a href="#3246" id="3246">3246</a>
-<a href="#3247" id="3247">3247</a>
-<a href="#3248" id="3248">3248</a>
-<a href="#3249" id="3249">3249</a>
-<a href="#3250" id="3250">3250</a>
-<a href="#3251" id="3251">3251</a>
-<a href="#3252" id="3252">3252</a>
-<a href="#3253" id="3253">3253</a>
-<a href="#3254" id="3254">3254</a>
-<a href="#3255" id="3255">3255</a>
-<a href="#3256" id="3256">3256</a>
-<a href="#3257" id="3257">3257</a>
-<a href="#3258" id="3258">3258</a>
-<a href="#3259" id="3259">3259</a>
-<a href="#3260" id="3260">3260</a>
-<a href="#3261" id="3261">3261</a>
-<a href="#3262" id="3262">3262</a>
-<a href="#3263" id="3263">3263</a>
-<a href="#3264" id="3264">3264</a>
-<a href="#3265" id="3265">3265</a>
-<a href="#3266" id="3266">3266</a>
-<a href="#3267" id="3267">3267</a>
-<a href="#3268" id="3268">3268</a>
-<a href="#3269" id="3269">3269</a>
-<a href="#3270" id="3270">3270</a>
-<a href="#3271" id="3271">3271</a>
-<a href="#3272" id="3272">3272</a>
-<a href="#3273" id="3273">3273</a>
-<a href="#3274" id="3274">3274</a>
-<a href="#3275" id="3275">3275</a>
-<a href="#3276" id="3276">3276</a>
-<a href="#3277" id="3277">3277</a>
-<a href="#3278" id="3278">3278</a>
-<a href="#3279" id="3279">3279</a>
-<a href="#3280" id="3280">3280</a>
-<a href="#3281" id="3281">3281</a>
-<a href="#3282" id="3282">3282</a>
-<a href="#3283" id="3283">3283</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -3290,9 +3212,7 @@
 
 <span class="kw">use </span><span class="kw">super</span>::TransactionNameRule;
 <span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
-};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::{
     REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
     SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
@@ -3546,71 +3466,73 @@
 <span class="kw">fn </span>validate_transaction(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
     validate_timestamps(event)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>err_trace_context_required = <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-        <span class="string">&quot;trace context hard-required for transaction events&quot;</span>,
-    ));
-
-    <span class="kw">let </span>contexts = <span class="kw">match </span>event.contexts.value_mut() {
-        <span class="prelude-val">Some</span>(contexts) =&gt; contexts,
-        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span>err_trace_context_required,
+    <span class="kw">let </span><span class="prelude-val">Some</span>(trace_context) = event.context_mut::&lt;TraceContext&gt;() <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;missing valid trace context&quot;</span>,
+        ));
     };
 
-    <span class="kw">let </span>trace_context = <span class="kw">match </span>contexts.get_mut(<span class="string">&quot;trace&quot;</span>).map(Annotated::value_mut) {
-        <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(trace_context)) =&gt; trace_context,
-        <span class="kw">_ </span>=&gt; <span class="kw">return </span>err_trace_context_required,
-    };
-
-    <span class="kw">match </span>trace_context {
-        ContextInner(Context::Trace(trace_context)) =&gt; {
-            <span class="kw">if </span>trace_context.trace_id.value().is_none() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                    <span class="string">&quot;trace context is missing trace_id&quot;</span>,
-                ));
-            }
-            <span class="kw">if </span>trace_context.span_id.value().is_none() {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                    <span class="string">&quot;trace context is missing span_id&quot;</span>,
-                ));
-            }
-
-            trace_context.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
-            <span class="prelude-val">Ok</span>(())
-        }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;context at event.contexts.trace must be of type trace.&quot;</span>,
-        )),
+    <span class="kw">if </span>trace_context.trace_id.value().is_none() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;trace context is missing trace_id&quot;</span>,
+        ));
     }
+
+    <span class="kw">if </span>trace_context.span_id.value().is_none() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            <span class="string">&quot;trace context is missing span_id&quot;</span>,
+        ));
+    }
+
+    trace_context.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
+    <span class="prelude-val">Ok</span>(())
 }
+
+<span class="doccomment">/// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
+/// transaction names. These cases are considered as high-cardinality.
+///
+/// See &lt;https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19&gt;
+</span><span class="kw">const </span>RUBY_URL_STATUSES: <span class="kw-2">&amp;</span>[SpanStatus] = <span class="kw-2">&amp;</span>[
+    SpanStatus::InvalidArgument,
+    SpanStatus::Unauthenticated,
+    SpanStatus::PermissionDenied,
+    SpanStatus::NotFound,
+    SpanStatus::AlreadyExists,
+    SpanStatus::ResourceExhausted,
+    SpanStatus::Cancelled,
+    SpanStatus::InternalError,
+    SpanStatus::Unimplemented,
+    SpanStatus::Unavailable,
+    SpanStatus::DeadlineExceeded,
+];
 
 <span class="doccomment">/// List of SDKs which we assume to produce high cardinality transaction names, such as
 /// &quot;/user/123134/login&quot;.
-/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
-/// but for old SDKs, we fall back to this list.
+</span><span class="kw">const </span>RAW_URL_SDKS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
+    <span class="string">&quot;sentry.javascript.angular&quot;</span>,
+    <span class="string">&quot;sentry.javascript.browser&quot;</span>,
+    <span class="string">&quot;sentry.javascript.ember&quot;</span>,
+    <span class="string">&quot;sentry.javascript.gatsby&quot;</span>,
+    <span class="string">&quot;sentry.javascript.react&quot;</span>,
+    <span class="string">&quot;sentry.javascript.remix&quot;</span>,
+    <span class="string">&quot;sentry.javascript.vue&quot;</span>,
+    <span class="string">&quot;sentry.javascript.nextjs&quot;</span>,
+    <span class="string">&quot;sentry.php.laravel&quot;</span>,
+    <span class="string">&quot;sentry.php.symfony&quot;</span>,
+];
+
+<span class="doccomment">/// Returns `true` if the event&#39;s transaction name is known to contain unsanitized values.
+///
+/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine
+/// cardinality. If the source is missing, this function gives an indication whether the transaction
+/// name should be sanitized.
 </span><span class="kw">pub fn </span>is_high_cardinality_sdk(event: <span class="kw-2">&amp;</span>Event) -&gt; bool {
     <span class="kw">let </span><span class="prelude-val">Some</span>(client_sdk) = event.client_sdk.value() <span class="kw">else </span>{
         <span class="kw">return </span><span class="bool-val">false</span>;
     };
 
-    <span class="kw">let </span>sdk_name = client_sdk
-        .name
-        .value()
-        .map(|s| s.as_str())
-        .unwrap_or_default();
-
-    <span class="kw">if </span>[
-        <span class="string">&quot;sentry.javascript.angular&quot;</span>,
-        <span class="string">&quot;sentry.javascript.browser&quot;</span>,
-        <span class="string">&quot;sentry.javascript.ember&quot;</span>,
-        <span class="string">&quot;sentry.javascript.gatsby&quot;</span>,
-        <span class="string">&quot;sentry.javascript.react&quot;</span>,
-        <span class="string">&quot;sentry.javascript.remix&quot;</span>,
-        <span class="string">&quot;sentry.javascript.vue&quot;</span>,
-        <span class="string">&quot;sentry.javascript.nextjs&quot;</span>,
-        <span class="string">&quot;sentry.php.laravel&quot;</span>,
-        <span class="string">&quot;sentry.php.symfony&quot;</span>,
-    ]
-    .contains(<span class="kw-2">&amp;</span>sdk_name)
-    {
+    <span class="kw">let </span>sdk_name = event.sdk_name();
+    <span class="kw">if </span>RAW_URL_SDKS.contains(<span class="kw-2">&amp;</span>sdk_name) {
         <span class="kw">return </span><span class="bool-val">true</span>;
     }
 
@@ -3624,6 +3546,7 @@
         .value()
         .and_then(|r| r.method.as_str())
         .unwrap_or_default();
+
     <span class="kw">if </span>sdk_name == <span class="string">&quot;sentry.javascript.node&quot;
         </span>&amp;&amp; http_method.eq_ignore_ascii_case(<span class="string">&quot;options&quot;</span>)
         &amp;&amp; client_sdk.has_integration(<span class="string">&quot;Express&quot;</span>)
@@ -3632,29 +3555,8 @@
     }
 
     <span class="kw">if </span>sdk_name == <span class="string">&quot;sentry.ruby&quot; </span>&amp;&amp; event.has_module(<span class="string">&quot;rack&quot;</span>) {
-        <span class="kw">let </span>trace = event
-            .contexts
-            .value()
-            .and_then(|c| c.get(<span class="string">&quot;trace&quot;</span>))
-            .and_then(Annotated::value);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Trace(trace_context))) = trace {
-            <span class="kw">let </span>status = trace_context.status.value().unwrap_or(<span class="kw-2">&amp;</span>SpanStatus::Unknown);
-            <span class="kw">if </span>[
-                <span class="comment">// See https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19
-                </span>SpanStatus::InvalidArgument,
-                SpanStatus::Unauthenticated,
-                SpanStatus::PermissionDenied,
-                SpanStatus::NotFound,
-                SpanStatus::AlreadyExists,
-                SpanStatus::ResourceExhausted,
-                SpanStatus::Cancelled,
-                SpanStatus::InternalError,
-                SpanStatus::Unimplemented,
-                SpanStatus::Unavailable,
-                SpanStatus::DeadlineExceeded,
-            ]
-            .contains(status)
-            {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(trace) = event.context::&lt;TraceContext&gt;() {
+            <span class="kw">if </span>RUBY_URL_STATUSES.contains(trace.status.value().unwrap_or(<span class="kw-2">&amp;</span>SpanStatus::Unknown)) {
                 <span class="kw">return </span><span class="bool-val">true</span>;
             }
         }
@@ -3921,7 +3823,6 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-
     <span class="kw">use </span>chrono::offset::TimeZone;
     <span class="kw">use </span>chrono::{Duration, Utc};
     <span class="kw">use </span>insta::assert_debug_snapshot;
@@ -3929,9 +3830,7 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::processor::process_value;
-    <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-        ClientSdkInfo, Contexts, SpanId, TraceContext, TraceId, TransactionSource,
-    };
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{ClientSdkInfo, Contexts, SpanId, TraceId, TransactionSource};
     <span class="kw">use </span><span class="kw">crate</span>::store::{LazyGlob, RedactionRule, SpanDescriptionRuleScope};
     <span class="kw">use </span><span class="kw">crate</span>::testutils::assert_annotated_snapshot;
     <span class="kw">use </span><span class="kw">crate</span>::types::Object;
@@ -3944,21 +3843,16 @@
             transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
             start_timestamp: Annotated::new(start.into()),
             timestamp: Annotated::new(end.into()),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
                 start_timestamp: Annotated::new(start.into()),
                 timestamp: Annotated::new(end.into()),
@@ -4078,7 +3972,7 @@
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;trace context hard-required for transaction events&quot;
+                <span class="string">&quot;missing valid trace context&quot;
             </span>))
         );
     }
@@ -4091,7 +3985,7 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts(Object::new())),
+            contexts: Annotated::new(Contexts::new()),
             ..Default::default()
         });
 
@@ -4102,7 +3996,7 @@
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;trace context hard-required for transaction events&quot;
+                <span class="string">&quot;missing valid trace context&quot;
             </span>))
         );
     }
@@ -4130,7 +4024,7 @@
                 ProcessingState::root()
             ),
             <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                <span class="string">&quot;trace context hard-required for transaction events&quot;
+                <span class="string">&quot;missing valid trace context&quot;
             </span>))
         );
     }
@@ -4143,16 +4037,11 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext::default());
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -4176,19 +4065,14 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -4214,20 +4098,15 @@
             transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -4268,21 +4147,16 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -4303,21 +4177,16 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(<span class="macro">vec!</span>[]),
             ..Default::default()
         });
@@ -4379,21 +4248,16 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::empty()]),
             ..Default::default()
         });
@@ -4418,21 +4282,16 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
@@ -4462,21 +4321,16 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
@@ -4509,21 +4363,16 @@
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap().into(),
@@ -4559,21 +4408,16 @@
             transaction: Annotated::new(<span class="string">&quot;/&quot;</span>.to_owned()),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
-            contexts: Annotated::new(Contexts({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Object::new();
-                contexts.insert(
-                    <span class="string">&quot;trace&quot;</span>.to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            <span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into(),
-                        )),
-                        span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
-                        op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId(<span class="string">&quot;4c79f60c11214eb38604f4ae0781bfb2&quot;</span>.into())),
+                    span_id: Annotated::new(SpanId(<span class="string">&quot;fa90fdead5f74053&quot;</span>.into())),
+                    op: Annotated::new(<span class="string">&quot;http.server&quot;</span>.to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(<span class="macro">vec!</span>[Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(<span class="number">2000</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">10</span>).unwrap().into(),

@@ -1097,23 +1097,23 @@
 <a href="#1097" id="1097">1097</a>
 <a href="#1098" id="1098">1098</a>
 <a href="#1099" id="1099">1099</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::extract_http_status_code;
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::http_status_code_from_span;
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::{
-    extract_transaction_op, get_eventuser_tag, get_trace_context,
-};
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_common::{EventType, UnixTimestamp};
 <span class="kw">use </span>relay_filter::csp::SchemeDomainPort;
-<span class="kw">use </span>relay_general::protocol::Event;
+<span class="kw">use </span>relay_general::protocol::{Event, TraceContext};
 <span class="kw">use </span>relay_general::types::{Annotated, Value};
 <span class="kw">use </span>relay_metrics::{AggregatorConfig, Metric};
-<span class="kw">use </span>std::collections::BTreeMap;
+
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::{
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
+};
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 
 <span class="kw">mod </span>types;
 
@@ -1182,7 +1182,7 @@
         }
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = get_trace_context(event) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
             shared_tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
         }

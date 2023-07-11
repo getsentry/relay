@@ -1027,14 +1027,7 @@
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
 <a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(test)]
-</span><span class="kw">use </span><span class="kw">crate</span>::protocol::{CError, MachException, MechanismMeta, PosixSignal};
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{Context, ContextInner, Event, Mechanism};
+</pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, Mechanism, OsContext};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Error, ProcessingAction, ProcessingResult};
 
 <span class="kw">fn </span>get_errno_name(errno: i64, os_hint: OsHint) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt; {
@@ -1613,13 +1606,9 @@
             }
         }
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(context) = contexts.get(<span class="string">&quot;os&quot;</span>) {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>ContextInner(Context::Os(<span class="kw-2">ref </span>os_context))) = context.value() {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = os_context.name.as_str() {
-                        <span class="kw">return </span><span class="self">Self</span>::from_name(name);
-                    }
-                }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(os_context) = event.context::&lt;OsContext&gt;() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = os_context.name.as_str() {
+                <span class="kw">return </span><span class="self">Self</span>::from_name(name);
             }
         }
 
@@ -1691,6 +1680,7 @@
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span><span class="kw">crate</span>::protocol::{CError, MachException, MechanismMeta, PosixSignal};
     <span class="kw">use </span><span class="kw">crate</span>::types::SerializableAnnotated;
 
     <span class="attr">#[test]

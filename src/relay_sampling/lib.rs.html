@@ -3720,41 +3720,6 @@
 <a href="#3720" id="3720">3720</a>
 <a href="#3721" id="3721">3721</a>
 <a href="#3722" id="3722">3722</a>
-<a href="#3723" id="3723">3723</a>
-<a href="#3724" id="3724">3724</a>
-<a href="#3725" id="3725">3725</a>
-<a href="#3726" id="3726">3726</a>
-<a href="#3727" id="3727">3727</a>
-<a href="#3728" id="3728">3728</a>
-<a href="#3729" id="3729">3729</a>
-<a href="#3730" id="3730">3730</a>
-<a href="#3731" id="3731">3731</a>
-<a href="#3732" id="3732">3732</a>
-<a href="#3733" id="3733">3733</a>
-<a href="#3734" id="3734">3734</a>
-<a href="#3735" id="3735">3735</a>
-<a href="#3736" id="3736">3736</a>
-<a href="#3737" id="3737">3737</a>
-<a href="#3738" id="3738">3738</a>
-<a href="#3739" id="3739">3739</a>
-<a href="#3740" id="3740">3740</a>
-<a href="#3741" id="3741">3741</a>
-<a href="#3742" id="3742">3742</a>
-<a href="#3743" id="3743">3743</a>
-<a href="#3744" id="3744">3744</a>
-<a href="#3745" id="3745">3745</a>
-<a href="#3746" id="3746">3746</a>
-<a href="#3747" id="3747">3747</a>
-<a href="#3748" id="3748">3748</a>
-<a href="#3749" id="3749">3749</a>
-<a href="#3750" id="3750">3750</a>
-<a href="#3751" id="3751">3751</a>
-<a href="#3752" id="3752">3752</a>
-<a href="#3753" id="3753">3753</a>
-<a href="#3754" id="3754">3754</a>
-<a href="#3755" id="3755">3755</a>
-<a href="#3756" id="3756">3756</a>
-<a href="#3757" id="3757">3757</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -3841,7 +3806,7 @@
 <span class="kw">use </span>relay_common::{EventType, ProjectKey, Uuid};
 <span class="kw">use </span>relay_filter::GlobPatterns;
 <span class="kw">use </span>relay_general::protocol::{
-    BrowserContext, Context, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
+    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
 };
 <span class="kw">use </span>relay_general::store;
 
@@ -4336,46 +4301,6 @@
     <span class="prelude-val">Some</span>(<span class="kw-2">*</span>value)
 }
 
-<span class="doccomment">/// Returns the trace context of the event if present.
-</span><span class="kw">fn </span>get_trace_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TraceContext&gt; {
-    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;trace&quot;</span>)<span class="question-mark">? </span>{
-        Context::Trace(<span class="kw-2">ref </span>trace_context) =&gt; <span class="prelude-val">Some</span>(trace_context),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
-}
-
-<span class="doccomment">/// Returns the device context of the event if present.
-</span><span class="kw">fn </span>get_device_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DeviceContext&gt; {
-    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;device&quot;</span>)<span class="question-mark">? </span>{
-        Context::Device(<span class="kw-2">ref </span>device_context) =&gt; <span class="prelude-val">Some</span>(device_context),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
-}
-
-<span class="doccomment">/// Returns the os context of the event if present.
-</span><span class="kw">fn </span>get_os_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>OsContext&gt; {
-    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;os&quot;</span>)<span class="question-mark">? </span>{
-        Context::Os(<span class="kw-2">ref </span>os_context) =&gt; <span class="prelude-val">Some</span>(os_context),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
-}
-
-<span class="doccomment">/// Returns the browser context of the event if present.
-</span><span class="kw">fn </span>get_browser_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BrowserContext&gt; {
-    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;browser&quot;</span>)<span class="question-mark">? </span>{
-        Context::Browser(<span class="kw-2">ref </span>browser_context) =&gt; <span class="prelude-val">Some</span>(browser_context),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
-}
-
-<span class="doccomment">/// Returns the response context of the event if present.
-</span><span class="kw">fn </span>get_response_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ResponseContext&gt; {
-    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;response&quot;</span>)<span class="question-mark">? </span>{
-        Context::Response(<span class="kw-2">ref </span>response_context) =&gt; <span class="prelude-val">Some</span>(response_context),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
-}
-
 <span class="doccomment">/// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
@@ -4475,31 +4400,40 @@
                 .map_or(Value::Null, Value::from),
 
             <span class="comment">// Partial implementation of contexts.
-            </span><span class="string">&quot;contexts.device.name&quot; </span>=&gt; get_device_context(<span class="self">self</span>)
+            </span><span class="string">&quot;contexts.device.name&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;DeviceContext&gt;()
                 .and_then(|device| device.name.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.device.family&quot; </span>=&gt; get_device_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.device.family&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;DeviceContext&gt;()
                 .and_then(|device| device.family.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.os.name&quot; </span>=&gt; get_os_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.os.name&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;OsContext&gt;()
                 .and_then(|os| os.name.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.os.version&quot; </span>=&gt; get_os_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.os.version&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;OsContext&gt;()
                 .and_then(|os| os.version.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.browser.name&quot; </span>=&gt; get_browser_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.browser.name&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;BrowserContext&gt;()
                 .and_then(|browser| browser.name.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.browser.version&quot; </span>=&gt; get_browser_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.browser.version&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;BrowserContext&gt;()
                 .and_then(|browser| browser.version.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.trace.status&quot; </span>=&gt; get_trace_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.trace.status&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;TraceContext&gt;()
                 .and_then(|trace| trace.status.value())
                 .map_or(Value::Null, |status| status.as_str().into()),
-            <span class="string">&quot;contexts.trace.op&quot; </span>=&gt; get_trace_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.trace.op&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;TraceContext&gt;()
                 .and_then(|trace| trace.op.as_str())
                 .map_or(Value::Null, Value::from),
-            <span class="string">&quot;contexts.response.status_code&quot; </span>=&gt; get_response_context(<span class="self">self</span>)
+            <span class="string">&quot;contexts.response.status_code&quot; </span>=&gt; <span class="self">self
+                </span>.context::&lt;ResponseContext&gt;()
                 .and_then(|response| response.status_code.value().copied())
                 .map_or(Value::Null, Value::from),
 
@@ -5042,12 +4976,8 @@
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let </span>contexts = event.contexts.value()<span class="question-mark">?</span>;
-        <span class="kw">let </span>context = contexts.get(TraceContext::default_key())<span class="question-mark">?</span>.value()<span class="question-mark">?</span>;
-        <span class="kw">let </span>Context::Trace(<span class="kw-2">ref </span>trace) = context.<span class="number">0 </span><span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
-        <span class="kw">let </span>trace_id = trace.trace_id.value()<span class="question-mark">?</span>;
-        <span class="kw">let </span>trace_id = trace_id.<span class="number">0</span>.parse().ok()<span class="question-mark">?</span>;
-
+        <span class="kw">let </span><span class="prelude-val">Some</span>(trace) = event.context::&lt;TraceContext&gt;() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
+        <span class="kw">let </span>trace_id = trace.trace_id.value()<span class="question-mark">?</span>.<span class="number">0</span>.parse().ok()<span class="question-mark">?</span>;
         <span class="kw">let </span>user = event.user.value();
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
@@ -5468,18 +5398,18 @@
             },
             contexts: Annotated::new({
                 <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     name: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
                     family: Annotated::new(<span class="string">&quot;iphone-fam&quot;</span>.to_string()),
                     model: Annotated::new(<span class="string">&quot;iphone7,3&quot;</span>.to_string()),
                     ..DeviceContext::default()
-                })));
-                contexts.add(Context::Os(Box::new(OsContext {
+                });
+                contexts.add(OsContext {
                     name: Annotated::new(<span class="string">&quot;iOS&quot;</span>.to_string()),
                     version: Annotated::new(<span class="string">&quot;11.4.2&quot;</span>.to_string()),
                     kernel_version: Annotated::new(<span class="string">&quot;17.4.0&quot;</span>.to_string()),
                     ..OsContext::default()
-                })));
+                });
                 contexts
             }),
             ..Default::default()

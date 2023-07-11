@@ -139,19 +139,7 @@
 <a href="#139" id="139">139</a>
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>relay_general::protocol::{Context, ContextInner, Event, Span, TraceContext, User};
-<span class="kw">use </span>relay_general::types::Annotated;
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_general::protocol::{Event, ResponseContext, Span, TraceContext, User};
 
 <span class="doccomment">/// Extract the HTTP status code from the span data.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>http_status_code_from_span(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
@@ -220,15 +208,12 @@
     }
 
     <span class="comment">// For SDKs which put the HTTP status code in the `Response` context.
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value() {
-        <span class="kw">let </span>response = contexts.get(<span class="string">&quot;response&quot;</span>).and_then(Annotated::value);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ContextInner(Context::Response(response_context))) = response {
-            <span class="kw">let </span>status_code = response_context
-                .status_code
-                .value()
-                .map(|code| code.to_string());
-            <span class="kw">return </span>status_code;
-        }
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(response_context) = event.context::&lt;ResponseContext&gt;() {
+        <span class="kw">let </span>status_code = response_context
+            .status_code
+            .value()
+            .map(|code| code.to_string());
+        <span class="kw">return </span>status_code;
     }
 
     <span class="prelude-val">None
@@ -282,13 +267,6 @@
 
     <span class="prelude-val">None
 </span>}
-
-<span class="kw">pub fn </span>get_trace_context(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TraceContext&gt; {
-    <span class="kw">match </span>event.contexts.value()<span class="question-mark">?</span>.get_context(<span class="string">&quot;trace&quot;</span>)<span class="question-mark">? </span>{
-        Context::Trace(<span class="kw-2">ref </span>trace_context) =&gt; <span class="prelude-val">Some</span>(trace_context),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-    }
-}
 
 <span class="kw">pub fn </span>extract_transaction_op(trace_context: <span class="kw-2">&amp;</span>TraceContext) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>op = trace_context.op.value()<span class="question-mark">?</span>;

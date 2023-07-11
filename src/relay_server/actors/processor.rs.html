@@ -3891,47 +3891,6 @@
 <a href="#3891" id="3891">3891</a>
 <a href="#3892" id="3892">3892</a>
 <a href="#3893" id="3893">3893</a>
-<a href="#3894" id="3894">3894</a>
-<a href="#3895" id="3895">3895</a>
-<a href="#3896" id="3896">3896</a>
-<a href="#3897" id="3897">3897</a>
-<a href="#3898" id="3898">3898</a>
-<a href="#3899" id="3899">3899</a>
-<a href="#3900" id="3900">3900</a>
-<a href="#3901" id="3901">3901</a>
-<a href="#3902" id="3902">3902</a>
-<a href="#3903" id="3903">3903</a>
-<a href="#3904" id="3904">3904</a>
-<a href="#3905" id="3905">3905</a>
-<a href="#3906" id="3906">3906</a>
-<a href="#3907" id="3907">3907</a>
-<a href="#3908" id="3908">3908</a>
-<a href="#3909" id="3909">3909</a>
-<a href="#3910" id="3910">3910</a>
-<a href="#3911" id="3911">3911</a>
-<a href="#3912" id="3912">3912</a>
-<a href="#3913" id="3913">3913</a>
-<a href="#3914" id="3914">3914</a>
-<a href="#3915" id="3915">3915</a>
-<a href="#3916" id="3916">3916</a>
-<a href="#3917" id="3917">3917</a>
-<a href="#3918" id="3918">3918</a>
-<a href="#3919" id="3919">3919</a>
-<a href="#3920" id="3920">3920</a>
-<a href="#3921" id="3921">3921</a>
-<a href="#3922" id="3922">3922</a>
-<a href="#3923" id="3923">3923</a>
-<a href="#3924" id="3924">3924</a>
-<a href="#3925" id="3925">3925</a>
-<a href="#3926" id="3926">3926</a>
-<a href="#3927" id="3927">3927</a>
-<a href="#3928" id="3928">3928</a>
-<a href="#3929" id="3929">3929</a>
-<a href="#3930" id="3930">3930</a>
-<a href="#3931" id="3931">3931</a>
-<a href="#3932" id="3932">3932</a>
-<a href="#3933" id="3933">3933</a>
-<a href="#3934" id="3934">3934</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -3960,13 +3919,12 @@
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
-<span class="kw">use </span>relay_general::protocol::Context::Trace;
-<span class="kw">use </span>relay_general::protocol::Contexts;
 <span class="kw">use </span>relay_general::protocol::{
     <span class="self">self</span>, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+<span class="kw">use </span>relay_general::protocol::{Contexts, OtelContext};
 <span class="kw">use </span>relay_general::store::GeoIpLookup;
 <span class="kw">use </span>relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
@@ -3985,7 +3943,7 @@
     <span class="kw">crate</span>::actors::envelopes::SendMetrics,
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_general::protocol::{Context <span class="kw">as </span>SentryContext, ProfileContext},
+    relay_general::protocol::ProfileContext,
     relay_general::store::{StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -5072,11 +5030,9 @@
                             <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
                                 <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
                                     <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(SentryContext::Profile(Box::new(
-                                        ProfileContext {
-                                            profile_id: Annotated::new(profile_id),
-                                        },
-                                    )));
+                                    contexts.add(ProfileContext {
+                                        profile_id: Annotated::new(profile_id),
+                                    });
                                 }
                             }
                             item.set_payload(ContentType::Json, payload);
@@ -5084,8 +5040,9 @@
                         } <span class="kw">else </span>{
                             <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
                                 <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                                    <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.remove(ProfileContext::default_key());
+                                    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>contexts) = event.contexts.value_mut() {
+                                        contexts.remove::&lt;ProfileContext&gt;();
+                                    }
                                 }
                             }
                             ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -5099,7 +5056,7 @@
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
                             <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
                                 <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove(ProfileContext::default_key());
+                                contexts.remove::&lt;ProfileContext&gt;();
                             }
                         }
 
@@ -5787,13 +5744,12 @@
                     platform = event.platform.as_str().unwrap_or(<span class="string">&quot;other&quot;</span>),
                 );
 
-                <span class="kw">let </span>otel_context = event
+                <span class="kw">let </span>has_otel = event
                     .contexts
                     .value()
-                    .and_then(|contexts| contexts.get(<span class="string">&quot;otel&quot;</span>))
-                    .and_then(Annotated::value);
+                    .map_or(<span class="bool-val">false</span>, |contexts| contexts.contains::&lt;OtelContext&gt;());
 
-                <span class="kw">if </span>otel_context.is_some() {
+                <span class="kw">if </span>has_otel {
                     <span class="macro">metric!</span>(
                         counter(RelayCounters::OpenTelemetryEvent) += <span class="number">1</span>,
                         sdk = envelope.meta().client_name().unwrap_or(<span class="string">&quot;proprietary&quot;</span>),
@@ -6251,30 +6207,19 @@
         <span class="comment">// In case the sampling result is positive, we assume that all the transactions
         // that have this DSC will be sampled and thus we mark the error as &quot;having
         // a full trace&quot;.
-        // In case we have no contexts object, we have to create it.
         </span><span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
+        <span class="kw">let </span>context = contexts.get_or_default::&lt;TraceContext&gt;();
 
-        <span class="comment">// We want to get the specific trace context, or we want to create it in case
-        // it is not there.
-        </span><span class="kw">let </span>context =
-            contexts.get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
-
-        <span class="comment">// We want to mutate the sampled after the &quot;fake&quot; sampling has been performed.
-        //
-        // It is important to note that tagging only occurs if there is a dsc and root
-        // project state.
-        </span><span class="kw">if let </span>Trace(boxed_context) = context {
-            <span class="comment">// We want to update `sampled` only if it was not set, since if we don&#39;t check this
-            // we will end up overriding the value set by downstream Relays and this will lead
-            // to more complex debugging in case of problems.
-            </span><span class="kw">if </span>boxed_context.sampled.is_empty() {
-                <span class="kw">let </span>sampled = <span class="kw">match </span>sampling_result {
-                    SamplingResult::Keep =&gt; <span class="bool-val">true</span>,
-                    SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-                };
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;tagging error with `sampled = {}` flag&quot;</span>, sampled);
-                boxed_context.sampled = Annotated::new(sampled);
-            }
+        <span class="comment">// We want to update `sampled` only if it was not set, since if we don&#39;t check this
+        // we will end up overriding the value set by downstream Relays and this will lead
+        // to more complex debugging in case of problems.
+        </span><span class="kw">if </span>context.sampled.is_empty() {
+            <span class="kw">let </span>sampled = <span class="kw">match </span>sampling_result {
+                SamplingResult::Keep =&gt; <span class="bool-val">true</span>,
+                SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+            };
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;tagging error with `sampled = {}` flag&quot;</span>, sampled);
+            context.sampled = Annotated::new(sampled);
         }
     }
 
@@ -7201,17 +7146,8 @@
             <span class="prelude-val">Some</span>(Arc::new(sampling_project_state)),
         );
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
-        <span class="kw">let </span>trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(trace_context, Trace(..)));
-        <span class="kw">if let </span>Trace(context) = trace_context {
-            <span class="macro">assert!</span>(context.sampled.value().unwrap())
-        }
+        <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
+        <span class="macro">assert!</span>(trace_context.sampled.value().unwrap());
 
         <span class="comment">// We test the tagging when the incoming dsc matches a 0% rule.
         </span><span class="kw">let </span>sampling_project_state = project_state_with_single_rule(<span class="number">0.0</span>);
@@ -7220,17 +7156,8 @@
             <span class="prelude-val">Some</span>(Arc::new(sampling_project_state)),
         );
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
-        <span class="kw">let </span>trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(trace_context, Trace(..)));
-        <span class="kw">if let </span>Trace(context) = trace_context {
-            <span class="macro">assert!</span>(!context.sampled.value().unwrap())
-        }
+        <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
+        <span class="macro">assert!</span>(!trace_context.sampled.value().unwrap());
 
         <span class="comment">// We test the tagging is not performed when an event is already tagged.
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta.clone());
@@ -7266,17 +7193,8 @@
             <span class="prelude-val">Some</span>(Arc::new(sampling_project_state)),
         );
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
-        <span class="kw">let </span>trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(trace_context, Trace(..)));
-        <span class="kw">if let </span>Trace(context) = trace_context {
-            <span class="macro">assert!</span>(context.sampled.value().unwrap())
-        }
+        <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
+        <span class="macro">assert!</span>(trace_context.sampled.value().unwrap());
 
         <span class="comment">// We test the tagging when root project state and dsc are none.
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
@@ -7369,7 +7287,7 @@
         </span><span class="macro">assert_eq!</span>(<span class="prelude-val">Some</span>(<span class="string">&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36&quot;</span>), headers.get_header(<span class="string">&quot;User-Agent&quot;</span>));
         <span class="comment">// But we still get correct browser and version number
         </span><span class="kw">let </span>contexts = event.contexts.into_value().unwrap();
-        <span class="kw">let </span>browser = contexts.get(<span class="string">&quot;browser&quot;</span>).unwrap();
+        <span class="kw">let </span>browser = contexts.<span class="number">0</span>.get(<span class="string">&quot;browser&quot;</span>).unwrap();
         <span class="macro">assert_eq!</span>(
             <span class="string">r#&quot;{&quot;name&quot;:&quot;Chrome&quot;,&quot;version&quot;:&quot;103.0.0&quot;,&quot;type&quot;:&quot;browser&quot;}&quot;#</span>,
             browser.to_json().unwrap()
