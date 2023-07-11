@@ -7,9 +7,7 @@ use relay_common::SpanStatus;
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{
-    Context, Event, EventType, Span, Timestamp, TraceContext, TransactionSource,
-};
+use crate::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
 use crate::store::regexes::{
     REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
     SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
@@ -263,13 +261,7 @@ pub fn validate_timestamps(
 fn validate_transaction(event: &mut Event) -> ProcessingResult {
     validate_timestamps(event)?;
 
-    let Some(ref mut contexts) = event.contexts.value_mut() else {
-        return Err(ProcessingAction::InvalidTransaction(
-            "missing required trace context for transaction events",
-        ));
-    };
-
-    let Some(Context::Trace(trace_context)) = contexts.get_context_mut("trace") else {
+    let Some(trace_context) = event.context_mut::<TraceContext>() else {
         return Err(ProcessingAction::InvalidTransaction(
             "context at event.contexts.trace must be of type trace.",
         ));

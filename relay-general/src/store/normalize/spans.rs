@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::time::Duration;
 
-use crate::protocol::{Context, Contexts, Event, Span, SpanId};
+use crate::protocol::{Contexts, Event, Span, SpanId, TraceContext};
 use crate::store::normalize::breakdowns::TimeWindowSpan;
 use crate::types::{Annotated, SpanAttribute};
 
@@ -44,7 +44,7 @@ fn set_event_exclusive_time(
     contexts: &mut Contexts,
     span_map: &HashMap<SpanId, Vec<TimeWindowSpan>>,
 ) {
-    let Some(Context::Trace(trace_context)) = contexts.get_context_mut("trace") else {
+    let Some(trace_context) = contexts.get_mut::<TraceContext>() else {
         return
     };
 

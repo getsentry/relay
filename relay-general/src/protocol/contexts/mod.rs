@@ -220,7 +220,7 @@ impl Contexts {
     where
         C: DefaultContext,
     {
-        C::cast(self.get_context(C::default_key())?)
+        C::cast(self.get_key(C::default_key())?)
     }
 
     /// Returns a mutable reference to the default context by type.
@@ -228,15 +228,14 @@ impl Contexts {
     where
         C: DefaultContext,
     {
-        C::cast_mut(self.get_context_mut(C::default_key())?)
+        C::cast_mut(self.get_key_mut(C::default_key())?)
     }
 
     /// Returns a reference to the context specified by `key`.
     ///
     /// By convention, every typed context has a default key. Use [`get`](Self::get) to retrieve
     /// such contexts, instead.
-    // TODO(ja): Rename to get_key
-    pub fn get_context<S>(&self, key: S) -> Option<&Context>
+    pub fn get_key<S>(&self, key: S) -> Option<&Context>
     where
         S: AsRef<str>,
     {
@@ -247,8 +246,7 @@ impl Contexts {
     ///
     /// By convention, every typed context has a default key. Use [`get_mut`](Self::get_mut) to
     /// retrieve such contexts, instead.
-    // TODO(ja): Rename to get_key_mut
-    pub fn get_context_mut<S>(&mut self, key: S) -> Option<&mut Context>
+    pub fn get_key_mut<S>(&mut self, key: S) -> Option<&mut Context>
     where
         S: AsRef<str>,
     {

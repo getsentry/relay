@@ -415,7 +415,7 @@ mod tests {
             })
         );
         assert_eq!(
-            contexts.get_context("client_os"),
+            contexts.get_key("client_os"),
             Some(&Context::Os(Box::new(OsContext {
                 name: Annotated::new("Mac OS X".to_string()),
                 version: Annotated::new(">=10.15.7".to_string()),
