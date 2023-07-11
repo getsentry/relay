@@ -1,5 +1,5 @@
 local relay = import './libs/relay.libsonnet';
-local pipedream = import 'github.com/getsentry/gocd-jsonnet/v1.0.0/pipedream.libsonnet';
+local pipedream = import 'github.com/getsentry/gocd-jsonnet/libs/pipedream.libsonnet';
 
 local pipedream_config = {
   name: 'relay-next',
@@ -11,6 +11,10 @@ local pipedream_config = {
       branch: 'master',
       destination: 'relay',
     },
+  },
+  rollback: {
+    material_name: 'relay_repo',
+    stage: 'deploy-production',
   },
 };
 
