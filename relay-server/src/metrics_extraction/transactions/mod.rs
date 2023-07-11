@@ -236,7 +236,7 @@ pub struct ExtractedMetrics {
     pub project_metrics: Vec<Metric>,
 
     /// Metrics associated with the sampling project (a.k.a. root or head project)
-    /// which started the trace. See [`ProcessEnvelopeState::sampling_project_state`].
+    /// which started the trace. `ProcessEnvelopeState::sampling_project_state`.
     pub sampling_metrics: Vec<Metric>,
 }
 
@@ -248,7 +248,7 @@ impl ExtractedMetrics {
     }
 }
 
-/// Parameters for [`extract_transaction_metrics`].
+/// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
     pub aggregator_config: &'a AggregatorConfig,
     pub config: &'a TransactionMetricsConfig,
