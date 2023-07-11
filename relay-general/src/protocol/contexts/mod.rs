@@ -77,31 +77,6 @@ pub enum Context {
     Other(#[metastructure(pii = "true")] Object<Value>),
 }
 
-impl Context {
-    /// Represents the key under which a particular context type will be inserted in a Contexts object
-    ///
-    /// See [`Contexts::add`]
-    pub fn default_key(&self) -> Option<&'static str> {
-        match &self {
-            Context::Device(_) => Some(DeviceContext::default_key()),
-            Context::Os(_) => Some(OsContext::default_key()),
-            Context::Runtime(_) => Some(RuntimeContext::default_key()),
-            Context::App(_) => Some(AppContext::default_key()),
-            Context::Browser(_) => Some(BrowserContext::default_key()),
-            Context::Reprocessing(_) => Some(ReprocessingContext::default_key()),
-            Context::Gpu(_) => Some(GpuContext::default_key()),
-            Context::Trace(_) => Some(TraceContext::default_key()),
-            Context::Profile(_) => Some(ProfileContext::default_key()),
-            Context::Monitor(_) => Some(MonitorContext::default_key()),
-            Context::Replay(_) => Some(ReplayContext::default_key()),
-            Context::Response(_) => Some(ResponseContext::default_key()),
-            Context::Otel(_) => Some(OtelContext::default_key()),
-            Context::CloudResource(_) => Some(CloudResourceContext::default_key()),
-            Context::Other(_) => None,
-        }
-    }
-}
-
 /// Trait to get the Context both from the user agent string and also the new client hints.
 /// With an automatically derived function which tries to first get the context from client hints,
 /// if that fails it tries for the user agent string.
@@ -119,27 +94,13 @@ pub trait FromUserAgentInfo: Sized {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
 
-impl std::ops::Deref for ContextInner {
-    type Target = Context;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for ContextInner {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl From<Context> for ContextInner {
     fn from(c: Context) -> ContextInner {
         ContextInner(c)
     }
 }
 
-/// The Contexts Interface provides additional context data. Typically, this is data related to the
+/// The Contexts interface provides additional context data. Typically, this is data related to the
 /// current user and the environment. For example, the device or application version. Its canonical
 /// name is `contexts`.
 ///
@@ -158,56 +119,137 @@ impl From<Context> for ContextInner {
 pub struct Contexts(pub Object<ContextInner>);
 
 impl Contexts {
+    /// Creates an empty contexts map.
     pub fn new() -> Contexts {
-        Contexts(Object::<ContextInner>::new())
+        Contexts(Object::new())
     }
 
-    /// Adds a context to self under the default key for the Context
-    pub fn add(&mut self, context: Context) {
-        if let Some(key) = context.default_key() {
-            self.insert(key.to_owned(), Annotated::new(ContextInner(context)));
+    /// Inserts a context under the default key for the context.
+    pub fn add<C>(&mut self, context: C)
+    where
+        C: DefaultContext,
+    {
+        self.insert(C::default_key().to_owned(), context.into_context());
+    }
+
+    /// Inserts a context under a custom given key.
+    ///
+    /// By convention, every typed context has a default key. Use [`add`](Self::add) to insert such
+    /// contexts, instead.
+    pub fn insert(&mut self, key: String, context: Context) {
+        self.0.insert(key, Annotated::new(ContextInner(context)));
+    }
+
+    /// Returns `true` if a matching context resides in the map at its default key.
+    pub fn contains<C>(&self) -> bool
+    where
+        C: DefaultContext,
+    {
+        // Use `get` to perform a type check.
+        self.get::<C>().is_some()
+    }
+
+    /// Returns `true` if a context with the provided key is present in the map.
+    ///
+    /// By convention, every typed context has a default key. Use [`contains`](Self::contains) to
+    /// check such contexts, instead.
+    pub fn contains_key<S>(&self, key: S) -> bool
+    where
+        S: AsRef<str>,
+    {
+        self.0.contains_key(key.as_ref())
+    }
+
+    /// Returns the context at its default key or constructs it if not present.
+    pub fn get_or_default<C>(&mut self) -> &mut C
+    where
+        C: DefaultContext,
+    {
+        if !self.contains::<C>() {
+            self.add(C::default());
         }
+
+        self.get_mut().unwrap()
     }
 
     /// Returns the context at the specified key or constructs it if not present.
+    ///
+    /// By convention, every typed context has a default key. Use
+    /// [`get_or_default`](Self::get_or_default) to insert such contexts, instead.
     pub fn get_or_insert_with<F, S>(&mut self, key: S, context_builder: F) -> &mut Context
     where
         F: FnOnce() -> Context,
         S: Into<String>,
     {
-        &mut *self
+        &mut self
+            .0
             .entry(key.into())
             .or_insert_with(Annotated::empty)
             .value_mut()
             .get_or_insert_with(|| ContextInner(context_builder()))
+            .0
     }
 
-    pub fn get_context_mut<S>(&mut self, key: S) -> Option<&mut Context>
+    /// Returns a reference to the default context by type.
+    pub fn get<C>(&self) -> Option<&C>
+    where
+        C: DefaultContext,
+    {
+        C::cast(self.get_key(C::default_key())?)
+    }
+
+    /// Returns a mutable reference to the default context by type.
+    pub fn get_mut<C>(&mut self) -> Option<&mut C>
+    where
+        C: DefaultContext,
+    {
+        C::cast_mut(self.get_key_mut(C::default_key())?)
+    }
+
+    /// Returns a reference to the context specified by `key`.
+    ///
+    /// By convention, every typed context has a default key. Use [`get`](Self::get) to retrieve
+    /// such contexts, instead.
+    pub fn get_key<S>(&self, key: S) -> Option<&Context>
     where
         S: AsRef<str>,
     {
-        Some(&mut self.get_mut(key.as_ref())?.value_mut().as_mut()?.0)
+        Some(&self.0.get(key.as_ref())?.value().as_ref()?.0)
     }
 
-    pub fn get_context<S>(&self, key: S) -> Option<&Context>
+    /// Returns a mutable reference to the context specified by `key`.
+    ///
+    /// By convention, every typed context has a default key. Use [`get_mut`](Self::get_mut) to
+    /// retrieve such contexts, instead.
+    pub fn get_key_mut<S>(&mut self, key: S) -> Option<&mut Context>
     where
         S: AsRef<str>,
     {
-        Some(&self.get(key.as_ref())?.value().as_ref()?.0)
+        Some(&mut self.0.get_mut(key.as_ref())?.value_mut().as_mut()?.0)
     }
-}
 
-impl std::ops::Deref for Contexts {
-    type Target = Object<ContextInner>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    /// Removes a context from the map, returning the context it was previously in the map.
+    ///
+    /// Returns `Some` if a matching context was removed from the default key. If the context at the
+    /// default key does not have a matching type, it is removed but `None` is returned.
+    pub fn remove<C>(&mut self) -> Option<C>
+    where
+        C: DefaultContext,
+    {
+        let context = self.remove_key(C::default_key())?;
+        C::from_context(context)
     }
-}
 
-impl std::ops::DerefMut for Contexts {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+    /// Removes a context from the map, returning the context it was previously in the map.
+    ///
+    /// By convention, every typed context has a default key. Use [`remove`](Self::remove) to
+    /// retrieve such contexts, instead.
+    pub fn remove_key<S>(&mut self, key: S) -> Option<Context>
+    where
+        S: AsRef<str>,
+    {
+        let inner = self.0.remove(key.as_ref())?;
+        Some(inner.into_value()?.0)
     }
 }
 
@@ -227,6 +269,35 @@ impl FromValue for Contexts {
         }
         FromValue::from_value(annotated).map_value(Contexts)
     }
+}
+
+/// A well-known context in the [`Contexts`] interface.
+///
+/// These contexts have a [default key](Self::default_key) in the contexts map and can be
+/// constructed as an empty default value.
+pub trait DefaultContext: Default {
+    /// The default key at which this context resides in [`Contexts`].
+    fn default_key() -> &'static str;
+
+    /// Converts this context type from a generic context type.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    fn from_context(context: Context) -> Option<Self>;
+
+    /// Casts a reference to this context type from a generic context type.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    fn cast(context: &Context) -> Option<&Self>;
+
+    /// Casts a mutable reference to this context type from a generic context type.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    fn cast_mut(context: &mut Context) -> Option<&mut Self>;
+
+    /// Boxes this context type in the generic context wrapper.
+    ///
+    /// Returns `Some` if the context is of this type. Otherwise, returns `None`.
+    fn into_context(self) -> Context;
 }
 
 #[cfg(test)]
@@ -260,15 +331,13 @@ mod tests {
     fn test_untagged_context_deserialize() {
         let json = r#"{"os": {"name": "Linux"}}"#;
 
-        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+        let mut map = Contexts::new();
+        map.add(OsContext {
             name: Annotated::new("Linux".to_string()),
             ..Default::default()
-        }))));
-        let mut map = Object::new();
-        map.insert("os".to_string(), os_context);
-        let contexts = Annotated::new(Contexts(map));
+        });
 
-        assert_eq!(contexts, Annotated::from_json(json).unwrap());
+        assert_eq!(Annotated::new(map), Annotated::from_json(json).unwrap());
     }
 
     #[test]
@@ -276,22 +345,17 @@ mod tests {
         let json =
             r#"{"os":{"name":"Linux","type":"os"},"runtime":{"name":"rustc","type":"runtime"}}"#;
 
-        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
+        let mut map = Contexts::new();
+        map.add(OsContext {
             name: Annotated::new("Linux".to_string()),
             ..Default::default()
-        }))));
+        });
+        map.add(RuntimeContext {
+            name: Annotated::new("rustc".to_string()),
+            ..Default::default()
+        });
 
-        let runtime_context =
-            Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-                name: Annotated::new("rustc".to_string()),
-                ..Default::default()
-            }))));
-
-        let mut map = Object::new();
-        map.insert("os".to_string(), os_context);
-        map.insert("runtime".to_string(), runtime_context);
-        let contexts = Annotated::new(Contexts(map));
-
+        let contexts = Annotated::new(map);
         assert_eq!(contexts, Annotated::from_json(json).unwrap());
         assert_eq!(json, contexts.to_json().unwrap());
     }
@@ -299,18 +363,15 @@ mod tests {
     #[test]
     fn test_context_processing() {
         let mut event = Annotated::new(Event {
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "runtime".to_owned(),
-                    Annotated::new(ContextInner(Context::Runtime(Box::new(RuntimeContext {
-                        name: Annotated::new("php".to_owned()),
-                        version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(RuntimeContext {
+                    name: Annotated::new("php".to_owned()),
+                    version: Annotated::new("7.1.20-1+ubuntu16.04.1+deb.sury.org+1".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 

@@ -116,6 +116,37 @@ pub struct TraceContext {
     pub other: Object<Value>,
 }
 
+impl super::DefaultContext for TraceContext {
+    fn default_key() -> &'static str {
+        "trace"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Trace(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Trace(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Trace(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Trace(Box::new(self))
+    }
+}
+
 #[doc(inline)]
 pub use relay_common::{ParseSpanStatusError, SpanStatus};
 
@@ -187,13 +218,6 @@ impl IntoValue for SpanStatus {
         S: Serializer,
     {
         Serialize::serialize(self.as_str(), s)
-    }
-}
-
-impl TraceContext {
-    /// The key under which a trace context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
-        "trace"
     }
 }
 

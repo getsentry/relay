@@ -1,20 +1,20 @@
-use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::metrics_extraction::utils::extract_http_status_code;
-use crate::metrics_extraction::utils::http_status_code_from_span;
-use crate::metrics_extraction::utils::{
-    extract_transaction_op, get_eventuser_tag, get_trace_context,
-};
-use crate::metrics_extraction::IntoMetric;
+use std::collections::BTreeMap;
+
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_common::{EventType, UnixTimestamp};
 use relay_filter::csp::SchemeDomainPort;
-use relay_general::protocol::Event;
+use relay_general::protocol::{Event, TraceContext};
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
-use std::collections::BTreeMap;
+
+use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
+use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::utils::{
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
+};
+use crate::metrics_extraction::IntoMetric;
 
 mod types;
 
@@ -83,7 +83,7 @@ pub(crate) fn extract_span_metrics(
         }
     }
 
-    if let Some(trace_context) = get_trace_context(event) {
+    if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             shared_tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
         }

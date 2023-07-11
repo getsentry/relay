@@ -42,10 +42,34 @@ pub struct OsContext {
     pub other: Object<Value>,
 }
 
-impl OsContext {
-    /// The key under which an os context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for OsContext {
+    fn default_key() -> &'static str {
         "os"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Os(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Os(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Os(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Os(Box::new(self))
     }
 }
 

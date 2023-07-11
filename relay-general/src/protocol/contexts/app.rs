@@ -44,10 +44,34 @@ pub struct AppContext {
     pub other: Object<Value>,
 }
 
-impl AppContext {
-    /// The key under which an app context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for AppContext {
+    fn default_key() -> &'static str {
         "app"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::App(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::App(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::App(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::App(Box::new(self))
     }
 }
 

@@ -317,8 +317,7 @@ mod tests {
     use crate::pii::{DataScrubbingConfig, PiiProcessor};
     use crate::processor::{process_value, ProcessingState};
     use crate::protocol::{
-        BrowserContext, Context, ContextInner, DeviceContext, EventId, OsContext, Replay, TagEntry,
-        Tags,
+        BrowserContext, Context, DeviceContext, EventId, OsContext, Replay, TagEntry, Tags,
     };
     use crate::testutils::get_value;
     use crate::types::Annotated;
@@ -399,25 +398,6 @@ mod tests {
 
     #[test]
     fn test_set_user_agent_meta() {
-        let os_context = Annotated::new(ContextInner(Context::Os(Box::new(OsContext {
-            name: Annotated::new("Mac OS X".to_string()),
-            version: Annotated::new(">=10.15.7".to_string()),
-            ..Default::default()
-        }))));
-        let browser_context =
-            Annotated::new(ContextInner(Context::Browser(Box::new(BrowserContext {
-                name: Annotated::new("Safari".to_string()),
-                version: Annotated::new("15.5".to_string()),
-                ..Default::default()
-            }))));
-        let device_context =
-            Annotated::new(ContextInner(Context::Device(Box::new(DeviceContext {
-                family: Annotated::new("Mac".to_string()),
-                brand: Annotated::new("Apple".to_string()),
-                model: Annotated::new("Mac".to_string()),
-                ..Default::default()
-            }))));
-
         // Parse user input.
         let payload = include_str!("../../tests/fixtures/replays/replay.json");
 
@@ -425,30 +405,32 @@ mod tests {
         let replay_value = replay.value_mut().as_mut().unwrap();
         replay_value.normalize(None, &RawUserAgentInfo::default());
 
-        let loaded_browser_context = replay_value
-            .contexts
-            .value()
-            .unwrap()
-            .get("browser")
-            .unwrap();
-
-        let loaded_os_context = replay_value
-            .contexts
-            .value()
-            .unwrap()
-            .get("client_os")
-            .unwrap();
-
-        let loaded_device_context = replay_value
-            .contexts
-            .value()
-            .unwrap()
-            .get("device")
-            .unwrap();
-
-        assert_eq!(loaded_browser_context, &browser_context);
-        assert_eq!(loaded_os_context, &os_context);
-        assert_eq!(loaded_device_context, &device_context);
+        let contexts = replay_value.contexts.value().unwrap();
+        assert_eq!(
+            contexts.get::<BrowserContext>(),
+            Some(&BrowserContext {
+                name: Annotated::new("Safari".to_string()),
+                version: Annotated::new("15.5".to_string()),
+                ..Default::default()
+            })
+        );
+        assert_eq!(
+            contexts.get_key("client_os"),
+            Some(&Context::Os(Box::new(OsContext {
+                name: Annotated::new("Mac OS X".to_string()),
+                version: Annotated::new(">=10.15.7".to_string()),
+                ..Default::default()
+            })))
+        );
+        assert_eq!(
+            contexts.get::<DeviceContext>(),
+            Some(&DeviceContext {
+                family: Annotated::new("Mac".to_string()),
+                brand: Annotated::new("Apple".to_string()),
+                model: Annotated::new("Mac".to_string()),
+                ..Default::default()
+            })
+        );
     }
 
     #[test]
@@ -460,22 +442,14 @@ mod tests {
 
         // No user object and no ip-address was provided.
         replay.normalize(None, &RawUserAgentInfo::default());
-        let user = replay.user.value();
-        assert!(user.is_none());
+        assert_eq!(replay.user.value(), None);
 
         // No user object but an ip-address was provided.
         let ip_address = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
         replay.normalize(Some(ip_address), &RawUserAgentInfo::default());
 
-        let ip_addr = replay
-            .user
-            .value()
-            .unwrap()
-            .ip_address
-            .value()
-            .unwrap()
-            .as_str();
-        assert!(ip_addr == "127.0.0.1");
+        let ipaddr = replay.user.value().unwrap().ip_address.as_str();
+        assert_eq!(Some("127.0.0.1"), ipaddr);
     }
 
     #[test]
@@ -490,16 +464,8 @@ mod tests {
         let replay_value = replay.value_mut().as_mut().unwrap();
         replay_value.normalize(Some(ip_address), &RawUserAgentInfo::default());
 
-        let ipaddr = replay_value
-            .user
-            .value_mut()
-            .as_ref()
-            .unwrap()
-            .ip_address
-            .value()
-            .unwrap()
-            .as_str();
-        assert!("127.0.0.1" == ipaddr);
+        let ipaddr = replay_value.user.value().unwrap().ip_address.as_str();
+        assert_eq!(Some("127.0.0.1"), ipaddr);
     }
 
     #[test]
@@ -511,10 +477,10 @@ mod tests {
         replay_value.normalize(None, &RawUserAgentInfo::default());
 
         let user = replay_value.user.value().unwrap();
-        assert!(user.ip_address.value().unwrap().as_str() == "127.1.1.1");
-        assert!(user.username.value().is_none());
-        assert!(user.email.value().unwrap().as_str() == "email@sentry.io");
-        assert!(user.id.value().unwrap().as_str() == "1");
+        assert_eq!(user.ip_address.as_str(), Some("127.1.1.1"));
+        assert_eq!(user.username.value(), None);
+        assert_eq!(user.email.as_str(), Some("email@sentry.io"));
+        assert_eq!(user.id.as_str(), Some("1"));
     }
 
     #[test]
@@ -528,29 +494,20 @@ mod tests {
         process_value(&mut replay, &mut pii_processor, ProcessingState::root()).unwrap();
 
         // Ip-address was removed.
-        let ip_address = get_value!(replay.user.ip_address);
-        assert!(ip_address.is_none());
+        assert_eq!(get_value!(replay.user.ip_address), None);
 
-        let maybe_credit_card = replay
-            .value()
-            .unwrap()
-            .tags
-            .value()
-            .unwrap()
-            .get("credit-card");
-
-        assert_eq!(maybe_credit_card, Some("[Filtered]"));
+        let replay_value = replay.value().unwrap();
+        let credit_card = replay_value.tags.value().unwrap().get("credit-card");
+        assert_eq!(credit_card, Some("[Filtered]"));
 
         // Assert URLs field scrubs array items.
-        let maybe_url_0 = replay.value().unwrap().urls.value().unwrap().get(0);
-        let maybe_url_1 = replay.value().unwrap().urls.value().unwrap().get(1);
-        let maybe_url_2 = replay.value().unwrap().urls.value().unwrap().get(2);
+        let urls = replay_value.urls.value().unwrap();
         assert_eq!(
-            maybe_url_0.map(|i| i.as_str()),
-            Some(Some("sentry.io?ssn=[Filtered]"))
+            urls.get(0).and_then(|a| a.as_str()),
+            Some("sentry.io?ssn=[Filtered]")
         );
-        assert_eq!(maybe_url_1.map(|i| i.as_str()), Some(Some("[Filtered]")));
-        assert_eq!(maybe_url_2.map(|i| i.as_str()), Some(Some("[Filtered]")));
+        assert_eq!(urls.get(1).and_then(|a| a.as_str()), Some("[Filtered]"));
+        assert_eq!(urls.get(2).and_then(|a| a.as_str()), Some("[Filtered]"));
     }
 
     #[test]

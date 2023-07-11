@@ -7,9 +7,7 @@ use relay_common::SpanStatus;
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{
-    Context, ContextInner, Event, EventType, Span, Timestamp, TransactionSource,
-};
+use crate::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
 use crate::store::regexes::{
     REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
     SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
@@ -263,71 +261,73 @@ pub fn validate_timestamps(
 fn validate_transaction(event: &mut Event) -> ProcessingResult {
     validate_timestamps(event)?;
 
-    let err_trace_context_required = Err(ProcessingAction::InvalidTransaction(
-        "trace context hard-required for transaction events",
-    ));
-
-    let contexts = match event.contexts.value_mut() {
-        Some(contexts) => contexts,
-        None => return err_trace_context_required,
+    let Some(trace_context) = event.context_mut::<TraceContext>() else {
+        return Err(ProcessingAction::InvalidTransaction(
+            "missing valid trace context",
+        ));
     };
 
-    let trace_context = match contexts.get_mut("trace").map(Annotated::value_mut) {
-        Some(Some(trace_context)) => trace_context,
-        _ => return err_trace_context_required,
-    };
-
-    match trace_context {
-        ContextInner(Context::Trace(trace_context)) => {
-            if trace_context.trace_id.value().is_none() {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "trace context is missing trace_id",
-                ));
-            }
-            if trace_context.span_id.value().is_none() {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "trace context is missing span_id",
-                ));
-            }
-
-            trace_context.op.get_or_insert_with(|| "default".to_owned());
-            Ok(())
-        }
-        _ => Err(ProcessingAction::InvalidTransaction(
-            "context at event.contexts.trace must be of type trace.",
-        )),
+    if trace_context.trace_id.value().is_none() {
+        return Err(ProcessingAction::InvalidTransaction(
+            "trace context is missing trace_id",
+        ));
     }
+
+    if trace_context.span_id.value().is_none() {
+        return Err(ProcessingAction::InvalidTransaction(
+            "trace context is missing span_id",
+        ));
+    }
+
+    trace_context.op.get_or_insert_with(|| "default".to_owned());
+    Ok(())
 }
+
+/// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
+/// transaction names. These cases are considered as high-cardinality.
+///
+/// See <https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19>
+const RUBY_URL_STATUSES: &[SpanStatus] = &[
+    SpanStatus::InvalidArgument,
+    SpanStatus::Unauthenticated,
+    SpanStatus::PermissionDenied,
+    SpanStatus::NotFound,
+    SpanStatus::AlreadyExists,
+    SpanStatus::ResourceExhausted,
+    SpanStatus::Cancelled,
+    SpanStatus::InternalError,
+    SpanStatus::Unimplemented,
+    SpanStatus::Unavailable,
+    SpanStatus::DeadlineExceeded,
+];
 
 /// List of SDKs which we assume to produce high cardinality transaction names, such as
 /// "/user/123134/login".
-/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine cardinality,
-/// but for old SDKs, we fall back to this list.
+const RAW_URL_SDKS: &[&str] = &[
+    "sentry.javascript.angular",
+    "sentry.javascript.browser",
+    "sentry.javascript.ember",
+    "sentry.javascript.gatsby",
+    "sentry.javascript.react",
+    "sentry.javascript.remix",
+    "sentry.javascript.vue",
+    "sentry.javascript.nextjs",
+    "sentry.php.laravel",
+    "sentry.php.symfony",
+];
+
+/// Returns `true` if the event's transaction name is known to contain unsanitized values.
+///
+/// Newer SDK send the [`TransactionSource`] attribute, which we can rely on to determine
+/// cardinality. If the source is missing, this function gives an indication whether the transaction
+/// name should be sanitized.
 pub fn is_high_cardinality_sdk(event: &Event) -> bool {
     let Some(client_sdk) = event.client_sdk.value() else {
         return false;
     };
 
-    let sdk_name = client_sdk
-        .name
-        .value()
-        .map(|s| s.as_str())
-        .unwrap_or_default();
-
-    if [
-        "sentry.javascript.angular",
-        "sentry.javascript.browser",
-        "sentry.javascript.ember",
-        "sentry.javascript.gatsby",
-        "sentry.javascript.react",
-        "sentry.javascript.remix",
-        "sentry.javascript.vue",
-        "sentry.javascript.nextjs",
-        "sentry.php.laravel",
-        "sentry.php.symfony",
-    ]
-    .contains(&sdk_name)
-    {
+    let sdk_name = event.sdk_name();
+    if RAW_URL_SDKS.contains(&sdk_name) {
         return true;
     }
 
@@ -341,6 +341,7 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
         .value()
         .and_then(|r| r.method.as_str())
         .unwrap_or_default();
+
     if sdk_name == "sentry.javascript.node"
         && http_method.eq_ignore_ascii_case("options")
         && client_sdk.has_integration("Express")
@@ -349,29 +350,8 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
     }
 
     if sdk_name == "sentry.ruby" && event.has_module("rack") {
-        let trace = event
-            .contexts
-            .value()
-            .and_then(|c| c.get("trace"))
-            .and_then(Annotated::value);
-        if let Some(ContextInner(Context::Trace(trace_context))) = trace {
-            let status = trace_context.status.value().unwrap_or(&SpanStatus::Unknown);
-            if [
-                // See https://github.com/getsentry/sentry-ruby/blob/ad4828f6d8d60e98217b2edb1ab003fb627d6bdb/sentry-ruby/lib/sentry/span.rb#L7-L19
-                SpanStatus::InvalidArgument,
-                SpanStatus::Unauthenticated,
-                SpanStatus::PermissionDenied,
-                SpanStatus::NotFound,
-                SpanStatus::AlreadyExists,
-                SpanStatus::ResourceExhausted,
-                SpanStatus::Cancelled,
-                SpanStatus::InternalError,
-                SpanStatus::Unimplemented,
-                SpanStatus::Unavailable,
-                SpanStatus::DeadlineExceeded,
-            ]
-            .contains(status)
-            {
+        if let Some(trace) = event.context::<TraceContext>() {
+            if RUBY_URL_STATUSES.contains(trace.status.value().unwrap_or(&SpanStatus::Unknown)) {
                 return true;
             }
         }
@@ -638,7 +618,6 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
 
 #[cfg(test)]
 mod tests {
-
     use chrono::offset::TimeZone;
     use chrono::{Duration, Utc};
     use insta::assert_debug_snapshot;
@@ -646,9 +625,7 @@ mod tests {
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{
-        ClientSdkInfo, Contexts, SpanId, TraceContext, TraceId, TransactionSource,
-    };
+    use crate::protocol::{ClientSdkInfo, Contexts, SpanId, TraceId, TransactionSource};
     use crate::store::{LazyGlob, RedactionRule, SpanDescriptionRuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;
@@ -661,21 +638,16 @@ mod tests {
             transaction: Annotated::new("/".to_owned()),
             start_timestamp: Annotated::new(start.into()),
             timestamp: Annotated::new(end.into()),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![Annotated::new(Span {
                 start_timestamp: Annotated::new(start.into()),
                 timestamp: Annotated::new(end.into()),
@@ -795,7 +767,7 @@ mod tests {
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
-                "trace context hard-required for transaction events"
+                "missing valid trace context"
             ))
         );
     }
@@ -808,7 +780,7 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts(Object::new())),
+            contexts: Annotated::new(Contexts::new()),
             ..Default::default()
         });
 
@@ -819,7 +791,7 @@ mod tests {
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
-                "trace context hard-required for transaction events"
+                "missing valid trace context"
             ))
         );
     }
@@ -847,7 +819,7 @@ mod tests {
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
-                "trace context hard-required for transaction events"
+                "missing valid trace context"
             ))
         );
     }
@@ -860,16 +832,11 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext::default());
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -893,19 +860,14 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -931,20 +893,15 @@ mod tests {
             transaction: Annotated::new("/".to_owned()),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -985,21 +942,16 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             ..Default::default()
         });
 
@@ -1020,21 +972,16 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![]),
             ..Default::default()
         });
@@ -1096,21 +1043,16 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![Annotated::empty()]),
             ..Default::default()
         });
@@ -1135,21 +1077,16 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
@@ -1179,21 +1116,16 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
@@ -1226,21 +1158,16 @@ mod tests {
             start_timestamp: Annotated::new(
                 Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
             ),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
@@ -1276,21 +1203,16 @@ mod tests {
             transaction: Annotated::new("/".to_owned()),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![Annotated::new(Span {
                 timestamp: Annotated::new(
                     Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),

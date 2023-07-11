@@ -3,10 +3,9 @@ use std::collections::BTreeMap;
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{TaggingRule, TransactionMetricsConfig};
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource,
+    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 use relay_general::store;
-use relay_general::types::Annotated;
 use relay_metrics::{AggregatorConfig, Metric};
 
 use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
@@ -16,7 +15,7 @@ use crate::metrics_extraction::transactions::types::{
     TransactionMeasurementTags, TransactionMetric,
 };
 use crate::metrics_extraction::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag, get_trace_context,
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -38,37 +37,23 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     Some(method.clone())
 }
 
-/// Extract the browser name from the [`Context::Browser`] context.
+/// Extract the browser name from the [`BrowserContext`] context.
 fn extract_browser_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let browser = contexts.get("browser").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Browser(browser_context))) = browser {
-        return browser_context.name.value().cloned();
-    }
-
-    None
+    let browser = event.context::<BrowserContext>()?;
+    browser.name.value().cloned()
 }
 
-/// Extract the OS name from the [`Context::Os`] context.
+/// Extract the OS name from the [`OsContext`] context.
 fn extract_os_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let os = contexts.get("os").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Os(os_context))) = os {
-        return os_context.name.value().cloned();
-    }
-
-    None
+    let os = event.context::<OsContext>()?;
+    os.name.value().cloned()
 }
 
 /// Extract the GEO country code from the [`relay_general::protocol::User`] context.
 fn extract_geo_country_code(event: &Event) -> Option<String> {
-    if let Some(user) = event.user.value() {
-        if let Some(geo) = user.geo.value() {
-            return geo.country_code.value().cloned();
-        }
-    }
-
-    None
+    let user = event.user.value()?;
+    let geo = user.geo.value()?;
+    geo.country_code.value().cloned()
 }
 
 fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
@@ -181,7 +166,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     tags.insert(CommonTag::Platform, platform.to_string());
 
-    if let Some(trace_context) = get_trace_context(event) {
+    if let Some(trace_context) = event.context::<TraceContext>() {
         let status = extract_transaction_status(trace_context);
 
         tags.insert(CommonTag::TransactionStatus, status.to_string());
@@ -1393,7 +1378,7 @@ mod tests {
             start_timestamp: Annotated::new(timestamp),
             contexts: Annotated::new({
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Trace(Box::default()));
+                contexts.add(TraceContext::default());
                 contexts
             }),
             ..Default::default()
