@@ -101,6 +101,51 @@ pub fn get_sampling_result(
     SamplingResult::determine_from_sampling_match(sampling_result)
 }
 
+pub fn is_trace_fully_sampled(
+    processing_enabled: bool,
+    root_project_state: Option<&ProjectState>,
+    dsc: Option<&DynamicSamplingContext>,
+) -> Option<bool> {
+    // We want to run dynamic sampling only if we have a root project state and a dynamic
+    // sampling context.
+    //
+    // In reality the dynamic sampling logic supports optional root state and dsc but it will
+    // return keep. In our case having a keep in case of none root state and dsc will be
+    // a problem, since in reality we can't infer anything without trace metadata.
+    let sampling_result = if let (Some(root_project_state), Some(dsc)) = (root_project_state, dsc) {
+        // If the sampled field is not set, we prefer to not tag the error since we have no clue on
+        // whether the head of the trace was kept or dropped on the client side.
+        if let Some(sampled) = &dsc.sampled {
+            match sampled {
+                // If the head of the trace was kept on the client, we assume that each
+                // component of the trace will be sampled on each client, thus we can run
+                // dynamic sampling.
+                true => get_sampling_result(
+                    processing_enabled,
+                    None,
+                    Some(root_project_state),
+                    Some(dsc),
+                    None,
+                ),
+                // If the head of the trace was dropped on the client we will immediately mark
+                // the trace as not fully sampled.
+                false => SamplingResult::Drop(MatchedRuleIds(vec![])),
+            }
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    let sampled = match sampling_result {
+        SamplingResult::Keep => true,
+        SamplingResult::Drop(_) => false,
+    };
+
+    Some(sampled)
+}
+
 /// Returns the project key defined in the `trace` header of the envelope.
 ///
 /// This function returns `None` if:

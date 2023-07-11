@@ -2284,87 +2284,34 @@ impl EnvelopeProcessorService {
     /// This execution of dynamic sampling is technically a "simulation" since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        // In case there is no incoming event we can't tag anything, thus we early return.
         if state.event.is_empty() {
             return;
         }
 
-        // We want to run dynamic sampling only if we have a root project state and a dynamic
-        // sampling context.
-        //
-        // In reality the dynamic sampling logic supports optional root state and dsc but it will
-        // return keep. In our case having a keep in case of none root state and dsc will be
-        // a problem, since in reality we can't infer anything without trace metadata.
-        let sampling_result = if let (Some(root_project_state), Some(dsc)) = (
+        let sampled = utils::is_trace_fully_sampled(
+            self.config.processing_enabled(),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
-        ) {
-            // In case the dsc doesn't have a transaction, we don't want to tag it. This can happen
-            // since in tracing without performance we can have a trace that is not made up of
-            // transactions.
-            // In addition, if the sampled field is not set, we prefer to not tag the error since
-            // we have no clue on whether the head of the trace was kept or dropped on the client
-            // side.
-            if let (Some(_), Some(sampled)) = (&dsc.transaction, &dsc.sampled) {
-                match sampled {
-                    // If the head of the trace was kept on the client, we assume that each
-                    // component of the trace will be sampled on each client, thus we can run
-                    // dynamic sampling.
-                    true => utils::get_sampling_result(
-                        self.config.processing_enabled(),
-                        None,
-                        Some(root_project_state),
-                        Some(dsc),
-                        None,
-                    ),
-                    // If the head of the trace was dropped on the client we will immediately mark
-                    // the trace as not fully sampled.
-                    false => SamplingResult::Drop(MatchedRuleIds(vec![])),
-                }
-            } else {
-                relay_log::trace!("unable to tag error because of dsc contents");
-                return;
-            }
-        } else {
-            relay_log::trace!("unable to tag error because root project state or dsc are missing");
+        );
+
+        let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;
         };
 
-        let Some(event) = state.event.value_mut() else {
-            relay_log::trace!("unable to tag error because envelope doesn't contain an event");
-            return;
-        };
-
-        // In case the sampling result is positive, we assume that all the transactions
-        // that have this DSC will be sampled and thus we mark the error as "having
-        // a full trace".
-        // In case we have no contexts object, we have to create it.
-        let contexts = event.contexts.get_or_insert_with(Contexts::new);
-
-        // We want to get the specific trace context, or we want to create it in case
-        // it is not there.
-        let context =
-            contexts.get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
+        // We want to get the trace context, in which we will inject the `sampled` field.
+        let context = event
+            .contexts
+            .get_or_insert_with(Contexts::new)
+            .get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
 
         // We want to mutate the sampled after the "fake" sampling has been performed.
-        //
-        // It is important to note that tagging only occurs if there is a dsc and root
-        // project state.
         if let Trace(boxed_context) = context {
             // We want to update `sampled` only if it was not set, since if we don't check this
             // we will end up overriding the value set by downstream Relays and this will lead
             // to more complex debugging in case of problems.
             if boxed_context.sampled.is_empty() {
-                let sampled = match sampling_result {
-                    SamplingResult::Keep => true,
-                    SamplingResult::Drop(_) => false,
-                };
                 relay_log::trace!("tagged error with `sampled = {}` flag", sampled);
                 boxed_context.sampled = Annotated::new(sampled);
-            } else {
-                relay_log::trace!(
-                    "unable to tag error because it was already tagged by another Relay"
-                );
             }
         }
     }
@@ -3418,31 +3365,6 @@ mod tests {
         if let Trace(context) = trace_context {
             assert!(!context.sampled.value().unwrap())
         }
-
-        // We test tagging with an incoming dsc that doesn't have a transaction set.
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: None,
-            sample_rate: None,
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        };
-        envelope.set_dsc(dsc);
-        envelope.add_item(mocked_error_item());
-        let sampling_project_state = project_state_with_single_rule(0.0);
-        let new_envelope = process_envelope_with_root_project_state(
-            envelope,
-            Some(Arc::new(sampling_project_state)),
-        );
-        let event = extract_first_event_from_envelope(new_envelope);
-
-        assert!(event.contexts.value().is_none());
 
         // We test tagging when root project state and dsc are none.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
