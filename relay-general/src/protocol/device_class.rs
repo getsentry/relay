@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use std::collections::BTreeMap;
 use std::fmt;
 
-use crate::protocol::{Context, Contexts};
+use crate::protocol::{Context, Contexts, DeviceContext};
 
 #[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq)]
 pub struct DeviceClass(pub u64);
@@ -16,7 +16,9 @@ impl DeviceClass {
     pub const HIGH: Self = Self(3);
 
     pub fn from_contexts(contexts: &Contexts) -> Option<DeviceClass> {
-        if let Some(Context::Device(ref device)) = contexts.get_context("device") {
+        if let Some(Context::Device(ref device)) =
+            contexts.get_context(DeviceContext::default_key())
+        {
             if let Some(family) = device.family.value() {
                 if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
                     if let Some(model) = device.model.value() {

@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
 use relay_dynamic_config::{TaggingRule, TransactionMetricsConfig};
-use relay_general::protocol::{AsPair, Context, Event, TraceContext, TransactionSource};
+use relay_general::protocol::{
+    AsPair, BrowserContext, Context, Event, OsContext, TraceContext, TransactionSource,
+};
 use relay_general::store;
 use relay_metrics::{AggregatorConfig, Metric};
 
@@ -37,7 +39,11 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 
 /// Extract the browser name from the [`Context::Browser`] context.
 fn extract_browser_name(event: &Event) -> Option<String> {
-    if let Context::Browser(browser) = event.contexts.value()?.get_context("browser")? {
+    if let Context::Browser(browser) = event
+        .contexts
+        .value()?
+        .get_context(BrowserContext::default_key())?
+    {
         return browser.name.value().cloned();
     }
 
@@ -46,7 +52,11 @@ fn extract_browser_name(event: &Event) -> Option<String> {
 
 /// Extract the OS name from the [`Context::Os`] context.
 fn extract_os_name(event: &Event) -> Option<String> {
-    if let Context::Os(os) = event.contexts.value()?.get_context("os")? {
+    if let Context::Os(os) = event
+        .contexts
+        .value()?
+        .get_context(OsContext::default_key())?
+    {
         return os.name.value().cloned();
     }
 

@@ -1,6 +1,4 @@
-#[cfg(test)]
-use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};
-use crate::protocol::{Context, Event, Mechanism};
+use crate::protocol::{Context, Event, Mechanism, OsContext};
 use crate::types::{Annotated, Error, ProcessingAction, ProcessingResult};
 
 fn get_errno_name(errno: i64, os_hint: OsHint) -> Option<&'static str> {
@@ -580,7 +578,9 @@ impl OsHint {
         }
 
         if let Some(contexts) = event.contexts.value() {
-            if let Some(Context::Os(ref os_context)) = contexts.get_context("os") {
+            if let Some(Context::Os(ref os_context)) =
+                contexts.get_context(OsContext::default_key())
+            {
                 if let Some(name) = os_context.name.as_str() {
                     return Self::from_name(name);
                 }
@@ -655,6 +655,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
+    use crate::protocol::{CError, MachException, MechanismMeta, PosixSignal};
     use crate::types::SerializableAnnotated;
 
     #[test]

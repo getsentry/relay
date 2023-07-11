@@ -423,9 +423,15 @@ mod tests {
         replay_value.normalize(None, &RawUserAgentInfo::default());
 
         let contexts = replay_value.contexts.value().unwrap();
-        assert_eq!(contexts.get_context("browser"), Some(&browser_context));
+        assert_eq!(
+            contexts.get_context(BrowserContext::default_key()),
+            Some(&browser_context)
+        );
         assert_eq!(contexts.get_context("client_os"), Some(&os_context));
-        assert_eq!(contexts.get_context("device"), Some(&device_context));
+        assert_eq!(
+            contexts.get_context(DeviceContext::default_key()),
+            Some(&device_context)
+        );
     }
 
     #[test]

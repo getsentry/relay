@@ -581,7 +581,11 @@ fn get_measurement(event: &Event, name: &str) -> Option<f64> {
 
 /// Returns the trace context of the event if present.
 fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    match event.contexts.value()?.get_context("trace")? {
+    match event
+        .contexts
+        .value()?
+        .get_context(TraceContext::default_key())?
+    {
         Context::Trace(ref trace_context) => Some(trace_context),
         _ => None,
     }
@@ -589,7 +593,11 @@ fn get_trace_context(event: &Event) -> Option<&TraceContext> {
 
 /// Returns the device context of the event if present.
 fn get_device_context(event: &Event) -> Option<&DeviceContext> {
-    match event.contexts.value()?.get_context("device")? {
+    match event
+        .contexts
+        .value()?
+        .get_context(DeviceContext::default_key())?
+    {
         Context::Device(ref device_context) => Some(device_context),
         _ => None,
     }
@@ -597,7 +605,11 @@ fn get_device_context(event: &Event) -> Option<&DeviceContext> {
 
 /// Returns the os context of the event if present.
 fn get_os_context(event: &Event) -> Option<&OsContext> {
-    match event.contexts.value()?.get_context("os")? {
+    match event
+        .contexts
+        .value()?
+        .get_context(OsContext::default_key())?
+    {
         Context::Os(ref os_context) => Some(os_context),
         _ => None,
     }
@@ -605,7 +617,11 @@ fn get_os_context(event: &Event) -> Option<&OsContext> {
 
 /// Returns the browser context of the event if present.
 fn get_browser_context(event: &Event) -> Option<&BrowserContext> {
-    match event.contexts.value()?.get_context("browser")? {
+    match event
+        .contexts
+        .value()?
+        .get_context(BrowserContext::default_key())?
+    {
         Context::Browser(ref browser_context) => Some(browser_context),
         _ => None,
     }
@@ -613,7 +629,11 @@ fn get_browser_context(event: &Event) -> Option<&BrowserContext> {
 
 /// Returns the response context of the event if present.
 fn get_response_context(event: &Event) -> Option<&ResponseContext> {
-    match event.contexts.value()?.get_context("response")? {
+    match event
+        .contexts
+        .value()?
+        .get_context(ResponseContext::default_key())?
+    {
         Context::Response(ref response_context) => Some(response_context),
         _ => None,
     }

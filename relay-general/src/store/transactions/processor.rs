@@ -7,7 +7,9 @@ use relay_common::SpanStatus;
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Context, Event, EventType, Span, Timestamp, TransactionSource};
+use crate::protocol::{
+    Context, Event, EventType, Span, Timestamp, TraceContext, TransactionSource,
+};
 use crate::store::regexes::{
     REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
     SQL_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
@@ -356,7 +358,10 @@ pub fn is_high_cardinality_sdk(event: &Event) -> bool {
     }
 
     if sdk_name == "sentry.ruby" && event.has_module("rack") {
-        let context = event.contexts.value().and_then(|c| c.get_context("trace"));
+        let context = event
+            .contexts
+            .value()
+            .and_then(|c| c.get_context(TraceContext::default_key()));
         if let Some(Context::Trace(trace)) = context {
             if RUBY_URL_STATUSES.contains(trace.status.value().unwrap_or(&SpanStatus::Unknown)) {
                 return true;
@@ -625,7 +630,6 @@ fn scrub_span_description(span: &mut Span) -> Result<(), ProcessingAction> {
 
 #[cfg(test)]
 mod tests {
-
     use chrono::offset::TimeZone;
     use chrono::{Duration, Utc};
     use insta::assert_debug_snapshot;
@@ -633,9 +637,7 @@ mod tests {
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{
-        ClientSdkInfo, Contexts, SpanId, TraceContext, TraceId, TransactionSource,
-    };
+    use crate::protocol::{ClientSdkInfo, Contexts, SpanId, TraceId, TransactionSource};
     use crate::store::{LazyGlob, RedactionRule, SpanDescriptionRuleScope};
     use crate::testutils::assert_annotated_snapshot;
     use crate::types::Object;

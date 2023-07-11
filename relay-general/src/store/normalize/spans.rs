@@ -213,7 +213,11 @@ mod tests {
             .map(extract_exclusive_time)
             .collect();
 
-        let context = event.contexts.value().unwrap().get_context("trace");
+        let context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key());
         if let Context::Trace(ref trace_context) = context.unwrap() {
             let transaction_span_id = trace_context.span_id.value().unwrap();
             let transaction_exclusive_time = *trace_context.exclusive_time.value().unwrap();
@@ -260,7 +264,11 @@ mod tests {
         // do not insert `exclusive-time`
         normalize_spans(&mut event, &BTreeSet::default());
 
-        let context = event.contexts.value().unwrap().get_context("trace");
+        let context = event
+            .contexts
+            .value()
+            .unwrap()
+            .get_context(TraceContext::default_key());
         if let Context::Trace(ref trace_context) = context.unwrap() {
             assert!(trace_context.exclusive_time.value().is_none());
         }
