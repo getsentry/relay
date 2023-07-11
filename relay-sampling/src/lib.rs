@@ -1236,14 +1236,14 @@ mod sampled_as_string {
     where
         D: Deserializer<'de>,
     {
-        let value = match Value::deserialize(deserializer)? {
+        let value = match Option::<Value>::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
         };
 
         match value {
             Value::String(str_value) if str_value == "true" => Ok(Some(true)),
-            Value::String(str_value) if str_value == "false" => Ok(Some(true)),
+            Value::String(str_value) if str_value == "false" => Ok(Some(false)),
             Value::Bool(bool_value) => Ok(Some(bool_value)),
             _ => Err(serde::de::Error::custom(
                 "the `sampled` value can only be `true` or `false`",
@@ -1256,8 +1256,8 @@ mod sampled_as_string {
         S: Serializer,
     {
         match value {
-            Some(v) => {
-                let value_str = if *v { "true" } else { "false" };
+            Some(bool_value) => {
+                let value_str = if *bool_value { "true" } else { "false" };
                 serializer.serialize_str(value_str)
             }
             None => serializer.serialize_none(),
@@ -3276,6 +3276,82 @@ mod tests {
             "public_key": "abd0f232775f45feab79864e580d160b",
             "user_id": "hello",
             "sample_rate": "-0.1"
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_boolean() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": true
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "user_id": "hello",
+          "replay_id": None,
+          "sampled": "true",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_boolean_as_string() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": "false"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r###"
+        {
+          "trace_id": "00000000-0000-0000-0000-000000000000",
+          "public_key": "abd0f232775f45feab79864e580d160b",
+          "release": None,
+          "environment": None,
+          "transaction": None,
+          "user_id": "hello",
+          "replay_id": None,
+          "sampled": "false",
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_invalid_boolean() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": tru
+        }
+        "#;
+        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_invalid_boolean_as_string() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": "tru"
         }
         "#;
         serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
