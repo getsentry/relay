@@ -1087,16 +1087,6 @@
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
 <a href="#1089" id="1089">1089</a>
-<a href="#1090" id="1090">1090</a>
-<a href="#1091" id="1091">1091</a>
-<a href="#1092" id="1092">1092</a>
-<a href="#1093" id="1093">1093</a>
-<a href="#1094" id="1094">1094</a>
-<a href="#1095" id="1095">1095</a>
-<a href="#1096" id="1096">1096</a>
-<a href="#1097" id="1097">1097</a>
-<a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -1123,12 +1113,12 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_span_metrics(
     aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
     event: <span class="kw-2">&amp;mut </span>Event,
-    metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;, <span class="comment">// output parameter
-</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ExtractMetricsError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;, ExtractMetricsError&gt; {
     <span class="comment">// TODO(iker): measure the performance of this whole method
+    </span><span class="kw">let </span><span class="kw-2">mut </span>metrics = Vec::new();
 
-    </span><span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(metrics);
     }
     <span class="kw">let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>_start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) = (event.start_timestamp.value(), event.timestamp.value()) <span class="kw">else </span>{
         <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to extract the start and the end timestamps from the event&quot;</span>);
@@ -1192,199 +1182,198 @@
         shared_tags.insert(SpanTagKey::HttpStatusCode, transaction_http_status_code);
     }
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
+    <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(metrics) };
 
     <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() {
-            <span class="kw">let </span><span class="kw-2">mut </span>span_tags = shared_tags.clone();
+        <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value_mut() <span class="kw">else </span>{ <span class="kw">continue </span>};
+        <span class="kw">let </span><span class="kw-2">mut </span>span_tags = shared_tags.clone();
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(unsanitized_span_op) = span.op.value() {
-                <span class="kw">let </span>span_op = unsanitized_span_op.to_owned().to_lowercase();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(unsanitized_span_op) = span.op.value() {
+            <span class="kw">let </span>span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-                span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
+            span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = span_op_to_category(<span class="kw-2">&amp;</span>span_op) {
-                    span_tags.insert(SpanTagKey::Category, category.to_owned());
-                }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = span_op_to_category(<span class="kw-2">&amp;</span>span_op) {
+                span_tags.insert(SpanTagKey::Category, category.to_owned());
+            }
 
-                <span class="kw">let </span>span_module = <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;http&quot;</span>) {
-                    <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>)
-                } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
-                    <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>)
-                } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;cache&quot;</span>) {
-                    <span class="prelude-val">Some</span>(<span class="string">&quot;cache&quot;</span>)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>};
+            <span class="kw">let </span>span_module = <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;http&quot;</span>) {
+                <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>)
+            } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
+                <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>)
+            } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;cache&quot;</span>) {
+                <span class="prelude-val">Some</span>(<span class="string">&quot;cache&quot;</span>)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>};
 
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = span_module {
-                    span_tags.insert(SpanTagKey::Module, module.to_owned());
-                }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = span_module {
+                span_tags.insert(SpanTagKey::Module, module.to_owned());
+            }
 
-                <span class="comment">// TODO(iker): we&#39;re relying on the existance of `http.method`
-                // or `db.operation`. This is not guaranteed, and we&#39;ll need to
-                // parse the span description in that case.
-                </span><span class="kw">let </span>action = <span class="kw">match </span>span_module {
-                    <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>) =&gt; span
-                        .data
-                        .value()
-                        <span class="comment">// TODO(iker): some SDKs extract this as method
-                        </span>.and_then(|v| v.get(<span class="string">&quot;http.method&quot;</span>))
-                        .and_then(|method| method.as_str())
-                        .map(|s| s.to_uppercase()),
-                    <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>) =&gt; {
-                        <span class="kw">let </span>action_from_data = span
-                            .data
-                            .value()
-                            .and_then(|v| v.get(<span class="string">&quot;db.operation&quot;</span>))
-                            .and_then(|db_op| db_op.as_str())
-                            .map(|s| s.to_uppercase());
-                        action_from_data.or_else(|| {
-                            span.description
-                                .value()
-                                .and_then(|d| sql_action_from_query(d))
-                                .map(|a| a.to_uppercase())
-                        })
-                    }
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-                };
-
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action.clone() {
-                    span_tags.insert(SpanTagKey::Action, act);
-                }
-
-                <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>{
-                    span.description
-                        .value()
-                        .and_then(|url| domain_from_http_url(url))
-                        .map(|d| d.to_lowercase())
-                } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
-                    span.description
-                        .value()
-                        .and_then(|query| sql_table_from_query(query))
-                        .map(|t| t.to_lowercase())
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>};
-
-                <span class="kw">if </span>!span_op.starts_with(<span class="string">&quot;db.redis&quot;</span>) {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(dom) = domain.clone() {
-                        span_tags.insert(SpanTagKey::Domain, dom);
-                    }
-                }
-
-                <span class="kw">let </span>scrubbed_description = span
+            <span class="comment">// TODO(iker): we&#39;re relying on the existance of `http.method`
+            // or `db.operation`. This is not guaranteed, and we&#39;ll need to
+            // parse the span description in that case.
+            </span><span class="kw">let </span>action = <span class="kw">match </span>span_module {
+                <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>) =&gt; span
                     .data
                     .value()
-                    .and_then(|data| data.get(<span class="string">&quot;description.scrubbed&quot;</span>))
-                    .and_then(|value| value.as_str());
+                    <span class="comment">// TODO(iker): some SDKs extract this as method
+                    </span>.and_then(|v| v.get(<span class="string">&quot;http.method&quot;</span>))
+                    .and_then(|method| method.as_str())
+                    .map(|s| s.to_uppercase()),
+                <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>) =&gt; {
+                    <span class="kw">let </span>action_from_data = span
+                        .data
+                        .value()
+                        .and_then(|v| v.get(<span class="string">&quot;db.operation&quot;</span>))
+                        .and_then(|db_op| db_op.as_str())
+                        .map(|s| s.to_uppercase());
+                    action_from_data.or_else(|| {
+                        span.description
+                            .value()
+                            .and_then(|d| sql_action_from_query(d))
+                            .map(|a| a.to_uppercase())
+                    })
+                }
+                <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+            };
 
-                <span class="kw">let </span>sanitized_description = sanitized_span_description(
-                    scrubbed_description,
-                    span_module,
-                    action.as_deref(),
-                    domain.as_deref(),
-                );
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action.clone() {
+                span_tags.insert(SpanTagKey::Action, act);
+            }
 
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed_desc) = sanitized_description {
-                    <span class="comment">// Truncating the span description&#39;s tag value is, for now,
-                    // a temporary solution to not get large descriptions dropped. The
-                    // group tag mustn&#39;t be affected by this, and still be
-                    // computed from the full, untruncated description.
+            <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>{
+                span.description
+                    .value()
+                    .and_then(|url| domain_from_http_url(url))
+                    .map(|d| d.to_lowercase())
+            } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
+                span.description
+                    .value()
+                    .and_then(|query| sql_table_from_query(query))
+                    .map(|t| t.to_lowercase())
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>};
 
-                    </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, md5::compute(<span class="kw-2">&amp;</span>scrubbed_desc));
-                    span_group.truncate(<span class="number">16</span>);
-                    span_tags.insert(SpanTagKey::Group, span_group);
-
-                    <span class="kw">let </span>truncated =
-                        truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
-                    span_tags.insert(SpanTagKey::Description, truncated);
+            <span class="kw">if </span>!span_op.starts_with(<span class="string">&quot;db.redis&quot;</span>) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(dom) = domain.clone() {
+                    span_tags.insert(SpanTagKey::Domain, dom);
                 }
             }
 
-            <span class="kw">let </span>system = span
+            <span class="kw">let </span>scrubbed_description = span
                 .data
                 .value()
-                .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
-                .and_then(|system| system.as_str());
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
-                span_tags.insert(SpanTagKey::System, sys.to_lowercase());
-            }
+                .and_then(|data| data.get(<span class="string">&quot;description.scrubbed&quot;</span>))
+                .and_then(|value| value.as_str());
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(span_status) = span.status.value() {
-                span_tags.insert(SpanTagKey::Status, span_status.to_string());
-            }
+            <span class="kw">let </span>sanitized_description = sanitized_span_description(
+                scrubbed_description,
+                span_module,
+                action.as_deref(),
+                domain.as_deref(),
+            );
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span(span) {
-                span_tags.insert(SpanTagKey::StatusCode, status_code);
-            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed_desc) = sanitized_description {
+                <span class="comment">// Truncating the span description&#39;s tag value is, for now,
+                // a temporary solution to not get large descriptions dropped. The
+                // group tag mustn&#39;t be affected by this, and still be
+                // computed from the full, untruncated description.
 
-            <span class="comment">// Even if we emit metrics, we want this info to be duplicated in every span.
-            </span>span.data.get_or_insert_with(BTreeMap::new).extend({
-                <span class="kw">let </span>it = span_tags
+                </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, md5::compute(<span class="kw-2">&amp;</span>scrubbed_desc));
+                span_group.truncate(<span class="number">16</span>);
+                span_tags.insert(SpanTagKey::Group, span_group);
+
+                <span class="kw">let </span>truncated =
+                    truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
+                span_tags.insert(SpanTagKey::Description, truncated);
+            }
+        }
+
+        <span class="kw">let </span>system = span
+            .data
+            .value()
+            .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
+            .and_then(|system| system.as_str());
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
+            span_tags.insert(SpanTagKey::System, sys.to_lowercase());
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(span_status) = span.status.value() {
+            span_tags.insert(SpanTagKey::Status, span_status.to_string());
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span(span) {
+            span_tags.insert(SpanTagKey::StatusCode, status_code);
+        }
+
+        <span class="comment">// Even if we emit metrics, we want this info to be duplicated in every span.
+        </span>span.data.get_or_insert_with(BTreeMap::new).extend({
+            <span class="kw">let </span>it = span_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v))));
+            it.chain(
+                databag
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v))));
-                it.chain(
-                    databag
-                        .clone()
-                        .into_iter()
-                        .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v)))),
-                )
-            });
+                    .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v)))),
+            )
+        });
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(user_tag) = get_eventuser_tag(user) {
-                    metrics.push(
-                        SpanMetric::User {
-                            value: user_tag,
-                            tags: span_tags.clone(),
-                        }
-                        .into_metric(timestamp),
-                    );
-                }
-            }
-
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(exclusive_time) = span.exclusive_time.value() {
-                <span class="comment">// NOTE(iker): this exclusive time doesn&#39;t consider all cases,
-                // such as sub-transactions. We accept these limitations for
-                // now.
-                </span>metrics.push(
-                    SpanMetric::ExclusiveTime {
-                        value: <span class="kw-2">*</span>exclusive_time,
-                        tags: span_tags.clone(),
-                    }
-                    .into_metric(timestamp),
-                );
-
-                <span class="kw">let </span><span class="kw-2">mut </span>reduced_tags = span_tags.clone();
-                reduced_tags.remove(<span class="kw-2">&amp;</span>SpanTagKey::Transaction);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(user_tag) = get_eventuser_tag(user) {
                 metrics.push(
-                    SpanMetric::ExclusiveTimeLight {
-                        value: <span class="kw-2">*</span>exclusive_time,
-                        tags: reduced_tags,
-                    }
-                    .into_metric(timestamp),
-                );
-            }
-
-            <span class="kw">if let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>span_start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>span_end)) =
-                (span.start_timestamp.value(), span.timestamp.value())
-            {
-                <span class="comment">// The `duration` of a span. This metric also serves as the
-                // counter metric `throughput`.
-                </span>metrics.push(
-                    SpanMetric::Duration {
-                        value: span_end - span_start,
+                    SpanMetric::User {
+                        value: user_tag,
                         tags: span_tags.clone(),
                     }
                     .into_metric(timestamp),
                 );
-            };
+            }
         }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(exclusive_time) = span.exclusive_time.value() {
+            <span class="comment">// NOTE(iker): this exclusive time doesn&#39;t consider all cases,
+            // such as sub-transactions. We accept these limitations for
+            // now.
+            </span>metrics.push(
+                SpanMetric::ExclusiveTime {
+                    value: <span class="kw-2">*</span>exclusive_time,
+                    tags: span_tags.clone(),
+                }
+                .into_metric(timestamp),
+            );
+
+            <span class="kw">let </span><span class="kw-2">mut </span>reduced_tags = span_tags.clone();
+            reduced_tags.remove(<span class="kw-2">&amp;</span>SpanTagKey::Transaction);
+            metrics.push(
+                SpanMetric::ExclusiveTimeLight {
+                    value: <span class="kw-2">*</span>exclusive_time,
+                    tags: reduced_tags,
+                }
+                .into_metric(timestamp),
+            );
+        }
+
+        <span class="kw">if let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>span_start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>span_end)) =
+            (span.start_timestamp.value(), span.timestamp.value())
+        {
+            <span class="comment">// The `duration` of a span. This metric also serves as the
+            // counter metric `throughput`.
+            </span>metrics.push(
+                SpanMetric::Duration {
+                    value: span_end - span_start,
+                    tags: span_tags.clone(),
+                }
+                .into_metric(timestamp),
+            );
+        };
     }
 
-    <span class="prelude-val">Ok</span>(())
+    <span class="prelude-val">Ok</span>(metrics)
 }
 
 <span class="doccomment">/// Returns the sanitized span description.
@@ -1766,13 +1755,9 @@
                     ..Default::default()
                 };
 
-                <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
-                extract_span_metrics(
-                    <span class="kw-2">&amp;</span>aggregator_config,
-                    event.value_mut().as_mut().unwrap(),
-                    <span class="kw-2">&amp;mut </span>metrics,
-                )
-                .unwrap();
+                <span class="kw">let </span>metrics =
+                    extract_span_metrics(<span class="kw-2">&amp;</span>aggregator_config, event.value_mut().as_mut().unwrap())
+                        .unwrap();
 
                 <span class="macro">assert_eq!</span>(
                     <span class="macro-nonterminal">$expected_method</span>,
@@ -2184,13 +2169,8 @@
             ..Default::default()
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>metrics = <span class="macro">vec!</span>[];
-        extract_span_metrics(
-            <span class="kw-2">&amp;</span>aggregator_config,
-            event.value_mut().as_mut().unwrap(),
-            <span class="kw-2">&amp;mut </span>metrics,
-        )
-        .unwrap();
+        <span class="kw">let </span>metrics =
+            extract_span_metrics(<span class="kw-2">&amp;</span>aggregator_config, event.value_mut().as_mut().unwrap()).unwrap();
 
         <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics);

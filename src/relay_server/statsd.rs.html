@@ -639,11 +639,6 @@
 <a href="#639" id="639">639</a>
 <a href="#640" id="640">640</a>
 <a href="#641" id="641">641</a>
-<a href="#642" id="642">642</a>
-<a href="#643" id="643">643</a>
-<a href="#644" id="644">644</a>
-<a href="#645" id="645">645</a>
-<a href="#646" id="646">646</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -958,10 +953,6 @@
     </span>TimestampDelay,
     <span class="doccomment">/// The time it takes the outcome aggregator to flush aggregated outcomes.
     </span>OutcomeAggregatorFlushTime,
-
-    <span class="doccomment">/// Time in milliseconds spent on converting a transaction event into a metric.
-    </span>TransactionMetricsExtraction,
-
     <span class="doccomment">/// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     </span>ReplayRecordingProcessing,
 }
@@ -993,7 +984,6 @@
             RelayTimers::UpstreamRequestsDuration =&gt; <span class="string">&quot;upstream.requests.duration&quot;</span>,
             RelayTimers::TimestampDelay =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
             RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
-            RelayTimers::TransactionMetricsExtraction =&gt; <span class="string">&quot;metrics.extraction.transactions&quot;</span>,
             RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">&quot;replay.recording.process&quot;</span>,
         }
     }

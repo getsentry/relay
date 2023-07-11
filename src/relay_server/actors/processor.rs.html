@@ -3874,23 +3874,6 @@
 <a href="#3874" id="3874">3874</a>
 <a href="#3875" id="3875">3875</a>
 <a href="#3876" id="3876">3876</a>
-<a href="#3877" id="3877">3877</a>
-<a href="#3878" id="3878">3878</a>
-<a href="#3879" id="3879">3879</a>
-<a href="#3880" id="3880">3880</a>
-<a href="#3881" id="3881">3881</a>
-<a href="#3882" id="3882">3882</a>
-<a href="#3883" id="3883">3883</a>
-<a href="#3884" id="3884">3884</a>
-<a href="#3885" id="3885">3885</a>
-<a href="#3886" id="3886">3886</a>
-<a href="#3887" id="3887">3887</a>
-<a href="#3888" id="3888">3888</a>
-<a href="#3889" id="3889">3889</a>
-<a href="#3890" id="3890">3890</a>
-<a href="#3891" id="3891">3891</a>
-<a href="#3892" id="3892">3892</a>
-<a href="#3893" id="3893">3893</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -3911,6 +3894,7 @@
 <span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
 <span class="kw">use </span>tokio::sync::Semaphore;
 
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span>relay_auth::RelayVersion;
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey, UnixTimestamp};
@@ -4112,17 +4096,9 @@
     </span>}
 }
 
-<span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">struct </span>ExtractedMetrics {
-    <span class="doccomment">/// Metrics associated with the project that the transaction belongs to.
-    </span>project_metrics: Vec&lt;Metric&gt;,
-    <span class="doccomment">/// Metrics associated with the sampling project (a.k.a. root or head project)
-    /// which started the trace. See [`ProcessEnvelopeState::sampling_project_state`].
-    </span>sampling_metrics: Vec&lt;Metric&gt;,
-}
-
 <span class="kw">impl </span>ExtractedMetrics {
-    <span class="kw">fn </span>send_metrics(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope, project_cache: Addr&lt;ProjectCache&gt;) {
+    <span class="comment">// TODO(ja): Move
+    </span><span class="kw">fn </span>send_metrics(<span class="self">self</span>, envelope: <span class="kw-2">&amp;</span>Envelope, project_cache: Addr&lt;ProjectCache&gt;) {
         <span class="kw">let </span>project_key = envelope.meta().public_key();
 
         <span class="kw">if </span>!<span class="self">self</span>.project_metrics.is_empty() {
@@ -4156,7 +4132,7 @@
     </span>event: Annotated&lt;Event&gt;,
 
     <span class="doccomment">/// Track whether transaction metrics were already extracted.
-    </span>transaction_metrics_extracted: bool,
+    </span>event_metrics_extracted: bool,
 
     <span class="doccomment">/// Partial metrics of the Event during construction.
     ///
@@ -5253,7 +5229,7 @@
 
         <span class="prelude-val">Ok</span>(ProcessEnvelopeState {
             event: Annotated::empty(),
-            transaction_metrics_extracted: <span class="bool-val">false</span>,
+            event_metrics_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
             sample_rates: <span class="prelude-val">None</span>,
             sampling_result: SamplingResult::Keep,
@@ -5582,7 +5558,7 @@
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>item) = transaction_item {
             <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing json transaction&quot;</span>);
             sample_rates = item.take_sample_rates();
-            state.transaction_metrics_extracted = item.metrics_extracted();
+            state.event_metrics_extracted = item.metrics_extracted();
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), {
                 <span class="comment">// Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we&#39;re dealing with a transaction now.
@@ -5927,7 +5903,7 @@
         <span class="comment">// Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(category) = event_category {
-            envelope_limiter.assume_event(category, state.transaction_metrics_extracted);
+            envelope_limiter.assume_event(category, state.event_metrics_extracted);
         }
 
         <span class="kw">let </span>scoping = state.managed_envelope.scoping();
@@ -5954,82 +5930,73 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="doccomment">/// Extract metrics for transaction events with breakdowns and measurements.
-    </span><span class="kw">fn </span>extract_transaction_metrics(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">if </span>state.transaction_metrics_extracted {
-            <span class="comment">// Nothing to do here.
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
-        }
-
-        <span class="kw">let </span>project_config = state.project_state.config();
-        <span class="kw">let </span>extraction_config = <span class="kw">match </span>project_config.transaction_metrics {
-            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>config.is_enabled() =&gt; config,
-            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
-        };
-
-        <span class="kw">let </span>extract_spans_metrics = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction);
-
-        <span class="kw">let </span>transaction_from_dsc = state
-            .managed_envelope
-            .envelope()
-            .dsc()
-            .and_then(|dsc| dsc.transaction.as_deref());
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
-            <span class="kw">let </span>result;
-            <span class="macro">metric!</span>(
-                timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = <span class="kw-2">&amp;</span>result.unwrap_or(<span class="bool-val">false</span>).to_string(),
-                {
-                    <span class="comment">// Actual logic outsourced for unit tests
-                    </span>result = <span class="kw">crate</span>::metrics_extraction::transactions::extract_transaction_metrics(
-                        <span class="self">self</span>.config.aggregator_config(),
-                        extraction_config,
-                        <span class="kw-2">&amp;</span>project_config.metric_conditional_tagging,
-                        extract_spans_metrics,
-                        event,
-                        transaction_from_dsc,
-                        <span class="kw-2">&amp;</span>state.sampling_result,
-                        state.has_profile,
-                        <span class="kw-2">&amp;mut </span>state.extracted_metrics.project_metrics,
-                        <span class="kw-2">&amp;mut </span>state.extracted_metrics.sampling_metrics,
-                    );
-                }
-            );
-
-            result<span class="question-mark">?</span>;
-
-            state.transaction_metrics_extracted = <span class="bool-val">true</span>;
-            state.managed_envelope.set_event_metrics_extracted();
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
     <span class="doccomment">/// Extract metrics from all envelope items.
     ///
     /// Caveats:
     ///  - This functionality is incomplete. At this point, extraction is implemented only for
     ///    transaction events.
-    ///  - This function must run BEFORE `extract_transaction_metrics` to avoid double-extraction.
     </span><span class="kw">fn </span>extract_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">let </span>config = <span class="kw">match </span>state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; config,
-            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
-        };
+        <span class="comment">// TODO: Make span metrics extraction immutable
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
+            <span class="kw">if </span>state.event_metrics_extracted {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
-            <span class="comment">// XXX: Since we only support transactions, we can skip generic metric extraction from
-            // events if transaction metrics have been extracted before.
-            </span><span class="kw">if </span>!state.transaction_metrics_extracted {
-                <span class="kw">let </span>metrics =
-                    <span class="kw">crate</span>::metrics_extraction::event::extract_event_metrics(event, config);
+            <span class="kw">match </span>state.project_state.config.metric_extraction {
+                ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; {
+                    <span class="kw">let </span>metrics =
+                        <span class="kw">crate</span>::metrics_extraction::event::extract_event_metrics(event, config);
+                    state.event_metrics_extracted |= !metrics.is_empty();
+                    state.extracted_metrics.project_metrics.extend(metrics);
+                }
+                <span class="kw">_ </span>=&gt; (),
+            }
+
+            <span class="kw">match </span>state.project_state.config.transaction_metrics {
+                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>config.is_enabled() =&gt; {
+                    <span class="kw">let </span>transaction_from_dsc = state
+                        .managed_envelope
+                        .envelope()
+                        .dsc()
+                        .and_then(|dsc| dsc.transaction.as_deref());
+
+                    <span class="kw">let </span>extractor = TransactionExtractor {
+                        aggregator_config: <span class="self">self</span>.config.aggregator_config(),
+                        config,
+                        transaction_from_dsc,
+                        sampling_result: <span class="kw-2">&amp;</span>state.sampling_result,
+                        has_profile: state.has_profile,
+                    };
+
+                    <span class="kw">let </span><span class="kw-2">mut </span>extracted = extractor.extract(event)<span class="question-mark">?</span>;
+
+                    <span class="comment">// TODO: Move conditional tagging to generic metrics extraction
+                    </span><span class="kw">let </span>tagging_config = <span class="kw-2">&amp;</span>state.project_state.config.metric_conditional_tagging;
+                    <span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging(
+                        event,
+                        tagging_config,
+                        <span class="kw-2">&amp;mut </span>extracted.project_metrics,
+                    );
+
+                    state.extracted_metrics.extend(extracted);
+                    state.event_metrics_extracted |= <span class="bool-val">true</span>;
+                }
+                <span class="kw">_ </span>=&gt; (),
+            }
+
+            <span class="kw">if </span>state
+                .project_state
+                .has_feature(Feature::SpanMetricsExtraction)
+            {
+                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::spans::extract_span_metrics(
+                    <span class="self">self</span>.config.aggregator_config(),
+                    event,
+                )<span class="question-mark">?</span>;
                 state.extracted_metrics.project_metrics.extend(metrics);
+            }
+
+            <span class="kw">if </span>state.event_metrics_extracted {
+                state.managed_envelope.set_event_metrics_extracted();
             }
         }
 
@@ -6128,7 +6095,7 @@
         event_item.set_payload(ContentType::Json, data);
 
         <span class="comment">// If transaction metrics were extracted, set the corresponding item header
-        </span>event_item.set_metrics_extracted(state.transaction_metrics_extracted);
+        </span>event_item.set_metrics_extracted(state.event_metrics_extracted);
 
         <span class="comment">// If there are sample rates, write them back to the envelope. In processing mode, sample
         // rates have been removed from the state and burnt into the event via `finalize_event`.
@@ -6331,7 +6298,6 @@
             <span class="self">self</span>.filter_event(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.run_dynamic_sampling(state);
             <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
-            <span class="self">self</span>.extract_transaction_metrics(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.sample_envelope(state)<span class="question-mark">?</span>;
 
             <span class="macro">if_processing!</span>({
@@ -6850,7 +6816,7 @@
 
             <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState {
                 event: Annotated::from(event.clone()),
-                transaction_metrics_extracted: <span class="bool-val">false</span>,
+                event_metrics_extracted: <span class="bool-val">false</span>,
                 metrics: Default::default(),
                 sample_rates: <span class="prelude-val">None</span>,
                 sampling_result: SamplingResult::Keep,

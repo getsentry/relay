@@ -2360,7 +2360,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_enforce_transaction_metrics_extracted() {
+    </span><span class="kw">fn </span>test_enforce_event_metrics_extracted() {
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[Transaction];
         set_extracted(<span class="kw-2">&amp;mut </span>envelope, ItemType::Transaction);
         <span class="kw">let </span>config = config_with_tx_metrics();
@@ -2394,7 +2394,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_enforce_transaction_metrics_extracted_no_indexing_quota() {
+    </span><span class="kw">fn </span>test_enforce_event_metrics_extracted_no_indexing_quota() {
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[Transaction];
         set_extracted(<span class="kw-2">&amp;mut </span>envelope, ItemType::Transaction);
         <span class="kw">let </span>config = config_with_tx_metrics();
