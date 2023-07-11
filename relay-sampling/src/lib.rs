@@ -1236,19 +1236,18 @@ mod sampled_as_string {
     where
         D: Deserializer<'de>,
     {
-        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
+        let value = match Value::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
         };
 
-        if value == "true" {
-            Ok(Some(true))
-        } else if value == "false" {
-            Ok(Some(false))
-        } else {
-            Err(serde::de::Error::custom(
+        match value {
+            Value::String(str_value) if str_value == "true" => Ok(Some(true)),
+            Value::String(str_value) if str_value == "false" => Ok(Some(true)),
+            Value::Bool(bool_value) => Ok(Some(bool_value)),
+            _ => Err(serde::de::Error::custom(
                 "the `sampled` value can only be `true` or `false`",
-            ))
+            )),
         }
     }
 
