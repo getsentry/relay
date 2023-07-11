@@ -1,4 +1,4 @@
-use relay_general::protocol::{Context, Event, ResponseContext, Span, TraceContext, User};
+use relay_general::protocol::{Event, ResponseContext, Span, TraceContext, User};
 
 /// Extract the HTTP status code from the span data.
 pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
@@ -67,16 +67,12 @@ pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
     }
 
     // For SDKs which put the HTTP status code in the `Response` context.
-    if let Some(contexts) = event.contexts.value() {
-        if let Some(Context::Response(response_context)) =
-            contexts.get_context(ResponseContext::default_key())
-        {
-            let status_code = response_context
-                .status_code
-                .value()
-                .map(|code| code.to_string());
-            return status_code;
-        }
+    if let Some(response_context) = event.context::<ResponseContext>() {
+        let status_code = response_context
+            .status_code
+            .value()
+            .map(|code| code.to_string());
+        return status_code;
     }
 
     None
@@ -129,17 +125,6 @@ pub fn get_eventuser_tag(user: &User) -> Option<String> {
     }
 
     None
-}
-
-pub fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    match event
-        .contexts
-        .value()?
-        .get_context(TraceContext::default_key())?
-    {
-        Context::Trace(ref trace_context) => Some(trace_context),
-        _ => None,
-    }
 }
 
 pub fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {

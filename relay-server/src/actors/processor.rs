@@ -26,13 +26,12 @@ use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetrics
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
-use relay_general::protocol::Context::Trace;
-use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+use relay_general::protocol::{Contexts, OtelContext};
 use relay_general::store::GeoIpLookup;
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
@@ -51,7 +50,7 @@ use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_general::protocol::{Context as SentryContext, ProfileContext},
+    relay_general::protocol::ProfileContext,
     relay_general::store::{StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -1138,11 +1137,9 @@ impl EnvelopeProcessorService {
                             if let Some(event) = state.event.value_mut() {
                                 if event.ty.value() == Some(&EventType::Transaction) {
                                     let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(SentryContext::Profile(Box::new(
-                                        ProfileContext {
-                                            profile_id: Annotated::new(profile_id),
-                                        },
-                                    )));
+                                    contexts.add(ProfileContext {
+                                        profile_id: Annotated::new(profile_id),
+                                    });
                                 }
                             }
                             item.set_payload(ContentType::Json, payload);
@@ -1150,8 +1147,9 @@ impl EnvelopeProcessorService {
                         } else {
                             if let Some(event) = state.event.value_mut() {
                                 if event.ty.value() == Some(&EventType::Transaction) {
-                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.remove(ProfileContext::default_key());
+                                    if let Some(ref mut contexts) = event.contexts.value_mut() {
+                                        contexts.remove::<ProfileContext>();
+                                    }
                                 }
                             }
                             ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -1165,7 +1163,7 @@ impl EnvelopeProcessorService {
                         if let Some(event) = state.event.value_mut() {
                             if event.ty.value() == Some(&EventType::Transaction) {
                                 let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove(ProfileContext::default_key());
+                                contexts.remove::<ProfileContext>();
                             }
                         }
 
@@ -1856,7 +1854,7 @@ impl EnvelopeProcessorService {
                 let has_otel = event
                     .contexts
                     .value()
-                    .map_or(false, |contexts| contexts.has("otel"));
+                    .map_or(false, |contexts| contexts.contains::<OtelContext>());
 
                 if has_otel {
                     metric!(
@@ -2316,30 +2314,19 @@ impl EnvelopeProcessorService {
         // In case the sampling result is positive, we assume that all the transactions
         // that have this DSC will be sampled and thus we mark the error as "having
         // a full trace".
-        // In case we have no contexts object, we have to create it.
         let contexts = event.contexts.get_or_insert_with(Contexts::new);
+        let context = contexts.get_or_default::<TraceContext>();
 
-        // We want to get the specific trace context, or we want to create it in case
-        // it is not there.
-        let context =
-            contexts.get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
-
-        // We want to mutate the sampled after the "fake" sampling has been performed.
-        //
-        // It is important to note that tagging only occurs if there is a dsc and root
-        // project state.
-        if let Trace(boxed_context) = context {
-            // We want to update `sampled` only if it was not set, since if we don't check this
-            // we will end up overriding the value set by downstream Relays and this will lead
-            // to more complex debugging in case of problems.
-            if boxed_context.sampled.is_empty() {
-                let sampled = match sampling_result {
-                    SamplingResult::Keep => true,
-                    SamplingResult::Drop(_) => false,
-                };
-                relay_log::trace!("tagging error with `sampled = {}` flag", sampled);
-                boxed_context.sampled = Annotated::new(sampled);
-            }
+        // We want to update `sampled` only if it was not set, since if we don't check this
+        // we will end up overriding the value set by downstream Relays and this will lead
+        // to more complex debugging in case of problems.
+        if context.sampled.is_empty() {
+            let sampled = match sampling_result {
+                SamplingResult::Keep => true,
+                SamplingResult::Drop(_) => false,
+            };
+            relay_log::trace!("tagging error with `sampled = {}` flag", sampled);
+            context.sampled = Annotated::new(sampled);
         }
     }
 
@@ -3266,17 +3253,8 @@ mod tests {
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
-        let trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        assert!(matches!(trace_context, Trace(..)));
-        if let Trace(context) = trace_context {
-            assert!(context.sampled.value().unwrap())
-        }
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(trace_context.sampled.value().unwrap());
 
         // We test the tagging when the incoming dsc matches a 0% rule.
         let sampling_project_state = project_state_with_single_rule(0.0);
@@ -3285,17 +3263,8 @@ mod tests {
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
-        let trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        assert!(matches!(trace_context, Trace(..)));
-        if let Trace(context) = trace_context {
-            assert!(!context.sampled.value().unwrap())
-        }
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(!trace_context.sampled.value().unwrap());
 
         // We test the tagging is not performed when an event is already tagged.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
@@ -3331,17 +3300,8 @@ mod tests {
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
-        let trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        assert!(matches!(trace_context, Trace(..)));
-        if let Trace(context) = trace_context {
-            assert!(context.sampled.value().unwrap())
-        }
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(trace_context.sampled.value().unwrap());
 
         // We test the tagging when root project state and dsc are none.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);

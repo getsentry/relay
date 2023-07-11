@@ -10,10 +10,34 @@ pub struct ProfileContext {
     pub profile_id: Annotated<EventId>,
 }
 
-impl ProfileContext {
-    /// The key under which a profile context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for ProfileContext {
+    fn default_key() -> &'static str {
         "profile"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Profile(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Profile(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Profile(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Profile(Box::new(self))
     }
 }
 

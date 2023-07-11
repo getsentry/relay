@@ -8,7 +8,8 @@ use std::borrow::Cow;
 use std::fmt::Write;
 
 use crate::protocol::{
-    BrowserContext, Context, Contexts, DeviceContext, Event, FromUserAgentInfo, OsContext,
+    BrowserContext, Context, Contexts, DefaultContext, DeviceContext, Event, FromUserAgentInfo,
+    OsContext,
 };
 use crate::types::Annotated;
 use crate::user_agent::RawUserAgentInfo;
@@ -34,15 +35,15 @@ pub fn normalize_user_agent_info_generic(
     platform: &Annotated<String>,
     user_agent_info: &RawUserAgentInfo<&str>,
 ) {
-    if !contexts.has(BrowserContext::default_key()) {
+    if !contexts.contains::<BrowserContext>() {
         if let Some(browser_context) = BrowserContext::from_hints_or_ua(user_agent_info) {
-            contexts.add(Context::Browser(Box::new(browser_context)));
+            contexts.add(browser_context);
         }
     }
 
-    if !contexts.has(DeviceContext::default_key()) {
+    if !contexts.contains::<DeviceContext>() {
         if let Some(device_context) = DeviceContext::from_hints_or_ua(user_agent_info) {
-            contexts.add(Context::Device(Box::new(device_context)));
+            contexts.add(device_context);
         }
     }
 
@@ -56,7 +57,7 @@ pub fn normalize_user_agent_info_generic(
         Some("javascript") => OsContext::default_key(),
         _ => "client_os",
     };
-    if !contexts.has(os_context_key) {
+    if !contexts.contains_key(os_context_key) {
         if let Some(os_context) = OsContext::from_hints_or_ua(user_agent_info) {
             contexts.insert(os_context_key.to_owned(), Context::Os(Box::new(os_context)));
         }
@@ -273,22 +274,22 @@ mod tests {
     fn test_user_agent_does_not_override_prefilled() {
         let mut event = testutils::get_event_with_user_agent(GOOD_UA);
         let mut contexts = Contexts::new();
-        contexts.add(Context::Browser(Box::new(BrowserContext {
+        contexts.add(BrowserContext {
             name: Annotated::from("BR_FAMILY".to_string()),
             version: Annotated::from("BR_VERSION".to_string()),
             ..BrowserContext::default()
-        })));
-        contexts.add(Context::Device(Box::new(DeviceContext {
+        });
+        contexts.add(DeviceContext {
             family: Annotated::from("DEV_FAMILY".to_string()),
             model: Annotated::from("DEV_MODEL".to_string()),
             brand: Annotated::from("DEV_BRAND".to_string()),
             ..DeviceContext::default()
-        })));
-        contexts.add(Context::Os(Box::new(OsContext {
+        });
+        contexts.add(OsContext {
             name: Annotated::from("OS_FAMILY".to_string()),
             version: Annotated::from("OS_VERSION".to_string()),
             ..OsContext::default()
-        })));
+        });
 
         event.contexts = Annotated::new(contexts);
 

@@ -1,4 +1,4 @@
-use crate::protocol::{Context, Event, Mechanism, OsContext};
+use crate::protocol::{Event, Mechanism, OsContext};
 use crate::types::{Annotated, Error, ProcessingAction, ProcessingResult};
 
 fn get_errno_name(errno: i64, os_hint: OsHint) -> Option<&'static str> {
@@ -577,13 +577,9 @@ impl OsHint {
             }
         }
 
-        if let Some(contexts) = event.contexts.value() {
-            if let Some(Context::Os(ref os_context)) =
-                contexts.get_context(OsContext::default_key())
-            {
-                if let Some(name) = os_context.name.as_str() {
-                    return Self::from_name(name);
-                }
+        if let Some(os_context) = event.context::<OsContext>() {
+            if let Some(name) = os_context.name.as_str() {
+                return Self::from_name(name);
             }
         }
 

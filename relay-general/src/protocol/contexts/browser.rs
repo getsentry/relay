@@ -20,10 +20,34 @@ pub struct BrowserContext {
     pub other: Object<Value>,
 }
 
-impl BrowserContext {
-    /// The key under which a browser context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for BrowserContext {
+    fn default_key() -> &'static str {
         "browser"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Browser(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Browser(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Browser(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Browser(Box::new(self))
     }
 }
 

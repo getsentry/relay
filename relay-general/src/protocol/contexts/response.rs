@@ -47,10 +47,34 @@ pub struct ResponseContext {
     pub other: Object<Value>,
 }
 
-impl ResponseContext {
-    /// The key under which a runtime context is generally stored (in `Contexts`).
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for ResponseContext {
+    fn default_key() -> &'static str {
         "response"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Response(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Response(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Response(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Response(Box::new(self))
     }
 }
 

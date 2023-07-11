@@ -398,23 +398,6 @@ mod tests {
 
     #[test]
     fn test_set_user_agent_meta() {
-        let os_context = Context::Os(Box::new(OsContext {
-            name: Annotated::new("Mac OS X".to_string()),
-            version: Annotated::new(">=10.15.7".to_string()),
-            ..Default::default()
-        }));
-        let browser_context = Context::Browser(Box::new(BrowserContext {
-            name: Annotated::new("Safari".to_string()),
-            version: Annotated::new("15.5".to_string()),
-            ..Default::default()
-        }));
-        let device_context = Context::Device(Box::new(DeviceContext {
-            family: Annotated::new("Mac".to_string()),
-            brand: Annotated::new("Apple".to_string()),
-            model: Annotated::new("Mac".to_string()),
-            ..Default::default()
-        }));
-
         // Parse user input.
         let payload = include_str!("../../tests/fixtures/replays/replay.json");
 
@@ -424,13 +407,29 @@ mod tests {
 
         let contexts = replay_value.contexts.value().unwrap();
         assert_eq!(
-            contexts.get_context(BrowserContext::default_key()),
-            Some(&browser_context)
+            contexts.get::<BrowserContext>(),
+            Some(&BrowserContext {
+                name: Annotated::new("Safari".to_string()),
+                version: Annotated::new("15.5".to_string()),
+                ..Default::default()
+            })
         );
-        assert_eq!(contexts.get_context("client_os"), Some(&os_context));
         assert_eq!(
-            contexts.get_context(DeviceContext::default_key()),
-            Some(&device_context)
+            contexts.get_context("client_os"),
+            Some(&Context::Os(Box::new(OsContext {
+                name: Annotated::new("Mac OS X".to_string()),
+                version: Annotated::new(">=10.15.7".to_string()),
+                ..Default::default()
+            })))
+        );
+        assert_eq!(
+            contexts.get::<DeviceContext>(),
+            Some(&DeviceContext {
+                family: Annotated::new("Mac".to_string()),
+                brand: Annotated::new("Apple".to_string()),
+                model: Annotated::new("Mac".to_string()),
+                ..Default::default()
+            })
         );
     }
 

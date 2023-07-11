@@ -154,7 +154,7 @@ mod tests {
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{Context, Contexts, EventType, SpanId, TraceContext, TraceId};
+    use crate::protocol::{Contexts, EventType, SpanId, TraceContext, TraceId};
     use crate::types::Annotated;
 
     fn create_transaction(start: DateTime<Utc>, end: DateTime<Utc>) -> Annotated<Event> {
@@ -164,12 +164,12 @@ mod tests {
             start_timestamp: Annotated::new(start.into()),
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Trace(Box::new(TraceContext {
+                contexts.add(TraceContext {
                     trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             spans: Annotated::new(vec![]),

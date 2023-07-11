@@ -203,19 +203,18 @@ impl<'a> NormalizeProcessor<'a> {
     }
 
     fn normalize_trace_context(&self, event: &mut Event) {
-        if let Some(ref mut contexts) = event.contexts.value_mut() {
-            if let Some(Context::Trace(ref mut trace_context)) = contexts.get_context_mut("trace") {
-                trace_context.client_sample_rate = Annotated::from(self.config.client_sample_rate);
-            }
+        if let Some(context) = event.context_mut::<TraceContext>() {
+            context.client_sample_rate = Annotated::from(self.config.client_sample_rate);
         }
     }
+
     fn normalize_replay_context(&self, event: &mut Event) {
         if let Some(ref mut contexts) = event.contexts.value_mut() {
             if let Some(replay_id) = self.config.replay_id {
-                contexts.add(Context::Replay(Box::new(ReplayContext {
+                contexts.add(ReplayContext {
                     replay_id: Annotated::new(EventId(replay_id)),
                     other: Object::default(),
-                })));
+                });
             }
         }
     }
@@ -1476,12 +1475,12 @@ mod tests {
             ),
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Trace(Box::new(TraceContext {
+                contexts.add(TraceContext {
                     trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             ..Event::default()
@@ -1568,10 +1567,10 @@ mod tests {
 
         assert_eq!(event.contexts, {
             let mut contexts = Contexts::new();
-            contexts.add(Context::Replay(Box::new(ReplayContext {
+            contexts.add(ReplayContext {
                 replay_id: Annotated::new(EventId(replay_id)),
                 other: Object::default(),
-            })));
+            });
             Annotated::new(contexts)
         })
     }
@@ -2595,12 +2594,12 @@ mod tests {
             start_timestamp: Annotated::new(start.into()),
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Trace(Box::new(TraceContext {
+                contexts.add(TraceContext {
                     trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                     span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
                     op: Annotated::new("http.server".to_owned()),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             spans: Annotated::new(vec![Annotated::new(Span {
@@ -2867,11 +2866,11 @@ mod tests {
         let mut event = Event {
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     family: "iPhone".to_string().into(),
                     model: "iPhone8,4".to_string().into(),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             ..Default::default()
@@ -2896,11 +2895,11 @@ mod tests {
         let mut event = Event {
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     family: "iPhone".to_string().into(),
                     model: "iPhone12,8".to_string().into(),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             ..Default::default()
@@ -2925,11 +2924,11 @@ mod tests {
         let mut event = Event {
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     family: "iPhone".to_string().into(),
                     model: "iPhone15,3".to_string().into(),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             ..Default::default()
@@ -2954,13 +2953,13 @@ mod tests {
         let mut event = Event {
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     family: "android".to_string().into(),
                     processor_frequency: 1000.into(),
                     processor_count: 6.into(),
                     memory_size: (2 * 1024 * 1024 * 1024).into(),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             ..Default::default()
@@ -2985,13 +2984,13 @@ mod tests {
         let mut event = Event {
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     family: "android".to_string().into(),
                     processor_frequency: 2000.into(),
                     processor_count: 8.into(),
                     memory_size: (6 * 1024 * 1024 * 1024).into(),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             ..Default::default()
@@ -3016,13 +3015,13 @@ mod tests {
         let mut event = Event {
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     family: "android".to_string().into(),
                     processor_frequency: 2500.into(),
                     processor_count: 8.into(),
                     memory_size: (6 * 1024 * 1024 * 1024).into(),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             ..Default::default()

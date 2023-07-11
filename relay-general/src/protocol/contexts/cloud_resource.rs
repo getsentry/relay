@@ -56,10 +56,34 @@ pub struct CloudResourceContext {
     pub other: Object<Value>,
 }
 
-impl CloudResourceContext {
-    /// The key under which a runtime context is generally stored (in `Contexts`).
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for CloudResourceContext {
+    fn default_key() -> &'static str {
         "cloud_resource"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::CloudResource(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::CloudResource(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::CloudResource(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::CloudResource(Box::new(self))
     }
 }
 

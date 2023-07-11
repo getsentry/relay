@@ -84,7 +84,7 @@ use serde_json::{Number, Value};
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{
-    BrowserContext, Context, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
+    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
 };
 use relay_general::store;
 
@@ -579,66 +579,6 @@ fn get_measurement(event: &Event, name: &str) -> Option<f64> {
     Some(*value)
 }
 
-/// Returns the trace context of the event if present.
-fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    match event
-        .contexts
-        .value()?
-        .get_context(TraceContext::default_key())?
-    {
-        Context::Trace(ref trace_context) => Some(trace_context),
-        _ => None,
-    }
-}
-
-/// Returns the device context of the event if present.
-fn get_device_context(event: &Event) -> Option<&DeviceContext> {
-    match event
-        .contexts
-        .value()?
-        .get_context(DeviceContext::default_key())?
-    {
-        Context::Device(ref device_context) => Some(device_context),
-        _ => None,
-    }
-}
-
-/// Returns the os context of the event if present.
-fn get_os_context(event: &Event) -> Option<&OsContext> {
-    match event
-        .contexts
-        .value()?
-        .get_context(OsContext::default_key())?
-    {
-        Context::Os(ref os_context) => Some(os_context),
-        _ => None,
-    }
-}
-
-/// Returns the browser context of the event if present.
-fn get_browser_context(event: &Event) -> Option<&BrowserContext> {
-    match event
-        .contexts
-        .value()?
-        .get_context(BrowserContext::default_key())?
-    {
-        Context::Browser(ref browser_context) => Some(browser_context),
-        _ => None,
-    }
-}
-
-/// Returns the response context of the event if present.
-fn get_response_context(event: &Event) -> Option<&ResponseContext> {
-    match event
-        .contexts
-        .value()?
-        .get_context(ResponseContext::default_key())?
-    {
-        Context::Response(ref response_context) => Some(response_context),
-        _ => None,
-    }
-}
-
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
@@ -738,31 +678,40 @@ impl FieldValueProvider for Event {
                 .map_or(Value::Null, Value::from),
 
             // Partial implementation of contexts.
-            "contexts.device.name" => get_device_context(self)
+            "contexts.device.name" => self
+                .context::<DeviceContext>()
                 .and_then(|device| device.name.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.device.family" => get_device_context(self)
+            "contexts.device.family" => self
+                .context::<DeviceContext>()
                 .and_then(|device| device.family.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.os.name" => get_os_context(self)
+            "contexts.os.name" => self
+                .context::<OsContext>()
                 .and_then(|os| os.name.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.os.version" => get_os_context(self)
+            "contexts.os.version" => self
+                .context::<OsContext>()
                 .and_then(|os| os.version.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.browser.name" => get_browser_context(self)
+            "contexts.browser.name" => self
+                .context::<BrowserContext>()
                 .and_then(|browser| browser.name.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.browser.version" => get_browser_context(self)
+            "contexts.browser.version" => self
+                .context::<BrowserContext>()
                 .and_then(|browser| browser.version.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.trace.status" => get_trace_context(self)
+            "contexts.trace.status" => self
+                .context::<TraceContext>()
                 .and_then(|trace| trace.status.value())
                 .map_or(Value::Null, |status| status.as_str().into()),
-            "contexts.trace.op" => get_trace_context(self)
+            "contexts.trace.op" => self
+                .context::<TraceContext>()
                 .and_then(|trace| trace.op.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.response.status_code" => get_response_context(self)
+            "contexts.response.status_code" => self
+                .context::<ResponseContext>()
                 .and_then(|response| response.status_code.value().copied())
                 .map_or(Value::Null, Value::from),
 
@@ -1305,11 +1254,8 @@ impl DynamicSamplingContext {
             return None;
         }
 
-        let contexts = event.contexts.value()?;
-        let context = contexts.get_context(TraceContext::default_key())?;
-        let Context::Trace(ref trace) = context else { return None };
+        let Some(trace) = event.context::<TraceContext>() else { return None };
         let trace_id = trace.trace_id.value()?.0.parse().ok()?;
-
         let user = event.user.value();
 
         Some(Self {
@@ -1730,18 +1676,18 @@ mod tests {
             },
             contexts: Annotated::new({
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Device(Box::new(DeviceContext {
+                contexts.add(DeviceContext {
                     name: Annotated::new("iphone".to_string()),
                     family: Annotated::new("iphone-fam".to_string()),
                     model: Annotated::new("iphone7,3".to_string()),
                     ..DeviceContext::default()
-                })));
-                contexts.add(Context::Os(Box::new(OsContext {
+                });
+                contexts.add(OsContext {
                     name: Annotated::new("iOS".to_string()),
                     version: Annotated::new("11.4.2".to_string()),
                     kernel_version: Annotated::new("17.4.0".to_string()),
                     ..OsContext::default()
-                })));
+                });
                 contexts
             }),
             ..Default::default()

@@ -144,7 +144,7 @@ mod tests {
 
     use super::*;
     use crate::protocol::{
-        Context, Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext, TraceId,
+        Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext, TraceId,
     };
 
     fn make_event(
@@ -159,11 +159,11 @@ mod tests {
             timestamp: Annotated::new(end),
             contexts: {
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Trace(Box::new(TraceContext {
+                contexts.add(TraceContext {
                     trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
                     span_id: Annotated::new(SpanId(span_id.into())),
                     ..Default::default()
-                })));
+                });
                 Annotated::new(contexts)
             },
             spans: spans.into(),
@@ -206,16 +206,10 @@ mod tests {
             .map(extract_exclusive_time)
             .collect();
 
-        let context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key());
-        if let Context::Trace(ref trace_context) = context.unwrap() {
-            let transaction_span_id = trace_context.span_id.value().unwrap();
-            let transaction_exclusive_time = *trace_context.exclusive_time.value().unwrap();
-            exclusive_times.insert(transaction_span_id, transaction_exclusive_time);
-        }
+        let trace_context = event.context::<TraceContext>().unwrap();
+        let transaction_span_id = trace_context.span_id.value().unwrap();
+        let transaction_exclusive_time = *trace_context.exclusive_time.value().unwrap();
+        exclusive_times.insert(transaction_span_id, transaction_exclusive_time);
 
         exclusive_times
     }
@@ -257,14 +251,8 @@ mod tests {
         // do not insert `exclusive-time`
         normalize_spans(&mut event, &BTreeSet::default());
 
-        let context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key());
-        if let Context::Trace(ref trace_context) = context.unwrap() {
-            assert!(trace_context.exclusive_time.value().is_none());
-        }
+        let context = event.context::<TraceContext>().unwrap();
+        assert!(context.exclusive_time.value().is_none());
 
         for span in event.spans.value().unwrap() {
             assert_eq!(span.value().unwrap().exclusive_time.value(), None)

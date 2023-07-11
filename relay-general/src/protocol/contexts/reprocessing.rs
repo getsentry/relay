@@ -20,10 +20,34 @@ pub struct ReprocessingContext {
     pub other: Object<Value>,
 }
 
-impl ReprocessingContext {
-    /// The key under which a reprocessing context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for ReprocessingContext {
+    fn default_key() -> &'static str {
         "reprocessing"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Reprocessing(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Reprocessing(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Reprocessing(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Reprocessing(Box::new(self))
     }
 }
 

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use chrono::SecondsFormat;
 
 use relay_common::SpanStatus;
-use relay_general::protocol::{AppContext, AsPair, Context, Event, TraceContext};
+use relay_general::protocol::{AppContext, AsPair, Event, TraceContext};
 
 pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
@@ -22,7 +22,7 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         tags.insert("transaction".to_owned(), transaction.to_owned());
     }
 
-    if let Some(trace_context) = get_trace_context(event) {
+    if let Some(trace_context) = event.context::<TraceContext>() {
         let status = extract_transaction_status(trace_context);
         tags.insert("transaction.status".to_owned(), status.to_string());
 
@@ -53,7 +53,7 @@ pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
         );
     }
 
-    if let Some(app_context) = get_app_context(event) {
+    if let Some(app_context) = event.context::<AppContext>() {
         if let Some(app_identifier) = app_context.app_identifier.value() {
             tags.insert("app.identifier".to_owned(), app_identifier.to_owned());
         }
@@ -92,30 +92,6 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     let request = transaction.request.value()?;
     let method = request.method.value()?;
     Some(method.clone())
-}
-
-fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    let context = event
-        .contexts
-        .value()?
-        .get_context(TraceContext::default_key())?;
-
-    match context {
-        Context::Trace(app) => Some(app),
-        _ => None,
-    }
-}
-
-fn get_app_context(event: &Event) -> Option<&AppContext> {
-    let context = event
-        .contexts
-        .value()?
-        .get_context(AppContext::default_key())?;
-
-    match context {
-        Context::App(app) => Some(app),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

@@ -18,10 +18,34 @@ pub struct ReplayContext {
     pub other: Object<Value>,
 }
 
-impl ReplayContext {
-    /// The key under which a replay context is generally stored (in `Contexts`).
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for ReplayContext {
+    fn default_key() -> &'static str {
         "replay"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Replay(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Replay(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Replay(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Replay(Box::new(self))
     }
 }
 
