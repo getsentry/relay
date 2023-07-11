@@ -119,20 +119,6 @@ pub trait FromUserAgentInfo: Sized {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ContextInner(#[metastructure(bag_size = "large")] pub Context);
 
-impl std::ops::Deref for ContextInner {
-    type Target = Context;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for ContextInner {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl From<Context> for ContextInner {
     fn from(c: Context) -> ContextInner {
         ContextInner(c)
@@ -195,12 +181,13 @@ impl Contexts {
         F: FnOnce() -> Context,
         S: Into<String>,
     {
-        &mut *self
+        &mut self
             .0
             .entry(key.into())
             .or_insert_with(Annotated::empty)
             .value_mut()
             .get_or_insert_with(|| ContextInner(context_builder()))
+            .0
     }
 
     /// Returns a mutable reference to the context specified by `key`.
