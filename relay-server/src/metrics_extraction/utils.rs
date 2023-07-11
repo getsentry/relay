@@ -132,13 +132,10 @@ pub fn get_eventuser_tag(user: &User) -> Option<String> {
 }
 
 pub fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    let contexts = event.contexts.value()?;
-    let trace = contexts.get("trace").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
-        return Some(trace_context.as_ref());
+    match event.contexts.value()?.get_context("trace")? {
+        Context::Trace(ref trace_context) => Some(trace_context),
+        _ => None,
     }
-
-    None
 }
 
 pub fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {

@@ -316,6 +316,31 @@ pub enum SpanStatus {
     Unauthenticated = 16,
 }
 
+impl SpanStatus {
+    /// Returns the string representation of the status.
+    pub fn as_str(&self) -> &'static str {
+        match *self {
+            SpanStatus::Ok => "ok",
+            SpanStatus::DeadlineExceeded => "deadline_exceeded",
+            SpanStatus::Unauthenticated => "unauthenticated",
+            SpanStatus::PermissionDenied => "permission_denied",
+            SpanStatus::NotFound => "not_found",
+            SpanStatus::ResourceExhausted => "resource_exhausted",
+            SpanStatus::InvalidArgument => "invalid_argument",
+            SpanStatus::Unimplemented => "unimplemented",
+            SpanStatus::Unavailable => "unavailable",
+            SpanStatus::InternalError => "internal_error",
+            SpanStatus::Unknown => "unknown",
+            SpanStatus::Cancelled => "cancelled",
+            SpanStatus::AlreadyExists => "already_exists",
+            SpanStatus::FailedPrecondition => "failed_precondition",
+            SpanStatus::Aborted => "aborted",
+            SpanStatus::OutOfRange => "out_of_range",
+            SpanStatus::DataLoss => "data_loss",
+        }
+    }
+}
+
 /// Error parsing a `SpanStatus`.
 #[derive(Clone, Copy, Debug)]
 pub struct ParseSpanStatusError;
@@ -359,25 +384,7 @@ impl FromStr for SpanStatus {
 
 impl fmt::Display for SpanStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            SpanStatus::Ok => write!(f, "ok"),
-            SpanStatus::DeadlineExceeded => write!(f, "deadline_exceeded"),
-            SpanStatus::Unauthenticated => write!(f, "unauthenticated"),
-            SpanStatus::PermissionDenied => write!(f, "permission_denied"),
-            SpanStatus::NotFound => write!(f, "not_found"),
-            SpanStatus::ResourceExhausted => write!(f, "resource_exhausted"),
-            SpanStatus::InvalidArgument => write!(f, "invalid_argument"),
-            SpanStatus::Unimplemented => write!(f, "unimplemented"),
-            SpanStatus::Unavailable => write!(f, "unavailable"),
-            SpanStatus::InternalError => write!(f, "internal_error"),
-            SpanStatus::Unknown => write!(f, "unknown"),
-            SpanStatus::Cancelled => write!(f, "cancelled"),
-            SpanStatus::AlreadyExists => write!(f, "already_exists"),
-            SpanStatus::FailedPrecondition => write!(f, "failed_precondition"),
-            SpanStatus::Aborted => write!(f, "aborted"),
-            SpanStatus::OutOfRange => write!(f, "out_of_range"),
-            SpanStatus::DataLoss => write!(f, "data_loss"),
-        }
+        f.write_str(self.as_str())
     }
 }
 

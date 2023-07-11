@@ -83,7 +83,9 @@ use serde_json::{Number, Value};
 
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
-use relay_general::protocol::{Context, Event, TraceContext};
+use relay_general::protocol::{
+    BrowserContext, Context, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
+};
 use relay_general::store;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
@@ -567,6 +569,56 @@ impl SamplingRule {
     }
 }
 
+/// Get the numeric measurement value.
+///
+/// The name is provided without a prefix, for example `"lcp"` loads `event.measurements.lcp`.
+fn get_measurement(event: &Event, name: &str) -> Option<f64> {
+    let measurements = event.measurements.value()?;
+    let annotated = measurements.get(name)?;
+    let value = annotated.value().and_then(|m| m.value.value())?;
+    Some(*value)
+}
+
+/// Returns the trace context of the event if present.
+fn get_trace_context(event: &Event) -> Option<&TraceContext> {
+    match event.contexts.value()?.get_context("trace")? {
+        Context::Trace(ref trace_context) => Some(trace_context),
+        _ => None,
+    }
+}
+
+/// Returns the device context of the event if present.
+fn get_device_context(event: &Event) -> Option<&DeviceContext> {
+    match event.contexts.value()?.get_context("device")? {
+        Context::Device(ref device_context) => Some(device_context),
+        _ => None,
+    }
+}
+
+/// Returns the os context of the event if present.
+fn get_os_context(event: &Event) -> Option<&OsContext> {
+    match event.contexts.value()?.get_context("os")? {
+        Context::Os(ref os_context) => Some(os_context),
+        _ => None,
+    }
+}
+
+/// Returns the browser context of the event if present.
+fn get_browser_context(event: &Event) -> Option<&BrowserContext> {
+    match event.contexts.value()?.get_context("browser")? {
+        Context::Browser(ref browser_context) => Some(browser_context),
+        _ => None,
+    }
+}
+
+/// Returns the response context of the event if present.
+fn get_response_context(event: &Event) -> Option<&ResponseContext> {
+    match event.contexts.value()?.get_context("response")? {
+        Context::Response(ref response_context) => Some(response_context),
+        _ => None,
+    }
+}
+
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
@@ -601,86 +653,98 @@ impl FieldValueProvider for Event {
                 Some(s) => s.as_str().into(),
             },
             "platform" => match self.platform.value() {
-                Some(platform) if store::is_valid_platform(platform) => {
-                    Value::String(platform.clone())
-                }
+                Some(platform) if store::is_valid_platform(platform) => platform.clone().into(),
                 _ => Value::from("other"),
             },
+
+            // Fields in top level structures (called "interfaces" in Sentry)
             "user.email" => self
                 .user
                 .value()
-                .and_then(|user| user.email.value())
+                .and_then(|user| user.email.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |email| email.clone().into()),
+                .map_or(Value::Null, Value::from),
             "user.id" => self
                 .user
                 .value()
-                .and_then(|user| user.id.value())
+                .and_then(|user| user.id.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |id| id.as_str().into()),
+                .map_or(Value::Null, Value::from),
             "user.ip_address" => self
                 .user
                 .value()
-                .and_then(|user| user.ip_address.value())
-                .map_or(Value::Null, |ip| ip.as_str().into()),
+                .and_then(|user| user.ip_address.as_str())
+                .map_or(Value::Null, Value::from),
             "user.name" => self
                 .user
                 .value()
-                .and_then(|user| user.name.value())
+                .and_then(|user| user.name.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |name| name.clone().into()),
+                .map_or(Value::Null, Value::from),
             "user.segment" => self
                 .user
                 .value()
-                .and_then(|user| user.segment.value())
+                .and_then(|user| user.segment.as_str())
                 .filter(|id| !id.is_empty())
-                .map_or(Value::Null, |id| id.clone().into()),
+                .map_or(Value::Null, Value::from),
+            "user.geo.city" => self
+                .user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.city.as_str())
+                .map_or(Value::Null, Value::from),
+            "user.geo.country_code" => self
+                .user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.country_code.as_str())
+                .map_or(Value::Null, Value::from),
+            "user.geo.region" => self
+                .user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.region.as_str())
+                .map_or(Value::Null, Value::from),
+            "user.geo.subdivision" => self
+                .user
+                .value()
+                .and_then(|user| user.geo.value())
+                .and_then(|geo| geo.subdivision.as_str())
+                .map_or(Value::Null, Value::from),
+            "request.method" => self
+                .request
+                .value()
+                .and_then(|request| request.method.as_str())
+                .map_or(Value::Null, Value::from),
 
             // Partial implementation of contexts.
-            "contexts.device.name" => self
-                .contexts
-                .value()
-                .and_then(|contexts| contexts.get("device"))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| match context.0 {
-                    Context::Device(ref device) => device.name.as_str(),
-                    _ => None,
-                })
+            "contexts.device.name" => get_device_context(self)
+                .and_then(|device| device.name.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.device.family" => self
-                .contexts
-                .value()
-                .and_then(|contexts| contexts.get("device"))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| match context.0 {
-                    Context::Device(ref device) => device.family.as_str(),
-                    _ => None,
-                })
+            "contexts.device.family" => get_device_context(self)
+                .and_then(|device| device.family.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.os.name" => self
-                .contexts
-                .value()
-                .and_then(|contexts| contexts.get("os"))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| match context.0 {
-                    Context::Os(ref os) => os.name.as_str(),
-                    _ => None,
-                })
+            "contexts.os.name" => get_os_context(self)
+                .and_then(|os| os.name.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.os.version" => self
-                .contexts
-                .value()
-                .and_then(|contexts| contexts.get("os"))
-                .and_then(|annotated| annotated.value())
-                .and_then(|context| match context.0 {
-                    Context::Os(ref os) => os.version.as_str(),
-                    _ => None,
-                })
+            "contexts.os.version" => get_os_context(self)
+                .and_then(|os| os.version.as_str())
                 .map_or(Value::Null, Value::from),
-            "contexts.trace.op" => match (self.ty.value(), store::get_transaction_op(self)) {
-                (Some(&EventType::Transaction), Some(op_name)) => Value::String(op_name.to_owned()),
-                _ => Value::Null,
-            },
+            "contexts.browser.name" => get_browser_context(self)
+                .and_then(|browser| browser.name.as_str())
+                .map_or(Value::Null, Value::from),
+            "contexts.browser.version" => get_browser_context(self)
+                .and_then(|browser| browser.version.as_str())
+                .map_or(Value::Null, Value::from),
+            "contexts.trace.status" => get_trace_context(self)
+                .and_then(|trace| trace.status.value())
+                .map_or(Value::Null, |status| status.as_str().into()),
+            "contexts.trace.op" => get_trace_context(self)
+                .and_then(|trace| trace.op.as_str())
+                .map_or(Value::Null, Value::from),
+            "contexts.response.status_code" => get_response_context(self)
+                .and_then(|response| response.status_code.value().copied())
+                .map_or(Value::Null, Value::from),
 
             // Computed fields (see Discover)
             "duration" => match (self.ty.value(), store::validate_timestamps(self)) {
@@ -714,7 +778,7 @@ impl FieldValueProvider for Event {
                 if let Some(rest) = field_name.strip_prefix("measurements.") {
                     rest.strip_suffix(".value")
                         .filter(|measurement_name| !measurement_name.is_empty())
-                        .and_then(|measurement_name| store::get_measurement(self, measurement_name))
+                        .and_then(|measurement_name| get_measurement(self, measurement_name))
                         .map_or(Value::Null, Value::from)
                 } else if let Some(rest) = field_name.strip_prefix("breakdowns.") {
                     rest.split_once('.')
