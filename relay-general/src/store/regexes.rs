@@ -62,6 +62,8 @@ pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         r#"(?xi)
     # Capture parameters in `IN` statements.
     ((?-x)IN \((?P<in>(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\)) |
+    # Capture parameters in `VALUES`.
+    ((?-x)VALUES \((?P<values>(\)\s*,\s*\(|%s|\$?\d+|\?|,|\s)*)\)) |
     # Capture `SAVEPOINT` savepoints.
     ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
     # Capture single-quoted strings, including the remaining substring if `\'` is found.
