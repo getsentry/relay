@@ -18,6 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
@@ -26,13 +27,12 @@ use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetrics
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
-use relay_general::protocol::Context::Trace;
-use relay_general::protocol::Contexts;
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
     LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
     SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
+use relay_general::protocol::{Contexts, OtelContext};
 use relay_general::store::GeoIpLookup;
 use relay_general::store::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
@@ -51,7 +51,7 @@ use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_general::protocol::{Context as SentryContext, ProfileContext},
+    relay_general::protocol::ProfileContext,
     relay_general::store::{StoreConfig, StoreProcessor},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -220,16 +220,8 @@ fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
     }
 }
 
-#[derive(Debug, Default)]
-struct ExtractedMetrics {
-    /// Metrics associated with the project that the transaction belongs to.
-    project_metrics: Vec<Metric>,
-    /// Metrics associated with the sampling project (a.k.a. root or head project)
-    /// which started the trace. See [`ProcessEnvelopeState::sampling_project_state`].
-    sampling_metrics: Vec<Metric>,
-}
-
 impl ExtractedMetrics {
+    // TODO(ja): Move
     fn send_metrics(self, envelope: &Envelope, project_cache: Addr<ProjectCache>) {
         let project_key = envelope.meta().public_key();
 
@@ -264,7 +256,7 @@ struct ProcessEnvelopeState {
     event: Annotated<Event>,
 
     /// Track whether transaction metrics were already extracted.
-    transaction_metrics_extracted: bool,
+    event_metrics_extracted: bool,
 
     /// Partial metrics of the Event during construction.
     ///
@@ -1138,11 +1130,9 @@ impl EnvelopeProcessorService {
                             if let Some(event) = state.event.value_mut() {
                                 if event.ty.value() == Some(&EventType::Transaction) {
                                     let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(SentryContext::Profile(Box::new(
-                                        ProfileContext {
-                                            profile_id: Annotated::new(profile_id),
-                                        },
-                                    )));
+                                    contexts.add(ProfileContext {
+                                        profile_id: Annotated::new(profile_id),
+                                    });
                                 }
                             }
                             item.set_payload(ContentType::Json, payload);
@@ -1150,8 +1140,9 @@ impl EnvelopeProcessorService {
                         } else {
                             if let Some(event) = state.event.value_mut() {
                                 if event.ty.value() == Some(&EventType::Transaction) {
-                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.remove(ProfileContext::default_key());
+                                    if let Some(ref mut contexts) = event.contexts.value_mut() {
+                                        contexts.remove::<ProfileContext>();
+                                    }
                                 }
                             }
                             ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -1165,7 +1156,7 @@ impl EnvelopeProcessorService {
                         if let Some(event) = state.event.value_mut() {
                             if event.ty.value() == Some(&EventType::Transaction) {
                                 let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove(ProfileContext::default_key());
+                                contexts.remove::<ProfileContext>();
                             }
                         }
 
@@ -1362,7 +1353,7 @@ impl EnvelopeProcessorService {
 
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
-            transaction_metrics_extracted: false,
+            event_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
             sampling_result: SamplingResult::Keep,
@@ -1691,7 +1682,7 @@ impl EnvelopeProcessorService {
         } else if let Some(mut item) = transaction_item {
             relay_log::trace!("processing json transaction");
             sample_rates = item.take_sample_rates();
-            state.transaction_metrics_extracted = item.metrics_extracted();
+            state.event_metrics_extracted = item.metrics_extracted();
             metric!(timer(RelayTimers::EventProcessingDeserialize), {
                 // Transaction items can only contain transaction events. Force the event type to
                 // hint to normalization that we're dealing with a transaction now.
@@ -1853,13 +1844,12 @@ impl EnvelopeProcessorService {
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
 
-                let otel_context = event
+                let has_otel = event
                     .contexts
                     .value()
-                    .and_then(|contexts| contexts.get("otel"))
-                    .and_then(Annotated::value);
+                    .map_or(false, |contexts| contexts.contains::<OtelContext>());
 
-                if otel_context.is_some() {
+                if has_otel {
                     metric!(
                         counter(RelayCounters::OpenTelemetryEvent) += 1,
                         sdk = envelope.meta().client_name().unwrap_or("proprietary"),
@@ -2037,7 +2027,7 @@ impl EnvelopeProcessorService {
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
         if let Some(category) = event_category {
-            envelope_limiter.assume_event(category, state.transaction_metrics_extracted);
+            envelope_limiter.assume_event(category, state.event_metrics_extracted);
         }
 
         let scoping = state.managed_envelope.scoping();
@@ -2064,82 +2054,73 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
-    /// Extract metrics for transaction events with breakdowns and measurements.
-    fn extract_transaction_metrics(
-        &self,
-        state: &mut ProcessEnvelopeState,
-    ) -> Result<(), ProcessingError> {
-        if state.transaction_metrics_extracted {
-            // Nothing to do here.
-            return Ok(());
-        }
-
-        let project_config = state.project_state.config();
-        let extraction_config = match project_config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => config,
-            _ => return Ok(()),
-        };
-
-        let extract_spans_metrics = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction);
-
-        let transaction_from_dsc = state
-            .managed_envelope
-            .envelope()
-            .dsc()
-            .and_then(|dsc| dsc.transaction.as_deref());
-
-        if let Some(event) = state.event.value_mut() {
-            let result;
-            metric!(
-                timer(RelayTimers::TransactionMetricsExtraction),
-                extracted_anything = &result.unwrap_or(false).to_string(),
-                {
-                    // Actual logic outsourced for unit tests
-                    result = crate::metrics_extraction::transactions::extract_transaction_metrics(
-                        self.config.aggregator_config(),
-                        extraction_config,
-                        &project_config.metric_conditional_tagging,
-                        extract_spans_metrics,
-                        event,
-                        transaction_from_dsc,
-                        &state.sampling_result,
-                        state.has_profile,
-                        &mut state.extracted_metrics.project_metrics,
-                        &mut state.extracted_metrics.sampling_metrics,
-                    );
-                }
-            );
-
-            result?;
-
-            state.transaction_metrics_extracted = true;
-            state.managed_envelope.set_event_metrics_extracted();
-        }
-
-        Ok(())
-    }
-
     /// Extract metrics from all envelope items.
     ///
     /// Caveats:
     ///  - This functionality is incomplete. At this point, extraction is implemented only for
     ///    transaction events.
-    ///  - This function must run BEFORE `extract_transaction_metrics` to avoid double-extraction.
     fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let config = match state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
-            _ => return Ok(()),
-        };
+        // TODO: Make span metrics extraction immutable
+        if let Some(event) = state.event.value_mut() {
+            if state.event_metrics_extracted {
+                return Ok(());
+            }
 
-        if let Some(event) = state.event.value() {
-            // XXX: Since we only support transactions, we can skip generic metric extraction from
-            // events if transaction metrics have been extracted before.
-            if !state.transaction_metrics_extracted {
-                let metrics =
-                    crate::metrics_extraction::event::extract_event_metrics(event, config);
+            match state.project_state.config.metric_extraction {
+                ErrorBoundary::Ok(ref config) if config.is_enabled() => {
+                    let metrics =
+                        crate::metrics_extraction::event::extract_event_metrics(event, config);
+                    state.event_metrics_extracted |= !metrics.is_empty();
+                    state.extracted_metrics.project_metrics.extend(metrics);
+                }
+                _ => (),
+            }
+
+            match state.project_state.config.transaction_metrics {
+                Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => {
+                    let transaction_from_dsc = state
+                        .managed_envelope
+                        .envelope()
+                        .dsc()
+                        .and_then(|dsc| dsc.transaction.as_deref());
+
+                    let extractor = TransactionExtractor {
+                        aggregator_config: self.config.aggregator_config(),
+                        config,
+                        transaction_from_dsc,
+                        sampling_result: &state.sampling_result,
+                        has_profile: state.has_profile,
+                    };
+
+                    let mut extracted = extractor.extract(event)?;
+
+                    // TODO: Move conditional tagging to generic metrics extraction
+                    let tagging_config = &state.project_state.config.metric_conditional_tagging;
+                    crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
+                        event,
+                        tagging_config,
+                        &mut extracted.project_metrics,
+                    );
+
+                    state.extracted_metrics.extend(extracted);
+                    state.event_metrics_extracted |= true;
+                }
+                _ => (),
+            }
+
+            if state
+                .project_state
+                .has_feature(Feature::SpanMetricsExtraction)
+            {
+                let metrics = crate::metrics_extraction::spans::extract_span_metrics(
+                    self.config.aggregator_config(),
+                    event,
+                )?;
                 state.extracted_metrics.project_metrics.extend(metrics);
+            }
+
+            if state.event_metrics_extracted {
+                state.managed_envelope.set_event_metrics_extracted();
             }
         }
 
@@ -2238,7 +2219,7 @@ impl EnvelopeProcessorService {
         event_item.set_payload(ContentType::Json, data);
 
         // If transaction metrics were extracted, set the corresponding item header
-        event_item.set_metrics_extracted(state.transaction_metrics_extracted);
+        event_item.set_metrics_extracted(state.event_metrics_extracted);
 
         // If there are sample rates, write them back to the envelope. In processing mode, sample
         // rates have been removed from the state and burnt into the event via `finalize_event`.
@@ -2326,30 +2307,19 @@ impl EnvelopeProcessorService {
         // In case the sampling result is positive, we assume that all the transactions
         // that have this DSC will be sampled and thus we mark the error as "having
         // a full trace".
-        // In case we have no contexts object, we have to create it.
         let contexts = event.contexts.get_or_insert_with(Contexts::new);
+        let context = contexts.get_or_default::<TraceContext>();
 
-        // We want to get the specific trace context, or we want to create it in case
-        // it is not there.
-        let context =
-            contexts.get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
-
-        // We want to mutate the sampled after the "fake" sampling has been performed.
-        //
-        // It is important to note that tagging only occurs if there is a dsc and root
-        // project state.
-        if let Trace(boxed_context) = context {
-            // We want to update `sampled` only if it was not set, since if we don't check this
-            // we will end up overriding the value set by downstream Relays and this will lead
-            // to more complex debugging in case of problems.
-            if boxed_context.sampled.is_empty() {
-                let sampled = match sampling_result {
-                    SamplingResult::Keep => true,
-                    SamplingResult::Drop(_) => false,
-                };
-                relay_log::trace!("tagging error with `sampled = {}` flag", sampled);
-                boxed_context.sampled = Annotated::new(sampled);
-            }
+        // We want to update `sampled` only if it was not set, since if we don't check this
+        // we will end up overriding the value set by downstream Relays and this will lead
+        // to more complex debugging in case of problems.
+        if context.sampled.is_empty() {
+            let sampled = match sampling_result {
+                SamplingResult::Keep => true,
+                SamplingResult::Drop(_) => false,
+            };
+            relay_log::trace!("tagging error with `sampled = {}` flag", sampled);
+            context.sampled = Annotated::new(sampled);
         }
     }
 
@@ -2461,7 +2431,6 @@ impl EnvelopeProcessorService {
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
             self.extract_metrics(state)?;
-            self.extract_transaction_metrics(state)?;
             self.sample_envelope(state)?;
 
             if_processing!({
@@ -3046,7 +3015,7 @@ mod tests {
 
             let mut state = ProcessEnvelopeState {
                 event: Annotated::from(event.clone()),
-                transaction_metrics_extracted: false,
+                event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
@@ -3342,17 +3311,8 @@ mod tests {
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
-        let trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        assert!(matches!(trace_context, Trace(..)));
-        if let Trace(context) = trace_context {
-            assert!(context.sampled.value().unwrap())
-        }
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(trace_context.sampled.value().unwrap());
 
         // We test the tagging when the incoming dsc matches a 0% rule.
         let sampling_project_state = project_state_with_single_rule(0.0);
@@ -3361,17 +3321,8 @@ mod tests {
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
-        let trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        assert!(matches!(trace_context, Trace(..)));
-        if let Trace(context) = trace_context {
-            assert!(!context.sampled.value().unwrap())
-        }
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(!trace_context.sampled.value().unwrap());
 
         // We test the tagging is not performed when an event is already tagged.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
@@ -3407,17 +3358,8 @@ mod tests {
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
-        let trace_context = event
-            .contexts
-            .value()
-            .unwrap()
-            .get_context(TraceContext::default_key())
-            .unwrap();
-
-        assert!(matches!(trace_context, Trace(..)));
-        if let Trace(context) = trace_context {
-            assert!(context.sampled.value().unwrap())
-        }
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(trace_context.sampled.value().unwrap());
 
         // We test the tagging when root project state and dsc are none.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
@@ -3510,7 +3452,7 @@ mod tests {
         assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
         // But we still get correct browser and version number
         let contexts = event.contexts.into_value().unwrap();
-        let browser = contexts.get("browser").unwrap();
+        let browser = contexts.0.get("browser").unwrap();
         assert_eq!(
             r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
             browser.to_json().unwrap()

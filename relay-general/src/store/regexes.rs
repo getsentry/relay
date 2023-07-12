@@ -65,7 +65,7 @@ pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     # Capture `SAVEPOINT` savepoints.
     ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
     # Capture single-quoted strings, including the remaining substring if `\'` is found.
-    ((?-x)(?P<single_quoted_strs>('(?:[^']|'')*?(?:\\'.*|[^']')))) |
+    ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$))) |
     # Don't capture double-quoted strings (eg used for identifiers in PostgreSQL).
     # Capture numbers.
     ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |

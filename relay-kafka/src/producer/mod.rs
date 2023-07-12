@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
+use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
 use relay_statsd::metric;
@@ -60,6 +61,9 @@ pub trait Message {
 
     /// Returns the type of the message.
     fn variant(&self) -> &'static str;
+
+    /// Return the list of headers to be provided when payload is sent to Kafka.
+    fn headers(&self) -> Option<&BTreeMap<String, String>>;
 
     /// Serializes the message into its binary format.
     ///
@@ -162,7 +166,14 @@ impl KafkaClient {
             .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
-        self.send(topic, organization_id, &key, message.variant(), &serialized)
+        self.send(
+            topic,
+            organization_id,
+            &key,
+            message.headers(),
+            message.variant(),
+            &serialized,
+        )
     }
 
     /// Sends the payload to the correct producer for the current topic.
@@ -171,6 +182,7 @@ impl KafkaClient {
         topic: KafkaTopic,
         organization_id: u64,
         key: &[u8; 16],
+        headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<(), ClientError> {
@@ -180,7 +192,7 @@ impl KafkaClient {
             );
             ClientError::InvalidTopicName
         })?;
-        producer.send(organization_id, key, variant, payload)
+        producer.send(organization_id, key, headers, variant, payload)
     }
 }
 
@@ -322,6 +334,7 @@ impl Producer {
         &self,
         organization_id: u64,
         key: &[u8; 16],
+        headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<(), ClientError> {
@@ -337,7 +350,19 @@ impl Producer {
 
             Self::Sharded(sharded) => sharded.get_producer(organization_id)?,
         };
-        let record = BaseRecord::to(topic_name).key(key).payload(payload);
+        let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
+
+        // Make sure to set the headers if provided.
+        if let Some(headers) = headers {
+            let mut kafka_headers = OwnedHeaders::new();
+            for (key, value) in headers {
+                kafka_headers = kafka_headers.insert(Header {
+                    key,
+                    value: Some(value),
+                });
+            }
+            record = record.headers(kafka_headers);
+        }
 
         producer.send(record).map_err(|(error, _message)| {
             relay_log::error!(

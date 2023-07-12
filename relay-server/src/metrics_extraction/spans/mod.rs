@@ -1,20 +1,20 @@
-use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::metrics_extraction::utils::extract_http_status_code;
-use crate::metrics_extraction::utils::http_status_code_from_span;
-use crate::metrics_extraction::utils::{
-    extract_transaction_op, get_eventuser_tag, get_trace_context,
-};
-use crate::metrics_extraction::IntoMetric;
+use std::collections::BTreeMap;
+
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_common::{EventType, UnixTimestamp};
 use relay_filter::csp::SchemeDomainPort;
-use relay_general::protocol::Event;
+use relay_general::protocol::{Event, TraceContext};
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
-use std::collections::BTreeMap;
+
+use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
+use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::utils::{
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
+};
+use crate::metrics_extraction::IntoMetric;
 
 mod types;
 
@@ -24,12 +24,12 @@ mod types;
 pub(crate) fn extract_span_metrics(
     aggregator_config: &AggregatorConfig,
     event: &mut Event,
-    metrics: &mut Vec<Metric>, // output parameter
-) -> Result<(), ExtractMetricsError> {
+) -> Result<Vec<Metric>, ExtractMetricsError> {
     // TODO(iker): measure the performance of this whole method
+    let mut metrics = Vec::new();
 
     if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
+        return Ok(metrics);
     }
     let (Some(&_start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
         relay_log::debug!("failed to extract the start and the end timestamps from the event");
@@ -83,7 +83,7 @@ pub(crate) fn extract_span_metrics(
         }
     }
 
-    if let Some(trace_context) = get_trace_context(event) {
+    if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             shared_tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
         }
@@ -93,199 +93,198 @@ pub(crate) fn extract_span_metrics(
         shared_tags.insert(SpanTagKey::HttpStatusCode, transaction_http_status_code);
     }
 
-    let Some(spans) = event.spans.value_mut() else { return Ok(()) };
+    let Some(spans) = event.spans.value_mut() else { return Ok(metrics) };
 
     for annotated_span in spans {
-        if let Some(span) = annotated_span.value_mut() {
-            let mut span_tags = shared_tags.clone();
+        let Some(span) = annotated_span.value_mut() else { continue };
+        let mut span_tags = shared_tags.clone();
 
-            if let Some(unsanitized_span_op) = span.op.value() {
-                let span_op = unsanitized_span_op.to_owned().to_lowercase();
+        if let Some(unsanitized_span_op) = span.op.value() {
+            let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-                span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
+            span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
-                if let Some(category) = span_op_to_category(&span_op) {
-                    span_tags.insert(SpanTagKey::Category, category.to_owned());
-                }
+            if let Some(category) = span_op_to_category(&span_op) {
+                span_tags.insert(SpanTagKey::Category, category.to_owned());
+            }
 
-                let span_module = if span_op.starts_with("http") {
-                    Some("http")
-                } else if span_op.starts_with("db") {
-                    Some("db")
-                } else if span_op.starts_with("cache") {
-                    Some("cache")
-                } else {
-                    None
-                };
+            let span_module = if span_op.starts_with("http") {
+                Some("http")
+            } else if span_op.starts_with("db") {
+                Some("db")
+            } else if span_op.starts_with("cache") {
+                Some("cache")
+            } else {
+                None
+            };
 
-                if let Some(module) = span_module {
-                    span_tags.insert(SpanTagKey::Module, module.to_owned());
-                }
+            if let Some(module) = span_module {
+                span_tags.insert(SpanTagKey::Module, module.to_owned());
+            }
 
-                // TODO(iker): we're relying on the existance of `http.method`
-                // or `db.operation`. This is not guaranteed, and we'll need to
-                // parse the span description in that case.
-                let action = match span_module {
-                    Some("http") => span
-                        .data
-                        .value()
-                        // TODO(iker): some SDKs extract this as method
-                        .and_then(|v| v.get("http.method"))
-                        .and_then(|method| method.as_str())
-                        .map(|s| s.to_uppercase()),
-                    Some("db") => {
-                        let action_from_data = span
-                            .data
-                            .value()
-                            .and_then(|v| v.get("db.operation"))
-                            .and_then(|db_op| db_op.as_str())
-                            .map(|s| s.to_uppercase());
-                        action_from_data.or_else(|| {
-                            span.description
-                                .value()
-                                .and_then(|d| sql_action_from_query(d))
-                                .map(|a| a.to_uppercase())
-                        })
-                    }
-                    _ => None,
-                };
-
-                if let Some(act) = action.clone() {
-                    span_tags.insert(SpanTagKey::Action, act);
-                }
-
-                let domain = if span_op == "http.client" {
-                    span.description
-                        .value()
-                        .and_then(|url| domain_from_http_url(url))
-                        .map(|d| d.to_lowercase())
-                } else if span_op.starts_with("db") {
-                    span.description
-                        .value()
-                        .and_then(|query| sql_table_from_query(query))
-                        .map(|t| t.to_lowercase())
-                } else {
-                    None
-                };
-
-                if !span_op.starts_with("db.redis") {
-                    if let Some(dom) = domain.clone() {
-                        span_tags.insert(SpanTagKey::Domain, dom);
-                    }
-                }
-
-                let scrubbed_description = span
+            // TODO(iker): we're relying on the existance of `http.method`
+            // or `db.operation`. This is not guaranteed, and we'll need to
+            // parse the span description in that case.
+            let action = match span_module {
+                Some("http") => span
                     .data
                     .value()
-                    .and_then(|data| data.get("description.scrubbed"))
-                    .and_then(|value| value.as_str());
+                    // TODO(iker): some SDKs extract this as method
+                    .and_then(|v| v.get("http.method"))
+                    .and_then(|method| method.as_str())
+                    .map(|s| s.to_uppercase()),
+                Some("db") => {
+                    let action_from_data = span
+                        .data
+                        .value()
+                        .and_then(|v| v.get("db.operation"))
+                        .and_then(|db_op| db_op.as_str())
+                        .map(|s| s.to_uppercase());
+                    action_from_data.or_else(|| {
+                        span.description
+                            .value()
+                            .and_then(|d| sql_action_from_query(d))
+                            .map(|a| a.to_uppercase())
+                    })
+                }
+                _ => None,
+            };
 
-                let sanitized_description = sanitized_span_description(
-                    scrubbed_description,
-                    span_module,
-                    action.as_deref(),
-                    domain.as_deref(),
-                );
+            if let Some(act) = action.clone() {
+                span_tags.insert(SpanTagKey::Action, act);
+            }
 
-                if let Some(scrubbed_desc) = sanitized_description {
-                    // Truncating the span description's tag value is, for now,
-                    // a temporary solution to not get large descriptions dropped. The
-                    // group tag mustn't be affected by this, and still be
-                    // computed from the full, untruncated description.
+            let domain = if span_op == "http.client" {
+                span.description
+                    .value()
+                    .and_then(|url| domain_from_http_url(url))
+                    .map(|d| d.to_lowercase())
+            } else if span_op.starts_with("db") {
+                span.description
+                    .value()
+                    .and_then(|query| sql_table_from_query(query))
+                    .map(|t| t.to_lowercase())
+            } else {
+                None
+            };
 
-                    let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
-                    span_group.truncate(16);
-                    span_tags.insert(SpanTagKey::Group, span_group);
-
-                    let truncated =
-                        truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
-                    span_tags.insert(SpanTagKey::Description, truncated);
+            if !span_op.starts_with("db.redis") {
+                if let Some(dom) = domain.clone() {
+                    span_tags.insert(SpanTagKey::Domain, dom);
                 }
             }
 
-            let system = span
+            let scrubbed_description = span
                 .data
                 .value()
-                .and_then(|v| v.get("db.system"))
-                .and_then(|system| system.as_str());
-            if let Some(sys) = system {
-                span_tags.insert(SpanTagKey::System, sys.to_lowercase());
-            }
+                .and_then(|data| data.get("description.scrubbed"))
+                .and_then(|value| value.as_str());
 
-            if let Some(span_status) = span.status.value() {
-                span_tags.insert(SpanTagKey::Status, span_status.to_string());
-            }
+            let sanitized_description = sanitized_span_description(
+                scrubbed_description,
+                span_module,
+                action.as_deref(),
+                domain.as_deref(),
+            );
 
-            if let Some(status_code) = http_status_code_from_span(span) {
-                span_tags.insert(SpanTagKey::StatusCode, status_code);
-            }
+            if let Some(scrubbed_desc) = sanitized_description {
+                // Truncating the span description's tag value is, for now,
+                // a temporary solution to not get large descriptions dropped. The
+                // group tag mustn't be affected by this, and still be
+                // computed from the full, untruncated description.
 
-            // Even if we emit metrics, we want this info to be duplicated in every span.
-            span.data.get_or_insert_with(BTreeMap::new).extend({
-                let it = span_tags
+                let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
+                span_group.truncate(16);
+                span_tags.insert(SpanTagKey::Group, span_group);
+
+                let truncated =
+                    truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
+                span_tags.insert(SpanTagKey::Description, truncated);
+            }
+        }
+
+        let system = span
+            .data
+            .value()
+            .and_then(|v| v.get("db.system"))
+            .and_then(|system| system.as_str());
+        if let Some(sys) = system {
+            span_tags.insert(SpanTagKey::System, sys.to_lowercase());
+        }
+
+        if let Some(span_status) = span.status.value() {
+            span_tags.insert(SpanTagKey::Status, span_status.to_string());
+        }
+
+        if let Some(status_code) = http_status_code_from_span(span) {
+            span_tags.insert(SpanTagKey::StatusCode, status_code);
+        }
+
+        // Even if we emit metrics, we want this info to be duplicated in every span.
+        span.data.get_or_insert_with(BTreeMap::new).extend({
+            let it = span_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v))));
+            it.chain(
+                databag
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v))));
-                it.chain(
-                    databag
-                        .clone()
-                        .into_iter()
-                        .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v)))),
-                )
-            });
+                    .map(|(k, v)| (k.to_string(), Annotated::new(Value::String(v)))),
+            )
+        });
 
-            if let Some(user) = event.user.value() {
-                if let Some(user_tag) = get_eventuser_tag(user) {
-                    metrics.push(
-                        SpanMetric::User {
-                            value: user_tag,
-                            tags: span_tags.clone(),
-                        }
-                        .into_metric(timestamp),
-                    );
-                }
-            }
-
-            if let Some(exclusive_time) = span.exclusive_time.value() {
-                // NOTE(iker): this exclusive time doesn't consider all cases,
-                // such as sub-transactions. We accept these limitations for
-                // now.
+        if let Some(user) = event.user.value() {
+            if let Some(user_tag) = get_eventuser_tag(user) {
                 metrics.push(
-                    SpanMetric::ExclusiveTime {
-                        value: *exclusive_time,
+                    SpanMetric::User {
+                        value: user_tag,
                         tags: span_tags.clone(),
                     }
                     .into_metric(timestamp),
                 );
-
-                let mut reduced_tags = span_tags.clone();
-                reduced_tags.remove(&SpanTagKey::Transaction);
-                metrics.push(
-                    SpanMetric::ExclusiveTimeLight {
-                        value: *exclusive_time,
-                        tags: reduced_tags,
-                    }
-                    .into_metric(timestamp),
-                );
             }
-
-            if let (Some(&span_start), Some(&span_end)) =
-                (span.start_timestamp.value(), span.timestamp.value())
-            {
-                // The `duration` of a span. This metric also serves as the
-                // counter metric `throughput`.
-                metrics.push(
-                    SpanMetric::Duration {
-                        value: span_end - span_start,
-                        tags: span_tags.clone(),
-                    }
-                    .into_metric(timestamp),
-                );
-            };
         }
+
+        if let Some(exclusive_time) = span.exclusive_time.value() {
+            // NOTE(iker): this exclusive time doesn't consider all cases,
+            // such as sub-transactions. We accept these limitations for
+            // now.
+            metrics.push(
+                SpanMetric::ExclusiveTime {
+                    value: *exclusive_time,
+                    tags: span_tags.clone(),
+                }
+                .into_metric(timestamp),
+            );
+
+            let mut reduced_tags = span_tags.clone();
+            reduced_tags.remove(&SpanTagKey::Transaction);
+            metrics.push(
+                SpanMetric::ExclusiveTimeLight {
+                    value: *exclusive_time,
+                    tags: reduced_tags,
+                }
+                .into_metric(timestamp),
+            );
+        }
+
+        if let (Some(&span_start), Some(&span_end)) =
+            (span.start_timestamp.value(), span.timestamp.value())
+        {
+            // The `duration` of a span. This metric also serves as the
+            // counter metric `throughput`.
+            metrics.push(
+                SpanMetric::Duration {
+                    value: span_end - span_start,
+                    tags: span_tags.clone(),
+                }
+                .into_metric(timestamp),
+            );
+        };
     }
 
-    Ok(())
+    Ok(metrics)
 }
 
 /// Returns the sanitized span description.
@@ -667,13 +666,9 @@ mod tests {
                     ..Default::default()
                 };
 
-                let mut metrics = vec![];
-                extract_span_metrics(
-                    &aggregator_config,
-                    event.value_mut().as_mut().unwrap(),
-                    &mut metrics,
-                )
-                .unwrap();
+                let metrics =
+                    extract_span_metrics(&aggregator_config, event.value_mut().as_mut().unwrap())
+                        .unwrap();
 
                 assert_eq!(
                     $expected_method,
@@ -1085,13 +1080,8 @@ mod tests {
             ..Default::default()
         };
 
-        let mut metrics = vec![];
-        extract_span_metrics(
-            &aggregator_config,
-            event.value_mut().as_mut().unwrap(),
-            &mut metrics,
-        )
-        .unwrap();
+        let metrics =
+            extract_span_metrics(&aggregator_config, event.value_mut().as_mut().unwrap()).unwrap();
 
         insta::assert_debug_snapshot!(event.value().unwrap().spans);
         insta::assert_debug_snapshot!(metrics);

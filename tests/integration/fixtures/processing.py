@@ -310,16 +310,17 @@ class MetricsConsumer(ConsumerBase):
         assert message is not None
         assert message.error() is None
 
-        return json.loads(message.value())
+        return json.loads(message.value()), message.headers()
 
     def get_metrics(self, timeout=None, max_attempts=100):
         for _ in range(max_attempts):
             message = self.poll(timeout=timeout)
+
             if message is None:
                 return
             else:
                 assert message.error() is None
-                yield json.loads(message.value())
+                yield json.loads(message.value()), message.headers()
 
 
 class SessionsConsumer(ConsumerBase):

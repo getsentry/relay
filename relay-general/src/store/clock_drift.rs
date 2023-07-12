@@ -154,31 +154,24 @@ mod tests {
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{
-        Context, ContextInner, Contexts, EventType, SpanId, TraceContext, TraceId,
-    };
-    use crate::types::{Annotated, Object};
+    use crate::protocol::{Contexts, EventType, SpanId, TraceContext, TraceId};
+    use crate::types::Annotated;
 
     fn create_transaction(start: DateTime<Utc>, end: DateTime<Utc>) -> Annotated<Event> {
         Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(end.into()),
             start_timestamp: Annotated::new(start.into()),
-            contexts: Annotated::new(Contexts({
-                let mut contexts = Object::new();
-                contexts.insert(
-                    "trace".to_owned(),
-                    Annotated::new(ContextInner(Context::Trace(Box::new(TraceContext {
-                        trace_id: Annotated::new(TraceId(
-                            "4c79f60c11214eb38604f4ae0781bfb2".into(),
-                        )),
-                        span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
-                        op: Annotated::new("http.server".to_owned()),
-                        ..Default::default()
-                    })))),
-                );
-                contexts
-            })),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
             spans: Annotated::new(vec![]),
             ..Default::default()
         })

@@ -11,10 +11,10 @@ use serde::{Serialize, Serializer};
 use crate::macros::derive_string_meta_structure;
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, Exception, ExpectCt,
-    ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics,
-    RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TransactionInfo,
-    User, Values,
+    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, DefaultContext, Exception,
+    ExpectCt, ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements,
+    Metrics, RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
+    TransactionInfo, User, Values,
 };
 use crate::types::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
@@ -608,6 +608,16 @@ impl Event {
 
     pub fn parse_release(&self) -> Option<crate::protocol::ParsedRelease> {
         sentry_release_parser::Release::parse(self.release.as_str()?).ok()
+    }
+
+    /// Returns a reference to the context if it exists in its default key.
+    pub fn context<C: DefaultContext>(&self) -> Option<&C> {
+        self.contexts.value()?.get()
+    }
+
+    /// Returns a mutable reference to the context if it exists in its default key.
+    pub fn context_mut<C: DefaultContext>(&mut self) -> Option<&mut C> {
+        self.contexts.value_mut().as_mut()?.get_mut()
     }
 }
 

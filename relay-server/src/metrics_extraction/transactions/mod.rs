@@ -1,22 +1,19 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
-use relay_dynamic_config::{TaggingRule, TransactionMetricsConfig};
+use relay_dynamic_config::TransactionMetricsConfig;
 use relay_general::protocol::{
-    AsPair, Context, ContextInner, Event, TraceContext, TransactionSource,
+    AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 use relay_general::store;
-use relay_general::types::Annotated;
 use relay_metrics::{AggregatorConfig, Metric};
 
-use crate::metrics_extraction::conditional_tagging::run_conditional_tagging;
-use crate::metrics_extraction::spans::extract_span_metrics;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
     TransactionMeasurementTags, TransactionMetric,
 };
 use crate::metrics_extraction::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag, get_trace_context,
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -38,37 +35,23 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
     Some(method.clone())
 }
 
-/// Extract the browser name from the [`Context::Browser`] context.
+/// Extract the browser name from the [`BrowserContext`] context.
 fn extract_browser_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let browser = contexts.get("browser").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Browser(browser_context))) = browser {
-        return browser_context.name.value().cloned();
-    }
-
-    None
+    let browser = event.context::<BrowserContext>()?;
+    browser.name.value().cloned()
 }
 
-/// Extract the OS name from the [`Context::Os`] context.
+/// Extract the OS name from the [`OsContext`] context.
 fn extract_os_name(event: &Event) -> Option<String> {
-    let contexts = event.contexts.value()?;
-    let os = contexts.get("os").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Os(os_context))) = os {
-        return os_context.name.value().cloned();
-    }
-
-    None
+    let os = event.context::<OsContext>()?;
+    os.name.value().cloned()
 }
 
 /// Extract the GEO country code from the [`relay_general::protocol::User`] context.
 fn extract_geo_country_code(event: &Event) -> Option<String> {
-    if let Some(user) = event.user.value() {
-        if let Some(geo) = user.geo.value() {
-            return geo.country_code.value().cloned();
-        }
-    }
-
-    None
+    let user = event.user.value()?;
+    let geo = user.geo.value()?;
+    geo.country_code.value().cloned()
 }
 
 fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
@@ -181,7 +164,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
     tags.insert(CommonTag::Platform, platform.to_string());
 
-    if let Some(trace_context) = get_trace_context(event) {
+    if let Some(trace_context) = event.context::<TraceContext>() {
         let status = extract_transaction_status(trace_context);
 
         tags.insert(CommonTag::TransactionStatus, status.to_string());
@@ -231,194 +214,177 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     CommonTags(tags)
 }
 
-#[allow(clippy::too_many_arguments)] // TODO: Provide a more sensible API for this.
-pub fn extract_transaction_metrics(
-    aggregator_config: &AggregatorConfig,
-    config: &TransactionMetricsConfig,
-    conditional_tagging_config: &[TaggingRule],
-    extract_spans_metrics: bool,
-    event: &mut Event,
-    transaction_from_dsc: Option<&str>,
-    sampling_result: &SamplingResult,
-    has_profile: bool,
-    project_metrics: &mut Vec<Metric>,  // output parameter
-    sampling_metrics: &mut Vec<Metric>, // output parameter
-) -> Result<bool, ExtractMetricsError> {
-    let before_len = project_metrics.len();
+/// TODO(ja): Doc
+#[derive(Debug, Default)]
+pub struct ExtractedMetrics {
+    /// Metrics associated with the project that the transaction belongs to.
+    pub project_metrics: Vec<Metric>,
 
-    extract_transaction_metrics_inner(
-        ExtractInput {
-            aggregator_config,
-            config,
-            event,
-            transaction_from_dsc,
-            sampling_result,
-            has_profile,
-        },
-        project_metrics,
-        sampling_metrics,
-    )?;
-
-    if extract_spans_metrics {
-        extract_span_metrics(aggregator_config, event, project_metrics)?;
-    }
-
-    let added_slice = &mut project_metrics[before_len..];
-    run_conditional_tagging(event, conditional_tagging_config, added_slice);
-    Ok(!added_slice.is_empty())
+    /// Metrics associated with the sampling project (a.k.a. root or head project)
+    /// which started the trace. `ProcessEnvelopeState::sampling_project_state`.
+    pub sampling_metrics: Vec<Metric>,
 }
 
-struct ExtractInput<'a> {
-    aggregator_config: &'a AggregatorConfig,
-    config: &'a TransactionMetricsConfig,
-    event: &'a Event,
-    transaction_from_dsc: Option<&'a str>,
-    sampling_result: &'a SamplingResult,
-    has_profile: bool,
+impl ExtractedMetrics {
+    /// Extends the set of metrics with the supplied newly extracted metrics.
+    pub fn extend(&mut self, other: Self) {
+        self.project_metrics.extend(other.project_metrics);
+        self.sampling_metrics.extend(other.sampling_metrics);
+    }
 }
 
-fn extract_transaction_metrics_inner(
-    input: ExtractInput<'_>,
-    metrics: &mut Vec<Metric>,          // output parameter
-    sampling_metrics: &mut Vec<Metric>, // output parameter
-) -> Result<(), ExtractMetricsError> {
-    let event = input.event;
-    if event.ty.value() != Some(&EventType::Transaction) {
-        return Ok(());
-    }
+/// A utility that extracts metrics from transactions.
+pub struct TransactionExtractor<'a> {
+    pub aggregator_config: &'a AggregatorConfig,
+    pub config: &'a TransactionMetricsConfig,
+    pub transaction_from_dsc: Option<&'a str>,
+    pub sampling_result: &'a SamplingResult,
+    pub has_profile: bool,
+}
 
-    let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
-        relay_log::debug!("failed to extract the start and the end timestamps from the event");
-        return Err(ExtractMetricsError::MissingTimestamp);
-    };
+impl TransactionExtractor<'_> {
+    pub fn extract(&self, event: &Event) -> Result<ExtractedMetrics, ExtractMetricsError> {
+        let mut metrics = ExtractedMetrics::default();
 
-    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-        relay_log::debug!("event timestamp is not a valid unix timestamp");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    };
-
-    // Validate the transaction event against the metrics timestamp limits. If the metric is too
-    // old or too new, we cannot extract the metric and also need to drop the transaction event
-    // for consistency between metrics and events.
-    if !input
-        .aggregator_config
-        .timestamp_range()
-        .contains(&timestamp)
-    {
-        relay_log::debug!("event timestamp is out of the valid range for metrics");
-        return Err(ExtractMetricsError::InvalidTimestamp);
-    }
-
-    let tags = extract_universal_tags(event, input.config);
-
-    // Measurements
-    if let Some(measurements) = event.measurements.value() {
-        for (name, annotated) in measurements.iter() {
-            let measurement = match annotated.value() {
-                Some(m) => m,
-                None => continue,
-            };
-
-            let value = match measurement.value.value() {
-                Some(value) => *value,
-                None => continue,
-            };
-
-            let measurement_tags = TransactionMeasurementTags {
-                measurement_rating: get_measurement_rating(name, value),
-                universal_tags: tags.clone(),
-            };
-
-            metrics.push(
-                TransactionMetric::Measurement {
-                    name: name.to_string(),
-                    value,
-                    unit: measurement.unit.value().copied().unwrap_or_default(),
-                    tags: measurement_tags,
-                }
-                .into_metric(timestamp),
-            );
+        if event.ty.value() != Some(&EventType::Transaction) {
+            return Ok(metrics);
         }
-    }
 
-    // Breakdowns
-    if let Some(breakdowns) = event.breakdowns.value() {
-        for (breakdown, measurements) in breakdowns.iter() {
-            if let Some(measurements) = measurements.value() {
-                for (measurement_name, annotated) in measurements.iter() {
-                    if measurement_name == "total.time" {
-                        // The only reason we do not emit total.time as a metric is that is was not
-                        // on the allowlist in sentry before, and nobody seems to be missing it.
-                        continue;
+        let (Some(&start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
+            relay_log::debug!("failed to extract the start and the end timestamps from the event");
+            return Err(ExtractMetricsError::MissingTimestamp);
+        };
+
+        let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+            relay_log::debug!("event timestamp is not a valid unix timestamp");
+            return Err(ExtractMetricsError::InvalidTimestamp);
+        };
+
+        // Validate the transaction event against the metrics timestamp limits. If the metric is too
+        // old or too new, we cannot extract the metric and also need to drop the transaction event
+        // for consistency between metrics and events.
+        if !self
+            .aggregator_config
+            .timestamp_range()
+            .contains(&timestamp)
+        {
+            relay_log::debug!("event timestamp is out of the valid range for metrics");
+            return Err(ExtractMetricsError::InvalidTimestamp);
+        }
+
+        let tags = extract_universal_tags(event, self.config);
+
+        // Measurements
+        if let Some(measurements) = event.measurements.value() {
+            for (name, annotated) in measurements.iter() {
+                let measurement = match annotated.value() {
+                    Some(m) => m,
+                    None => continue,
+                };
+
+                let value = match measurement.value.value() {
+                    Some(value) => *value,
+                    None => continue,
+                };
+
+                let measurement_tags = TransactionMeasurementTags {
+                    measurement_rating: get_measurement_rating(name, value),
+                    universal_tags: tags.clone(),
+                };
+
+                metrics.project_metrics.push(
+                    TransactionMetric::Measurement {
+                        name: name.to_string(),
+                        value,
+                        unit: measurement.unit.value().copied().unwrap_or_default(),
+                        tags: measurement_tags,
                     }
+                    .into_metric(timestamp),
+                );
+            }
+        }
 
-                    let measurement = match annotated.value() {
-                        Some(m) => m,
-                        None => continue,
-                    };
-
-                    let value = match measurement.value.value() {
-                        Some(value) => *value,
-                        None => continue,
-                    };
-                    metrics.push(
-                        TransactionMetric::Breakdown {
-                            name: format!("{breakdown}.{measurement_name}"),
-                            value,
-                            tags: tags.clone(),
+        // Breakdowns
+        if let Some(breakdowns) = event.breakdowns.value() {
+            for (breakdown, measurements) in breakdowns.iter() {
+                if let Some(measurements) = measurements.value() {
+                    for (measurement_name, annotated) in measurements.iter() {
+                        if measurement_name == "total.time" {
+                            // The only reason we do not emit total.time as a metric is that is was not
+                            // on the allowlist in sentry before, and nobody seems to be missing it.
+                            continue;
                         }
-                        .into_metric(timestamp),
-                    );
+
+                        let measurement = match annotated.value() {
+                            Some(m) => m,
+                            None => continue,
+                        };
+
+                        let value = match measurement.value.value() {
+                            Some(value) => *value,
+                            None => continue,
+                        };
+                        metrics.project_metrics.push(
+                            TransactionMetric::Breakdown {
+                                name: format!("{breakdown}.{measurement_name}"),
+                                value,
+                                tags: tags.clone(),
+                            }
+                            .into_metric(timestamp),
+                        );
+                    }
                 }
             }
         }
+
+        // Duration
+        metrics.project_metrics.push(
+            TransactionMetric::Duration {
+                unit: DurationUnit::MilliSecond,
+                value: relay_common::chrono_to_positive_millis(end - start),
+                tags: TransactionDurationTags {
+                    has_profile: self.has_profile,
+                    universal_tags: tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        );
+
+        let root_counter_tags = {
+            let mut universal_tags = CommonTags(BTreeMap::default());
+            if let Some(transaction_from_dsc) = self.transaction_from_dsc {
+                universal_tags
+                    .0
+                    .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
+            }
+            TransactionCPRTags {
+                decision: match self.sampling_result {
+                    SamplingResult::Keep => "keep".to_owned(),
+                    SamplingResult::Drop(_) => "drop".to_owned(),
+                },
+                universal_tags,
+            }
+        };
+        // Count the transaction towards the root
+        metrics.sampling_metrics.push(
+            TransactionMetric::CountPerRootProject {
+                value: 1.0,
+                tags: root_counter_tags,
+            }
+            .into_metric(timestamp),
+        );
+
+        // User
+        if let Some(user) = event.user.value() {
+            if let Some(value) = get_eventuser_tag(user) {
+                metrics
+                    .project_metrics
+                    .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
+            }
+        }
+
+        Ok(metrics)
     }
-
-    // Duration
-    metrics.push(
-        TransactionMetric::Duration {
-            unit: DurationUnit::MilliSecond,
-            value: relay_common::chrono_to_positive_millis(end - start),
-            tags: TransactionDurationTags {
-                has_profile: input.has_profile,
-                universal_tags: tags.clone(),
-            },
-        }
-        .into_metric(timestamp),
-    );
-
-    let root_counter_tags = {
-        let mut universal_tags = CommonTags(BTreeMap::default());
-        if let Some(transaction_from_dsc) = input.transaction_from_dsc {
-            universal_tags
-                .0
-                .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
-        }
-        TransactionCPRTags {
-            decision: match input.sampling_result {
-                SamplingResult::Keep => "keep".to_owned(),
-                SamplingResult::Drop(_) => "drop".to_owned(),
-            },
-            universal_tags,
-        }
-    };
-    // Count the transaction towards the root
-    sampling_metrics.push(
-        TransactionMetric::CountPerRootProject {
-            value: 1.0,
-            tags: root_counter_tags,
-        }
-        .into_metric(timestamp),
-    );
-
-    // User
-    if let Some(user) = event.user.value() {
-        if let Some(value) = get_eventuser_tag(user) {
-            metrics.push(TransactionMetric::User { value, tags }.into_metric(timestamp));
-        }
-    }
-
-    Ok(())
 }
 
 fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
@@ -445,16 +411,14 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use insta;
-    use relay_common::MetricUnit;
-    use relay_dynamic_config::{AcceptTransactionNames, TaggingRule};
+    use relay_dynamic_config::AcceptTransactionNames;
     use relay_general::protocol::{Contexts, Timestamp, User};
     use relay_general::store::{
         self, set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
         MeasurementsConfig,
     };
     use relay_general::types::Annotated;
-    use relay_metrics::{DurationUnit, MetricNamespace, MetricValue};
+    use relay_metrics::MetricValue;
 
     use super::*;
 
@@ -541,15 +505,13 @@ mod tests {
 
         let config: TransactionMetricsConfig = serde_json::from_str(
             r#"
-        {
-            "version": 1,
-            "extractCustomTags": ["fOO"]
-        }
-        "#,
+            {
+                "version": 1,
+                "extractCustomTags": ["fOO"]
+            }
+            "#,
         )
         .unwrap();
-
-        let aggregator_config = aggregator_config();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         let res = store::light_normalize_event(
@@ -563,25 +525,47 @@ mod tests {
         );
         assert!(res.is_ok());
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        insta::assert_debug_snapshot!(event.value().unwrap().spans);
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r###"
+        [
+            Span {
+                timestamp: Timestamp(
+                    2020-08-21T02:18:22Z,
+                ),
+                start_timestamp: Timestamp(
+                    2020-08-21T02:18:20Z,
+                ),
+                exclusive_time: 2000.0,
+                description: "<OrganizationContext>",
+                op: "react.mount",
+                span_id: SpanId(
+                    "bd429c44b67a3eb4",
+                ),
+                parent_span_id: SpanId(
+                    "8f5a2b8768cafb4e",
+                ),
+                trace_id: TraceId(
+                    "ff62a8b040f340bda5d830223def1d81",
+                ),
+                status: ~,
+                tags: ~,
+                origin: ~,
+                data: ~,
+                other: {},
+            },
+        ]
+        "###);
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
             Metric {
                 name: "d:transactions/measurements.foo@none",
@@ -721,25 +705,18 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{res:?}");
+        assert_eq!(res, Ok(()));
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
             Metric {
                 name: "d:transactions/measurements.fcp@millisecond",
@@ -821,23 +798,16 @@ mod tests {
         let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
         assert!(res.is_ok(), "{res:?}");
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
             Metric {
                 name: "d:transactions/measurements.fcp@second",
@@ -900,30 +870,22 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        assert_eq!(extracted.project_metrics.len(), 1);
 
-        assert_eq!(metrics.len(), 1);
-
-        let duration_metric = &metrics[0];
+        let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
         if let MetricValue::Distribution(value) = duration_metric.value {
             assert_eq!(value, 59000.0); // millis
@@ -981,24 +943,16 @@ mod tests {
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        insta::assert_debug_snapshot!(metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
             Metric {
                 name: "d:transactions/measurements.a_custom1@none",
@@ -1054,176 +1008,6 @@ mod tests {
     }
 
     #[test]
-    fn test_conditional_tagging() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
-            r#"
-        [
-            {
-                "condition": {"op": "gte", "name": "event.duration", "value": 9001},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "frustrated"
-            },
-            {
-                "condition": {"op": "gte", "name": "event.duration", "value": 666},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "tolerated"
-            },
-            {
-                "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "satisfied"
-            }
-        ]
-        "#,
-        )
-        .unwrap();
-
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &tagging_config,
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        insta::assert_debug_snapshot!(metrics, @r###"
-        [
-            Metric {
-                name: "d:transactions/measurements.lcp@millisecond",
-                value: Distribution(
-                    41.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "measurement_rating": "good",
-                    "platform": "other",
-                },
-            },
-            Metric {
-                name: "d:transactions/duration@millisecond",
-                value: Distribution(
-                    2000.0,
-                ),
-                timestamp: UnixTimestamp(1619420402),
-                tags: {
-                    "platform": "other",
-                    "satisfaction": "tolerated",
-                },
-            },
-        ]
-        "###);
-    }
-
-    #[test]
-    fn test_conditional_tagging_lcp() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
-            r#"
-        [
-            {
-                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 41},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "frustrated"
-            },
-            {
-                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 20},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "tolerated"
-            },
-            {
-                "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "satisfied"
-            }
-        ]
-        "#,
-        )
-        .unwrap();
-
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &tagging_config,
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-        metrics.retain(|m| m.name.contains("lcp"));
-
-        assert_eq!(
-            metrics,
-            &[Metric::new_mri(
-                MetricNamespace::Transactions,
-                "measurements.lcp",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(41.0),
-                UnixTimestamp::from_secs(1619420402),
-                {
-                    let mut tags = BTreeMap::new();
-                    tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
-                    tags.insert("measurement_rating".to_owned(), "good".to_owned());
-                    tags.insert("platform".to_owned(), "other".to_owned());
-                    tags
-                }
-            )]
-        );
-    }
-
-    #[test]
     fn test_unknown_transaction_status_no_trace_context() {
         let json = r#"
         {
@@ -1233,32 +1017,27 @@ mod tests {
         }
         "#;
 
+        let event = Annotated::from_json(json).unwrap();
+
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        assert_eq!(metrics.len(), 1, "{metrics:?}");
-
-        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(extracted.project_metrics.len(), 1);
         assert_eq!(
-            metrics[0].tags,
+            extracted.project_metrics[0].name,
+            "d:transactions/duration@millisecond"
+        );
+        assert_eq!(
+            extracted.project_metrics[0].tags,
             BTreeMap::from([("platform".to_string(), "other".to_string())])
         );
     }
@@ -1274,32 +1053,27 @@ mod tests {
         }
         "#;
 
+        let event = Annotated::from_json(json).unwrap();
+
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        assert_eq!(metrics.len(), 1, "{metrics:?}");
-
-        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(extracted.project_metrics.len(), 1);
         assert_eq!(
-            metrics[0].tags,
+            extracted.project_metrics[0].name,
+            "d:transactions/duration@millisecond"
+        );
+        assert_eq!(
+            extracted.project_metrics[0].tags,
             BTreeMap::from([
                 ("transaction.status".to_string(), "unknown".to_string()),
                 ("platform".to_string(), "other".to_string())
@@ -1343,32 +1117,27 @@ mod tests {
         }
         "#;
 
+        let event = Annotated::from_json(json).unwrap();
+
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        assert_eq!(metrics.len(), 1, "{metrics:?}");
-
-        assert_eq!(metrics[0].name, "d:transactions/duration@millisecond");
+        assert_eq!(extracted.project_metrics.len(), 1);
         assert_eq!(
-            metrics[0].tags,
+            extracted.project_metrics[0].name,
+            "d:transactions/duration@millisecond"
+        );
+        assert_eq!(
+            extracted.project_metrics[0].tags,
             BTreeMap::from([
                 ("transaction.status".to_string(), "unknown".to_string()),
                 ("platform".to_string(), "other".to_string()),
@@ -1379,74 +1148,62 @@ mod tests {
 
     #[test]
     fn test_expired_timestamp() {
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = AggregatorConfig {
-            max_secs_in_past: 3600,
-            ..Default::default()
-        };
-
         let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
 
-        let mut event = Annotated::new(Event {
+        let event = Annotated::new(Event {
             ty: Annotated::new(EventType::Transaction),
             timestamp: Annotated::new(timestamp),
             start_timestamp: Annotated::new(timestamp),
             contexts: Annotated::new({
                 let mut contexts = Contexts::new();
-                contexts.add(Context::Trace(Box::default()));
+                contexts.add(TraceContext::default());
                 contexts
             }),
             ..Default::default()
         });
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        let result = extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        );
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = AggregatorConfig {
+            max_secs_in_past: 3600,
+            ..Default::default()
+        };
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        assert_eq!(result, Err(ExtractMetricsError::InvalidTimestamp));
-        assert_eq!(metrics, &[]);
+        let err = extractor.extract(event.value().unwrap()).unwrap_err();
+        assert_eq!(err, ExtractMetricsError::InvalidTimestamp);
     }
 
     /// Helper function to check if the transaction name is set correctly
     fn extract_transaction_name(json: &str) -> Option<String> {
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         // Logic from `set_default_transaction_source` was previously duplicated in
         // `extract_transaction_metrics`. Add it here such that tests can remain.
         set_default_transaction_source(event.value_mut().as_mut().unwrap());
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        assert_eq!(metrics.len(), 1);
-        metrics[0].tags.get("transaction").cloned()
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+
+        assert_eq!(extracted.project_metrics.len(), 1);
+        extracted.project_metrics[0]
+            .tags
+            .get("transaction")
+            .cloned()
     }
 
     #[test]
@@ -1465,28 +1222,20 @@ mod tests {
         }
         "#;
 
-        let mut event = Annotated::from_json(json).unwrap();
+        let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("root_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("root_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
-
-        insta::assert_debug_snapshot!(sampling_metrics, @r###"
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.sampling_metrics, @r###"
         [
             Metric {
                 name: "c:transactions/count_per_root_project@none",
@@ -1731,30 +1480,28 @@ mod tests {
             }
         }"#;
 
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
         let _ = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
 
-        let mut metrics = vec![];
-        let mut sampling_metrics = vec![];
-        extract_transaction_metrics(
-            &aggregator_config,
-            &config,
-            &[],
-            false,
-            event.value_mut().as_mut().unwrap(),
-            Some("test_transaction"),
-            &SamplingResult::Keep,
-            false,
-            &mut metrics,
-            &mut sampling_metrics,
-        )
-        .unwrap();
+        let config = TransactionMetricsConfig::default();
+        let aggregator_config = aggregator_config();
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
 
-        let metrics_names: Vec<_> = metrics.into_iter().map(|m| m.name).collect();
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+
+        let metrics_names: Vec<_> = extracted
+            .project_metrics
+            .into_iter()
+            .map(|m| m.name)
+            .collect();
+
         insta::assert_debug_snapshot!(metrics_names, @r###"
         [
             "d:transactions/measurements.frames_frozen@none",

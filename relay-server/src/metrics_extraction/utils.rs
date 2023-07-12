@@ -1,5 +1,4 @@
-use relay_general::protocol::{Context, ContextInner, Event, Span, TraceContext, User};
-use relay_general::types::Annotated;
+use relay_general::protocol::{Event, ResponseContext, Span, TraceContext, User};
 
 /// Extract the HTTP status code from the span data.
 pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
@@ -68,15 +67,12 @@ pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
     }
 
     // For SDKs which put the HTTP status code in the `Response` context.
-    if let Some(contexts) = event.contexts.value() {
-        let response = contexts.get("response").and_then(Annotated::value);
-        if let Some(ContextInner(Context::Response(response_context))) = response {
-            let status_code = response_context
-                .status_code
-                .value()
-                .map(|code| code.to_string());
-            return status_code;
-        }
+    if let Some(response_context) = event.context::<ResponseContext>() {
+        let status_code = response_context
+            .status_code
+            .value()
+            .map(|code| code.to_string());
+        return status_code;
     }
 
     None
@@ -126,16 +122,6 @@ pub fn get_eventuser_tag(user: &User) -> Option<String> {
 
     if let Some(ip_address) = user.ip_address.as_str() {
         return Some(format!("ip:{ip_address}"));
-    }
-
-    None
-}
-
-pub fn get_trace_context(event: &Event) -> Option<&TraceContext> {
-    let contexts = event.contexts.value()?;
-    let trace = contexts.get("trace").and_then(Annotated::value);
-    if let Some(ContextInner(Context::Trace(trace_context))) = trace {
-        return Some(trace_context.as_ref());
     }
 
     None

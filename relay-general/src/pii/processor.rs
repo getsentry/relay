@@ -12,7 +12,9 @@ use crate::pii::{CompiledPiiConfig, Redaction, RuleType};
 use crate::processor::{
     process_chunked_value, Chunk, Pii, ProcessValue, ProcessingState, Processor, ValueType,
 };
-use crate::protocol::{AsPair, Context, Event, IpAddr, NativeImagePath, PairList, Replay, User};
+use crate::protocol::{
+    AsPair, Event, IpAddr, NativeImagePath, PairList, Replay, ResponseContext, User,
+};
 use crate::types::{
     Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType, Value,
 };
@@ -247,7 +249,7 @@ fn scrub_graphql(event: &mut Event) {
 
     // Scrub PII from the data object if they match the variables keys.
     if let Some(contexts) = event.contexts.value_mut() {
-        if let Some(Context::Response(response)) = contexts.get_context_mut("response") {
+        if let Some(response) = contexts.get_mut::<ResponseContext>() {
             if let Some(Value::Object(data)) = response.data.value_mut() {
                 if let Some(Annotated(Some(Value::Object(graphql_data)), _)) = data.get_mut("data")
                 {
