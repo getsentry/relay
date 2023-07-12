@@ -1054,6 +1054,14 @@
 <a href="#1054" id="1054">1054</a>
 <a href="#1055" id="1055">1055</a>
 <a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1504,6 +1512,11 @@
         }
     }
 
+    <span class="doccomment">/// Return `true` if the backoff is currently in progress.
+    </span><span class="kw">pub fn </span>backoff_started(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.backoff.started()
+    }
+
     <span class="doccomment">/// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
     </span><span class="kw">pub fn </span>next_fetch_attempt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Instant&gt; {
         <span class="self">self</span>.next_fetch_attempt
@@ -1583,11 +1596,14 @@
     }
 
     <span class="doccomment">/// Returns `true` if backoff expired and new attempt can be triggered.
-    </span><span class="kw">fn </span>can_fetch(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.next_fetch_attempt
-            .map(|next_attempt_at| next_attempt_at &lt;= Instant::now())
-            .unwrap_or(<span class="bool-val">true</span>)
-    }
+    </span><span class="kw">fn </span>can_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(next_attempt_at) = <span class="self">self</span>.next_fetch_attempt {
+            <span class="kw">return </span>next_attempt_at &lt;= Instant::now();
+        }
+        <span class="comment">// Initiate a first attempt.
+        </span><span class="self">self</span>.backoff.next_backoff();
+        <span class="bool-val">true
+    </span>}
 
     <span class="doccomment">/// Triggers a debounced refresh of the project state.
     ///
@@ -1608,7 +1624,7 @@
 
         <span class="kw">if </span>should_fetch {
             channel.no_cache(no_cache);
-            <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>;
+            <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt();
             <span class="macro">relay_log::debug!</span>(
                 <span class="string">&quot;project {} state requested {attempts} times&quot;</span>,
                 <span class="self">self</span>.project_key
@@ -1766,7 +1782,7 @@
         <span class="comment">// If the state is still invalid, return back the taken channel and schedule state update.
         </span><span class="kw">if </span>state.invalid() {
             <span class="self">self</span>.state_channel = <span class="prelude-val">Some</span>(channel);
-            <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>;
+            <span class="kw">let </span>attempts = <span class="self">self</span>.backoff.attempt();
             <span class="macro">relay_log::debug!</span>(
                 <span class="string">&quot;project {} state requested {attempts} times&quot;</span>,
                 <span class="self">self</span>.project_key
@@ -2013,7 +2029,7 @@
 
         <span class="comment">// This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it&#39;s the first attemt, we get Duration of 0.
+        //   it&#39;s the first attempt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it&#39;s a noop, since if backoff is active
