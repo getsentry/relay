@@ -102,15 +102,12 @@ impl GlobalConfigService {
         tokio::spawn(async move {
             let query = GetGlobalConfig::query();
             match self.upstream_relay.send(SendQuery(query)).await {
-                Ok(response) => {
-                    // TODO(iker): store the result in the service
-                    match response {
-                        Ok(config_response) => config_tx.send(config_response.into()),
-                        Err(request_error) => {
-                            todo!()
-                        }
+                Ok(request_response) => match request_response {
+                    Ok(config_response) => config_tx.send(config_response.into()),
+                    Err(request_error) => {
+                        todo!()
                     }
-                }
+                },
                 Err(send_error) => {
                     todo!()
                 }
@@ -136,6 +133,7 @@ impl Service for GlobalConfigService {
 
                     Some(message) = config_rx.recv() => self.update_global_config(message),
                     _ = ticker.tick() => self.request_global_config(config_tx.clone()),
+
                     else => break,
                 }
             }
