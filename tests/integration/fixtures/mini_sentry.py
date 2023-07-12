@@ -112,7 +112,7 @@ class Sentry(SentryLike):
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),
-                "transactionMetricsConfig": {
+                "transactionMetrics": {
                     "version": 1,
                 },
                 "piiConfig": {
@@ -156,7 +156,7 @@ class Sentry(SentryLike):
                 },
                 "blacklistedIps": ["127.43.33.22"],
                 "trustedRelays": [],
-                "transactionMetricsConfig": {
+                "transactionMetrics": {
                     "version": 1,
                 },
             },
