@@ -29,6 +29,7 @@
 //!     .expect("failed to start relay");
 //! ```
 pub mod envelopes;
+pub mod global_config;
 pub mod health_check;
 pub mod outcome;
 pub mod outcome_aggregator;
