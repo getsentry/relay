@@ -72,14 +72,13 @@ extern crate core;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::fmt::Formatter;
 use std::num::ParseIntError;
 
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
-use serde::de::{Error, Visitor};
+use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
@@ -1205,20 +1204,20 @@ struct BoolOptionVisitor;
 impl<'de> Visitor<'de> for BoolOptionVisitor {
     type Value = Option<bool>;
 
-    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str("`true` or `false` as boolean or string")
     }
 
     fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
     where
-        E: Error,
+        E: serde::de::Error,
     {
         Ok(Some(v))
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
     where
-        E: Error,
+        E: serde::de::Error,
     {
         Ok(match v {
             "true" => Some(true),
@@ -1229,7 +1228,7 @@ impl<'de> Visitor<'de> for BoolOptionVisitor {
 
     fn visit_unit<E>(self) -> Result<Self::Value, E>
     where
-        E: Error,
+        E: serde::de::Error,
     {
         Ok(None)
     }
