@@ -3203,6 +3203,20 @@
 <a href="#3203" id="3203">3203</a>
 <a href="#3204" id="3204">3204</a>
 <a href="#3205" id="3205">3205</a>
+<a href="#3206" id="3206">3206</a>
+<a href="#3207" id="3207">3207</a>
+<a href="#3208" id="3208">3208</a>
+<a href="#3209" id="3209">3209</a>
+<a href="#3210" id="3210">3210</a>
+<a href="#3211" id="3211">3211</a>
+<a href="#3212" id="3212">3212</a>
+<a href="#3213" id="3213">3213</a>
+<a href="#3214" id="3214">3214</a>
+<a href="#3215" id="3215">3215</a>
+<a href="#3216" id="3216">3216</a>
+<a href="#3217" id="3217">3217</a>
+<a href="#3218" id="3218">3218</a>
+<a href="#3219" id="3219">3219</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
@@ -6121,6 +6135,20 @@
         <span class="string">&quot;SELECT * FROM table WHERE deleted_at IS NULL&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_values,
+        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s)&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_values_multi,
+        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s) ON CONFLICT DO NOTHING&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(

@@ -114,6 +114,8 @@
 <a href="#114" id="114">114</a>
 <a href="#115" id="115">115</a>
 <a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -178,6 +180,8 @@
         <span class="string">r#&quot;(?xi)
     # Capture parameters in `IN` statements.
     ((?-x)IN \((?P&lt;in&gt;(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\)) |
+    # Capture parameters in `VALUES`.
+    ((?-x)VALUES \((?P&lt;values&gt;(\)\s*,\s*\(|%s|\$?\d+|\?|,|\s)*)\)) |
     # Capture `SAVEPOINT` savepoints.
     ((?-x)SAVEPOINT (?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
     # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
