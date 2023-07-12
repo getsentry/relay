@@ -402,6 +402,7 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # create basic project configs
     project_id1 = 42
     config1 = mini_sentry.add_basic_project_config(project_id1)
+    print(config1)
     public_key1 = config1["publicKeys"][0]["publicKey"]
     _add_sampling_config(config1, sample_rate=0, rule_type="trace")
 

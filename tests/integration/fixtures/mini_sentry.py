@@ -112,6 +112,9 @@ class Sentry(SentryLike):
             "config": {
                 "allowedDomains": ["*"],
                 "trustedRelays": list(self.iter_public_keys()),
+                "transactionMetricsConfig": {
+                    "version": 1,
+                },
                 "piiConfig": {
                     "rules": {},
                     "applications": {
