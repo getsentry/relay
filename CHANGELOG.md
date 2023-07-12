@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add support for `sampled` field in the DSC and error tagging. ([#2290](https://github.com/getsentry/relay/pull/2290))
+
 ## 23.6.2
 
 **Features**:

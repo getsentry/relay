@@ -72,12 +72,14 @@ extern crate core;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::fmt::Formatter;
 use std::num::ParseIntError;
 
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
+use serde::de::{Error, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
@@ -1229,40 +1231,50 @@ mod sample_rate_as_string {
     }
 }
 
-mod sampled_as_string {
-    use super::*;
+struct BoolOptionVisitor;
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+impl<'de> Visitor<'de> for BoolOptionVisitor {
+    type Value = Option<bool>;
+
+    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+        formatter.write_str("`true` or `false` as boolean or string")
+    }
+
+    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
     where
-        D: Deserializer<'de>,
+        E: Error,
     {
-        let value = match Option::<Value>::deserialize(deserializer)? {
-            Some(value) => value,
-            None => return Ok(None),
-        };
+        Ok(Some(v))
+    }
 
-        match value {
-            Value::String(str_value) if str_value == "true" => Ok(Some(true)),
-            Value::String(str_value) if str_value == "false" => Ok(Some(false)),
-            Value::Bool(bool_value) => Ok(Some(bool_value)),
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        if v == "true" {
+            Ok(Some(true))
+        } else if v == "false" {
+            Ok(Some(false))
+        } else {
             // Since we want to be extra lenient, we will silently fallback to `None` in case of
             // any parsing issues.
-            _ => Ok(None),
+            Ok(None)
         }
     }
 
-    pub fn serialize<S>(value: &Option<bool>, serializer: S) -> Result<S::Ok, S::Error>
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
     where
-        S: Serializer,
+        E: Error,
     {
-        match value {
-            Some(bool_value) => {
-                let value_str = if *bool_value { "true" } else { "false" };
-                serializer.serialize_str(value_str)
-            }
-            None => serializer.serialize_none(),
-        }
+        self.visit_str(v.as_str())
     }
+}
+
+pub fn deserialize_bool_option<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_any(BoolOptionVisitor)
 }
 
 /// DynamicSamplingContext created by the first Sentry SDK in the call chain.
@@ -1305,7 +1317,7 @@ pub struct DynamicSamplingContext {
     /// Set to true if the transaction starting the trace has been kept by client side sampling.
     #[serde(
         default,
-        with = "sampled_as_string",
+        deserialize_with = "deserialize_bool_option",
         skip_serializing_if = "Option::is_none"
     )]
     pub sampled: Option<bool>,
@@ -3292,18 +3304,19 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r###"
-        {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
-          "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": None,
-          "environment": None,
-          "transaction": None,
-          "user_id": "hello",
-          "replay_id": None,
-          "sampled": "true",
-        }
-        "###);
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": true
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
     }
 
     #[test]
@@ -3317,18 +3330,19 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r###"
-        {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
-          "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": None,
-          "environment": None,
-          "transaction": None,
-          "user_id": "hello",
-          "replay_id": None,
-          "sampled": "false",
-        }
-        "###);
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": false
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
     }
 
     #[test]
@@ -3342,17 +3356,45 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r###"
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": null
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_null_value() {
+        let json = r#"
         {
-          "trace_id": "00000000-0000-0000-0000-000000000000",
-          "public_key": "abd0f232775f45feab79864e580d160b",
-          "release": None,
-          "environment": None,
-          "transaction": None,
-          "user_id": "hello",
-          "replay_id": None,
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": null
         }
-        "###);
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": null
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
     }
 
     #[test]
