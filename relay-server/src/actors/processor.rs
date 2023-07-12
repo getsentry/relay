@@ -2249,7 +2249,7 @@ impl EnvelopeProcessorService {
                         self.compute_sampling_decision(state);
                     }
                 } else {
-                    self.compute_sampling_decision(state);
+                    dbg!("no config");
                 }
             }
 
@@ -2956,7 +2956,6 @@ mod tests {
 
             ProcessEnvelopeState {
                 event: Annotated::from(event),
-                transaction_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
@@ -2971,6 +2970,7 @@ mod tests {
                     test_store.clone(),
                 ),
                 has_profile: false,
+                event_metrics_extracted: false,
             }
         };
 
