@@ -2283,17 +2283,14 @@ impl EnvelopeProcessorService {
         let context = event
             .contexts
             .get_or_insert_with(Contexts::new)
-            .get_or_insert_with(TraceContext::default_key(), || Trace(Box::default()));
+            .get_or_default::<TraceContext>();
 
-        // We want to mutate the sampled after the "fake" sampling has been performed.
-        if let Trace(boxed_context) = context {
-            // We want to update `sampled` only if it was not set, since if we don't check this
-            // we will end up overriding the value set by downstream Relays and this will lead
-            // to more complex debugging in case of problems.
-            if boxed_context.sampled.is_empty() {
-                relay_log::trace!("tagged error with `sampled = {}` flag", sampled);
-                boxed_context.sampled = Annotated::new(sampled);
-            }
+        // We want to update `sampled` only if it was not set, since if we don't check this
+        // we will end up overriding the value set by downstream Relays and this will lead
+        // to more complex debugging in case of problems.
+        if context.sampled.is_empty() {
+            relay_log::trace!("tagged error with `sampled = {}` flag", sampled);
+            context.sampled = Annotated::new(sampled);
         }
     }
 
@@ -3190,7 +3187,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_error_is_tagged_correctly() {
+    async fn test_error_is_tagged_correctly_if_trace_sampling_result_is_some() {
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -3212,7 +3209,7 @@ mod tests {
         envelope.set_dsc(dsc);
         envelope.add_item(mocked_error_item());
 
-        // We test the tagging when the incoming dsc matches a 100% rule.
+        // We test with sample rate equal to 100%.
         let sampling_project_state = project_state_with_single_rule(1.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope.clone(),
@@ -3222,30 +3219,31 @@ mod tests {
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(trace_context.sampled.value().unwrap());
 
-        // We test the tagging when the incoming dsc matches a 0% rule.
+        // We test with sample rate equal to 0%.
         let sampling_project_state = project_state_with_single_rule(0.0);
         let new_envelope = process_envelope_with_root_project_state(
-            envelope,
+            envelope.clone(),
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(!trace_context.sampled.value().unwrap());
+    }
 
-        #[tokio::test]
-        async fn test_error_is_not_tagged_if_already_tagged() {
-            let event_id = EventId::new();
-            let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-                .parse()
-                .unwrap();
-            let request_meta = RequestMeta::new(dsn);
+    #[tokio::test]
+    async fn test_error_is_not_tagged_if_already_tagged() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
 
-            // We test tagging with an incoming event that has already been tagged by downstream Relay.
-            let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(
-                ContentType::Json,
-                r#"{
+        // We test tagging with an incoming event that has already been tagged by downstream Relay.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(
+            ContentType::Json,
+            r#"{
               "event_id": "52df9022835246eeb317dbd739ccd059",
               "exception": {
                 "values": [
@@ -3264,74 +3262,49 @@ mod tests {
                 }
               }
             }"#,
-            );
-            envelope.add_item(item);
-            let sampling_project_state = project_state_with_single_rule(0.0);
-            let new_envelope = process_envelope_with_root_project_state(
-                envelope,
-                Some(Arc::new(sampling_project_state)),
-            );
-            let event = extract_first_event_from_envelope(new_envelope);
-            let trace_context = event.context::<TraceContext>().unwrap();
-            assert!(trace_context.sampled.value().unwrap());
-        }
+        );
+        envelope.add_item(item);
+        let sampling_project_state = project_state_with_single_rule(0.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(trace_context.sampled.value().unwrap());
+    }
 
-        #[tokio::test]
-        async fn test_error_is_not_tagged_if_inputs_are_invalid() {
-            let event_id = EventId::new();
-            let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-                .parse()
-                .unwrap();
-            let request_meta = RequestMeta::new(dsn);
+    #[tokio::test]
+    async fn test_error_is_tagged_correctly_if_trace_sampling_result_is_none() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
 
-            // We test tagging with an incoming dsc that has `sampled = false`.
-            let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
-            let dsc = DynamicSamplingContext {
-                trace_id: Uuid::new_v4(),
-                public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-                release: Some("1.1.1".to_string()),
-                user: Default::default(),
-                replay_id: None,
-                environment: None,
-                transaction: Some("transaction1".into()),
-                sample_rate: None,
-                sampled: Some(false),
-                other: BTreeMap::new(),
-            };
-            envelope.set_dsc(dsc);
-            envelope.add_item(mocked_error_item());
-            let sampling_project_state = project_state_with_single_rule(0.0);
-            let new_envelope = process_envelope_with_root_project_state(
-                envelope,
-                Some(Arc::new(sampling_project_state)),
-            );
-            let event = extract_first_event_from_envelope(new_envelope);
-            let trace_context = event.context::<TraceContext>().unwrap();
-            assert!(!trace_context.sampled.value().unwrap());
+        // We test tagging when root project state and dsc are none.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        envelope.add_item(mocked_error_item());
+        let new_envelope = process_envelope_with_root_project_state(envelope, None);
+        let event = extract_first_event_from_envelope(new_envelope);
 
-            // We test tagging when root project state and dsc are none.
-            let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-            envelope.add_item(mocked_error_item());
-            let new_envelope = process_envelope_with_root_project_state(envelope, None);
-            let event = extract_first_event_from_envelope(new_envelope);
+        assert!(event.contexts.value().is_none());
+    }
 
-            assert!(event.contexts.value().is_none());
-        }
+    #[tokio::test]
+    async fn test_browser_version_extraction_with_pii_like_data() {
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
+        let event_id = protocol::EventId::new();
 
-        #[tokio::test]
-        async fn test_browser_version_extraction_with_pii_like_data() {
-            let processor = create_test_processor(Default::default());
-            let (outcome_aggregator, test_store) = services();
-            let event_id = protocol::EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
 
-            let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-                .parse()
-                .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
-            let request_meta = RequestMeta::new(dsn);
-            let mut envelope = Envelope::from_request(Some(event_id), request_meta);
-
-            envelope.add_item({
+        envelope.add_item({
                 let mut item = Item::new(ItemType::Event);
                 item.set_payload(
                     ContentType::Json,
@@ -3348,331 +3321,331 @@ mod tests {
                 item
             });
 
-            let mut datascrubbing_settings = DataScrubbingConfig::default();
-            // enable all the default scrubbing
-            datascrubbing_settings.scrub_data = true;
-            datascrubbing_settings.scrub_defaults = true;
-            datascrubbing_settings.scrub_ip_addresses = true;
+        let mut datascrubbing_settings = DataScrubbingConfig::default();
+        // enable all the default scrubbing
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+        datascrubbing_settings.scrub_ip_addresses = true;
 
-            // Make sure to mask any IP-like looking data
-            let pii_config = PiiConfig::from_json(
-                r##"
+        // Make sure to mask any IP-like looking data
+        let pii_config = PiiConfig::from_json(
+            r##"
                 {
                     "applications": {
                         "**": ["@ip:mask"]
                     }
                 }
                 "##,
-            )
+        )
+        .unwrap();
+
+        let config = ProjectConfig {
+            datascrubbing_settings,
+            pii_config: Some(pii_config),
+            ..Default::default()
+        };
+
+        let mut project_state = ProjectState::allowed();
+        project_state.config = config;
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let new_envelope = envelope_response.envelope.unwrap();
+        let new_envelope = new_envelope.envelope();
+
+        let event_item = new_envelope.items().last().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&event_item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+        let headers = event
+            .request
+            .into_value()
+            .unwrap()
+            .headers
+            .into_value()
             .unwrap();
 
-            let config = ProjectConfig {
-                datascrubbing_settings,
-                pii_config: Some(pii_config),
-                ..Default::default()
-            };
+        // IP-like data must be masked
+        assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
+        // But we still get correct browser and version number
+        let contexts = event.contexts.into_value().unwrap();
+        let browser = contexts.0.get("browser").unwrap();
+        assert_eq!(
+            r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
+            browser.to_json().unwrap()
+        );
+    }
 
-            let mut project_state = ProjectState::allowed();
-            project_state.config = config;
-            let message = ProcessEnvelope {
-                envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-                project_state: Arc::new(project_state),
-                sampling_project_state: None,
-            };
+    #[tokio::test]
+    async fn test_client_report_removal() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
 
-            let envelope_response = processor.process(message).unwrap();
-            let new_envelope = envelope_response.envelope.unwrap();
-            let new_envelope = new_envelope.envelope();
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
 
-            let event_item = new_envelope.items().last().unwrap();
-            let annotated_event: Annotated<Event> =
-                Annotated::from_json_bytes(&event_item.payload()).unwrap();
-            let event = annotated_event.into_value().unwrap();
-            let headers = event
-                .request
-                .into_value()
-                .unwrap()
-                .headers
-                .into_value()
-                .unwrap();
+        let processor = create_test_processor(config);
 
-            // IP-like data must be masked
-            assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
-            // But we still get correct browser and version number
-            let contexts = event.contexts.into_value().unwrap();
-            let browser = contexts.0.get("browser").unwrap();
-            assert_eq!(
-                r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
-                browser.to_json().unwrap()
-            );
-        }
-
-        #[tokio::test]
-        async fn test_client_report_removal() {
-            relay_test::setup();
-            let (outcome_aggregator, test_store) = services();
-
-            let config = Config::from_json_value(serde_json::json!({
-                "outcomes": {
-                    "emit_outcomes": true,
-                    "emit_client_outcomes": true
-                }
-            }))
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
             .unwrap();
 
-            let processor = create_test_processor(config);
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
 
-            let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-                .parse()
-                .unwrap();
-
-            let request_meta = RequestMeta::new(dsn);
-            let mut envelope = Envelope::from_request(None, request_meta);
-
-            envelope.add_item({
-                let mut item = Item::new(ItemType::ClientReport);
-                item.set_payload(
-                    ContentType::Json,
-                    r###"
-                    {
-                        "discarded_events": [
-                            ["queue_full", "error", 42]
-                        ]
-                    }
-                "###,
-                );
-                item
-            });
-
-            let message = ProcessEnvelope {
-                envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-                project_state: Arc::new(ProjectState::allowed()),
-                sampling_project_state: None,
-            };
-
-            let envelope_response = processor.process(message).unwrap();
-            assert!(envelope_response.envelope.is_none());
-        }
-
-        #[tokio::test]
-        async fn test_client_report_forwarding() {
-            relay_test::setup();
-            let (outcome_aggregator, test_store) = services();
-
-            let config = Config::from_json_value(serde_json::json!({
-                "outcomes": {
-                    "emit_outcomes": false,
-                    // a relay need to emit outcomes at all to not process.
-                    "emit_client_outcomes": true
-                }
-            }))
-            .unwrap();
-
-            let processor = create_test_processor(config);
-
-            let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-                .parse()
-                .unwrap();
-
-            let request_meta = RequestMeta::new(dsn);
-            let mut envelope = Envelope::from_request(None, request_meta);
-
-            envelope.add_item({
-                let mut item = Item::new(ItemType::ClientReport);
-                item.set_payload(
-                    ContentType::Json,
-                    r###"
-                    {
-                        "discarded_events": [
-                            ["queue_full", "error", 42]
-                        ]
-                    }
-                "###,
-                );
-                item
-            });
-
-            let message = ProcessEnvelope {
-                envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-                project_state: Arc::new(ProjectState::allowed()),
-                sampling_project_state: None,
-            };
-
-            let envelope_response = processor.process(message).unwrap();
-            let ctx = envelope_response.envelope.unwrap();
-            let item = ctx.envelope().items().next().unwrap();
-            assert_eq!(item.ty(), &ItemType::ClientReport);
-
-            ctx.accept(); // do not try to capture or emit outcomes
-        }
-
-        #[tokio::test]
-        #[cfg(feature = "processing")]
-        async fn test_client_report_removal_in_processing() {
-            relay_test::setup();
-            let (outcome_aggregator, test_store) = services();
-
-            let config = Config::from_json_value(serde_json::json!({
-                "outcomes": {
-                    "emit_outcomes": true,
-                    "emit_client_outcomes": false,
-                },
-                "processing": {
-                    "enabled": true,
-                    "kafka_config": [],
-                }
-            }))
-            .unwrap();
-
-            let processor = create_test_processor(config);
-
-            let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-                .parse()
-                .unwrap();
-
-            let request_meta = RequestMeta::new(dsn);
-            let mut envelope = Envelope::from_request(None, request_meta);
-
-            envelope.add_item({
-                let mut item = Item::new(ItemType::ClientReport);
-                item.set_payload(
-                    ContentType::Json,
-                    r###"
-                    {
-                        "discarded_events": [
-                            ["queue_full", "error", 42]
-                        ]
-                    }
-                "###,
-                );
-                item
-            });
-
-            let message = ProcessEnvelope {
-                envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-                project_state: Arc::new(ProjectState::allowed()),
-                sampling_project_state: None,
-            };
-
-            let envelope_response = processor.process(message).unwrap();
-            assert!(envelope_response.envelope.is_none());
-        }
-
-        #[test]
-        #[cfg(feature = "processing")]
-        fn test_unprintable_fields() {
-            let event = Annotated::new(Event {
-                environment: Annotated::new(String::from(
-                    "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
-                )),
-                ..Default::default()
-            });
-            assert!(has_unprintable_fields(&event));
-
-            let event = Annotated::new(Event {
-                release: Annotated::new(
-                    String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
-                ),
-                ..Default::default()
-            });
-            assert!(has_unprintable_fields(&event));
-
-            let event = Annotated::new(Event {
-                environment: Annotated::new(String::from("production")),
-                ..Default::default()
-            });
-            assert!(!has_unprintable_fields(&event));
-
-            let event = Annotated::new(Event {
-                release: Annotated::new(
-                    String::from("release with\t some\n normal\r\nwhitespace").into(),
-                ),
-                ..Default::default()
-            });
-            assert!(!has_unprintable_fields(&event));
-        }
-
-        #[test]
-        fn test_from_outcome_type_sampled() {
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "adsf"),
-                Err(_)
-            ));
-
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
-                Err(_)
-            ));
-
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo"),
-                Err(_)
-            ));
-
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
-                Err(())
-            ));
-
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:;"),
-                Err(())
-            ));
-
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab;12"),
-                Err(())
-            ));
-
-            assert_eq!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
-                Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
-                    RuleId(123),
-                    RuleId(456),
-                ])))
-            );
-
-            assert_eq!(
-                outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
-                Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![RuleId(123)])))
-            );
-        }
-
-        #[test]
-        fn test_from_outcome_type_filtered() {
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::Filtered, "error-message"),
-                Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
-            ));
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::Filtered, "adsf"),
-                Err(_)
-            ));
-        }
-
-        #[test]
-        fn test_from_outcome_type_client_discard() {
-            assert_eq!(
-                outcome_from_parts(ClientReportField::ClientDiscard, "foo_reason").unwrap(),
-                Outcome::ClientDiscard("foo_reason".into())
-            );
-        }
-
-        #[test]
-        fn test_from_outcome_type_rate_limited() {
-            assert!(matches!(
-                outcome_from_parts(ClientReportField::RateLimited, ""),
-                Ok(Outcome::RateLimited(None))
-            ));
-            assert_eq!(
-                outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
-                Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
-            );
-        }
-
-        fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
-            let mut event = Annotated::<Event>::from_json(
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
                 r###"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        assert!(envelope_response.envelope.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_client_report_forwarding() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": false,
+                // a relay need to emit outcomes at all to not process.
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let item = ctx.envelope().items().next().unwrap();
+        assert_eq!(item.ty(), &ItemType::ClientReport);
+
+        ctx.accept(); // do not try to capture or emit outcomes
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "processing")]
+    async fn test_client_report_removal_in_processing() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": false,
+            },
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r###"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "###,
+            );
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        assert!(envelope_response.envelope.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_unprintable_fields() {
+        let event = Annotated::new(Event {
+            environment: Annotated::new(String::from(
+                "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
+            )),
+            ..Default::default()
+        });
+        assert!(has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            release: Annotated::new(
+                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
+            ),
+            ..Default::default()
+        });
+        assert!(has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            environment: Annotated::new(String::from("production")),
+            ..Default::default()
+        });
+        assert!(!has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            release: Annotated::new(
+                String::from("release with\t some\n normal\r\nwhitespace").into(),
+            ),
+            ..Default::default()
+        });
+        assert!(!has_unprintable_fields(&event));
+    }
+
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "adsf"),
+            Err(_)
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
+            Err(_)
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo"),
+            Err(_)
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
+            Err(())
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:;"),
+            Err(())
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab;12"),
+            Err(())
+        ));
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
+                RuleId(123),
+                RuleId(456),
+            ])))
+        );
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![RuleId(123)])))
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "adsf"),
+            Err(_)
+        ));
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            outcome_from_parts(ClientReportField::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
+    }
+
+    fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
             {
                 "type": "transaction",
                 "transaction": "/foo/",
@@ -3691,158 +3664,158 @@ mod tests {
                 }
             }
             "###,
-            )
-            .unwrap();
-            let e = event.value_mut().as_mut().unwrap();
-            e.transaction.set_value(Some(transaction_name.into()));
+        )
+        .unwrap();
+        let e = event.value_mut().as_mut().unwrap();
+        e.transaction.set_value(Some(transaction_name.into()));
 
-            e.transaction_info
-                .value_mut()
-                .as_mut()
-                .unwrap()
-                .source
-                .set_value(Some(source));
+        e.transaction_info
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .source
+            .set_value(Some(source));
 
-            relay_statsd::with_capturing_test_client(|| {
-                log_transaction_name_metrics(&mut event, |event| {
-                    let config = LightNormalizationConfig {
-                        transaction_name_config: TransactionNameConfig {
-                            rules: &[TransactionNameRule {
-                                pattern: LazyGlob::new("/foo/*/**".to_owned()),
-                                expiry: DateTime::<Utc>::MAX_UTC,
-                                redaction: RedactionRule::Replace {
-                                    substitution: "*".to_owned(),
-                                },
-                            }],
-                        },
-                        ..Default::default()
-                    };
-                    relay_general::store::light_normalize_event(event, config)
-                })
-                .unwrap();
+        relay_statsd::with_capturing_test_client(|| {
+            log_transaction_name_metrics(&mut event, |event| {
+                let config = LightNormalizationConfig {
+                    transaction_name_config: TransactionNameConfig {
+                        rules: &[TransactionNameRule {
+                            pattern: LazyGlob::new("/foo/*/**".to_owned()),
+                            expiry: DateTime::<Utc>::MAX_UTC,
+                            redaction: RedactionRule::Replace {
+                                substitution: "*".to_owned(),
+                            },
+                        }],
+                    },
+                    ..Default::default()
+                };
+                relay_general::store::light_normalize_event(event, config)
             })
-        }
+            .unwrap();
+        })
+    }
 
-        #[test]
-        fn test_log_transaction_metrics_none() {
-            let captures = capture_test_event("/nothing", TransactionSource::Url);
-            insta::assert_debug_snapshot!(captures, @r###"
+    #[test]
+    fn test_log_transaction_metrics_none() {
+        let captures = capture_test_event("/nothing", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
         ]
         "###);
-        }
+    }
 
-        #[test]
-        fn test_log_transaction_metrics_rule() {
-            let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
-            insta::assert_debug_snapshot!(captures, @r###"
+    #[test]
+    fn test_log_transaction_metrics_rule() {
+        let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
         ]
         "###);
-        }
+    }
 
-        #[test]
-        fn test_log_transaction_metrics_pattern() {
-            let captures = capture_test_event("/something/12345", TransactionSource::Url);
-            insta::assert_debug_snapshot!(captures, @r###"
+    #[test]
+    fn test_log_transaction_metrics_pattern() {
+        let captures = capture_test_event("/something/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
         ]
         "###);
-        }
+    }
 
-        #[test]
-        fn test_log_transaction_metrics_both() {
-            let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
-            insta::assert_debug_snapshot!(captures, @r###"
+    #[test]
+    fn test_log_transaction_metrics_both() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
         ]
         "###);
-        }
+    }
 
-        #[test]
-        fn test_log_transaction_metrics_no_match() {
-            let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
-            insta::assert_debug_snapshot!(captures, @r###"
+    #[test]
+    fn test_log_transaction_metrics_no_match() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
+        insta::assert_debug_snapshot!(captures, @r###"
         [
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
         "###);
-        }
+    }
 
-        /// This is a stand-in test to assert panicking behavior for spawn_blocking.
-        ///
-        /// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking
-        /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
-        /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
-        ///
-        /// This test should be moved if the worker pool is extracted into a utility.
-        #[test]
-        fn test_processor_panics() {
-            let future = async {
-                let semaphore = Arc::new(Semaphore::new(1));
+    /// This is a stand-in test to assert panicking behavior for spawn_blocking.
+    ///
+    /// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking
+    /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
+    /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
+    ///
+    /// This test should be moved if the worker pool is extracted into a utility.
+    #[test]
+    fn test_processor_panics() {
+        let future = async {
+            let semaphore = Arc::new(Semaphore::new(1));
 
-                // loop multiple times to prove that the runtime creates new threads
-                for _ in 0..3 {
-                    // the previous permit should have been released during panic unwind
-                    let permit = semaphore.clone().acquire_owned().await.unwrap();
+            // loop multiple times to prove that the runtime creates new threads
+            for _ in 0..3 {
+                // the previous permit should have been released during panic unwind
+                let permit = semaphore.clone().acquire_owned().await.unwrap();
 
-                    let handle = tokio::task::spawn_blocking(move || {
-                        let _permit = permit; // drop(permit) after panic!() would warn as "unreachable"
-                        panic!("ignored");
-                    });
+                let handle = tokio::task::spawn_blocking(move || {
+                    let _permit = permit; // drop(permit) after panic!() would warn as "unreachable"
+                    panic!("ignored");
+                });
 
-                    assert!(handle.await.is_err());
-                }
+                assert!(handle.await.is_err());
+            }
+        };
+
+        tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap()
+            .block_on(future);
+    }
+
+    /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
+    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
+    /// cannot be called from relay-general.
+    #[test]
+    fn test_mri_overhead_constant() {
+        let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
+
+        let derived_value = {
+            let name = "foobar".to_string();
+            let value = 5.0; // Arbitrary value.
+            let unit = MetricUnit::Duration(DurationUnit::default());
+            let tags = TransactionMeasurementTags {
+                measurement_rating: None,
+                universal_tags: CommonTags(BTreeMap::new()),
             };
 
-            tokio::runtime::Builder::new_current_thread()
-                .max_blocking_threads(1)
-                .build()
-                .unwrap()
-                .block_on(future);
-        }
-
-        /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
-        /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
-        /// cannot be called from relay-general.
-        #[test]
-        fn test_mri_overhead_constant() {
-            let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
-
-            let derived_value = {
-                let name = "foobar".to_string();
-                let value = 5.0; // Arbitrary value.
-                let unit = MetricUnit::Duration(DurationUnit::default());
-                let tags = TransactionMeasurementTags {
-                    measurement_rating: None,
-                    universal_tags: CommonTags(BTreeMap::new()),
-                };
-
-                let measurement = TransactionMetric::Measurement {
-                    name: name.clone(),
-                    value,
-                    unit,
-                    tags,
-                };
-
-                let metric: Metric = measurement.into_metric(UnixTimestamp::now());
-
-                metric.name.len() - unit.to_string().len() - name.len()
+            let measurement = TransactionMetric::Measurement {
+                name: name.clone(),
+                value,
+                unit,
+                tags,
             };
-            assert_eq!(
-                hardcoded_value, derived_value,
-                "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
-            );
-        }
 
-        #[test]
-        fn test_geo_in_light_normalize() {
-            let mut event = Annotated::<Event>::from_json(
-                r###"
+            let metric: Metric = measurement.into_metric(UnixTimestamp::now());
+
+            metric.name.len() - unit.to_string().len() - name.len()
+        };
+        assert_eq!(
+            hardcoded_value, derived_value,
+            "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
+        );
+    }
+
+    #[test]
+    fn test_geo_in_light_normalize() {
+        let mut event = Annotated::<Event>::from_json(
+            r###"
             {
                 "type": "transaction",
                 "transaction": "/foo/",
@@ -3864,37 +3837,36 @@ mod tests {
                 }
             }
             "###,
-            )
+        )
+        .unwrap();
+
+        let lookup =
+            GeoIpLookup::open("../relay-general/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
+                .unwrap();
+        let config = LightNormalizationConfig {
+            geoip_lookup: Some(&lookup),
+            ..Default::default()
+        };
+
+        // Extract user's geo information before normalization.
+        let user_geo = event.value().unwrap().user.value().unwrap().geo.value();
+
+        assert!(user_geo.is_none());
+
+        relay_general::store::light_normalize_event(&mut event, config).unwrap();
+
+        // Extract user's geo information after normalization.
+        let user_geo = event
+            .value()
+            .unwrap()
+            .user
+            .value()
+            .unwrap()
+            .geo
+            .value()
             .unwrap();
 
-            let lookup =
-                GeoIpLookup::open("../relay-general/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
-                    .unwrap();
-            let config = LightNormalizationConfig {
-                geoip_lookup: Some(&lookup),
-                ..Default::default()
-            };
-
-            // Extract user's geo information before normalization.
-            let user_geo = event.value().unwrap().user.value().unwrap().geo.value();
-
-            assert!(user_geo.is_none());
-
-            relay_general::store::light_normalize_event(&mut event, config).unwrap();
-
-            // Extract user's geo information after normalization.
-            let user_geo = event
-                .value()
-                .unwrap()
-                .user
-                .value()
-                .unwrap()
-                .geo
-                .value()
-                .unwrap();
-
-            assert_eq!(user_geo.country_code.value().unwrap(), "GB");
-            assert_eq!(user_geo.city.value().unwrap(), "Boxford");
-        }
+        assert_eq!(user_geo.country_code.value().unwrap(), "GB");
+        assert_eq!(user_geo.city.value().unwrap(), "Boxford");
     }
 }
