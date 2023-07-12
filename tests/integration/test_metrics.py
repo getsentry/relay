@@ -1189,9 +1189,7 @@ def test_generic_metric_extraction(mini_sentry, relay):
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert envelope.items[0].headers.get("type") == "transaction"
-    assert not envelope.items[0].headers.get("metrics_extracted")
-    # NOTE: metrics_extracted should be set to True, but Relay requires the older transaction
-    # metrics extraction to be configured for that. Update this test assertion once Relay is fixed.
+    assert envelope.items[0].headers.get("metrics_extracted") is True
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     item = envelope.items[0]

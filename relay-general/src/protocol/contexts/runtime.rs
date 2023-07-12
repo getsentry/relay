@@ -32,10 +32,34 @@ pub struct RuntimeContext {
     pub other: Object<Value>,
 }
 
-impl RuntimeContext {
-    /// The key under which a runtime context is generally stored (in `Contexts`)
-    pub fn default_key() -> &'static str {
+impl super::DefaultContext for RuntimeContext {
+    fn default_key() -> &'static str {
         "runtime"
+    }
+
+    fn from_context(context: super::Context) -> Option<Self> {
+        match context {
+            super::Context::Runtime(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    fn cast(context: &super::Context) -> Option<&Self> {
+        match context {
+            super::Context::Runtime(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
+        match context {
+            super::Context::Runtime(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    fn into_context(self) -> super::Context {
+        super::Context::Runtime(Box::new(self))
     }
 }
 

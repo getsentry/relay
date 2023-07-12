@@ -78,7 +78,7 @@ mod tests {
 
     use super::*;
     use crate::processor::process_value;
-    use crate::protocol::{Context, ContextInner, Contexts, OsContext, User, Values};
+    use crate::protocol::{Context, Contexts, OsContext, User, Values};
     use crate::testutils::get_value;
 
     #[test]
@@ -166,14 +166,11 @@ mod tests {
         os.other
             .insert("foo".to_string(), Annotated::from(Value::U64(42)));
 
-        let mut contexts = Object::new();
-        contexts.insert(
-            "renamed".to_string(),
-            Annotated::from(ContextInner(Context::Os(Box::new(os)))),
-        );
+        let mut contexts = Contexts::new();
+        contexts.insert("renamed".to_string(), Context::Os(Box::new(os)));
 
         let mut event = Annotated::new(Event {
-            contexts: Annotated::from(Contexts(contexts.clone())),
+            contexts: Annotated::new(contexts.clone()),
             ..Default::default()
         });
 
@@ -184,7 +181,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(get_value!(event.contexts!).0, contexts);
+        assert_eq!(get_value!(event.contexts!).0, contexts.0);
     }
 
     #[test]

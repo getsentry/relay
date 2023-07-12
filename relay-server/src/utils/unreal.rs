@@ -202,32 +202,19 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
 
     if let Some(memory_physical) = runtime_props.memory_stats_total_physical.take() {
-        let device_context = contexts.get_or_insert_with(DeviceContext::default_key(), || {
-            Context::Device(Box::default())
-        });
-
-        if let Context::Device(device_context) = device_context {
-            device_context.memory_size = Annotated::new(memory_physical);
-        }
+        let device_context = contexts.get_or_default::<DeviceContext>();
+        device_context.memory_size = Annotated::new(memory_physical);
     }
 
     // OS information is likely overwritten by Minidump processing later.
     if let Some(os_major) = runtime_props.misc_os_version_major.take() {
-        let os_context =
-            contexts.get_or_insert_with(OsContext::default_key(), || Context::Os(Box::default()));
-
-        if let Context::Os(os_context) = os_context {
-            os_context.name = Annotated::new(os_major);
-        }
+        let os_context = contexts.get_or_default::<OsContext>();
+        os_context.name = Annotated::new(os_major);
     }
 
     if let Some(gpu_brand) = runtime_props.misc_primary_gpu_brand.take() {
-        let gpu_context =
-            contexts.get_or_insert_with(GpuContext::default_key(), || Context::Gpu(Box::default()));
-
-        if let Context::Gpu(gpu_context) = gpu_context {
-            gpu_context.name = Annotated::new(gpu_brand);
-        }
+        let gpu_context = contexts.get_or_default::<GpuContext>();
+        gpu_context.name = Annotated::new(gpu_brand);
     }
 
     if runtime_props.is_assert.unwrap_or(false) {

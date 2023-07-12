@@ -3,9 +3,9 @@ use once_cell::sync::Lazy;
 use std::collections::BTreeMap;
 use std::fmt;
 
-use crate::protocol::{Context, Contexts};
+use crate::protocol::{Contexts, DeviceContext};
 
-#[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq)]
+#[derive(Clone, Copy, Debug, FromValue, IntoValue, Empty, PartialEq)]
 pub struct DeviceClass(pub u64);
 
 const GIB: u64 = 1024 * 1024 * 1024;
@@ -16,35 +16,33 @@ impl DeviceClass {
     pub const HIGH: Self = Self(3);
 
     pub fn from_contexts(contexts: &Contexts) -> Option<DeviceClass> {
-        if let Some(Context::Device(ref device)) = contexts.get_context("device") {
-            if let Some(family) = device.family.value() {
-                if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
-                    if let Some(model) = device.model.value() {
-                        return APPLE_DEVICE_MODEL_TO_CLASS_MAP.get(model.as_str()).cloned();
-                    }
-                    return None;
-                } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
-                    device.processor_frequency.value(),
-                    device.processor_count.value(),
-                    device.memory_size.value(),
-                ) {
-                    if freq < 2000 || proc < 8 || mem < 4 * GIB {
-                        return Some(DeviceClass::LOW);
-                    } else if freq < 2500 || mem < 6 * GIB {
-                        return Some(DeviceClass::MEDIUM);
-                    } else {
-                        return Some(DeviceClass::HIGH);
-                    }
-                }
+        let device = contexts.get::<DeviceContext>()?;
+        let family = device.family.value()?;
+
+        if family == "iPhone" || family == "iOS" || family == "iOS-Device" {
+            let model = device.model.as_str()?;
+            APPLE_DEVICE_MODEL_TO_CLASS_MAP.get(model).copied()
+        } else if let (Some(&freq), Some(&proc), Some(&mem)) = (
+            device.processor_frequency.value(),
+            device.processor_count.value(),
+            device.memory_size.value(),
+        ) {
+            if freq < 2000 || proc < 8 || mem < 4 * GIB {
+                Some(DeviceClass::LOW)
+            } else if freq < 2500 || mem < 6 * GIB {
+                Some(DeviceClass::MEDIUM)
+            } else {
+                Some(DeviceClass::HIGH)
             }
+        } else {
+            None
         }
-        None
     }
 }
 
 impl fmt::Display for DeviceClass {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.to_string().fmt(f)
+        self.0.fmt(f)
     }
 }
 
