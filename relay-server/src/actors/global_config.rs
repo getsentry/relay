@@ -1,11 +1,60 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use relay_dynamic_config::GlobalConfig;
 use relay_system::{Addr, Interface, Service};
+use reqwest::Method;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
 use crate::actors::project_cache::ProjectCache;
+use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetGlobalConfig {
+    global: bool,
+}
+
+impl GetGlobalConfig {
+    /// Returns the global config query.
+    ///
+    /// Since this actor aims to deal with global configs, `global` is always `true`.
+    fn query() -> Self {
+        GetGlobalConfig { global: true }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetGlobalConfigResponse {
+    global: GlobalConfig,
+}
+
+impl UpstreamQuery for GetGlobalConfig {
+    type Response = GetGlobalConfigResponse;
+
+    fn method(&self) -> Method {
+        Method::POST
+    }
+
+    fn path(&self) -> Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
+    }
+
+    fn priority() -> super::upstream::RequestPriority {
+        RequestPriority::High
+    }
+
+    fn retry() -> bool {
+        true
+    }
+
+    fn route(&self) -> &'static str {
+        "global_config"
+    }
+}
 
 // No messages are accepted for now.
 #[derive(Debug)]
@@ -18,6 +67,14 @@ pub struct UpdateGlobalConfig {
     global_config: Arc<GlobalConfig>,
 }
 
+impl From<GetGlobalConfigResponse> for UpdateGlobalConfig {
+    fn from(value: GetGlobalConfigResponse) -> Self {
+        UpdateGlobalConfig {
+            global_config: Arc::new(value.global),
+        }
+    }
+}
+
 /// Service implementing the [`GlobalConfig`] interface.
 ///
 /// The service is responsible to fetch the global config appropriately and
@@ -25,11 +82,15 @@ pub struct UpdateGlobalConfig {
 #[derive(Debug)]
 pub struct GlobalConfigService {
     project_cache: Addr<ProjectCache>,
+    upstream_relay: Addr<UpstreamRelay>,
 }
 
 impl GlobalConfigService {
-    pub fn new(project_cache: Addr<ProjectCache>) -> Self {
-        GlobalConfigService { project_cache }
+    pub fn new(project_cache: Addr<ProjectCache>, upstream_relay: Addr<UpstreamRelay>) -> Self {
+        GlobalConfigService {
+            project_cache,
+            upstream_relay,
+        }
     }
 
     /// Forwards the given global config to the services that require it.
@@ -38,7 +99,23 @@ impl GlobalConfigService {
     }
 
     fn request_global_config(&self, config_tx: mpsc::UnboundedSender<UpdateGlobalConfig>) {
-        //
+        tokio::spawn(async move {
+            let query = GetGlobalConfig::query();
+            match self.upstream_relay.send(SendQuery(query)).await {
+                Ok(response) => {
+                    // TODO(iker): store the result in the service
+                    match response {
+                        Ok(config_response) => config_tx.send(config_response.into()),
+                        Err(request_error) => {
+                            todo!()
+                        }
+                    }
+                }
+                Err(send_error) => {
+                    todo!()
+                }
+            };
+        });
     }
 }
 
