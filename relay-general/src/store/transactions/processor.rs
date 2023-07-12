@@ -7,8 +7,8 @@ use relay_common::SpanStatus;
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
+use crate::store::normalize::span::description::scrub_span_description;
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::store::spans::scrub_span_description;
 use crate::store::SpanDescriptionRule;
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 

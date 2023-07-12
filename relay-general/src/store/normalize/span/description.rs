@@ -1,4 +1,4 @@
-//! Span description scrubbing and span tagging logic.
+//! Span description scrubbing logic.
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
