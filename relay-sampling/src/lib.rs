@@ -1220,22 +1220,18 @@ impl<'de> Visitor<'de> for BoolOptionVisitor {
     where
         E: Error,
     {
-        if v == "true" {
-            Ok(Some(true))
-        } else if v == "false" {
-            Ok(Some(false))
-        } else {
-            // Since we want to be extra lenient, we will silently fallback to `None` in case of
-            // any parsing issues.
-            Ok(None)
-        }
+        Ok(match v {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        })
     }
 
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
     where
         E: Error,
     {
-        self.visit_str(v.as_str())
+        Ok(None)
     }
 }
 
@@ -3327,8 +3323,7 @@ mod tests {
   "environment": null,
   "transaction": null,
   "user_id": "hello",
-  "replay_id": null,
-  "sampled": null
+  "replay_id": null
 }"###;
 
         assert_eq!(dsc_as_json, expected_json);
@@ -3353,8 +3348,7 @@ mod tests {
   "environment": null,
   "transaction": null,
   "user_id": "hello",
-  "replay_id": null,
-  "sampled": null
+  "replay_id": null
 }"###;
 
         assert_eq!(dsc_as_json, expected_json);
