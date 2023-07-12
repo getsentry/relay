@@ -78,9 +78,10 @@ def _outcomes_enabled_config():
             "version": 1,
         },
         "config": {
-            "transactionMetrics": {
+            "foo": {"bar": 3},
+            "transactionMetricsConfig": {
                 "version": 1,
-            }
+            },
         },
     }
 
