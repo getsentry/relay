@@ -20,6 +20,7 @@ mod normalize;
 mod regexes;
 mod remove_other;
 mod schema;
+mod spans;
 mod transactions;
 mod trimming;
 
