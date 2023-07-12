@@ -83,13 +83,19 @@ impl From<GetGlobalConfigResponse> for UpdateGlobalConfig {
 pub struct GlobalConfigService {
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
+
+    config_update_tx: mpsc::UnboundedSender<UpdateGlobalConfig>,
+    config_update_rx: mpsc::UnboundedReceiver<UpdateGlobalConfig>,
 }
 
 impl GlobalConfigService {
     pub fn new(project_cache: Addr<ProjectCache>, upstream_relay: Addr<UpstreamRelay>) -> Self {
+        let (config_tx, mut config_rx) = mpsc::unbounded_channel();
         GlobalConfigService {
             project_cache,
             upstream_relay,
+            config_update_tx: config_tx,
+            config_update_rx: config_rx,
         }
     }
 
@@ -98,12 +104,14 @@ impl GlobalConfigService {
         self.project_cache.send(new_config.global_config);
     }
 
-    fn request_global_config(&self, config_tx: mpsc::UnboundedSender<UpdateGlobalConfig>) {
+    fn request_global_config(&self) {
+        let tx = self.config_update_tx.clone();
+
         tokio::spawn(async move {
             let query = GetGlobalConfig::query();
             match self.upstream_relay.send(SendQuery(query)).await {
                 Ok(request_response) => match request_response {
-                    Ok(config_response) => config_tx.send(config_response.into()),
+                    Ok(config_response) => tx.send(config_response.into()),
                     Err(request_error) => {
                         todo!()
                     }
@@ -126,13 +134,12 @@ impl Service for GlobalConfigService {
 
             relay_log::info!("global config started");
 
-            let (config_tx, mut config_rx) = mpsc::unbounded_channel();
             loop {
                 tokio::select! {
                     biased;
 
-                    Some(message) = config_rx.recv() => self.update_global_config(message),
-                    _ = ticker.tick() => self.request_global_config(config_tx.clone()),
+                    Some(message) = self.config_update_rx.recv() => self.update_global_config(message),
+                    _ = ticker.tick() => self.request_global_config(),
 
                     else => break,
                 }
