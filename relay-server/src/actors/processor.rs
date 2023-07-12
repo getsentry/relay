@@ -3222,7 +3222,7 @@ mod tests {
         // We test with sample rate equal to 0%.
         let sampling_project_state = project_state_with_single_rule(0.0);
         let new_envelope = process_envelope_with_root_project_state(
-            envelope.clone(),
+            envelope,
             Some(Arc::new(sampling_project_state)),
         );
         let event = extract_first_event_from_envelope(new_envelope);
