@@ -30,14 +30,14 @@ use crate::types::{
 use crate::user_agent::RawUserAgentInfo;
 
 pub mod breakdowns;
+pub mod span;
+pub mod user_agent;
+
 mod contexts;
 mod logentry;
 mod mechanism;
 mod request;
-mod spans;
 mod stacktrace;
-
-pub mod user_agent;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -198,7 +198,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     fn normalize_spans(&self, event: &mut Event) {
         if event.ty.value() == Some(&EventType::Transaction) {
-            spans::normalize_spans(event, &self.config.span_attributes);
+            span::attributes::normalize_spans(event, &self.config.span_attributes);
         }
     }
 
@@ -841,7 +841,10 @@ pub fn light_normalize_event(
             // transactions don't have many spans, but if this is no longer the
             // case and we roll this flag out for most projects, we may want to
             // reconsider this approach.
-            spans::normalize_spans(event, &BTreeSet::from([SpanAttribute::ExclusiveTime]));
+            span::attributes::normalize_spans(
+                event,
+                &BTreeSet::from([SpanAttribute::ExclusiveTime]),
+            );
         }
 
         Ok(())
