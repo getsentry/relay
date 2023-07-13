@@ -2265,51 +2265,31 @@ impl EnvelopeProcessorService {
     /// This execution of dynamic sampling is technically a "simulation" since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     fn tag_error_with_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        // In case there is no incoming event we can't tag anything, thus we early return.
         if state.event.is_empty() {
             return;
         }
 
-        // We want to run dynamic sampling only if we have a root project state and a dynamic
-        // sampling context.
-        //
-        // In reality the dynamic sampling logic supports optional root state and dsc but it will
-        // return keep. In our case having a keep in case of none root state and dsc will be
-        // a problem, since in reality we can't infer anything without trace metadata.
-        let sampling_result = if let (Some(root_project_state), Some(dsc)) = (
+        let sampled = utils::is_trace_fully_sampled(
+            self.config.processing_enabled(),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
-        ) {
-            utils::get_sampling_result(
-                self.config.processing_enabled(),
-                None,
-                Some(root_project_state),
-                Some(dsc),
-                None,
-            )
-        } else {
+        );
+
+        let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;
         };
 
-        let Some(event) = state.event.value_mut() else {
-            return;
-        };
-
-        // In case the sampling result is positive, we assume that all the transactions
-        // that have this DSC will be sampled and thus we mark the error as "having
-        // a full trace".
-        let contexts = event.contexts.get_or_insert_with(Contexts::new);
-        let context = contexts.get_or_default::<TraceContext>();
+        // We want to get the trace context, in which we will inject the `sampled` field.
+        let context = event
+            .contexts
+            .get_or_insert_with(Contexts::new)
+            .get_or_default::<TraceContext>();
 
         // We want to update `sampled` only if it was not set, since if we don't check this
         // we will end up overriding the value set by downstream Relays and this will lead
         // to more complex debugging in case of problems.
         if context.sampled.is_empty() {
-            let sampled = match sampling_result {
-                SamplingResult::Keep => true,
-                SamplingResult::Drop(_) => false,
-            };
-            relay_log::trace!("tagging error with `sampled = {}` flag", sampled);
+            relay_log::trace!("tagged error with `sampled = {}` flag", sampled);
             context.sampled = Annotated::new(sampled);
         }
     }
@@ -3207,14 +3187,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_error_is_tagged_correctly() {
+    async fn test_error_is_tagged_correctly_if_trace_sampling_result_is_some() {
         let event_id = EventId::new();
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
             .unwrap();
         let request_meta = RequestMeta::new(dsn);
-
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -3224,12 +3203,13 @@ mod tests {
             environment: None,
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: Some(true),
             other: BTreeMap::new(),
         };
         envelope.set_dsc(dsc);
         envelope.add_item(mocked_error_item());
 
-        // We test the tagging when the incoming dsc matches a 100% rule.
+        // We test with sample rate equal to 100%.
         let sampling_project_state = project_state_with_single_rule(1.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope.clone(),
@@ -3239,7 +3219,7 @@ mod tests {
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(trace_context.sampled.value().unwrap());
 
-        // We test the tagging when the incoming dsc matches a 0% rule.
+        // We test with sample rate equal to 0%.
         let sampling_project_state = project_state_with_single_rule(0.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope,
@@ -3248,9 +3228,18 @@ mod tests {
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(!trace_context.sampled.value().unwrap());
+    }
 
-        // We test the tagging is not performed when an event is already tagged.
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta.clone());
+    #[tokio::test]
+    async fn test_error_is_not_tagged_if_already_tagged() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        // We test tagging with an incoming event that has already been tagged by downstream Relay.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         let mut item = Item::new(ItemType::Event);
         item.set_payload(
             ContentType::Json,
@@ -3275,8 +3264,6 @@ mod tests {
             }"#,
         );
         envelope.add_item(item);
-        // We want the sampling result to be Drop, so that we can show how sampled is still kept to
-        // to true.
         let sampling_project_state = project_state_with_single_rule(0.0);
         let new_envelope = process_envelope_with_root_project_state(
             envelope,
@@ -3285,8 +3272,17 @@ mod tests {
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(trace_context.sampled.value().unwrap());
+    }
 
-        // We test the tagging when root project state and dsc are none.
+    #[tokio::test]
+    async fn test_error_is_tagged_correctly_if_trace_sampling_result_is_none() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        // We test tagging when root project state and dsc are none.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         envelope.add_item(mocked_error_item());
         let new_envelope = process_envelope_with_root_project_state(envelope, None);
@@ -3309,10 +3305,10 @@ mod tests {
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
 
         envelope.add_item({
-            let mut item = Item::new(ItemType::Event);
-            item.set_payload(
-                ContentType::Json,
-                r###"
+                let mut item = Item::new(ItemType::Event);
+                item.set_payload(
+                    ContentType::Json,
+                    r###"
                     {
                         "request": {
                             "headers": [
@@ -3321,9 +3317,9 @@ mod tests {
                         }
                     }
                 "###,
-            );
-            item
-        });
+                );
+                item
+            });
 
         let mut datascrubbing_settings = DataScrubbingConfig::default();
         // enable all the default scrubbing
