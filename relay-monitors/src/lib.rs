@@ -128,6 +128,7 @@ pub struct CheckIn {
     pub status: CheckInStatus,
 
     /// The environment to associate the check-in with
+    #[metastructure(max_chars = "environment")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
 
