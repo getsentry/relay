@@ -417,7 +417,7 @@ impl Processor for TransactionsProcessor<'_> {
         event.process_child_values(self, state)?;
 
         // After processing spans, add span tags:
-        if self.enrich_spans {
+        if dbg!(self.enrich_spans) {
             extract_span_tags(
                 event,
                 &tag_extraction::Config {

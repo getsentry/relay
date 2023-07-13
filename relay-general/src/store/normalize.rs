@@ -732,7 +732,7 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
     pub user_agent: RawUserAgentInfo<&'a str>,
@@ -751,6 +751,30 @@ pub struct LightNormalizationConfig<'a> {
     pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
     pub geoip_lookup: Option<&'a GeoIpLookup>,
+}
+
+impl Default for LightNormalizationConfig<'_> {
+    fn default() -> Self {
+        Self {
+            client_ip: Default::default(),
+            user_agent: Default::default(),
+            received_at: Default::default(),
+            max_secs_in_past: Default::default(),
+            max_secs_in_future: Default::default(),
+            max_name_and_unit_len: Default::default(),
+            measurements_config: Default::default(),
+            breakdowns_config: Default::default(),
+            normalize_user_agent: Default::default(),
+            transaction_name_config: Default::default(),
+            is_renormalize: Default::default(),
+            device_class_synthesis_config: Default::default(),
+            enrich_spans: Default::default(),
+            light_normalize_spans: Default::default(),
+            max_tag_value_length: usize::MAX,
+            span_description_rules: Default::default(),
+            geoip_lookup: Default::default(),
+        }
+    }
 }
 
 pub fn light_normalize_event(
