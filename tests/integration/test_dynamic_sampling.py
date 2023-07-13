@@ -74,15 +74,6 @@ def _outcomes_enabled_config():
             "batch_interval": 1,
             "source": "relay",
         },
-        "transactionMetrics": {
-            "version": 1,
-        },
-        "config": {
-            "foo": {"bar": 3},
-            "transactionMetricsConfig": {
-                "version": 1,
-            },
-        },
     }
 
 
