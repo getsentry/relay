@@ -157,7 +157,7 @@ class Sentry(SentryLike):
                 "blacklistedIps": ["127.43.33.22"],
                 "trustedRelays": [],
                 "transactionMetrics": {
-                    "version": 0,
+                    "version": 1,
                 },
             },
         }
