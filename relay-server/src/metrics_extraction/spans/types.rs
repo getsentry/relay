@@ -78,56 +78,6 @@ fn span_tag_mapping_to_string_mapping(
     tags.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum SpanTagKey {
-    // Specific to a transaction
-    Release,
-    User,
-    Environment,
-    Transaction,
-    TransactionMethod,
-    TransactionOp,
-    HttpStatusCode,
-
-    // Specific to spans
-    Description,
-    Group,
-    SpanOp,
-    Category,
-    Module,
-    Action,
-    Domain,
-    System,
-    Status,
-    StatusCode,
-}
-
-impl Display for SpanTagKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            SpanTagKey::Release => "release",
-            SpanTagKey::User => "user",
-            SpanTagKey::Environment => "environment",
-            SpanTagKey::Transaction => "transaction",
-            SpanTagKey::TransactionMethod => "transaction.method",
-            SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
-
-            SpanTagKey::Description => "span.description",
-            SpanTagKey::Group => "span.group",
-            SpanTagKey::SpanOp => "span.op",
-            SpanTagKey::Category => "span.category",
-            SpanTagKey::Module => "span.module",
-            SpanTagKey::Action => "span.action",
-            SpanTagKey::Domain => "span.domain",
-            SpanTagKey::System => "span.system",
-            SpanTagKey::Status => "span.status",
-            SpanTagKey::StatusCode => "span.status_code",
-        };
-        write!(f, "{name}")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
