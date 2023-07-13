@@ -90,7 +90,7 @@ pub struct GlobalConfigService {
 
 impl GlobalConfigService {
     pub fn new(project_cache: Addr<ProjectCache>, upstream_relay: Addr<UpstreamRelay>) -> Self {
-        let (config_tx, mut config_rx) = mpsc::unbounded_channel();
+        let (config_tx, config_rx) = mpsc::unbounded_channel();
         GlobalConfigService {
             project_cache,
             upstream_relay,
@@ -106,18 +106,23 @@ impl GlobalConfigService {
 
     fn request_global_config(&self) {
         let tx = self.config_update_tx.clone();
+        let upstream_relay = self.upstream_relay.clone();
 
         tokio::spawn(async move {
             let query = GetGlobalConfig::query();
-            match self.upstream_relay.send(SendQuery(query)).await {
+            match upstream_relay.send(SendQuery(query)).await {
                 Ok(request_response) => match request_response {
-                    Ok(config_response) => tx.send(config_response.into()),
-                    Err(request_error) => {
-                        todo!()
+                    Ok(config_response) => {
+                        if tx.send(config_response.into()).is_err() {
+                            relay_log::error!("Global config forwarding error");
+                        }
+                    }
+                    Err(_) => {
+                        relay_log::warn!("Global config server response errored")
                     }
                 },
-                Err(send_error) => {
-                    todo!()
+                Err(_) => {
+                    relay_log::error!("Global config service errored requesting global config")
                 }
             };
         });
