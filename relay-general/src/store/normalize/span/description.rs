@@ -330,6 +330,20 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_scrub_various_parameterized_strings,
+        "select count() from table_1 where name in ('foo', %s, 1)",
+        "db.sql.query",
+        "select count() from table_1 where name in (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_cutoff,
+        "select count() from table where name in ('foo', 'bar', 'ba",
+        "db.sql.query",
+        "select count() from table where id in (%s)"
+    );
+
+    span_description_test!(
         span_description_scrub_mixed,
         "UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true",
         "db.sql.query",
