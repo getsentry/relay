@@ -448,11 +448,6 @@ impl Project {
         }
     }
 
-    /// Return `true` if the backoff is currently in progress.
-    pub fn backoff_started(&self) -> bool {
-        self.backoff.started()
-    }
-
     /// Returns the next attempt `Instant` if backoff is initiated, or None otherwise.
     pub fn next_fetch_attempt(&self) -> Option<Instant> {
         self.next_fetch_attempt
@@ -532,13 +527,10 @@ impl Project {
     }
 
     /// Returns `true` if backoff expired and new attempt can be triggered.
-    fn can_fetch(&mut self) -> bool {
-        if let Some(next_attempt_at) = self.next_fetch_attempt {
-            return next_attempt_at <= Instant::now();
-        }
-        // Initiate a first attempt.
-        self.backoff.next_backoff();
-        true
+    fn can_fetch(&self) -> bool {
+        self.next_fetch_attempt
+            .map(|next_attempt_at| next_attempt_at <= Instant::now())
+            .unwrap_or(true)
     }
 
     /// Triggers a debounced refresh of the project state.
@@ -560,7 +552,7 @@ impl Project {
 
         if should_fetch {
             channel.no_cache(no_cache);
-            let attempts = self.backoff.attempt();
+            let attempts = self.backoff.attempt() + 1;
             relay_log::debug!(
                 "project {} state requested {attempts} times",
                 self.project_key
@@ -718,7 +710,7 @@ impl Project {
         // If the state is still invalid, return back the taken channel and schedule state update.
         if state.invalid() {
             self.state_channel = Some(channel);
-            let attempts = self.backoff.attempt();
+            let attempts = self.backoff.attempt() + 1;
             relay_log::debug!(
                 "project {} state requested {attempts} times",
                 self.project_key
@@ -965,7 +957,7 @@ mod tests {
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it's the first attempt, we get Duration of 0.
+        //   it's the first attemt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
