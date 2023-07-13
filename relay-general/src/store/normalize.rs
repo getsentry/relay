@@ -32,6 +32,7 @@ use crate::user_agent::RawUserAgentInfo;
 pub mod breakdowns;
 pub mod span;
 pub mod user_agent;
+pub mod utils;
 
 mod contexts;
 mod logentry;

@@ -4,12 +4,17 @@
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use url::Url;
 
+use crate::macros::derive_fromstr_and_display;
 use crate::protocol::{Event, Span, TraceContext};
+use crate::store::utils::{
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
+};
+use crate::types::Annotated;
 // use relay_filter::csp::SchemeDomainPort;
 // use relay_metrics::{AggregatorConfig, Metric};
 use std::collections::BTreeMap;
-use std::fmt::Display;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SpanTagKey {
@@ -35,34 +40,66 @@ pub enum SpanTagKey {
     StatusCode,
 }
 
-impl Display for SpanTagKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            SpanTagKey::Release => "release",
-            SpanTagKey::User => "user",
-            SpanTagKey::Environment => "environment",
-            SpanTagKey::Transaction => "transaction",
-            SpanTagKey::TransactionMethod => "transaction.method",
-            SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
+impl SpanTagKey {
+    /// Whether or not this tag should be added to metrics extracted from the span.
+    pub fn is_metric_tag(&self) -> bool {
+        !matches!(self, SpanTagKey::Release | SpanTagKey::User)
+    }
+}
 
-            SpanTagKey::Description => "span.description",
-            SpanTagKey::Group => "span.group",
-            SpanTagKey::SpanOp => "span.op",
-            SpanTagKey::Category => "span.category",
-            SpanTagKey::Module => "span.module",
-            SpanTagKey::Action => "span.action",
-            SpanTagKey::Domain => "span.domain",
-            SpanTagKey::System => "span.system",
-            SpanTagKey::Status => "span.status",
-            SpanTagKey::StatusCode => "span.status_code",
-        };
-        write!(f, "{name}")
+derive_fromstr_and_display!(SpanTagKey, (), {
+    SpanTagKey::Release => "release",
+    SpanTagKey::User => "user",
+    SpanTagKey::Environment => "environment",
+    SpanTagKey::Transaction => "transaction",
+    SpanTagKey::TransactionMethod => "transaction.method",
+    SpanTagKey::TransactionOp => "transaction.op",
+    SpanTagKey::HttpStatusCode => "http.status_code",
+
+    SpanTagKey::Description => "span.description",
+    SpanTagKey::Group => "span.group",
+    SpanTagKey::SpanOp => "span.op",
+    SpanTagKey::Category => "span.category",
+    SpanTagKey::Module => "span.module",
+    SpanTagKey::Action => "span.action",
+    SpanTagKey::Domain => "span.domain",
+    SpanTagKey::System => "span.system",
+    SpanTagKey::Status => "span.status",
+    SpanTagKey::StatusCode => "span.status_code",
+});
+
+/// Configuration for span tag extraction.
+pub(crate) struct Config {
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
+    pub max_tag_value_length: usize,
+}
+
+/// Extracts tags from event and spans and materializes them into `span.data`.
+pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
+    let shared_tags = extract_shared_tags(event);
+
+    let Some(spans) = event
+        .spans
+        .value_mut() else {return};
+
+    for span in spans {
+        let Some(span) = span.value_mut().as_mut() else {continue};
+
+        let tags = extract_tags(span, config);
+
+        let data = span.data.value_mut().get_or_insert_with(Default::default);
+        data.extend(
+            shared_tags
+                .clone()
+                .into_iter()
+                .chain(tags.into_iter())
+                .map(|(k, v)| (k.to_string(), Annotated::new(v.into()))),
+        );
     }
 }
 
 /// Extract tags shared by every span.
-pub(crate) fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
+fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     let mut tags = BTreeMap::new();
 
     if let Some(release) = event.release.as_str() {
@@ -107,8 +144,8 @@ pub(crate) fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String>
 }
 
 /// Write fields into [`Span::data`].
-pub(crate) fn extract_tags(span: &Span) -> BTreeMap<SpanTagKey, String> {
-    let span_tags = BTreeMap::new();
+pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, String> {
+    let mut span_tags = BTreeMap::new();
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
@@ -207,7 +244,7 @@ pub(crate) fn extract_tags(span: &Span) -> BTreeMap<SpanTagKey, String> {
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc, aggregator_config.max_tag_value_length);
+            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_length);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
     }
@@ -471,9 +508,13 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 fn domain_from_http_url(url: &str) -> Option<String> {
     match url.split_once(' ') {
         Some((_method, url)) => {
-            let domain_port = SchemeDomainPort::from(url);
-            match (domain_port.domain, domain_port.port) {
-                (Some(domain), port) => normalize_domain(&domain, port.as_ref()),
+            let url = Url::parse(url);
+            let (domain, port) = match &url {
+                Ok(url) => (url.domain(), url.port()),
+                Err(_) => (None, None),
+            };
+            match (domain, port) {
+                (Some(domain), port) => normalize_domain(&domain, port),
                 _ => None,
             }
         }
@@ -481,7 +522,7 @@ fn domain_from_http_url(url: &str) -> Option<String> {
     }
 }
 
-fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
+fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
     if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
         return Some(allow_listed);
     }
@@ -510,7 +551,7 @@ fn normalize_domain(domain: &str, port: Option<&String>) -> Option<String> {
 /// Allow list of domains to not get subdomains scrubbed.
 const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
 
-fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Option<String> {
+fn normalized_domain_from_allowlist(domain: &str, port: Option<u16>) -> Option<String> {
     if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
         let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
         return Some(with_port);
@@ -520,6 +561,7 @@ fn normalized_domain_from_allowlist(domain: &str, port: Option<&String>) -> Opti
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::protocol::{Event, Request};
     use crate::store::{self, LightNormalizationConfig};
     use crate::types::Annotated;
@@ -601,16 +643,6 @@ mod tests {
                 );
                 assert!(res.is_ok());
 
-                let aggregator_config = AggregatorConfig {
-                    max_secs_in_past: u64::MAX,
-                    max_secs_in_future: u64::MAX,
-                    ..Default::default()
-                };
-
-                let metrics =
-                    extract_span_metrics(&aggregator_config, event.value_mut().as_mut().unwrap())
-                        .unwrap();
-
                 assert_eq!(
                     $expected_method,
                     event
@@ -623,13 +655,6 @@ mod tests {
                         .and_then(|v| v.as_str())
                         .unwrap()
                 );
-
-                for metric in &metrics {
-                    assert_eq!(
-                        $expected_method,
-                        metric.tags.get("transaction.method").unwrap()
-                    );
-                }
             }
         };
     }

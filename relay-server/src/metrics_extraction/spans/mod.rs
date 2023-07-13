@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -6,15 +7,17 @@ use regex::Regex;
 use relay_common::{EventType, UnixTimestamp};
 use relay_filter::csp::SchemeDomainPort;
 use relay_general::protocol::{Event, TraceContext};
+use relay_general::store::span::tag_extraction::SpanTagKey;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 
-use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
+use crate::metrics_extraction::spans::types::SpanMetric;
+
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::metrics_extraction::utils::{
+use crate::metrics_extraction::IntoMetric;
+use relay_general::store::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
 };
-use crate::metrics_extraction::IntoMetric;
 
 mod types;
 
@@ -55,7 +58,22 @@ pub(crate) fn extract_span_metrics(
 
     for annotated_span in spans {
         let Some(span) = annotated_span.value() else { continue };
-        let mut span_tags = shared_tags.clone();
+
+        // Get parts of `span.data` that are designated as metrics
+        let span_tags: BTreeMap<_, _> = span
+            .data
+            .value()
+            .iter()
+            .flat_map(|x| x.iter())
+            .filter_map(
+                |(key, value)| match (SpanTagKey::from_str(key.as_str()), value) {
+                    (Ok(key), Annotated(Some(Value::String(s)), _)) if key.is_metric_tag() => {
+                        Some((key, s.clone()))
+                    }
+                    _ => None,
+                },
+            )
+            .collect();
 
         if let Some(user) = event.user.value() {
             if let Some(user_tag) = get_eventuser_tag(user) {
@@ -112,13 +130,12 @@ pub(crate) fn extract_span_metrics(
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{Event, Request};
     use relay_general::store::{self, LightNormalizationConfig};
     use relay_general::types::Annotated;
 
     use relay_metrics::AggregatorConfig;
 
-    use crate::metrics_extraction::spans::{extract_span_metrics, truncate_string};
+    use crate::metrics_extraction::spans::extract_span_metrics;
 
     #[test]
     fn test_extract_span_metrics() {

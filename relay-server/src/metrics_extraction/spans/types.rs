@@ -3,6 +3,7 @@ use std::fmt::Display;
 
 use chrono::Duration;
 use relay_common::{DurationUnit, MetricUnit, UnixTimestamp};
+use relay_general::store::span::tag_extraction::SpanTagKey;
 use relay_metrics::{Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::IntoMetric;
