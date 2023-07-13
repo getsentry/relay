@@ -3102,6 +3102,9 @@
 <a href="#3102" id="3102">3102</a>
 <a href="#3103" id="3103">3103</a>
 <a href="#3104" id="3104">3104</a>
+<a href="#3105" id="3105">3105</a>
+<a href="#3106" id="3106">3106</a>
+<a href="#3107" id="3107">3107</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3134,14 +3137,14 @@
 <span class="kw">use </span><span class="kw">crate</span>::user_agent::RawUserAgentInfo;
 
 <span class="kw">pub mod </span>breakdowns;
+<span class="kw">pub mod </span>span;
+<span class="kw">pub mod </span>user_agent;
+
 <span class="kw">mod </span>contexts;
 <span class="kw">mod </span>logentry;
 <span class="kw">mod </span>mechanism;
 <span class="kw">mod </span>request;
-<span class="kw">mod </span>spans;
 <span class="kw">mod </span>stacktrace;
-
-<span class="kw">pub mod </span>user_agent;
 
 <span class="doccomment">/// Defines a builtin measurement.
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -3302,7 +3305,7 @@
 
     <span class="kw">fn </span>normalize_spans(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) {
         <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-            spans::normalize_spans(event, <span class="kw-2">&amp;</span><span class="self">self</span>.config.span_attributes);
+            span::attributes::normalize_spans(event, <span class="kw-2">&amp;</span><span class="self">self</span>.config.span_attributes);
         }
     }
 
@@ -3945,7 +3948,10 @@
             // transactions don&#39;t have many spans, but if this is no longer the
             // case and we roll this flag out for most projects, we may want to
             // reconsider this approach.
-            </span>spans::normalize_spans(event, <span class="kw-2">&amp;</span>BTreeSet::from([SpanAttribute::ExclusiveTime]));
+            </span>span::attributes::normalize_spans(
+                event,
+                <span class="kw-2">&amp;</span>BTreeSet::from([SpanAttribute::ExclusiveTime]),
+            );
         }
 
         <span class="prelude-val">Ok</span>(())
