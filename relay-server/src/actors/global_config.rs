@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 
+/// Represents the global config request made to upstream.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetGlobalConfig {
@@ -26,6 +27,10 @@ impl GetGlobalConfig {
     }
 }
 
+/// Represents the global config response returned from upstream.
+///
+/// This actor only requests global config entries and ignores the rest of
+/// entries belonging to project config.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetGlobalConfigResponse {
@@ -62,7 +67,7 @@ pub enum GlobalConfigMessage {}
 
 impl Interface for GlobalConfigMessage {}
 
-/// Helper type to forward global config updates.
+/// Helper type to forward global config updates to other actors.
 pub struct UpdateGlobalConfig {
     global_config: Arc<GlobalConfig>,
 }
@@ -83,7 +88,6 @@ impl From<GetGlobalConfigResponse> for UpdateGlobalConfig {
 pub struct GlobalConfigService {
     project_cache: Addr<ProjectCache>,
     upstream_relay: Addr<UpstreamRelay>,
-
     config_update_tx: mpsc::UnboundedSender<UpdateGlobalConfig>,
     config_update_rx: mpsc::UnboundedReceiver<UpdateGlobalConfig>,
 }
@@ -104,6 +108,9 @@ impl GlobalConfigService {
         self.project_cache.send(new_config.global_config);
     }
 
+    /// Requests Relay's global config to upstream.
+    ///
+    /// Forwards the deserialized response through the internal config channel.
     fn request_global_config(&self) {
         let tx = self.config_update_tx.clone();
         let upstream_relay = self.upstream_relay.clone();
@@ -118,11 +125,11 @@ impl GlobalConfigService {
                         }
                     }
                     Err(_) => {
-                        relay_log::warn!("Global config server response errored")
+                        relay_log::warn!("Global config server response errored");
                     }
                 },
                 Err(_) => {
-                    relay_log::error!("Global config service errored requesting global config")
+                    relay_log::error!("Global config service errored requesting global config");
                 }
             };
         });
