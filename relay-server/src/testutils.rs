@@ -50,6 +50,7 @@ pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingConte
         sample_rate,
         user: Default::default(),
         replay_id: None,
+        sampled: None,
         other: Default::default(),
     }
 }
