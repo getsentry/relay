@@ -3870,10 +3870,6 @@
 <a href="#3870" id="3870">3870</a>
 <a href="#3871" id="3871">3871</a>
 <a href="#3872" id="3872">3872</a>
-<a href="#3873" id="3873">3873</a>
-<a href="#3874" id="3874">3874</a>
-<a href="#3875" id="3875">3875</a>
-<a href="#3876" id="3876">3876</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6141,51 +6137,31 @@
     /// This execution of dynamic sampling is technically a &quot;simulation&quot; since we will use the result
     /// only for tagging errors and not for actually sampling incoming events.
     </span><span class="kw">fn </span>tag_error_with_sampling_decision(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
-        <span class="comment">// In case there is no incoming event we can&#39;t tag anything, thus we early return.
-        </span><span class="kw">if </span>state.event.is_empty() {
+        <span class="kw">if </span>state.event.is_empty() {
             <span class="kw">return</span>;
         }
 
-        <span class="comment">// We want to run dynamic sampling only if we have a root project state and a dynamic
-        // sampling context.
-        //
-        // In reality the dynamic sampling logic supports optional root state and dsc but it will
-        // return keep. In our case having a keep in case of none root state and dsc will be
-        // a problem, since in reality we can&#39;t infer anything without trace metadata.
-        </span><span class="kw">let </span>sampling_result = <span class="kw">if let </span>(<span class="prelude-val">Some</span>(root_project_state), <span class="prelude-val">Some</span>(dsc)) = (
+        <span class="kw">let </span>sampled = utils::is_trace_fully_sampled(
+            <span class="self">self</span>.config.processing_enabled(),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
-        ) {
-            utils::get_sampling_result(
-                <span class="self">self</span>.config.processing_enabled(),
-                <span class="prelude-val">None</span>,
-                <span class="prelude-val">Some</span>(root_project_state),
-                <span class="prelude-val">Some</span>(dsc),
-                <span class="prelude-val">None</span>,
-            )
-        } <span class="kw">else </span>{
+        );
+
+        <span class="kw">let </span>(<span class="prelude-val">Some</span>(event), <span class="prelude-val">Some</span>(sampled)) = (state.event.value_mut(), sampled) <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() <span class="kw">else </span>{
-            <span class="kw">return</span>;
-        };
-
-        <span class="comment">// In case the sampling result is positive, we assume that all the transactions
-        // that have this DSC will be sampled and thus we mark the error as &quot;having
-        // a full trace&quot;.
-        </span><span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-        <span class="kw">let </span>context = contexts.get_or_default::&lt;TraceContext&gt;();
+        <span class="comment">// We want to get the trace context, in which we will inject the `sampled` field.
+        </span><span class="kw">let </span>context = event
+            .contexts
+            .get_or_insert_with(Contexts::new)
+            .get_or_default::&lt;TraceContext&gt;();
 
         <span class="comment">// We want to update `sampled` only if it was not set, since if we don&#39;t check this
         // we will end up overriding the value set by downstream Relays and this will lead
         // to more complex debugging in case of problems.
         </span><span class="kw">if </span>context.sampled.is_empty() {
-            <span class="kw">let </span>sampled = <span class="kw">match </span>sampling_result {
-                SamplingResult::Keep =&gt; <span class="bool-val">true</span>,
-                SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            };
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;tagging error with `sampled = {}` flag&quot;</span>, sampled);
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;tagged error with `sampled = {}` flag&quot;</span>, sampled);
             context.sampled = Annotated::new(sampled);
         }
     }
@@ -7083,14 +7059,13 @@
     }
 
     <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>test_error_is_tagged_correctly() {
+    </span><span class="kw">async fn </span>test_error_is_tagged_correctly_if_trace_sampling_result_is_some() {
         <span class="kw">let </span>event_id = EventId::new();
         <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
             </span>.parse()
             .unwrap();
         <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta.clone());
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
         <span class="kw">let </span>dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse(<span class="string">&quot;abd0f232775f45feab79864e580d160b&quot;</span>).unwrap(),
@@ -7100,12 +7075,13 @@
             environment: <span class="prelude-val">None</span>,
             transaction: <span class="prelude-val">Some</span>(<span class="string">&quot;transaction1&quot;</span>.into()),
             sample_rate: <span class="prelude-val">None</span>,
+            sampled: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
             other: BTreeMap::new(),
         };
         envelope.set_dsc(dsc);
         envelope.add_item(mocked_error_item());
 
-        <span class="comment">// We test the tagging when the incoming dsc matches a 100% rule.
+        <span class="comment">// We test with sample rate equal to 100%.
         </span><span class="kw">let </span>sampling_project_state = project_state_with_single_rule(<span class="number">1.0</span>);
         <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(
             envelope.clone(),
@@ -7115,7 +7091,7 @@
         <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
         <span class="macro">assert!</span>(trace_context.sampled.value().unwrap());
 
-        <span class="comment">// We test the tagging when the incoming dsc matches a 0% rule.
+        <span class="comment">// We test with sample rate equal to 0%.
         </span><span class="kw">let </span>sampling_project_state = project_state_with_single_rule(<span class="number">0.0</span>);
         <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(
             envelope,
@@ -7124,9 +7100,18 @@
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
         <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
         <span class="macro">assert!</span>(!trace_context.sampled.value().unwrap());
+    }
 
-        <span class="comment">// We test the tagging is not performed when an event is already tagged.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta.clone());
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_error_is_not_tagged_if_already_tagged() {
+        <span class="kw">let </span>event_id = EventId::new();
+        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
+            </span>.parse()
+            .unwrap();
+        <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
+
+        <span class="comment">// We test tagging with an incoming event that has already been tagged by downstream Relay.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
         item.set_payload(
             ContentType::Json,
@@ -7151,9 +7136,7 @@
             }&quot;#</span>,
         );
         envelope.add_item(item);
-        <span class="comment">// We want the sampling result to be Drop, so that we can show how sampled is still kept to
-        // to true.
-        </span><span class="kw">let </span>sampling_project_state = project_state_with_single_rule(<span class="number">0.0</span>);
+        <span class="kw">let </span>sampling_project_state = project_state_with_single_rule(<span class="number">0.0</span>);
         <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(
             envelope,
             <span class="prelude-val">Some</span>(Arc::new(sampling_project_state)),
@@ -7161,8 +7144,17 @@
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
         <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
         <span class="macro">assert!</span>(trace_context.sampled.value().unwrap());
+    }
 
-        <span class="comment">// We test the tagging when root project state and dsc are none.
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_error_is_tagged_correctly_if_trace_sampling_result_is_none() {
+        <span class="kw">let </span>event_id = EventId::new();
+        <span class="kw">let </span>dsn = <span class="string">&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;
+            </span>.parse()
+            .unwrap();
+        <span class="kw">let </span>request_meta = RequestMeta::new(dsn);
+
+        <span class="comment">// We test tagging when root project state and dsc are none.
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
         envelope.add_item(mocked_error_item());
         <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(envelope, <span class="prelude-val">None</span>);
@@ -7185,10 +7177,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
 
         envelope.add_item({
-            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
-            item.set_payload(
-                ContentType::Json,
-                <span class="string">r###&quot;
+                <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
+                item.set_payload(
+                    ContentType::Json,
+                    <span class="string">r###&quot;
                     {
                         &quot;request&quot;: {
                             &quot;headers&quot;: [
@@ -7197,9 +7189,9 @@
                         }
                     }
                 &quot;###</span>,
-            );
-            item
-        });
+                );
+                item
+            });
 
         <span class="kw">let </span><span class="kw-2">mut </span>datascrubbing_settings = DataScrubbingConfig::default();
         <span class="comment">// enable all the default scrubbing
