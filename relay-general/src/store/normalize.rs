@@ -746,8 +746,9 @@ pub struct LightNormalizationConfig<'a> {
     pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
     pub device_class_synthesis_config: bool,
-    pub scrub_span_descriptions: bool,
+    pub enrich_spans: bool,
     pub light_normalize_spans: bool,
+    pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 }
@@ -767,8 +768,9 @@ pub fn light_normalize_event(
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.scrub_span_descriptions,
+            config.enrich_spans,
             config.span_description_rules,
+            config.max_tag_value_length,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 

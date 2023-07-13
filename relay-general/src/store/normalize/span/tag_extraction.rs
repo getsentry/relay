@@ -636,7 +636,7 @@ mod tests {
                 let res = store::light_normalize_event(
                     &mut event,
                     LightNormalizationConfig {
-                        scrub_span_descriptions: true,
+                        enrich_spans: true,
                         light_normalize_spans: true,
                         ..Default::default()
                     },

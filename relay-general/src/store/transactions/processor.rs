@@ -9,6 +9,7 @@ use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
 use crate::store::normalize::span::description::scrub_span_description;
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
+use crate::store::span::tag_extraction::{self, extract_span_tags};
 use crate::store::SpanDescriptionRule;
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
@@ -24,14 +25,16 @@ pub struct TransactionNameConfig<'r> {
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
     span_desc_rules: Vec<SpanDescriptionRule>,
-    scrub_span_descriptions: bool,
+    enrich_spans: bool,
+    max_tag_value_length: usize,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     pub fn new(
         name_config: TransactionNameConfig<'r>,
-        scrub_span_descriptions: bool,
+        enrich_spans: bool,
         span_description_rules: Option<&Vec<SpanDescriptionRule>>,
+        max_tag_value_length: usize,
     ) -> Self {
         let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
             span_desc_rules.clone()
@@ -39,14 +42,15 @@ impl<'r> TransactionsProcessor<'r> {
             Vec::new()
         };
 
-        if scrub_span_descriptions && !name_config.rules.is_empty() {
+        if enrich_spans && !name_config.rules.is_empty() {
             span_desc_rules.extend(name_config.rules.iter().map(SpanDescriptionRule::from));
         }
 
         Self {
             name_config,
             span_desc_rules,
-            scrub_span_descriptions,
+            enrich_spans,
+            max_tag_value_length,
         }
     }
 
@@ -412,6 +416,16 @@ impl Processor for TransactionsProcessor<'_> {
 
         event.process_child_values(self, state)?;
 
+        // After processing spans, add span tags:
+        if self.enrich_spans {
+            extract_span_tags(
+                event,
+                &tag_extraction::Config {
+                    max_tag_value_length: self.max_tag_value_length,
+                },
+            );
+        }
+
         Ok(())
     }
 
@@ -457,7 +471,7 @@ impl Processor for TransactionsProcessor<'_> {
 
         span.op.get_or_insert_with(|| "default".to_owned());
 
-        if self.scrub_span_descriptions {
+        if self.enrich_spans {
             scrub_span_description(span, &self.span_desc_rules)?;
         }
 
@@ -1374,7 +1388,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1458,7 +1472,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1492,7 +1506,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1649,6 +1663,7 @@ mod tests {
                 },
                 false,
                 None,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -1714,6 +1729,7 @@ mod tests {
                 },
                 false,
                 None,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -1803,6 +1819,7 @@ mod tests {
             },
             false,
             None,
+            usize::MAX,
         );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1935,6 +1952,7 @@ mod tests {
                 },
                 false,
                 None,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2003,6 +2021,7 @@ mod tests {
                 },
                 false,
                 None,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2119,7 +2138,12 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig { rules: &[rule] },
+                false,
+                None,
+                usize::MAX,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2213,7 +2237,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
+                    &mut TransactionsProcessor::default(),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -2348,6 +2372,7 @@ mod tests {
                 },
                 false,
                 None,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2394,6 +2419,7 @@ mod tests {
                 },
                 false,
                 None,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2425,7 +2451,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig::default(), false, None),
+            &mut TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2515,6 +2541,7 @@ mod tests {
                 },
                 true,
                 None,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2619,6 +2646,7 @@ mod tests {
                     scope: SpanDescriptionRuleScope::default(),
                     redaction: RedactionRule::default(),
                 }])),
+                usize::MAX,
             ),
             ProcessingState::root(),
         )

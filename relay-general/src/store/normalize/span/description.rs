@@ -10,7 +10,9 @@ use crate::store::regexes::{
 use crate::store::{scrub_identifiers, scrub_identifiers_with_regex, SpanDescriptionRule};
 use crate::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
-// TODO: docs
+/// Attempt to replace identifiers in the span description with placeholders.
+///
+/// The resulting scrubbed description is stored in `data.description.scrubbed`.
 pub(crate) fn scrub_span_description(
     span: &mut Span,
     rules: &Vec<SpanDescriptionRule>,

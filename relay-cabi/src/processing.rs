@@ -132,8 +132,9 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         transaction_name_config: Default::default(), // only supported in relay
         is_renormalize: config.is_renormalize.unwrap_or(false),
         device_class_synthesis_config: false, // only supported in relay
-        scrub_span_descriptions: false,
+        enrich_spans: false,
         light_normalize_spans: false,
+        max_tag_value_length: usize::MAX,
         span_description_rules: None,
         geoip_lookup: None, // only supported in relay
     };
