@@ -1087,6 +1087,15 @@
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
 <a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>itertools::Itertools;
@@ -1211,18 +1220,33 @@
                 span_tags.insert(SpanTagKey::Module, module.to_owned());
             }
 
+            <span class="kw">let </span>scrubbed_description = span
+                .data
+                .value()
+                .and_then(|data| data.get(<span class="string">&quot;description.scrubbed&quot;</span>))
+                .and_then(|value| value.as_str());
+
             <span class="comment">// TODO(iker): we&#39;re relying on the existance of `http.method`
             // or `db.operation`. This is not guaranteed, and we&#39;ll need to
             // parse the span description in that case.
-            </span><span class="kw">let </span>action = <span class="kw">match </span>span_module {
-                <span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>) =&gt; span
+            </span><span class="kw">let </span>action = <span class="kw">match </span>(span_module, span_op.as_str(), scrubbed_description) {
+                (<span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; span
                     .data
                     .value()
                     <span class="comment">// TODO(iker): some SDKs extract this as method
                     </span>.and_then(|v| v.get(<span class="string">&quot;http.method&quot;</span>))
                     .and_then(|method| method.as_str())
                     .map(|s| s.to_uppercase()),
-                <span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>) =&gt; {
+                (<span class="kw">_</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="prelude-val">Some</span>(desc)) =&gt; {
+                    <span class="comment">// This only works as long as redis span descriptions contain the command + &quot; *&quot;
+                    </span><span class="kw">let </span>command = desc.replace(<span class="string">&quot; *&quot;</span>, <span class="string">&quot;&quot;</span>);
+                    <span class="kw">if </span>command.is_empty() {
+                        <span class="prelude-val">None
+                    </span>} <span class="kw">else </span>{
+                        <span class="prelude-val">Some</span>(command)
+                    }
+                }
+                (<span class="prelude-val">Some</span>(<span class="string">&quot;db&quot;</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                     <span class="kw">let </span>action_from_data = span
                         .data
                         .value()
@@ -1262,12 +1286,6 @@
                     span_tags.insert(SpanTagKey::Domain, dom);
                 }
             }
-
-            <span class="kw">let </span>scrubbed_description = span
-                .data
-                .value()
-                .and_then(|data| data.get(<span class="string">&quot;description.scrubbed&quot;</span>))
-                .and_then(|value| value.as_str());
 
             <span class="kw">let </span>sanitized_description = sanitized_span_description(
                 scrubbed_description,
