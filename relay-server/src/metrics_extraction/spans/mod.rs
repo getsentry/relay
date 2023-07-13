@@ -1,13 +1,10 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-use itertools::Itertools;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use relay_common::{EventType, UnixTimestamp};
-use relay_filter::csp::SchemeDomainPort;
-use relay_general::protocol::{Event, TraceContext};
+use relay_general::protocol::Event;
 use relay_general::store::span::tag_extraction::SpanTagKey;
+use relay_general::store::utils::get_eventuser_tag;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 
@@ -15,9 +12,6 @@ use crate::metrics_extraction::spans::types::SpanMetric;
 
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::IntoMetric;
-use relay_general::store::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
-};
 
 mod types;
 

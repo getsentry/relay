@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::fmt::Display;
 
 use chrono::Duration;
 use relay_common::{DurationUnit, MetricUnit, UnixTimestamp};

@@ -514,7 +514,7 @@ fn domain_from_http_url(url: &str) -> Option<String> {
                 Err(_) => (None, None),
             };
             match (domain, port) {
-                (Some(domain), port) => normalize_domain(&domain, port),
+                (Some(domain), port) => normalize_domain(domain, port),
                 _ => None,
             }
         }
