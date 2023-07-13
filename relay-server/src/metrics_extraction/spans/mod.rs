@@ -46,7 +46,6 @@ pub(crate) fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-    // TODO: do not extract Release and User tags.
 
     let Some(spans) = event.spans.value() else { return Ok(metrics) };
 
