@@ -122,18 +122,33 @@ pub(crate) fn extract_span_metrics(
                 span_tags.insert(SpanTagKey::Module, module.to_owned());
             }
 
+            let scrubbed_description = span
+                .data
+                .value()
+                .and_then(|data| data.get("description.scrubbed"))
+                .and_then(|value| value.as_str());
+
             // TODO(iker): we're relying on the existance of `http.method`
             // or `db.operation`. This is not guaranteed, and we'll need to
             // parse the span description in that case.
-            let action = match span_module {
-                Some("http") => span
+            let action = match (span_module, span_op.as_str(), scrubbed_description) {
+                (Some("http"), _, _) => span
                     .data
                     .value()
                     // TODO(iker): some SDKs extract this as method
                     .and_then(|v| v.get("http.method"))
                     .and_then(|method| method.as_str())
                     .map(|s| s.to_uppercase()),
-                Some("db") => {
+                (_, "db.redis", Some(desc)) => {
+                    // This only works as long as redis span descriptions contain the command + " *"
+                    let command = desc.replace(" *", "");
+                    if command.is_empty() {
+                        None
+                    } else {
+                        Some(command)
+                    }
+                }
+                (Some("db"), _, _) => {
                     let action_from_data = span
                         .data
                         .value()
@@ -173,12 +188,6 @@ pub(crate) fn extract_span_metrics(
                     span_tags.insert(SpanTagKey::Domain, dom);
                 }
             }
-
-            let scrubbed_description = span
-                .data
-                .value()
-                .and_then(|data| data.get("description.scrubbed"))
-                .and_then(|value| value.as_str());
 
             let sanitized_description = sanitized_span_description(
                 scrubbed_description,
