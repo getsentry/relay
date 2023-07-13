@@ -46,7 +46,6 @@ pub(crate) fn extract_span_metrics(
         return Err(ExtractMetricsError::InvalidTimestamp);
     }
 
-
     let Some(spans) = event.spans.value() else { return Ok(metrics) };
 
     for annotated_span in spans {
