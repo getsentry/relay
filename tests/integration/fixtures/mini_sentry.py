@@ -33,6 +33,7 @@ class Sentry(SentryLike):
         super().__init__(server_address)
 
         self.app = app
+        self.global_config = {}
         self.project_configs = {}
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
@@ -62,6 +63,18 @@ class Sentry(SentryLike):
         for route, error in self.test_failures:
             s += f"> {route}: {error}\n"
         return s
+
+    def basic_global_config(self):
+        return {
+            "measurements": {
+                "builtinMeasurements": [{"name": "fcp", "unit": "millisecond"}],
+                "maxCustomMeasurements": 2,
+            },
+        }
+
+    def add_basic_global_config(self):
+        self.global_config = self.basic_global_config()
+        return self.global_config
 
     def add_dsn_key_to_project(self, project_id, dsn_public_key=None, numeric_id=None):
         if project_id not in self.project_configs:
@@ -304,9 +317,31 @@ def mini_sentry(request):
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
 
+        version = flask_request.args.get("version")
+        if version and version not in ["1", "2", "3", "4"]:
+            abort(500, "unsupported version")
+
+        configs, pending = get_project_configs(relay_id, version)
+        rv = {"configs": configs, "pending": pending}
+
+        if flask_request.json.get("global", False) is True:
+            if global_config := get_global_config(relay_id, version):
+                rv["global"] = global_config
+
+        return jsonify(rv)
+
+    def get_global_config(relay_id, version):
+        if not is_trusted(relay_id, None):
+            return None
+
+        if version in ["4"]:
+            return sentry.global_config
+
+        return None
+
+    def get_project_configs(relay_id, version):
         configs = {}
         pending = []
-        version = flask_request.args.get("version")
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
@@ -335,10 +370,7 @@ def mini_sentry(request):
                                 configs[public_key] = deepcopy(project_config)
                                 configs[public_key]["publicKeys"] = [key]
 
-        else:
-            abort(500, "unsupported version")
-
-        return jsonify(configs=configs, pending=pending)
+        return configs, pending
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():
