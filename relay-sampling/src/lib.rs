@@ -78,6 +78,7 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
+use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
@@ -1198,6 +1199,48 @@ mod sample_rate_as_string {
     }
 }
 
+struct BoolOptionVisitor;
+
+impl<'de> Visitor<'de> for BoolOptionVisitor {
+    type Value = Option<bool>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("`true` or `false` as boolean or string")
+    }
+
+    fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(Some(v))
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(match v {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        })
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(None)
+    }
+}
+
+pub fn deserialize_bool_option<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_any(BoolOptionVisitor)
+}
+
 /// DynamicSamplingContext created by the first Sentry SDK in the call chain.
 ///
 /// Because SDKs need to funnel this data through the baggage header, this needs to be
@@ -1235,6 +1278,13 @@ pub struct DynamicSamplingContext {
     pub user: TraceUserContext,
     /// If the event occurred during a session replay, the associated replay_id is added to the DSC.
     pub replay_id: Option<Uuid>,
+    /// Set to true if the transaction starting the trace has been kept by client side sampling.
+    #[serde(
+        default,
+        deserialize_with = "deserialize_bool_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sampled: Option<bool>,
     /// Additional arbitrary fields for forwards compatibility.
     #[serde(flatten, default)]
     pub other: BTreeMap<String, Value>,
@@ -1275,6 +1325,7 @@ impl DynamicSamplingContext {
                     .unwrap_or_default()
                     .to_owned(),
             },
+            sampled: None,
             other: Default::default(),
         })
     }
@@ -1386,6 +1437,7 @@ mod tests {
             sample_rate: None,
             user: TraceUserContext::default(),
             replay_id: None,
+            sampled: None,
             other: BTreeMap::new(),
         }
     }
@@ -1482,6 +1534,7 @@ mod tests {
                 user_id: user_id.to_string(),
             },
             replay_id,
+            sampled: None,
             other: Default::default(),
         }
     }
@@ -1502,6 +1555,7 @@ mod tests {
             user: Default::default(),
             other: Default::default(),
             replay_id: None,
+            sampled: None,
         }
     }
 
@@ -1765,6 +1819,7 @@ mod tests {
             transaction: Some("transaction1".into()),
             sample_rate: None,
             replay_id: Some(replay_id),
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -1805,6 +1860,7 @@ mod tests {
             transaction: None,
             sample_rate: None,
             replay_id: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.release"));
@@ -1823,6 +1879,7 @@ mod tests {
             transaction: None,
             sample_rate: None,
             replay_id: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
@@ -1931,6 +1988,7 @@ mod tests {
             environment: Some("debug".into()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2043,6 +2101,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2102,6 +2161,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2138,6 +2198,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2197,6 +2258,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2548,6 +2610,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2569,6 +2632,7 @@ mod tests {
             environment: Some("debug".to_string()),
             transaction: Some("transaction1".into()),
             sample_rate: None,
+            sampled: None,
             other: BTreeMap::new(),
         };
 
@@ -2590,6 +2654,7 @@ mod tests {
                 user_id: "user-id".to_owned(),
             },
             replay_id: None,
+            sampled: None,
             environment: None,
             transaction: Some("transaction1".into()),
             sample_rate: None,
@@ -2614,6 +2679,7 @@ mod tests {
                 user_id: "user-id".to_owned(),
             },
             replay_id: None,
+            sampled: None,
             environment: Some("debug".to_string()),
             transaction: None,
             sample_rate: None,
@@ -2631,6 +2697,7 @@ mod tests {
             release: None,
             user: TraceUserContext::default(),
             replay_id: None,
+            sampled: None,
             environment: None,
             transaction: None,
             sample_rate: None,
@@ -3182,6 +3249,108 @@ mod tests {
         }
         "#;
         serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_boolean() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": true
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": true
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_boolean_as_string() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": "false"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null,
+  "sampled": false
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_invalid_boolean_as_string() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": "tru"
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
+    }
+
+    #[test]
+    fn test_parse_sampled_with_incoming_null_value() {
+        let json = r#"
+        {
+            "trace_id": "00000000-0000-0000-0000-000000000000",
+            "public_key": "abd0f232775f45feab79864e580d160b",
+            "user_id": "hello",
+            "sampled": null
+        }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
+        let expected_json = r###"{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": null,
+  "environment": null,
+  "transaction": null,
+  "user_id": "hello",
+  "replay_id": null
+}"###;
+
+        assert_eq!(dsc_as_json, expected_json);
     }
 
     #[test]

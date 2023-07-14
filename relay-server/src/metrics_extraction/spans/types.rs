@@ -9,10 +9,6 @@ use crate::metrics_extraction::IntoMetric;
 
 #[derive(Clone, Debug)]
 pub(crate) enum SpanMetric {
-    User {
-        value: String,
-        tags: BTreeMap<SpanTagKey, String>,
-    },
     Duration {
         value: Duration,
         tags: BTreeMap<SpanTagKey, String>,
@@ -32,14 +28,6 @@ impl IntoMetric for SpanMetric {
         let namespace = MetricNamespace::Spans;
 
         match self {
-            SpanMetric::User { value, tags } => Metric::new_mri(
-                namespace,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(&value),
-                timestamp,
-                span_tag_mapping_to_string_mapping(tags),
-            ),
             SpanMetric::Duration { value, tags } => Metric::new_mri(
                 namespace,
                 "duration",
@@ -132,7 +120,7 @@ impl Display for SpanTagKey {
 mod tests {
     use std::collections::BTreeMap;
 
-    use chrono::{TimeZone, Utc};
+    use chrono::{Duration, TimeZone, Utc};
     use relay_common::UnixTimestamp;
 
     use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
@@ -145,23 +133,23 @@ mod tests {
                 .unwrap();
 
         let tags = BTreeMap::from([(SpanTagKey::Release, "1.2.3".to_owned())]);
-        let metric = SpanMetric::User {
-            value: "usertag".to_owned(),
+        let metric = SpanMetric::Duration {
+            value: Duration::seconds(1),
             tags,
         };
         let converted = metric.into_metric(timestamp);
 
-        insta::assert_debug_snapshot!(converted, @r#"
+        insta::assert_debug_snapshot!(converted, @r###"
         Metric {
-            name: "s:spans/user@none",
-            value: Set(
-                1473472266,
+            name: "d:spans/duration@millisecond",
+            value: Distribution(
+                1000.0,
             ),
             timestamp: UnixTimestamp(946684800),
             tags: {
                 "release": "1.2.3",
             },
         }
-        "#);
+        "###);
     }
 }

@@ -147,6 +147,7 @@ def _add_trace_info(
     user_segment=None,
     client_sample_rate=None,
     transaction=None,
+    sampled=None,
 ):
     """
     Adds trace information to an envelope (to the envelope headers)
@@ -166,6 +167,12 @@ def _add_trace_info(
     if client_sample_rate is not None:
         # yes, sdks ought to send this as string and so do we
         trace_info["sample_rate"] = json.dumps(client_sample_rate)
+
+    if transaction is not None:
+        trace_info["transaction"] = transaction
+
+    if sampled is not None:
+        trace_info["sampled"] = sampled
 
 
 def _create_event_envelope(
@@ -225,6 +232,7 @@ def _create_error_envelope(public_key):
         client_sample_rate=1.0,
         transaction="/transaction",
         release="1.0",
+        sampled="true",
     )
     return envelope, event_id
 

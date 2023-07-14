@@ -1379,7 +1379,7 @@ impl Config {
         } else {
             None
         };
-        let mut outcomes = &mut self.values.outcomes;
+        let outcomes = &mut self.values.outcomes;
         if overrides.outcome_source.is_some() {
             outcomes.source = overrides.outcome_source.take();
         }

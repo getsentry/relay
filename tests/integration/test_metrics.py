@@ -1157,7 +1157,7 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 4
+    assert len(span_metrics) == 3
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         assert metric["tags"]["span.description"] == expected_description

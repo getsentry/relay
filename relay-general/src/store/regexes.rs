@@ -51,38 +51,6 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-/// Regex with multiple capture groups for SQL tokens we should scrub.
-///
-/// Slightly modified from
-/// <https://github.com/getsentry/sentry/blob/244b33e44bbbfa0dd680f5a15053e2efaaf6fd65/src/sentry/spans/grouping/strategy/base.py#L132>
-/// <https://github.com/getsentry/sentry/blob/65fb6fdaa0080b824ab71559ce025a9ec6818b3e/src/sentry/spans/grouping/strategy/base.py#L170>
-/// <https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163>
-pub static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r#"(?xi)
-    # Capture parameters in `IN` statements.
-    ((?-x)IN \((?P<in>(%s|\$?\d+|\?)(\s*,\s*(%s|\$?\d+|\?))*)\)) |
-    # Capture `SAVEPOINT` savepoints.
-    ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
-    # Capture single-quoted strings, including the remaining substring if `\'` is found.
-    ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$))) |
-    # Don't capture double-quoted strings (eg used for identifiers in PostgreSQL).
-    # Capture numbers.
-    ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |
-    # Capture booleans (as full tokens, not as substrings of other tokens).
-    ((?-x)(?P<bool>(\b(?:true|false)\b)))
-    "#,
-    )
-    .unwrap()
-});
-
-/// Regex to identify SQL queries that are already normalized.
-///
-/// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
-/// Python, Ruby on Rails and PHP platforms.
-pub static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
-
 /// Captures initial all-caps words as redis command, the rest as arguments.
 pub static REDIS_COMMAND_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"\s*(?P<command>[A-Z]+(\s+[A-Z]+)*\b)(?P<args>.+)?"#).unwrap());
