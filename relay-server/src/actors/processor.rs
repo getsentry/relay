@@ -2248,8 +2248,6 @@ impl EnvelopeProcessorService {
                     if config.is_enabled() {
                         self.compute_sampling_decision(state);
                     }
-                } else {
-                    dbg!("no config");
                 }
             }
 

@@ -916,7 +916,6 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         ],
     }
 
-    # del project_config["config"]["transactionMetrics"]
     upstream = relay(
         mini_sentry,
         {

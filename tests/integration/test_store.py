@@ -424,7 +424,6 @@ def test_processing_quotas(
         }
     ]
 
-    print(projectconfig)
     del projectconfig["config"]["transactionMetrics"]
 
     if event_type == "transaction":
