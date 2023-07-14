@@ -661,6 +661,26 @@
 <a href="#661" id="661">661</a>
 <a href="#662" id="662">662</a>
 <a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -669,8 +689,10 @@
 <span class="kw">use </span>regex::Regex;
 
 <span class="kw">use </span><span class="kw">crate</span>::protocol::Span;
-<span class="kw">use </span><span class="kw">crate</span>::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
-<span class="kw">use </span><span class="kw">crate</span>::store::{scrub_identifiers, scrub_identifiers_with_regex, SpanDescriptionRule};
+<span class="kw">use </span><span class="kw">crate</span>::store::regexes::{
+    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
+};
+<span class="kw">use </span><span class="kw">crate</span>::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
 <span class="doccomment">/// Regex with multiple capture groups for SQL tokens we should scrub.
@@ -714,6 +736,10 @@
 </span><span class="kw">static </span>SQL_ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; =
     Lazy::new(|| Regex::new(<span class="string">r#&quot;/\?|\$1|%s&quot;#</span>).unwrap());
 
+<span class="doccomment">/// Regex used by [`scrub_http`] in addition to [`TRANSACTION_NAME_NORMALIZER_REGEX`].
+</span><span class="kw">static </span>HTTP_SCRUB_ADDITIONAL: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r#&quot;(?i)\b(?P&lt;hex&gt;[0-9a-f][0-9a-f]+)\b&quot;#</span>).unwrap());
+
 <span class="doccomment">/// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
@@ -729,7 +755,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>scrubbed = span.description.clone();
 
     <span class="kw">let </span>did_scrub = <span class="kw">match </span>span.op.value() {
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;http&quot;</span>) =&gt; scrub_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;http&quot;</span>) =&gt; scrub_http(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;cache&quot;</span>) || op == <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_redis_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;db&quot;</span>) &amp;&amp; op != <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;resource&quot;</span>) =&gt; scrub_resource_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
@@ -767,6 +793,13 @@
     query
         .value()
         .map_or(<span class="bool-val">false</span>, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
+}
+
+<span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>scrubbed =
+        scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>TRANSACTION_NAME_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)<span class="question-mark">?</span>;
+    scrubbed |= scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>HTTP_SCRUB_ADDITIONAL, <span class="string">&quot;*&quot;</span>)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(scrubbed)
 }
 
 <span class="kw">fn </span>scrub_redis_keys(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
@@ -984,6 +1017,13 @@
         <span class="string">&quot;GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET /clients/*/project/*&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_hex,
+        <span class="string">&quot;GET /shop/de/f43/beef/3D6/my-beef&quot;</span>,
+        <span class="string">&quot;http.client&quot;</span>,
+        <span class="string">&quot;GET /shop/*/*/*/*/my-*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
