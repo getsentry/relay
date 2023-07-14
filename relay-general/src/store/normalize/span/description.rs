@@ -6,8 +6,10 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::protocol::Span;
-use crate::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
-use crate::store::{scrub_identifiers, scrub_identifiers_with_regex, SpanDescriptionRule};
+use crate::store::regexes::{
+    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
+};
+use crate::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
 use crate::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
 /// Regex with multiple capture groups for SQL tokens we should scrub.
@@ -51,6 +53,10 @@ static SQL_COLLAPSE_REGEX: Lazy<Regex> = Lazy::new(|| {
 static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
 
+/// Regex used by [`scrub_http`] in addition to [`TRANSACTION_NAME_NORMALIZER_REGEX`].
+static HTTP_SCRUB_ADDITIONAL: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?i)\b(?P<hex>[0-9a-f][0-9a-f]+)\b"#).unwrap());
+
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
@@ -66,7 +72,7 @@ pub(crate) fn scrub_span_description(
     let mut scrubbed = span.description.clone();
 
     let did_scrub = match span.op.value() {
-        Some(op) if op.starts_with("http") => scrub_identifiers(&mut scrubbed)?,
+        Some(op) if op.starts_with("http") => scrub_http(&mut scrubbed)?,
         Some(op) if op.starts_with("cache") || op == "db.redis" => scrub_redis_keys(&mut scrubbed)?,
         Some(op) if op.starts_with("db") && op != "db.redis" => scrub_sql_queries(&mut scrubbed)?,
         Some(op) if op.starts_with("resource") => scrub_resource_identifiers(&mut scrubbed)?,
@@ -104,6 +110,13 @@ fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
     query
         .value()
         .map_or(false, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
+}
+
+fn scrub_http(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
+    let mut scrubbed =
+        scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*")?;
+    scrubbed |= scrub_identifiers_with_regex(string, &HTTP_SCRUB_ADDITIONAL, "*")?;
+    Ok(scrubbed)
 }
 
 fn scrub_redis_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
@@ -321,6 +334,13 @@ mod tests {
         "GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234",
         "http.client",
         "GET /clients/*/project/*"
+    );
+
+    span_description_test!(
+        span_description_scrub_hex,
+        "GET /shop/de/f43/beef/3D6/my-beef",
+        "http.client",
+        "GET /shop/*/*/*/*/my-*"
     );
 
     span_description_test!(
