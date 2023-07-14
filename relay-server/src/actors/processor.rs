@@ -2910,7 +2910,7 @@ mod tests {
         let service: EnvelopeProcessorService = create_test_processor(config);
 
         // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
-        let get_state = |version: u16| {
+        let get_state = |version: Option<u16>| {
             let event = Event {
                 id: Annotated::new(EventId::new()),
                 ty: Annotated::new(EventType::Transaction),
@@ -2925,12 +2925,14 @@ mod tests {
                 RuleCondition::all(),
             );
 
-            project_state.config.transaction_metrics =
-                ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
-                    version,
-                    ..Default::default()
-                })
-                .into();
+            if let Some(version) = version {
+                project_state.config.transaction_metrics =
+                    ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
+                        version,
+                        ..Default::default()
+                    })
+                    .into();
+            }
 
             ProcessEnvelopeState {
                 event: Annotated::from(event),
@@ -2952,10 +2954,17 @@ mod tests {
             }
         };
 
-        let mut state = get_state(0);
+        // None represents no TransactionMetricsConfig, DS will not be run
+        let mut state = get_state(None);
         service.run_dynamic_sampling(&mut state);
         assert!(matches!(state.sampling_result, SamplingResult::Keep));
-        let mut state = get_state(1);
+
+        // Current version is 1, so it won't run DS if it's outdated
+        let mut state = get_state(Some(0));
+        service.run_dynamic_sampling(&mut state);
+        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+
+        let mut state = get_state(Some(1));
         service.run_dynamic_sampling(&mut state);
         assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
     }
