@@ -4,7 +4,6 @@ use std::str::FromStr;
 use relay_common::{EventType, UnixTimestamp};
 use relay_general::protocol::Event;
 use relay_general::store::span::tag_extraction::SpanTagKey;
-use relay_general::store::utils::get_eventuser_tag;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 
@@ -66,18 +65,6 @@ pub(crate) fn extract_span_metrics(
                 },
             )
             .collect();
-
-        if let Some(user) = event.user.value() {
-            if let Some(user_tag) = get_eventuser_tag(user) {
-                metrics.push(
-                    SpanMetric::User {
-                        value: user_tag,
-                        tags: span_tags.clone(),
-                    }
-                    .into_metric(timestamp),
-                );
-            }
-        }
 
         if let Some(exclusive_time) = span.exclusive_time.value() {
             // NOTE(iker): this exclusive time doesn't consider all cases,

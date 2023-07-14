@@ -2,17 +2,59 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use once_cell::sync::Lazy;
+use regex::Regex;
+
 use crate::protocol::Span;
-use crate::store::regexes::{
-    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, SQL_ALREADY_NORMALIZED_REGEX,
-    SQL_NORMALIZER_REGEX,
-};
+use crate::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
 use crate::store::{scrub_identifiers, scrub_identifiers_with_regex, SpanDescriptionRule};
 use crate::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
+/// Regex with multiple capture groups for SQL tokens we should scrub.
+///
+/// Slightly modified from
+/// <https://github.com/getsentry/sentry/blob/65fb6fdaa0080b824ab71559ce025a9ec6818b3e/src/sentry/spans/grouping/strategy/base.py#L170>
+/// <https://github.com/getsentry/sentry/blob/17af7efe869007f85c5322e48aa9f80a8515bde4/src/sentry/spans/grouping/strategy/base.py#L163>
+static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        # Capture `SAVEPOINT` savepoints.
+        ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
+        # Capture single-quoted strings, including the remaining substring if `\'` is found.
+        ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$))) |
+        # Capture placeholders.
+        ((?-x)(?P<placeholder>(?:\?+|\$\d+))) |
+        # Capture numbers.
+        ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |
+        # Capture booleans (as full tokens, not as substrings of other tokens).
+        ((?-x)(?P<bool>(\b(?:true|false)\b)))
+        "#,
+    )
+    .unwrap()
+});
+
+/// Regex to make multiple placeholders collapse into one.
+/// This can be used as a second pass after [`SQL_NORMALIZER_REGEX`].
+static SQL_COLLAPSE_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r#"(?xi)
+        (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)?
+        "#,
+    )
+    .unwrap()
+});
+
+/// Regex to identify SQL queries that are already normalized.
+///
+/// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
+/// Python, Ruby on Rails and PHP platforms.
+static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
+
 /// Attempt to replace identifiers in the span description with placeholders.
 ///
-/// The resulting scrubbed description is stored in `data.description.scrubbed`.
+/// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
+/// for the span group hash.
 pub(crate) fn scrub_span_description(
     span: &mut Span,
     rules: &Vec<SpanDescriptionRule>,
@@ -53,6 +95,7 @@ pub(crate) fn scrub_span_description(
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
     let mut mark_as_scrubbed = is_sql_query_scrubbed(string);
     mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")?;
+    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_REGEX, "%s")?;
 
     Ok(mark_as_scrubbed)
 }
@@ -332,6 +375,20 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_scrub_various_parameterized_strings,
+        "select count() from table_1 where name in ('foo', %s, 1)",
+        "db.sql.query",
+        "select count() from table_1 where name in (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_various_parameterized_cutoff,
+        "select count() from table where name in ('foo', 'bar', 'ba",
+        "db.sql.query",
+        "select count() from table where name in (%s"
+    );
+
+    span_description_test!(
         span_description_scrub_mixed,
         "UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true",
         "db.sql.query",
@@ -508,9 +565,9 @@ mod tests {
 
     span_description_test!(
         span_description_scrub_values_multi,
-        "INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
+        "INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
         "db.sql.query",
-        "INSERT INTO a (b, c, d, e) VALUES (%s) ON CONFLICT DO NOTHING"
+        "INSERT INTO a (b, c, d, e) VALuES (%s) ON CONFLICT DO NOTHING"
     );
 
     span_description_test!(
