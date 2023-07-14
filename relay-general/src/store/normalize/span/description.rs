@@ -51,7 +51,7 @@ static SQL_COLLAPSE_REGEX: Lazy<Regex> = Lazy::new(|| {
 static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
 
-/// Attempt to replace identifiers in the span description with placeholders.
+/// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
 /// for the span group hash.
@@ -91,7 +91,7 @@ pub(crate) fn scrub_span_description(
     Ok(())
 }
 
-/// Normalize the given SQL-query-like string.
+/// Normalizes the given SQL-query-like string.
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
     let mut mark_as_scrubbed = is_sql_query_scrubbed(string);
     mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")?;

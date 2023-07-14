@@ -32,6 +32,7 @@ use crate::user_agent::RawUserAgentInfo;
 pub mod breakdowns;
 pub mod span;
 pub mod user_agent;
+pub mod utils;
 
 mod contexts;
 mod logentry;
@@ -731,7 +732,7 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct LightNormalizationConfig<'a> {
     pub client_ip: Option<&'a IpAddr>,
     pub user_agent: RawUserAgentInfo<&'a str>,
@@ -745,10 +746,35 @@ pub struct LightNormalizationConfig<'a> {
     pub transaction_name_config: TransactionNameConfig<'a>,
     pub is_renormalize: bool,
     pub device_class_synthesis_config: bool,
-    pub scrub_span_descriptions: bool,
+    pub enrich_spans: bool,
     pub light_normalize_spans: bool,
+    pub max_tag_value_size: usize, // TODO: move span related fields into separate config.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
     pub geoip_lookup: Option<&'a GeoIpLookup>,
+}
+
+impl Default for LightNormalizationConfig<'_> {
+    fn default() -> Self {
+        Self {
+            client_ip: Default::default(),
+            user_agent: Default::default(),
+            received_at: Default::default(),
+            max_secs_in_past: Default::default(),
+            max_secs_in_future: Default::default(),
+            max_name_and_unit_len: Default::default(),
+            measurements_config: Default::default(),
+            breakdowns_config: Default::default(),
+            normalize_user_agent: Default::default(),
+            transaction_name_config: Default::default(),
+            is_renormalize: Default::default(),
+            device_class_synthesis_config: Default::default(),
+            enrich_spans: Default::default(),
+            light_normalize_spans: Default::default(),
+            max_tag_value_size: usize::MAX,
+            span_description_rules: Default::default(),
+            geoip_lookup: Default::default(),
+        }
+    }
 }
 
 pub fn light_normalize_event(
@@ -766,8 +792,9 @@ pub fn light_normalize_event(
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.scrub_span_descriptions,
+            config.enrich_spans,
             config.span_description_rules,
+            config.max_tag_value_size,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
