@@ -243,18 +243,6 @@ pub(crate) fn extract_span_metrics(
             )
         });
 
-        if let Some(user) = event.user.value() {
-            if let Some(user_tag) = get_eventuser_tag(user) {
-                metrics.push(
-                    SpanMetric::User {
-                        value: user_tag,
-                        tags: span_tags.clone(),
-                    }
-                    .into_metric(timestamp),
-                );
-            }
-        }
-
         if let Some(exclusive_time) = span.exclusive_time.value() {
             // NOTE(iker): this exclusive time doesn't consider all cases,
             // such as sub-transactions. We accept these limitations for
