@@ -65,7 +65,7 @@ fn set_span_exclusive_time(
     span: &mut Annotated<Span>,
     span_map: &HashMap<SpanId, Vec<TimeWindowSpan>>,
 ) {
-    let mut span = match span.value_mut() {
+    let span = match span.value_mut() {
         None => return,
         Some(span) => span,
     };

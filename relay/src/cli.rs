@@ -209,7 +209,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
         } else {
             println!("No credentials");
         }
-    } else if let Some(..) = matches.subcommand_matches("show") {
+    } else if matches.subcommand_matches("show").is_some() {
         if !config.has_credentials() {
             bail!("no stored credentials");
         } else {
