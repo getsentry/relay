@@ -134,7 +134,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
         light_normalize_spans: false,
-        max_tag_value_length: usize::MAX,
+        max_tag_value_size: usize::MAX,
         span_description_rules: None,
         geoip_lookup: None, // only supported in relay
     };

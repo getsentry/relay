@@ -26,7 +26,7 @@ pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
     span_desc_rules: Vec<SpanDescriptionRule>,
     enrich_spans: bool,
-    max_tag_value_length: usize,
+    max_tag_value_size: usize,
 }
 
 impl<'r> TransactionsProcessor<'r> {
@@ -34,12 +34,12 @@ impl<'r> TransactionsProcessor<'r> {
         name_config: TransactionNameConfig<'r>,
         enrich_spans: bool,
         span_description_rules: Option<&Vec<SpanDescriptionRule>>,
-        max_tag_value_length: usize,
+        max_tag_value_size: usize,
     ) -> Self {
         let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
             span_desc_rules.clone()
         } else {
-            Vec::new()
+            vec![]
         };
 
         if enrich_spans && !name_config.rules.is_empty() {
@@ -50,7 +50,7 @@ impl<'r> TransactionsProcessor<'r> {
             name_config,
             span_desc_rules,
             enrich_spans,
-            max_tag_value_length,
+            max_tag_value_size,
         }
     }
 
@@ -421,7 +421,7 @@ impl Processor for TransactionsProcessor<'_> {
             extract_span_tags(
                 event,
                 &tag_extraction::Config {
-                    max_tag_value_length: self.max_tag_value_length,
+                    max_tag_value_size: self.max_tag_value_size,
                 },
             );
         }

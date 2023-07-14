@@ -1,5 +1,6 @@
 //! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
+use std::collections::BTreeMap;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -12,9 +13,6 @@ use crate::store::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
 };
 use crate::types::Annotated;
-// use relay_filter::csp::SchemeDomainPort;
-// use relay_metrics::{AggregatorConfig, Metric};
-use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SpanTagKey {
@@ -71,7 +69,7 @@ derive_fromstr_and_display!(SpanTagKey, (), {
 /// Configuration for span tag extraction.
 pub(crate) struct Config {
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
-    pub max_tag_value_length: usize,
+    pub max_tag_value_size: usize,
 }
 
 /// Extracts tags from event and spans and materializes them into `span.data`.
@@ -80,12 +78,14 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
 
-    let Some(spans) = event
-        .spans
-        .value_mut() else {return};
+    let Some(spans) = event.spans.value_mut() else {
+        return;
+    };
 
     for span in spans {
-        let Some(span) = span.value_mut().as_mut() else {continue};
+        let Some(span) = span.value_mut().as_mut() else {
+            continue;
+        };
 
         let tags = extract_tags(span, config);
 
@@ -100,7 +100,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
     }
 }
 
-/// Extract tags shared by every span.
+/// Extracts tags shared by every span.
 fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     let mut tags = BTreeMap::new();
 
@@ -145,7 +145,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
     tags
 }
 
-/// Write fields into [`Span::data`].
+/// Writes fields into [`Span::data`].
 pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags = BTreeMap::new();
     if let Some(unsanitized_span_op) = span.op.value() {
@@ -255,7 +255,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_length);
+            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
     }
@@ -299,17 +299,17 @@ fn sanitized_span_description(
         return None;
     }
 
-    let mut sanitized = String::new();
+    let (action, space) = match action {
+        Some(s) => (s, " "),
+        None => ("", ""),
+    };
 
-    if let Some(transaction_method) = action {
-        sanitized.push_str(&format!("{transaction_method} "));
-    }
-    if let Some(domain) = domain {
-        sanitized.push_str(&format!("{domain}/"));
-    }
-    sanitized.push_str("<unparameterized>");
+    let (domain, slash) = match domain {
+        Some(s) => (s, "/"),
+        None => ("", ""),
+    };
 
-    Some(sanitized)
+    Some(format!("{action}{space}{domain}{slash}<unparameterized>"))
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens
