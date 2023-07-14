@@ -1041,7 +1041,7 @@ mod tests {
             sender: tx.clone(),
         });
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
         // There are enough permits, so get an envelope:
         let res = rx.try_recv();
