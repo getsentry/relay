@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["__rg_alloc","__rg_alloc_zeroed","__rg_dealloc","__rg_realloc","main"],"mod":["cli","cliapp","setup","utils"],"static":["GLOBAL"]};
+window.SIDEBAR_ITEMS = {"fn":["main"],"mod":["cli","cliapp","setup","utils"],"static":["GLOBAL"]};

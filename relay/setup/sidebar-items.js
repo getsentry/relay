@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_config","dump_credentials","dump_spawn_infos","init_metrics"],"static":["CALLSITE","META"]};
+window.SIDEBAR_ITEMS = {"fn":["check_config","dump_credentials","dump_spawn_infos","init_metrics"]};
