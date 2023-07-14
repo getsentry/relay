@@ -1532,6 +1532,9 @@ expression: event.value().unwrap().spans
             "release": String(
                 "1.2.3",
             ),
+            "span.action": String(
+                "GET",
+            ),
             "span.category": String(
                 "db",
             ),
@@ -1600,6 +1603,9 @@ expression: event.value().unwrap().spans
             "release": String(
                 "1.2.3",
             ),
+            "span.action": String(
+                "GET",
+            ),
             "span.category": String(
                 "db",
             ),
@@ -1667,6 +1673,9 @@ expression: event.value().unwrap().spans
             ),
             "release": String(
                 "1.2.3",
+            ),
+            "span.action": String(
+                "SET",
             ),
             "span.category": String(
                 "db",
