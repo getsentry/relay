@@ -774,8 +774,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
         },
     )
 
-    del project_config["config"]["transactionMetrics"]
-
     _send_event(downstream, event_type="transaction")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
@@ -795,7 +793,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 2,
+        "category": 9,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -918,8 +916,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         ],
     }
 
-    del project_config["config"]["transactionMetrics"]
-
+    # del project_config["config"]["transactionMetrics"]
     upstream = relay(
         mini_sentry,
         {
@@ -953,7 +950,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 2,
+        "category": 9,
         "quantity": 2,
     }
     assert outcome == expected_outcome
@@ -1041,8 +1038,6 @@ def test_graceful_shutdown(relay, mini_sentry):
         ],
     }
 
-    del project_config["config"]["transactionMetrics"]
-
     relay = relay(
         mini_sentry,
         options={
@@ -1083,7 +1078,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 2,
+        "category": 9,
         "quantity": 1,
     }
     assert outcome == expected_outcome
