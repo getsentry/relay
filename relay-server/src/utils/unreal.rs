@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn test_merge_unreal_context_is_assert_level_error() {
         let mut context = get_context();
-        let mut runtime_props = context.runtime_properties.as_mut().unwrap();
+        let runtime_props = context.runtime_properties.as_mut().unwrap();
         runtime_props.is_assert = Some(true);
 
         let mut event = Event::default();
@@ -374,7 +374,7 @@ mod tests {
     #[test]
     fn test_merge_unreal_context_is_esure_level_warning() {
         let mut context = get_context();
-        let mut runtime_props = context.runtime_properties.as_mut().unwrap();
+        let runtime_props = context.runtime_properties.as_mut().unwrap();
         runtime_props.is_ensure = Some(true);
 
         let mut event = Event::default();
