@@ -150,6 +150,9 @@ class Sentry(SentryLike):
                 "sensitiveFields": [],
                 "scrubDefaults": True,
                 "scrubData": True,
+                "transactionMetrics": {
+                    "version": 1,
+                },
                 "groupingConfig": {
                     "id": "legacy:2019-03-12",
                     "enhancements": "eJybzDhxY05qemJypZWRgaGlroGxrqHRBABbEwcC",
