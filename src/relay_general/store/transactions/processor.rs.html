@@ -2627,6 +2627,34 @@
 <a href="#2627" id="2627">2627</a>
 <a href="#2628" id="2628">2628</a>
 <a href="#2629" id="2629">2629</a>
+<a href="#2630" id="2630">2630</a>
+<a href="#2631" id="2631">2631</a>
+<a href="#2632" id="2632">2632</a>
+<a href="#2633" id="2633">2633</a>
+<a href="#2634" id="2634">2634</a>
+<a href="#2635" id="2635">2635</a>
+<a href="#2636" id="2636">2636</a>
+<a href="#2637" id="2637">2637</a>
+<a href="#2638" id="2638">2638</a>
+<a href="#2639" id="2639">2639</a>
+<a href="#2640" id="2640">2640</a>
+<a href="#2641" id="2641">2641</a>
+<a href="#2642" id="2642">2642</a>
+<a href="#2643" id="2643">2643</a>
+<a href="#2644" id="2644">2644</a>
+<a href="#2645" id="2645">2645</a>
+<a href="#2646" id="2646">2646</a>
+<a href="#2647" id="2647">2647</a>
+<a href="#2648" id="2648">2648</a>
+<a href="#2649" id="2649">2649</a>
+<a href="#2650" id="2650">2650</a>
+<a href="#2651" id="2651">2651</a>
+<a href="#2652" id="2652">2652</a>
+<a href="#2653" id="2653">2653</a>
+<a href="#2654" id="2654">2654</a>
+<a href="#2655" id="2655">2655</a>
+<a href="#2656" id="2656">2656</a>
+<a href="#2657" id="2657">2657</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -2638,6 +2666,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
 <span class="kw">use </span><span class="kw">crate</span>::store::normalize::span::description::scrub_span_description;
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
+<span class="kw">use </span><span class="kw">crate</span>::store::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
 <span class="kw">use </span><span class="kw">crate</span>::store::SpanDescriptionRule;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
@@ -2653,29 +2682,32 @@
 </span><span class="kw">pub struct </span>TransactionsProcessor&lt;<span class="lifetime">&#39;r</span>&gt; {
     name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
     span_desc_rules: Vec&lt;SpanDescriptionRule&gt;,
-    scrub_span_descriptions: bool,
+    enrich_spans: bool,
+    max_tag_value_size: usize,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;r</span>&gt; TransactionsProcessor&lt;<span class="lifetime">&#39;r</span>&gt; {
     <span class="kw">pub fn </span>new(
         name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
-        scrub_span_descriptions: bool,
+        enrich_spans: bool,
         span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Vec&lt;SpanDescriptionRule&gt;&gt;,
+        max_tag_value_size: usize,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>span_desc_rules = <span class="kw">if let </span><span class="prelude-val">Some</span>(span_desc_rules) = span_description_rules {
             span_desc_rules.clone()
         } <span class="kw">else </span>{
-            Vec::new()
+            <span class="macro">vec!</span>[]
         };
 
-        <span class="kw">if </span>scrub_span_descriptions &amp;&amp; !name_config.rules.is_empty() {
+        <span class="kw">if </span>enrich_spans &amp;&amp; !name_config.rules.is_empty() {
             span_desc_rules.extend(name_config.rules.iter().map(SpanDescriptionRule::from));
         }
 
         <span class="self">Self </span>{
             name_config,
             span_desc_rules,
-            scrub_span_descriptions,
+            enrich_spans,
+            max_tag_value_size,
         }
     }
 
@@ -3041,6 +3073,16 @@
 
         event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
 
+        <span class="comment">// After processing spans, add span tags:
+        </span><span class="kw">if </span><span class="self">self</span>.enrich_spans {
+            extract_span_tags(
+                event,
+                <span class="kw-2">&amp;</span>tag_extraction::Config {
+                    max_tag_value_size: <span class="self">self</span>.max_tag_value_size,
+                },
+            );
+        }
+
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -3086,7 +3128,7 @@
 
         span.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
 
-        <span class="kw">if </span><span class="self">self</span>.scrub_span_descriptions {
+        <span class="kw">if </span><span class="self">self</span>.enrich_spans {
             scrub_span_description(span, <span class="kw-2">&amp;</span><span class="self">self</span>.span_desc_rules)<span class="question-mark">?</span>;
         }
 
@@ -4003,7 +4045,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig::default(), <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4087,7 +4129,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig::default(), <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4121,7 +4163,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig::default(), <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4278,6 +4320,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4343,6 +4386,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4432,6 +4476,7 @@
             },
             <span class="bool-val">false</span>,
             <span class="prelude-val">None</span>,
+            usize::MAX,
         );
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
@@ -4564,6 +4609,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4632,6 +4678,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4748,7 +4795,12 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] }, <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
+                TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] },
+                <span class="bool-val">false</span>,
+                <span class="prelude-val">None</span>,
+                usize::MAX,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4842,7 +4894,7 @@
 
                 process_value(
                     <span class="kw-2">&amp;mut </span>event,
-                    <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig::default(), <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
+                    <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -4977,6 +5029,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -5023,6 +5076,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -5054,7 +5108,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig::default(), <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -5144,6 +5198,7 @@
                 },
                 <span class="bool-val">true</span>,
                 <span class="prelude-val">None</span>,
+                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -5248,6 +5303,7 @@
                     scope: SpanDescriptionRuleScope::default(),
                     redaction: RedactionRule::default(),
                 }])),
+                usize::MAX,
             ),
             ProcessingState::root(),
         )

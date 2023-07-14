@@ -79,9 +79,9 @@
 <a href="#79" id="79">79</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::EventType;
 <span class="kw">use </span>relay_general::protocol::{Event, TransactionSource};
+<span class="kw">use </span>relay_general::store::utils::extract_http_status_code;
 <span class="kw">use </span>relay_general::types::{Annotated, RemarkType};
 
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::extract_http_status_code;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
 <span class="doccomment">/// Maps the event&#39;s transaction source to a low-cardinality statsd tag.

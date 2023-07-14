@@ -3105,6 +3105,33 @@
 <a href="#3105" id="3105">3105</a>
 <a href="#3106" id="3106">3106</a>
 <a href="#3107" id="3107">3107</a>
+<a href="#3108" id="3108">3108</a>
+<a href="#3109" id="3109">3109</a>
+<a href="#3110" id="3110">3110</a>
+<a href="#3111" id="3111">3111</a>
+<a href="#3112" id="3112">3112</a>
+<a href="#3113" id="3113">3113</a>
+<a href="#3114" id="3114">3114</a>
+<a href="#3115" id="3115">3115</a>
+<a href="#3116" id="3116">3116</a>
+<a href="#3117" id="3117">3117</a>
+<a href="#3118" id="3118">3118</a>
+<a href="#3119" id="3119">3119</a>
+<a href="#3120" id="3120">3120</a>
+<a href="#3121" id="3121">3121</a>
+<a href="#3122" id="3122">3122</a>
+<a href="#3123" id="3123">3123</a>
+<a href="#3124" id="3124">3124</a>
+<a href="#3125" id="3125">3125</a>
+<a href="#3126" id="3126">3126</a>
+<a href="#3127" id="3127">3127</a>
+<a href="#3128" id="3128">3128</a>
+<a href="#3129" id="3129">3129</a>
+<a href="#3130" id="3130">3130</a>
+<a href="#3131" id="3131">3131</a>
+<a href="#3132" id="3132">3132</a>
+<a href="#3133" id="3133">3133</a>
+<a href="#3134" id="3134">3134</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3139,6 +3166,7 @@
 <span class="kw">pub mod </span>breakdowns;
 <span class="kw">pub mod </span>span;
 <span class="kw">pub mod </span>user_agent;
+<span class="kw">pub mod </span>utils;
 
 <span class="kw">mod </span>contexts;
 <span class="kw">mod </span>logentry;
@@ -3838,7 +3866,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Default, Debug)]
+<span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>LightNormalizationConfig&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">pub </span>client_ip: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IpAddr&gt;,
     <span class="kw">pub </span>user_agent: RawUserAgentInfo&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
@@ -3852,10 +3880,35 @@
     <span class="kw">pub </span>transaction_name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;a</span>&gt;,
     <span class="kw">pub </span>is_renormalize: bool,
     <span class="kw">pub </span>device_class_synthesis_config: bool,
-    <span class="kw">pub </span>scrub_span_descriptions: bool,
+    <span class="kw">pub </span>enrich_spans: bool,
     <span class="kw">pub </span>light_normalize_spans: bool,
-    <span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
+    <span class="kw">pub </span>max_tag_value_size: usize, <span class="comment">// TODO: move span related fields into separate config.
+    </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
     <span class="kw">pub </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GeoIpLookup&gt;,
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>LightNormalizationConfig&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            client_ip: Default::default(),
+            user_agent: Default::default(),
+            received_at: Default::default(),
+            max_secs_in_past: Default::default(),
+            max_secs_in_future: Default::default(),
+            max_name_and_unit_len: Default::default(),
+            measurements_config: Default::default(),
+            breakdowns_config: Default::default(),
+            normalize_user_agent: Default::default(),
+            transaction_name_config: Default::default(),
+            is_renormalize: Default::default(),
+            device_class_synthesis_config: Default::default(),
+            enrich_spans: Default::default(),
+            light_normalize_spans: Default::default(),
+            max_tag_value_size: usize::MAX,
+            span_description_rules: Default::default(),
+            geoip_lookup: Default::default(),
+        }
+    }
 }
 
 <span class="kw">pub fn </span>light_normalize_event(
@@ -3873,8 +3926,9 @@
         // can revert some changes to ProcessingAction)
         </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.scrub_span_descriptions,
+            config.enrich_spans,
             config.span_description_rules,
+            config.max_tag_value_size,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 

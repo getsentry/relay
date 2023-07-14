@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["attributes","description"]};
+window.SIDEBAR_ITEMS = {"mod":["attributes","description","tag_extraction"]};

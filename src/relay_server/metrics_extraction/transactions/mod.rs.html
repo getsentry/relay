@@ -1574,12 +1574,12 @@
     CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
     TransactionMeasurementTags, TransactionMetric,
 };
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
-};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{transaction_source_tag, SamplingResult};
+<span class="kw">use </span>relay_general::store::utils::{
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
+};
 
 <span class="kw">pub mod </span>types;
 
@@ -2080,7 +2080,7 @@
             <span class="kw-2">&amp;mut </span>event,
             LightNormalizationConfig {
                 breakdowns_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>breakdowns_config),
-                scrub_span_descriptions: <span class="bool-val">true</span>,
+                enrich_spans: <span class="bool-val">false</span>,
                 light_normalize_spans: <span class="bool-val">true</span>,
                 ..Default::default()
             },

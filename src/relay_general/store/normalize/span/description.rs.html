@@ -714,7 +714,7 @@
 </span><span class="kw">static </span>SQL_ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; =
     Lazy::new(|| Regex::new(<span class="string">r#&quot;/\?|\$1|%s&quot;#</span>).unwrap());
 
-<span class="doccomment">/// Attempt to replace identifiers in the span description with placeholders.
+<span class="doccomment">/// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
 /// for the span group hash.
@@ -754,7 +754,7 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Normalize the given SQL-query-like string.
+<span class="doccomment">/// Normalizes the given SQL-query-like string.
 </span><span class="kw">fn </span>scrub_sql_queries(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>mark_as_scrubbed = is_sql_query_scrubbed(string);
     mark_as_scrubbed |= scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;%s&quot;</span>)<span class="question-mark">?</span>;
