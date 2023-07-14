@@ -518,7 +518,7 @@ mod tests {
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
-                enrich_spans: true,
+                enrich_spans: false,
                 light_normalize_spans: true,
                 ..Default::default()
             },
