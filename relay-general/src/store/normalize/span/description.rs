@@ -18,17 +18,17 @@ use crate::types::{Annotated, ProcessingAction, ProcessingResult, Remark, Remark
 static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
-    # Capture `SAVEPOINT` savepoints.
-    ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
-    # Capture single-quoted strings, including the remaining substring if `\'` is found.
-    ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$))) |
-    # Capture placeholders.
-    ((?-x)(?P<placeholder>(?:\?+|\$\d+))) |
-    # Capture numbers.
-    ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |
-    # Capture booleans (as full tokens, not as substrings of other tokens).
-    ((?-x)(?P<bool>(\b(?:true|false)\b)))
-    "#,
+        # Capture `SAVEPOINT` savepoints.
+        ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
+        # Capture single-quoted strings, including the remaining substring if `\'` is found.
+        ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$))) |
+        # Capture placeholders.
+        ((?-x)(?P<placeholder>(?:\?+|\$\d+))) |
+        # Capture numbers.
+        ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |
+        # Capture booleans (as full tokens, not as substrings of other tokens).
+        ((?-x)(?P<bool>(\b(?:true|false)\b)))
+        "#,
     )
     .unwrap()
 });
@@ -51,7 +51,10 @@ static SQL_COLLAPSE_REGEX: Lazy<Regex> = Lazy::new(|| {
 static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
 
-// TODO: docs
+/// Attempt to replace identifiers in the span description with placeholders.
+///
+/// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
+/// for the span group hash.
 pub(crate) fn scrub_span_description(
     span: &mut Span,
     rules: &Vec<SpanDescriptionRule>,
