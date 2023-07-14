@@ -76,6 +76,8 @@ pub(crate) struct Config {
 
 /// Extracts tags from event and spans and materializes them into `span.data`.
 pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
+    // TODO: To prevent differences between metrics and payloads, we should not extract tags here
+    // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
 
     let Some(spans) = event
