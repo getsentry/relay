@@ -579,6 +579,8 @@ def test_transaction_metrics(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
+    del config["transactionMetrics"]
+
     timestamp = datetime.now(tz=timezone.utc)
 
     if extract_metrics:
@@ -1178,6 +1180,8 @@ def test_generic_metric_extraction(mini_sentry, relay):
             }
         ],
     }
+
+    del config["transactionMetrics"]
 
     transaction = generate_transaction_item()
     timestamp = datetime.now(tz=timezone.utc)

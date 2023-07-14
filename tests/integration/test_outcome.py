@@ -696,6 +696,9 @@ def test_outcomes_rate_limit(
             "reasonCode": reason_code,
         }
     ]
+
+    del project_config["config"]["transactionMetrics"]
+
     outcomes_consumer = outcomes_consumer()
 
     if category == "session":
@@ -770,6 +773,8 @@ def test_outcome_to_client_report(relay, mini_sentry):
             }
         },
     )
+
+    del project_config["config"]["transactionMetrics"]
 
     _send_event(downstream, event_type="transaction")
 
@@ -913,6 +918,8 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         ],
     }
 
+    del project_config["config"]["transactionMetrics"]
+
     upstream = relay(
         mini_sentry,
         {
@@ -1033,6 +1040,8 @@ def test_graceful_shutdown(relay, mini_sentry):
             }
         ],
     }
+
+    del project_config["config"]["transactionMetrics"]
 
     relay = relay(
         mini_sentry,
@@ -1525,6 +1534,7 @@ def test_profile_outcomes_rate_limited(
         "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
     }
 
+    del project_config["transactionMetrics"]
     upstream = relay_with_processing(config)
 
     with open(

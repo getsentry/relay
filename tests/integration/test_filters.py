@@ -243,6 +243,7 @@ def test_ignore_transactions_filters_are_applied(
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     filter_settings = project_config["config"]["filterSettings"]
+    del project_config["config"]["transactionMetrics"]
     if is_enabled:
         filter_settings["ignoreTransactions"] = {
             "patterns": ["health*"],
