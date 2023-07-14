@@ -12,12 +12,12 @@ use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
     TransactionMeasurementTags, TransactionMetric,
 };
-use crate::metrics_extraction::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
-};
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
 use crate::utils::{transaction_source_tag, SamplingResult};
+use relay_general::store::utils::{
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
+};
 
 pub mod types;
 
@@ -518,7 +518,7 @@ mod tests {
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
-                scrub_span_descriptions: true,
+                enrich_spans: false,
                 light_normalize_spans: true,
                 ..Default::default()
             },

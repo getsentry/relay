@@ -2061,7 +2061,7 @@ impl EnvelopeProcessorService {
     ///    transaction events.
     fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // TODO: Make span metrics extraction immutable
-        if let Some(event) = state.event.value_mut() {
+        if let Some(event) = state.event.value() {
             if state.event_metrics_extracted {
                 return Ok(());
             }
@@ -2347,9 +2347,10 @@ impl EnvelopeProcessorService {
                 device_class_synthesis_config: state
                     .project_state
                     .has_feature(Feature::DeviceClassSynthesis),
-                scrub_span_descriptions: state
+                enrich_spans: state
                     .project_state
                     .has_feature(Feature::SpanMetricsExtraction),
+                max_tag_value_size: self.config.aggregator_config().max_tag_value_length,
                 is_renormalize: false,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),

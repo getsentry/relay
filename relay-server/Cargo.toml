@@ -39,7 +39,6 @@ futures = "0.3"
 hashbrown = "0.13.2"
 itertools = "0.10.5"
 json-forensics = { version = "0.1.1" }
-md5 = "0.7.0"
 mime = "0.3.16"
 minidump = { version = "0.15.2", optional = true }
 multer = "2.0.4"
