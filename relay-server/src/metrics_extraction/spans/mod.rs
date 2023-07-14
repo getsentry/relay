@@ -212,7 +212,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd2eb23da2beb459",
@@ -226,7 +226,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "POST http://targetdomain.tld:targetport/api/hi",
+                    "description": "POST http://targetdomain.tld:1234/api/hi",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd2eb23da2beb459",
@@ -240,7 +240,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "POST http://targetdomain:targetport/api/id/0987654321",
+                    "description": "POST http://targetdomain:1234/api/id/0987654321",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
                     "span_id": "bd2eb23da2beb459",
@@ -254,7 +254,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
                     "op": "http.client",
                     "tags": {
                         "http.status_code": "200"
@@ -270,7 +270,7 @@ mod tests {
                     }
                 },
                 {
-                    "description": "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+                    "description": "POST http://sth.subdomain.domain.tld:1234/api/hi",
                     "op": "http.client",
                     "tags": {
                         "http.status_code": "200"

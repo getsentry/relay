@@ -517,7 +517,7 @@ fn span_op_to_category(op: &str) -> Option<&str> {
 fn domain_from_http_url(url: &str) -> Option<String> {
     match url.split_once(' ') {
         Some((_method, url)) => {
-            let url = Url::parse(url);
+            let url = dbg!(Url::parse(dbg!(url)));
             let (domain, port) = match &url {
                 Ok(url) => (url.domain(), url.port()),
                 Err(_) => (None, None),
