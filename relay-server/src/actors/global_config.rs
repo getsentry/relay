@@ -19,11 +19,6 @@ pub enum GlobalConfigMessage {}
 
 impl Interface for GlobalConfigMessage {}
 
-/// Helper type to forward global config updates.
-pub struct UpdateGlobalConfig {
-    global_config: Arc<GlobalConfig>,
-}
-
 /// Service implementing the [`GlobalConfig`] interface.
 ///
 /// The service is responsible to fetch the global config appropriately and
