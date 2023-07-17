@@ -216,15 +216,15 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
-    UpdateGlobalConfig(GlobalConfig),
+    UpdateGlobalConfig(Arc<GlobalConfig>),
 }
 
 impl Interface for ProjectCache {}
 
-impl FromMessage<GlobalConfig> for ProjectCache {
+impl FromMessage<Arc<GlobalConfig>> for ProjectCache {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: GlobalConfig, _: ()) -> Self {
+    fn from_message(message: Arc<GlobalConfig>, _: ()) -> Self {
         Self::UpdateGlobalConfig(message)
     }
 }
@@ -818,8 +818,9 @@ impl ProjectCacheBroker {
         self.buffer.send(spooler::Health(sender))
     }
 
-    fn handle_update_global_config(&mut self, global_config: GlobalConfig) {
-        self.source.global_config = Arc::new(global_config);
+    fn handle_update_global_config(&mut self, global_config: Arc<GlobalConfig>) {
+        self.source.upstream_source.send(global_config.clone());
+        self.source.global_config = global_config;
     }
 
     fn handle_message(&mut self, message: ProjectCache) {

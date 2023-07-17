@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::sync::Arc;
 use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
@@ -43,8 +44,8 @@ impl GlobalConfigService {
             let query = GetGlobalConfig;
 
             if let Ok(Ok(response)) = upstream_relay.send(SendQuery(query)).await {
-                let global_config = response.global;
-                cache.send::<GlobalConfig>(global_config);
+                let global_config = Arc::new(response.global);
+                cache.send::<Arc<GlobalConfig>>(global_config);
             };
         });
     }

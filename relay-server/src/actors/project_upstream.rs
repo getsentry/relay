@@ -11,7 +11,8 @@ use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use relay_statsd::metric;
 use relay_system::{
-    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, NoResponse,
+    Service,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -124,7 +125,10 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
-pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
+pub enum UpstreamProjectSource {
+    FetchProjectState(FetchProjectState, BroadcastSender<Arc<ProjectState>>),
+    FetchGlobalConfig(Arc<GlobalConfig>),
+}
 
 impl Interface for UpstreamProjectSource {}
 
@@ -135,7 +139,15 @@ impl FromMessage<FetchProjectState> for UpstreamProjectSource {
         message: FetchProjectState,
         sender: BroadcastSender<Arc<ProjectState>>,
     ) -> Self {
-        Self(message, sender)
+        Self::FetchProjectState(message, sender)
+    }
+}
+
+impl FromMessage<Arc<GlobalConfig>> for UpstreamProjectSource {
+    type Response = NoResponse;
+
+    fn from_message(message: Arc<GlobalConfig>, _: ()) -> Self {
+        Self::FetchGlobalConfig(message)
     }
 }
 
@@ -428,15 +440,27 @@ impl UpstreamProjectSourceService {
         });
     }
 
-    /// Handles the incoming external messages.
     fn handle_message(&mut self, message: UpstreamProjectSource) {
-        let UpstreamProjectSource(
-            FetchProjectState {
-                project_key,
-                no_cache,
-            },
-            sender,
-        ) = message;
+        match message {
+            UpstreamProjectSource::FetchProjectState(fetch_project_state, sender) => {
+                self.handle_project_source(fetch_project_state, sender)
+            }
+            UpstreamProjectSource::FetchGlobalConfig(global_config) => {
+                self.global_config = global_config;
+            }
+        }
+    }
+
+    /// Handles the incoming external messages.
+    fn handle_project_source(
+        &mut self,
+        fetch_project_state: FetchProjectState,
+        sender: BroadcastSender<Arc<ProjectState>>,
+    ) {
+        let FetchProjectState {
+            project_key,
+            no_cache,
+        } = fetch_project_state;
 
         let query_timeout = self.config.query_timeout();
 
