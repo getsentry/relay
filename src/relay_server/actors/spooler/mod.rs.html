@@ -2231,7 +2231,7 @@
             sender: tx.clone(),
         });
 
-        tokio::time::sleep(Duration::from_millis(<span class="number">500</span>)).<span class="kw">await</span>;
+        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
         <span class="comment">// There are enough permits, so get an envelope:
         </span><span class="kw">let </span>res = rx.try_recv();
