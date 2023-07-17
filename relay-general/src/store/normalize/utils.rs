@@ -1,7 +1,7 @@
-use relay_general::protocol::{Event, ResponseContext, Span, TraceContext, User};
+use crate::protocol::{Event, ResponseContext, Span, TraceContext, User};
 
 /// Extract the HTTP status code from the span data.
-pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
+pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     // For SDKs which put the HTTP status code into the span data.
     if let Some(status_code) = span
         .data
@@ -31,7 +31,7 @@ pub(crate) fn http_status_code_from_span(span: &Span) -> Option<String> {
 }
 
 /// Extracts the HTTP status code.
-pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
+pub fn extract_http_status_code(event: &Event) -> Option<String> {
     // For SDKs which put the HTTP status code in the event tags.
     if let Some(status_code) = event.tag_value("http.status_code") {
         return Some(status_code.to_owned());
@@ -83,7 +83,7 @@ pub(crate) fn extract_http_status_code(event: &Event) -> Option<String> {
 /// column in Discover for Transactions, barring:
 ///
 /// * imprecision caused by HLL sketching in Snuba, which we don't have in events
-/// * hash collisions in [`relay_metrics::MetricValue::set_from_display`], which we don't have in events
+/// * hash collisions in `MetricValue::set_from_display`, which we don't have in events
 /// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
 ///
 ///   MD5 is used to efficiently look up the current event user for an event, and if there is a

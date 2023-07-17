@@ -1,8 +1,8 @@
 use relay_common::EventType;
 use relay_general::protocol::{Event, TransactionSource};
+use relay_general::store::utils::extract_http_status_code;
 use relay_general::types::{Annotated, RemarkType};
 
-use crate::metrics_extraction::utils::extract_http_status_code;
 use crate::statsd::RelayCounters;
 
 /// Maps the event's transaction source to a low-cardinality statsd tag.

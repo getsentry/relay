@@ -29,7 +29,15 @@ expression: event
       "trace_id": "ff62a8b040f340bda5d830223def1d81",
       "status": "ok",
       "data": {
-        "description.scrubbed": "POST http://example.com/remains/*/remains-too/*"
+        "description.scrubbed": "POST http://example.com/remains/*/remains-too/*",
+        "span.category": "http",
+        "span.description": "POST http://example.com/remains/*/remains-too/*",
+        "span.domain": "example.com",
+        "span.group": "70333dac975bc269",
+        "span.module": "http",
+        "span.op": "http.client",
+        "span.status": "ok",
+        "transaction": "/transaction-name/hi"
       }
     },
     {
@@ -42,7 +50,15 @@ expression: event
       "trace_id": "ff62a8b040f340bda5d830223def1d81",
       "status": "ok",
       "data": {
-        "description.scrubbed": "POST http://example.com/remains/*/remains-too/*"
+        "description.scrubbed": "POST http://example.com/remains/*/remains-too/*",
+        "span.category": "http",
+        "span.description": "POST http://example.com/remains/*/remains-too/*",
+        "span.domain": "example.com",
+        "span.group": "70333dac975bc269",
+        "span.module": "http",
+        "span.op": "http.client",
+        "span.status": "ok",
+        "transaction": "/transaction-name/hi"
       }
     },
     {
@@ -54,7 +70,16 @@ expression: event
       "parent_span_id": "8f5a2b8768cafb4e",
       "trace_id": "ff62a8b040f340bda5d830223def1d81",
       "status": "ok",
-      "data": {}
+      "data": {
+        "span.category": "http",
+        "span.description": "example.com/<unparameterized>",
+        "span.domain": "example.com",
+        "span.group": "d1ebe411f493f83e",
+        "span.module": "http",
+        "span.op": "http.client",
+        "span.status": "ok",
+        "transaction": "/transaction-name/hi"
+      }
     },
     {
       "timestamp": 1597976393.471877,
@@ -64,7 +89,14 @@ expression: event
       "span_id": "bd2eb23da2beb452",
       "parent_span_id": "8f5a2b8768cafb4e",
       "trace_id": "ff62a8b040f340bda5d830223def1d81",
-      "status": "ok"
+      "status": "ok",
+      "data": {
+        "span.category": "db",
+        "span.module": "db",
+        "span.op": "db.sql.query",
+        "span.status": "ok",
+        "transaction": "/transaction-name/hi"
+      }
     }
   ],
   "_meta": {
