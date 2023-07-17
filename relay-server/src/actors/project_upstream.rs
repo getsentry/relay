@@ -8,7 +8,7 @@ use futures::future;
 use itertools::Itertools;
 use relay_common::ProjectKey;
 use relay_config::Config;
-use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use relay_statsd::metric;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
@@ -156,6 +156,7 @@ pub struct UpstreamResponse {
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
+    global_config: Arc<GlobalConfig>,
     upstream_relay: Addr<UpstreamRelay>,
     state_channels: ProjectStateChannels,
     inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
@@ -165,7 +166,11 @@ pub struct UpstreamProjectSourceService {
 
 impl UpstreamProjectSourceService {
     /// Creates a new [`UpstreamProjectSourceService`] instance.
-    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        global_config: Arc<GlobalConfig>,
+        upstream_relay: Addr<UpstreamRelay>,
+    ) -> Self {
         let (inner_tx, inner_rx) = mpsc::unbounded_channel();
 
         Self {
@@ -174,6 +179,7 @@ impl UpstreamProjectSourceService {
             fetch_handle: SleepHandle::idle(),
             upstream_relay,
             config,
+            global_config,
             inner_tx,
             inner_rx,
         }
@@ -343,7 +349,7 @@ impl UpstreamProjectSourceService {
                             self.state_channels.insert(key, channel);
                             continue;
                         }
-                        let state = response
+                        let mut state = response
                             .configs
                             .remove(&key)
                             .unwrap_or(ErrorBoundary::Ok(None))
@@ -361,6 +367,7 @@ impl UpstreamProjectSourceService {
                             counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                             result = result,
                         );
+                        state.global_config = self.global_config.clone();
                         channel.send(state.sanitize());
                     }
                 }

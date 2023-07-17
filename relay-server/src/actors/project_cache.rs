@@ -344,15 +344,20 @@ impl ProjectSource {
         _redis: Option<RedisPool>,
     ) -> Self {
         let local_source = LocalProjectSourceService::new(config.clone()).start();
-        let upstream_source =
-            UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
+        let global_config = Arc::new(GlobalConfig::default());
+        let upstream_source = UpstreamProjectSourceService::new(
+            config.clone(),
+            global_config.clone(),
+            upstream_relay,
+        )
+        .start();
 
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         Self {
             config,
-            global_config: Arc::new(GlobalConfig::default()),
+            global_config,
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
@@ -407,12 +412,13 @@ impl ProjectSource {
             }
         };
 
-        let x = FetchProjectState {
-            project_key,
-            no_cache,
-        };
-
-        self.upstream_source.send(x).await.map_err(|_| ())
+        self.upstream_source
+            .send(FetchProjectState {
+                project_key,
+                no_cache,
+            })
+            .await
+            .map_err(|_| ())
     }
 }
 

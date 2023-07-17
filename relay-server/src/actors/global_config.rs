@@ -1,14 +1,10 @@
 use std::borrow::Cow;
-use std::sync::Arc;
 use std::time::Duration;
 
-use hashbrown::HashMap;
-use relay_common::ProjectKey;
 use relay_dynamic_config::GlobalConfig;
-use relay_system::{Addr, FromMessage, Interface, Service};
+use relay_system::{Addr, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
 
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
