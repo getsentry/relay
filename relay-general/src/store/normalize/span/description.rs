@@ -35,12 +35,16 @@ static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
+/// Regex to shorten table or column references, e.g. `"table1"."col1"` -> `col1`.
+static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(?x) ( ("\w+"\.)*("(?P<entity_name>\w+)("|$)) )"#).unwrap());
+
 /// Regex to make multiple placeholders collapse into one.
 /// This can be used as a second pass after [`SQL_NORMALIZER_REGEX`].
-static SQL_COLLAPSE_REGEX: Lazy<Regex> = Lazy::new(|| {
+static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
-        (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)?
+        ( (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)? ) |
         "#,
     )
     .unwrap()
@@ -101,7 +105,16 @@ pub(crate) fn scrub_span_description(
 fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
     let mut mark_as_scrubbed = is_sql_query_scrubbed(string);
     mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")?;
-    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_REGEX, "%s")?;
+    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_PLACEHOLDERS, "%s")?;
+
+    if let Some(s) = string.as_str() {
+        match SQL_COLLAPSE_ENTITIES.replace_all(s, "$entity_name") {
+            Cow::Borrowed(_unchanged) => {
+                dbg!(_unchanged);
+            }
+            Cow::Owned(changed) => string.set_value(dbg!(Some(changed))),
+        };
+    }
 
     Ok(mark_as_scrubbed)
 }
@@ -475,7 +488,21 @@ mod tests {
         span_description_dont_scrub_double_quoted_strings_format_postgres,
         r#"SELECT * from \"table\" WHERE sku = %s"#,
         "db.sql.query",
-        r#"SELECT * from \"table\" WHERE sku = %s"#
+        r#"SELECT * from table WHERE sku = %s"#
+    );
+
+    span_description_test!(
+        span_description_strip_prefixes,
+        r#"SELECT \"table\".\"foo\", \"table\".\"bar\" from \"table\" WHERE sku = %s"#,
+        "db.sql.query",
+        r#"SELECT foo, bar from table WHERE sku = %s"#
+    );
+
+    span_description_test!(
+        span_description_strip_prefixes_truncated,
+        r#"SELECT foo = %s FROM \"db\".\"ba"#,
+        "db.sql.query",
+        r#"SELECT foo = %s FROM ba"#
     );
 
     span_description_test!(
