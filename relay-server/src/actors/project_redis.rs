@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use relay_common::ProjectKey;
 use relay_config::Config;
+use relay_dynamic_config::GlobalConfig;
 use relay_redis::{RedisError, RedisPool};
 use relay_statsd::metric;
 
@@ -21,6 +22,32 @@ pub enum RedisProjectError {
 
     #[error("failed to talk to redis")]
     Redis(#[from] RedisError),
+}
+
+fn parse_global_config_redis_response(
+    raw_response: &[u8],
+) -> Result<GlobalConfig, RedisProjectError> {
+    let decompression_result = metric!(timer(RelayTimers::GlobalConfigDecompression), {
+        zstd::decode_all(raw_response)
+    });
+
+    let decoded_response = match &decompression_result {
+        Ok(decoded) => {
+            metric!(
+                histogram(RelayHistograms::GlobalConfigSizeBytesCompressed) =
+                    raw_response.len() as f64
+            );
+            metric!(
+                histogram(RelayHistograms::GlobalConfigSizeBytesDecompressed) =
+                    decoded.len() as f64
+            );
+            decoded.as_slice()
+        }
+        // If decoding fails, assume uncompressed payload and try again
+        Err(_) => raw_response,
+    };
+
+    Ok(serde_json::from_slice(decoded_response)?)
 }
 
 fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjectError> {
@@ -50,6 +77,33 @@ fn parse_redis_response(raw_response: &[u8]) -> Result<ProjectState, RedisProjec
 impl RedisProjectSource {
     pub fn new(config: Arc<Config>, redis: RedisPool) -> Self {
         RedisProjectSource { config, redis }
+    }
+
+    pub fn get_global_config(&self, key: ProjectKey) -> Result<GlobalConfig, RedisProjectError> {
+        let mut command = relay_redis::redis::cmd("GET");
+
+        let prefix = self.config.projectconfig_cache_prefix();
+        command.arg(format!("{prefix}:{key}"));
+
+        let raw_response_opt: Option<Vec<u8>> = command
+            .query(&mut self.redis.client()?.connection())
+            .map_err(RedisError::Redis)?;
+
+        let response = match raw_response_opt {
+            Some(response) => {
+                metric!(counter(RelayCounters::ProjectStateRedis) += 1, hit = "true");
+                Some(parse_global_config_redis_response(response.as_slice())?)
+            }
+            None => {
+                metric!(
+                    counter(RelayCounters::ProjectStateRedis) += 1,
+                    hit = "false"
+                );
+                None
+            }
+        };
+
+        Ok(response)
     }
 
     pub fn get_config(&self, key: ProjectKey) -> Result<Option<ProjectState>, RedisProjectError> {

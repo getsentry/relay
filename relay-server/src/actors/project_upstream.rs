@@ -58,7 +58,7 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4&global_config=false")
     }
 
     fn priority() -> RequestPriority {
@@ -146,7 +146,7 @@ struct ChannelsBatch {
 }
 
 /// Collected Upstream responses, with associated project state channels.
-struct UpstreamResponse {
+pub struct UpstreamResponse {
     channels_batch: ProjectStateChannels,
     response: Result<GetProjectStatesResponse, UpstreamRequestError>,
 }

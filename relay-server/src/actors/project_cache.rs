@@ -399,13 +399,12 @@ impl ProjectSource {
             }
         };
 
-        self.upstream_source
-            .send(FetchProjectState {
-                project_key,
-                no_cache,
-            })
-            .await
-            .map_err(|_| ())
+        let x = FetchProjectState {
+            project_key,
+            no_cache,
+        };
+
+        self.upstream_source.send(x).await.map_err(|_| ())
     }
 }
 

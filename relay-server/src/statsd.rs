@@ -108,6 +108,12 @@ pub enum RelayHistograms {
     ///
     /// There is no limit to the number of cached projects.
     ProjectStateCacheSize,
+    /// The size of the compressed global project config in the redis cache, in bytes.
+    #[cfg(feature = "processing")]
+    GlobalConfigSizeBytesCompressed,
+    /// The size of the uncompressed project config in the redis cache, in bytes.
+    #[cfg(feature = "processing")]
+    GlobalConfigSizeBytesDecompressed,
     /// The size of the compressed project config in the redis cache, in bytes.
     #[cfg(feature = "processing")]
     ProjectStateSizeBytesCompressed,
@@ -242,6 +248,9 @@ pub enum RelayTimers {
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
     ProjectStateRequestDuration,
+    /// Time in milliseconds required to decompress a global project config from redis.
+    #[cfg(feature = "processing")]
+    GlobalConfigDecompression,
     /// Time in milliseconds required to decompress a project config from redis.
     ///
     /// Note that this also times the cases where project config is uncompressed,
