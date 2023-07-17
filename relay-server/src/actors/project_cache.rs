@@ -1,9 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::sync::Arc;
+use std::time::Duration;
 
+use chrono::serde;
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
+use relay_dynamic_config::GlobalConfig;
+use relay_general::store::MeasurementsConfig;
 use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -215,9 +219,20 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
+    RequestGlobalConfig(RequestGlobalConfig),
 }
 
+struct RequestGlobalConfig;
+
 impl Interface for ProjectCache {}
+
+impl FromMessage<RequestGlobalConfig> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: RequestGlobalConfig, _: ()) -> Self {
+        Self::RequestGlobalConfig(message)
+    }
+}
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -348,7 +363,12 @@ impl ProjectSource {
         }
     }
 
-    async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<Arc<ProjectState>, ()> {
+    async fn fetch(
+        self,
+        project_key: ProjectKey,
+        no_cache: bool,
+        global_config: Arc<GlobalConfig>,
+    ) -> Result<Arc<ProjectState>, ()> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
@@ -374,7 +394,13 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
+                Ok(x) => x
+                    .map(ProjectState::sanitize)
+                    .map(|mut state| {
+                        state.config.merge_with_global(global_config);
+                        state
+                    })
+                    .map(Arc::new),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
@@ -453,6 +479,7 @@ impl Services {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
+    global_config: Arc<GlobalConfig>,
     services: Services,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
@@ -516,6 +543,10 @@ impl ProjectCacheBroker {
                 self.buffer_tx.clone(),
             ))
         }
+    }
+
+    fn request_global_config(&mut self) {
+        self.services.project_cache.send(RequestGlobalConfig);
     }
 
     /// Evict projects that are over its expiry date.
@@ -590,6 +621,12 @@ impl ProjectCacheBroker {
         }
     }
 
+    fn handle_global_config_request(&mut self) {
+        if let Result::<GlobalConfig, ()>::Ok(global_config) = todo!() {
+            self.global_config = Arc::new(global_config);
+        }
+    }
+
     fn handle_request_update(&mut self, message: RequestUpdate) {
         let RequestUpdate {
             project_key,
@@ -610,7 +647,7 @@ impl ProjectCacheBroker {
                 tokio::time::sleep_until(next_attempt).await;
             }
             let state = source
-                .fetch(project_key, no_cache)
+                .fetch(project_key, no_cache, self.global_config.clone())
                 .await
                 .unwrap_or_else(|()| Arc::new(ProjectState::err()));
 
@@ -807,6 +844,7 @@ impl ProjectCacheBroker {
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
+            ProjectCache::RequestGlobalConfig(_request) => self.handle_global_config_request(),
         }
     }
 }
@@ -853,6 +891,7 @@ impl Service for ProjectCacheService {
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
+            let mut global_config_ticker = tokio::time::interval(Duration::from_secs(60));
             relay_log::info!("project cache started");
 
             // Channel for async project state responses back into the project cache.
@@ -885,6 +924,7 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
+                global_config: Arc::new(GlobalConfig::default()),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
@@ -905,6 +945,7 @@ impl Service for ProjectCacheService {
                     // permits in `BufferGuard` available. Currently this is 50%.
                     Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
+                    _ = global_config_ticker.tick() => broker.request_global_config(),
                     Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,
                 }
@@ -1006,6 +1047,7 @@ mod tests {
         (
             ProjectCacheBroker {
                 config: config.clone(),
+                global_config: Arc::new(GlobalConfig::default()),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),

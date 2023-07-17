@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use relay_auth::PublicKey;
+use relay_common::glob_match;
 use relay_filter::FiltersConfig;
 use relay_general::pii::{DataScrubbingConfig, PiiConfig};
 use relay_general::store::{
@@ -15,7 +17,7 @@ use serde_json::Value;
 use crate::metrics::{
     MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::{ErrorBoundary, FeatureSet};
+use crate::{ErrorBoundary, FeatureSet, GlobalConfig};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +106,16 @@ impl Default for ProjectConfig {
             tx_name_ready: false,
             span_description_rules: None,
         }
+    }
+}
+
+impl ProjectConfig {
+    pub fn merge_with_global(&mut self, global_config: Arc<GlobalConfig>) {
+        if self.measurements.is_none() {
+            self.measurements = Some((global_config.measurements).clone())
+        }
+        self.metric_conditional_tagging
+            .extend(global_config.metric_conditional_tagging.clone());
     }
 }
 

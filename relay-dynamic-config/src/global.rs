@@ -11,12 +11,10 @@ use crate::TaggingRule;
 #[serde(default, rename_all = "camelCase")]
 pub struct GlobalConfig {
     /// Project configuration for measurements.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    measurements: Option<MeasurementsConfig>,
+    pub measurements: MeasurementsConfig,
     /// Project configuration for rules for applying metrics tags depending on
     /// the event's content.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    metric_conditional_tagging: Option<Vec<TaggingRule>>,
+    pub metric_conditional_tagging: Vec<TaggingRule>,
 }
 
 #[cfg(test)]
