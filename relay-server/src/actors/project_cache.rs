@@ -216,10 +216,18 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
-    UpdateGlobalConfig(Arc<GlobalConfig>),
+    UpdateGlobalConfig(GlobalConfig),
 }
 
 impl Interface for ProjectCache {}
+
+impl FromMessage<GlobalConfig> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: GlobalConfig, _: ()) -> Self {
+        Self::UpdateGlobalConfig(message)
+    }
+}
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -315,20 +323,13 @@ impl FromMessage<SpoolHealth> for ProjectCache {
     }
 }
 
-impl FromMessage<Arc<GlobalConfig>> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: Arc<GlobalConfig>, _: ()) -> Self {
-        Self::UpdateGlobalConfig(message)
-    }
-}
-
 /// Helper type that contains all configured sources for project cache fetching.
 ///
 /// See [`RequestUpdate`] for a description on how project states are fetched.
 #[derive(Clone, Debug)]
 struct ProjectSource {
     config: Arc<Config>,
+    global_config: Arc<GlobalConfig>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
@@ -351,6 +352,7 @@ impl ProjectSource {
 
         Self {
             config,
+            global_config: Arc::new(GlobalConfig::default()),
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
@@ -384,7 +386,13 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
+                Ok(x) => x
+                    .map(ProjectState::sanitize)
+                    .map(|mut state| {
+                        state.global_config = self.global_config.clone();
+                        state
+                    })
+                    .map(Arc::new),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
@@ -463,7 +471,6 @@ impl Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     services: Services,
-    global_config: Arc<GlobalConfig>,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
     garbage_disposal: GarbageDisposal<Project>,
@@ -805,8 +812,8 @@ impl ProjectCacheBroker {
         self.buffer.send(spooler::Health(sender))
     }
 
-    fn handle_update_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        self.global_config = global_config;
+    fn handle_update_global_config(&mut self, global_config: GlobalConfig) {
+        self.source.global_config = Arc::new(global_config);
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -905,7 +912,6 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
-                global_config: Arc::new(GlobalConfig::default()),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
@@ -1027,7 +1033,6 @@ mod tests {
         (
             ProjectCacheBroker {
                 config: config.clone(),
-                global_config: Arc::new(GlobalConfig::default()),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),

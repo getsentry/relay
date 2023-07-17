@@ -4,7 +4,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{Feature, GlobalConfig, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
@@ -79,6 +79,8 @@ pub struct ProjectState {
     /// The project's current config.
     #[serde(default)]
     pub config: ProjectConfig,
+    #[serde(default)]
+    pub global_config: Arc<GlobalConfig>,
     /// The organization id.
     #[serde(default)]
     pub organization_id: Option<u64>,
@@ -117,6 +119,7 @@ impl ProjectState {
             slug: None,
             config: ProjectConfig::default(),
             organization_id: None,
+            global_config: GlobalConfig::default().into(),
             last_fetch: Instant::now(),
             invalid: false,
         }

@@ -5,15 +5,13 @@ use std::time::Duration;
 use hashbrown::HashMap;
 use relay_common::ProjectKey;
 use relay_dynamic_config::GlobalConfig;
-use relay_system::{Addr, Interface, Service};
+use relay_system::{Addr, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crate::actors::project_cache::ProjectCache;
-use crate::actors::project_redis::RedisProjectSource;
-use crate::actors::project_upstream::UpstreamResponse;
-use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelayService};
+use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 
 // No messages are accepted for now.
 #[derive(Debug)]
@@ -33,47 +31,33 @@ pub struct UpdateGlobalConfig {
 #[derive(Debug)]
 pub struct GlobalConfigService {
     project_cache: Addr<ProjectCache>,
-    upstream: Addr<UpstreamRelayService>,
+    upstream: Addr<UpstreamRelay>,
 }
 
 impl Interface for GetGlobalConfig {}
 
 impl GlobalConfigService {
-    const PATH: &str = "sentry-api-0-relay-projectconfigs?version=4&global=true";
-
-    pub fn new(project_cache: Addr<ProjectCache>) -> Self {
-        GlobalConfigService { project_cache }
+    pub fn new(project_cache: Addr<ProjectCache>, upstream: Addr<UpstreamRelay>) -> Self {
+        Self {
+            project_cache,
+            upstream,
+        }
     }
 
     /// Forwards the given global config to the services that require it.
     fn update_global_config(&mut self) {
-        let upstream_relay: Addr<UpstreamRelayService> = self.upstream.clone();
-        tokio::spawn(async {
+        let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
+        let cache = self.project_cache.clone();
+        tokio::spawn(async move {
             let query = GetGlobalConfig;
-            match upstream_relay.send(SendQuery(query)).await {
-                Ok(response) => {}
-                // If sending of the request to upstream fails:
-                // - drop the current batch of the channels
-                // - report the error, since this is the case we should not have in proper
-                //   workflow
-                // - return `None` to signal that we do not have any response from the Upstream
-                //   and we should ignore this.
-                Err(_err) => {
-                    relay_log::error!("failed to send the request to upstream: channel full");
-                    None
-                }
+
+            if let Ok(Ok(response)) = upstream_relay.send(SendQuery(query)).await {
+                let global_config = response.global;
+                cache.send::<GlobalConfig>(global_config);
             };
         });
     }
 }
-
-/// A query to retrieve a batch of project states from upstream.
-///
-/// This query does not implement `Deserialize`. To parse the query, use a wrapper that skips
-/// invalid project keys instead of failing the entire batch.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetGlobalConfig;
 
 impl Service for GlobalConfigService {
     type Interface = GlobalConfigMessage;
@@ -95,17 +79,16 @@ impl Service for GlobalConfigService {
     }
 }
 
-/// The response of the projects states requests.
-///
-/// A [`ProjectKey`] is either pending or has a result, it can not appear in both and doing
-/// so is undefined.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetGlobalConfig;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfigResponse {
-    global_config: GlobalConfig,
+    global: GlobalConfig,
 }
 
-impl UpstreamQuery for GetGlobalConfigResponse {
+impl UpstreamQuery for GetGlobalConfig {
     type Response = GetGlobalConfigResponse;
 
     fn method(&self) -> Method {

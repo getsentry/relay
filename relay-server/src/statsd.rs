@@ -108,12 +108,6 @@ pub enum RelayHistograms {
     ///
     /// There is no limit to the number of cached projects.
     ProjectStateCacheSize,
-    /// The size of the compressed global project config in the redis cache, in bytes.
-    #[cfg(feature = "processing")]
-    GlobalConfigSizeBytesCompressed,
-    /// The size of the uncompressed project config in the redis cache, in bytes.
-    #[cfg(feature = "processing")]
-    GlobalConfigSizeBytesDecompressed,
     /// The size of the compressed project config in the redis cache, in bytes.
     #[cfg(feature = "processing")]
     ProjectStateSizeBytesCompressed,
@@ -346,6 +340,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
+            #[cfg(feature = "processing")]
+            RelayTimers::GlobalConfigDecompression => "global_config.decompression",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",

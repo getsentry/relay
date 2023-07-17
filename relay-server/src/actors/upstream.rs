@@ -1409,8 +1409,6 @@ impl UpstreamBroker {
     }
 }
 
-impl Interface for UpstreamRelayService {}
-
 /// Implementation of the [`UpstreamRelay`] interface.
 #[derive(Debug)]
 pub struct UpstreamRelayService {
