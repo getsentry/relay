@@ -249,23 +249,55 @@ impl SampleProfile {
     }
 
     fn remove_idle_samples_at_the_edge(&mut self) {
-        if let Some(start) = self.profile.samples.iter().position(|sample| {
-            match self.profile.stacks.get(sample.stack_id) {
-                Some(stack) => !stack.is_empty(),
-                None => false,
-            }
-        }) {
-            self.profile.samples.drain(..start);
-        }
+        // remove leading idle samples per thread
+        let mut active_threads: HashSet<u64> = HashSet::new();
+        self.profile.samples = self
+            .profile
+            .samples
+            .drain(..)
+            .filter(|sample| {
+                if active_threads.contains(&sample.thread_id) {
+                    return true;
+                }
 
-        if let Some(end) = self.profile.samples.iter().rposition(|sample| {
-            match self.profile.stacks.get(sample.stack_id) {
-                Some(stack) => !stack.is_empty(),
-                None => false,
-            }
-        }) {
-            self.profile.samples.truncate(end + 1);
-        }
+                match self.profile.stacks.get(sample.stack_id) {
+                    Some(stack) => match stack.is_empty() {
+                        true => false,
+                        false => {
+                            active_threads.insert(sample.thread_id);
+                            true
+                        }
+                    },
+                    None => false,
+                }
+            })
+            .rev()
+            .collect();
+
+        // remove trailing samples per thread
+        let mut active_threads: HashSet<u64> = HashSet::new();
+        self.profile.samples = self
+            .profile
+            .samples
+            .drain(..)
+            .filter(|sample| {
+                if active_threads.contains(&sample.thread_id) {
+                    return true;
+                }
+
+                match self.profile.stacks.get(sample.stack_id) {
+                    Some(stack) => match stack.is_empty() {
+                        true => false,
+                        false => {
+                            active_threads.insert(sample.thread_id);
+                            true
+                        }
+                    },
+                    None => false,
+                }
+            })
+            .rev()
+            .collect();
     }
 
     fn cleanup_thread_metadata(&mut self) {
@@ -724,6 +756,18 @@ mod tests {
         profile.profile.stacks = vec![vec![0], vec![]];
         profile.profile.samples = vec![
             Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 2,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 50,
+                thread_id: 2,
+            },
+            Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
                 elapsed_since_start_ns: 10,
@@ -771,36 +815,37 @@ mod tests {
                 elapsed_since_start_ns: 90,
                 thread_id: 1,
             },
-        ];
-
-        profile.remove_idle_samples_at_the_edge();
-
-        assert_eq!(profile.profile.samples.len(), 3);
-
-        profile.profile.samples = vec![
             Sample {
-                stack_id: 0,
+                stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 40,
-                thread_id: 1,
+                elapsed_since_start_ns: 90,
+                thread_id: 3,
             },
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 50,
-                thread_id: 1,
+                elapsed_since_start_ns: 90,
+                thread_id: 3,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
                 elapsed_since_start_ns: 60,
-                thread_id: 1,
+                thread_id: 2,
             },
         ];
 
         profile.remove_idle_samples_at_the_edge();
 
-        assert_eq!(profile.profile.samples.len(), 3);
+        let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
+
+        for sample in &profile.profile.samples {
+            *sample_count_by_thread_id
+                .entry(sample.thread_id)
+                .or_default() += 1;
+        }
+
+        assert_eq!(sample_count_by_thread_id, HashMap::from([(1, 3), (2, 3),]));
     }
 
     #[test]
