@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Filter idle samples at the edge per thread. ([#2321](https://github.com/getsentry/relay/pull/2321))
+
 **Internal**:
 
 - Add support for `sampled` field in the DSC and error tagging. ([#2290](https://github.com/getsentry/relay/pull/2290))
