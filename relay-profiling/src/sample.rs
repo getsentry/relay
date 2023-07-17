@@ -13,6 +13,12 @@ use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
+#[derive(Debug)]
+struct Range {
+    start: usize,
+    end: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -249,54 +255,38 @@ impl SampleProfile {
     }
 
     fn remove_idle_samples_at_the_edge(&mut self) {
-        // remove leading idle samples per thread
-        let mut active_threads: HashSet<u64> = HashSet::new();
+        let mut active_ranges: HashMap<u64, Range> = HashMap::new();
+
+        for (i, sample) in self.profile.samples.iter().enumerate() {
+            let is_active = match self.profile.stacks.get(sample.stack_id) {
+                Some(stack) => !stack.is_empty(),
+                None => true,
+            };
+
+            if !is_active {
+                continue;
+            }
+
+            if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
+                range.end = i;
+            } else {
+                active_ranges.insert(sample.thread_id, Range { start: i, end: i });
+            }
+        }
+
         self.profile.samples = self
             .profile
             .samples
             .drain(..)
-            .filter(|sample| {
-                if active_threads.contains(&sample.thread_id) {
-                    return true;
-                }
-
-                match self.profile.stacks.get(sample.stack_id) {
-                    Some(stack) => match stack.is_empty() {
-                        true => false,
-                        false => {
-                            active_threads.insert(sample.thread_id);
-                            true
-                        }
-                    },
-                    None => false,
+            .enumerate()
+            .filter(|(i, sample)| {
+                if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
+                    range.start <= *i && *i <= range.end
+                } else {
+                    false
                 }
             })
-            .rev()
-            .collect();
-
-        // remove trailing samples per thread
-        let mut active_threads: HashSet<u64> = HashSet::new();
-        self.profile.samples = self
-            .profile
-            .samples
-            .drain(..)
-            .filter(|sample| {
-                if active_threads.contains(&sample.thread_id) {
-                    return true;
-                }
-
-                match self.profile.stacks.get(sample.stack_id) {
-                    Some(stack) => match stack.is_empty() {
-                        true => false,
-                        false => {
-                            active_threads.insert(sample.thread_id);
-                            true
-                        }
-                    },
-                    None => false,
-                }
-            })
-            .rev()
+            .map(|(_, sample)| sample)
             .collect();
     }
 
