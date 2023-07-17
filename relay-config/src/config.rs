@@ -1220,6 +1220,8 @@ struct ConfigValues {
     #[serde(default)]
     aggregator: AggregatorConfig,
     #[serde(default)]
+    secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    #[serde(default)]
     auth: AuthConfig,
     #[serde(default)]
     aws: AwsConfig,
