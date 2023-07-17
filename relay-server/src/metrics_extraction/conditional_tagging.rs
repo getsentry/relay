@@ -2,7 +2,11 @@ use relay_dynamic_config::TaggingRule;
 use relay_general::protocol::Event;
 use relay_metrics::Metric;
 
-pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &mut [Metric]) {
+pub fn run_conditional_tagging<'a>(
+    event: &Event,
+    config: impl Iterator<Item = &'a TaggingRule>,
+    metrics: &mut [Metric],
+) {
     for rule in config {
         if !rule.condition.supported()
             || rule.target_metrics.is_empty()
@@ -57,7 +61,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let event: Annotated<Event> = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![
             Metric {
@@ -100,7 +104,7 @@ mod tests {
         )
         .unwrap();
 
-        run_conditional_tagging(event.value().unwrap(), &tagging_config, &mut metrics);
+        run_conditional_tagging(event.value().unwrap(), tagging_config.iter(), &mut metrics);
 
         insta::assert_debug_snapshot!(metrics, @r###"
         [
@@ -140,7 +144,7 @@ mod tests {
         }
         "#;
 
-        let event = Annotated::from_json(json).unwrap();
+        let event: Annotated<Event> = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![Metric {
             name: "d:transactions/measurements.lcp@millisecond".to_owned(),
@@ -175,7 +179,7 @@ mod tests {
         )
         .unwrap();
 
-        run_conditional_tagging(event.value().unwrap(), &tagging_config, &mut metrics);
+        run_conditional_tagging(event.value().unwrap(), tagging_config.iter(), &mut metrics);
 
         let mut expected_tags = BTreeMap::new();
         expected_tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
