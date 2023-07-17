@@ -1,18 +1,18 @@
 format_version: 10
 pipelines:
-  rollback-relay-next:
+  rollback-relay:
     display_order: 1
     environment_variables:
-      ALL_PIPELINE_FLAGS: --pipeline="deploy-relay-next-monitor" --pipeline="deploy-relay-next-us" --pipeline="deploy-relay-next"
+      ALL_PIPELINE_FLAGS: --pipeline="deploy-relay-monitor" --pipeline="deploy-relay-us" --pipeline="deploy-relay"
       GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}'
-      REGION_PIPELINE_FLAGS: --pipeline="deploy-relay-next-monitor" --pipeline="deploy-relay-next-us"
+      REGION_PIPELINE_FLAGS: --pipeline="deploy-relay-monitor" --pipeline="deploy-relay-us"
       ROLLBACK_MATERIAL_NAME: relay_repo
       ROLLBACK_STAGE: deploy-production
-    group: relay-next
+    group: relay
     lock_behavior: unlockWhenFinished
     materials:
-      deploy-relay-next-us-pipeline-complete:
-        pipeline: deploy-relay-next-us
+      deploy-relay-us-pipeline-complete:
+        pipeline: deploy-relay-us
         stage: pipeline-complete
     stages:
       - pause_pipelines:
