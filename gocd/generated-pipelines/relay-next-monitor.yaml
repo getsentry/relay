@@ -7,8 +7,8 @@ pipelines:
     group: relay-next
     lock_behavior: unlockWhenFinished
     materials:
-      deploy-relay-next-us-pipeline-complete:
-        pipeline: deploy-relay-next-us
+      deploy-relay-next-pipeline-complete:
+        pipeline: deploy-relay-next
         stage: pipeline-complete
       relay_repo:
         branch: master
