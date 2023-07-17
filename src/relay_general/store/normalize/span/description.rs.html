@@ -681,6 +681,13 @@
 <a href="#681" id="681">681</a>
 <a href="#682" id="682">682</a>
 <a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -706,11 +713,11 @@
         # Capture `SAVEPOINT` savepoints.
         ((?-x)SAVEPOINT (?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
         # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
-        ((?-x)(?P&lt;single_quoted_strs&gt;&#39;(?:\\&#39;|[^&#39;])*(?:&#39;|$))) |
+        ((?-x)(?P&lt;single_quoted_strs&gt;&#39;(?:\\&#39;|[^&#39;])*(?:&#39;|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
-        ((?-x)(?P&lt;placeholder&gt;(?:\?+|\$\d+))) |
+        (   (?P&lt;placeholder&gt; (?:\?+|\$\d+|%s) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
-        ((?-x)(?P&lt;number&gt;(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b))) |
+        ((?-x)(?P&lt;number&gt;(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P&lt;bool&gt;(\b(?:true|false)\b)))
         &quot;#</span>,
@@ -1271,6 +1278,13 @@
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALuES (%s) ON CONFLICT DO NOTHING&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_type_casts,
+        <span class="string">&quot;INSERT INTO a (b, c, d) VALUES (&#39;foo&#39;::date, 123::bigint[], %s::bigint[])&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;INSERT INTO a (b, c, d) VALUES (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
