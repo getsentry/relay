@@ -391,129 +391,30 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
 /// Returns the category of a span from its operation. The mapping is available in:
 /// <https://develop.sentry.dev/sdk/performance/span-operations/>
 fn span_op_to_category(op: &str) -> Option<&str> {
-    let category =
-        // General
-        if op.starts_with("mark") {
-            "mark"
-        }
-        //
-        // Browser
-        // `ui*` mapped in JS frameworks
-        else if op.starts_with("pageload") {
-            "pageload"
-        } else if op.starts_with("navigation") {
-            "navigation"
-        } else if op.starts_with("resource") {
-            "resource"
-        } else if op.starts_with("browser") {
-            "browser"
-        } else if op.starts_with("measure") {
-            "measure"
-        } else if op.starts_with("http") {
-            "http"
-        } else if op.starts_with("serialize") {
-            "serialize"
-        }
-        //
-        // JS frameworks
-        else if op.starts_with("ui") {
-            if op.starts_with("ui.react") {
-                "ui.react"
-            } else if op.starts_with("ui.vue") {
-                "ui.vue"
-            } else if op.starts_with("ui.svelte") {
-                "ui.svelte"
-            } else if op.starts_with("ui.angular") {
-                "ui.angular"
-            } else if op.starts_with("ui.ember") {
-                "ui.ember"
-            } else {
-                "ui"
-            }
-        }
-        //
-        // Web server
-        // `http*` mapped in Browser
-        // `serialize*` mapped in Browser
-        else if op.starts_with("websocket") {
-            "websocket"
-        } else if op.starts_with("rpc") {
-            "rpc"
-        } else if op.starts_with("grpc") {
-            "grpc"
-        } else if op.starts_with("graphql") {
-            "graphql"
-        } else if op.starts_with("subprocess") {
-            "subprocess"
-        } else if op.starts_with("middleware") {
-            "middleware"
-        } else if op.starts_with("view") {
-            "view"
-        } else if op.starts_with("template") {
-            "template"
-        } else if op.starts_with("event") {
-            "event"
-        } else if op.starts_with("function") {
-            if op.starts_with("function.nextjs") {
-                "function.nextjs"
-            } else if op.starts_with("function.remix") {
-                "function.remix"
-            } else if op.starts_with("function.gpc") {
-                "function.grpc"
-            } else if op.starts_with("function.aws") {
-                "function.aws"
-            } else if op.starts_with("function.azure") {
-                "function.azure"
-            } else {
-                "function"
-            }
-        } else if op.starts_with("console") {
-            "console"
-        } else if op.starts_with("file") {
-            "file"
-        } else if op.starts_with("app") {
-            "app"
-        }
-        //
-        // Database
-        else if op.starts_with("db") {
-            "db"
-        } else if op.starts_with("cache") {
-            "cache"
-        }
-        //
-        // Serverless
-        // `http*` marked in Browser
-        // `grpc*` marked in Web server
-        // `function*` marked in Web server
-        //
-        // Mobile
-        // `app*` marked in Web server
-        // `ui*` marked in Browser
-        // `navigation*` marked in Browser
-        // `file*` marked in Web server
-        // `serialize*` marked in Web server
-        // `http*` marked in Browser
-
-        // Desktop
-        // `app*` marked in Web server
-        // `ui*` marked in Browser
-        // `serialize*` marked in Web server
-        // `http*` marked in Browser
-
-        // Messages / queues
-        else if op.starts_with("topic") {
-            "topic"
-        } else if op.starts_with("queue") {
-            "queue"
-        }
-        //
-        // Unknown
-        else {
-            return None;
-        };
-
-    Some(category)
+    let mut it = op.split('.'); // e.g. "ui.react.render"
+    match (it.next(), it.next()) {
+        // Known categories with prefixes:
+        (
+            Some(prefix @ "ui"),
+            Some(category @ ("react" | "vue" | "svelte" | "angular" | "ember")),
+        )
+        | (
+            Some(prefix @ "function"),
+            Some(category @ ("nextjs" | "remix" | "gpc" | "aws" | "azure")),
+        ) => op.get(..prefix.len() + 1 + category.len()),
+        // Main categories (only keep first part):
+        (
+            category @ Some(
+                "app" | "browser" | "cache" | "console" | "db" | "event" | "file" | "graphql"
+                | "grpc" | "http" | "measure" | "middleware" | "navigation" | "pageload" | "queue"
+                | "resource" | "rpc" | "serialize" | "subprocess" | "template" | "topic" | "view"
+                | "websocket",
+            ),
+            _,
+        ) => category,
+        // Map everything else to unknown:
+        _ => None,
+    }
 }
 
 fn domain_from_http_url(url: &str) -> Option<String> {
