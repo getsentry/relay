@@ -219,20 +219,9 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
-    RequestGlobalConfig(RequestGlobalConfig),
 }
-
-struct RequestGlobalConfig;
 
 impl Interface for ProjectCache {}
-
-impl FromMessage<RequestGlobalConfig> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: RequestGlobalConfig, _: ()) -> Self {
-        Self::RequestGlobalConfig(message)
-    }
-}
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -486,6 +475,7 @@ struct ProjectCacheBroker {
     garbage_disposal: GarbageDisposal<Project>,
     source: ProjectSource,
     state_tx: mpsc::UnboundedSender<UpdateProjectState>,
+    global_tx: mpsc::UnboundedSender<GlobalConfig>,
     buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
     buffer_guard: Arc<BufferGuard>,
     /// Index of the buffered project keys.
@@ -546,7 +536,9 @@ impl ProjectCacheBroker {
     }
 
     fn request_global_config(&mut self) {
-        self.services.project_cache.send(RequestGlobalConfig);
+        // some tokio spawn block here
+        let global_config = todo!();
+        self.global_tx.send(global_config);
     }
 
     /// Evict projects that are over its expiry date.
@@ -621,10 +613,8 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn handle_global_config_request(&mut self) {
-        if let Result::<GlobalConfig, ()>::Ok(global_config) = todo!() {
-            self.global_config = Arc::new(global_config);
-        }
+    fn handle_new_global_config(&mut self, global_config: GlobalConfig) {
+        self.global_config = Arc::new(global_config);
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -638,7 +628,7 @@ impl ProjectCacheBroker {
         project.refresh_updated_timestamp();
         let next_attempt = project.next_fetch_attempt();
 
-        let source = self.source.clone();
+        let source: ProjectSource = self.source.clone();
         let sender = self.state_tx.clone();
 
         tokio::spawn(async move {
@@ -844,7 +834,6 @@ impl ProjectCacheBroker {
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
-            ProjectCache::RequestGlobalConfig(_request) => self.handle_global_config_request(),
         }
     }
 }
@@ -896,6 +885,7 @@ impl Service for ProjectCacheService {
 
             // Channel for async project state responses back into the project cache.
             let (state_tx, mut state_rx) = mpsc::unbounded_channel();
+            let (global_tx, mut global_rx) = mpsc::unbounded_channel();
 
             // Channel for envelope buffering.
             let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
@@ -929,6 +919,7 @@ impl Service for ProjectCacheService {
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
                 services,
+                global_tx,
                 state_tx,
                 buffer_tx,
                 buffer_guard,
@@ -941,6 +932,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Some(message) = state_rx.recv() => broker.merge_state(message),
+                    Some(message) = global_rx.recv() => broker.handle_new_global_config(message),
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
                     Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
@@ -1012,6 +1004,7 @@ mod tests {
         buffer_guard: Arc<BufferGuard>,
         state_tx: mpsc::UnboundedSender<UpdateProjectState>,
         buffer_tx: mpsc::UnboundedSender<ManagedEnvelope>,
+        global_tx: mpsc::UnboundedSender<GlobalConfig>,
     ) -> (ProjectCacheBroker, Addr<Buffer>) {
         let config: Arc<_> = Config::from_json_value(serde_json::json!({
             "spool": {
@@ -1053,6 +1046,7 @@ mod tests {
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),
                 services,
                 state_tx,
+                global_tx,
                 buffer_tx,
                 buffer_guard,
                 index: BTreeMap::new(),
