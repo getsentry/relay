@@ -352,12 +352,7 @@ impl ProjectSource {
         }
     }
 
-    async fn fetch(
-        self,
-        project_key: ProjectKey,
-        no_cache: bool,
-        global_config: Arc<GlobalConfig>,
-    ) -> Result<Arc<ProjectState>, ()> {
+    async fn fetch(self, project_key: ProjectKey, no_cache: bool) -> Result<Arc<ProjectState>, ()> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
@@ -383,13 +378,7 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(x) => x
-                    .map(ProjectState::sanitize)
-                    .map(|mut state| {
-                        state.config.merge_with_global(global_config);
-                        state
-                    })
-                    .map(Arc::new),
+                Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
@@ -636,8 +625,9 @@ impl ProjectCacheBroker {
             if let Some(next_attempt) = next_attempt {
                 tokio::time::sleep_until(next_attempt).await;
             }
+
             let state = source
-                .fetch(project_key, no_cache, self.global_config.clone())
+                .fetch(project_key, no_cache)
                 .await
                 .unwrap_or_else(|()| Arc::new(ProjectState::err()));
 
