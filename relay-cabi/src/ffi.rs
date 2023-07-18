@@ -40,7 +40,7 @@ impl RelayErrorCode {
     /// This maps all errors that can possibly happen.
     pub fn from_error(error: &anyhow::Error) -> RelayErrorCode {
         for cause in error.chain() {
-            if let Some(..) = cause.downcast_ref::<Panic>() {
+            if cause.downcast_ref::<Panic>().is_some() {
                 return RelayErrorCode::Panic;
             }
             if cause.downcast_ref::<serde_json::Error>().is_some() {

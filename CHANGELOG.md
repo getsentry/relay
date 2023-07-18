@@ -1,5 +1,12 @@
 # Changelog
 
+## 23.7.0
+
+**Internal**:
+
+- Add support for `sampled` field in the DSC and error tagging. ([#2290](https://github.com/getsentry/relay/pull/2290))
+- Move span tag extraction from metrics to normalization. ([#2304](https://github.com/getsentry/relay/pull/2304))
+
 ## 23.6.2
 
 **Features**:

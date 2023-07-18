@@ -1,6 +1,7 @@
 # Rust
 **/*.rs.bk
 target
+*.pending-snap
 
 # Python
 .venv/

@@ -242,8 +242,88 @@ expression: event.value().unwrap().spans
             "span.description": String(
                 "POST http://*/api/hi",
             ),
+            "span.group": String(
+                "d4d247da245a955d",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.status_code": String(
+                "200",
+            ),
+            "status_code": String(
+                "200",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "POST http://sth.subdomain.domain.tld:1234/api/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd2eb23da2beb459",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: ~,
+        origin: ~,
+        data: {
+            "description.scrubbed": String(
+                "POST http://*/api/hi",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "PoSt",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "POST",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.description": String(
+                "POST http://*/api/hi",
+            ),
             "span.domain": String(
-                "127.0.0.1:1234",
+                "*.domain.tld:1234",
             ),
             "span.group": String(
                 "d4d247da245a955d",
@@ -286,167 +366,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
-        op: "http.client",
-        span_id: SpanId(
-            "bd2eb23da2beb459",
-        ),
-        parent_span_id: SpanId(
-            "8f5a2b8768cafb4e",
-        ),
-        trace_id: TraceId(
-            "ff62a8b040f340bda5d830223def1d81",
-        ),
-        status: Ok,
-        tags: ~,
-        origin: ~,
-        data: {
-            "environment": String(
-                "fake_environment",
-            ),
-            "http.method": String(
-                "PoSt",
-            ),
-            "http.status_code": String(
-                "500",
-            ),
-            "release": String(
-                "1.2.3",
-            ),
-            "span.action": String(
-                "POST",
-            ),
-            "span.category": String(
-                "http",
-            ),
-            "span.description": String(
-                "POST *.domain.tld:targetport/<unparameterized>",
-            ),
-            "span.domain": String(
-                "*.domain.tld:targetport",
-            ),
-            "span.group": String(
-                "b996518ca64bc885",
-            ),
-            "span.module": String(
-                "http",
-            ),
-            "span.op": String(
-                "http.client",
-            ),
-            "span.status": String(
-                "ok",
-            ),
-            "span.status_code": String(
-                "200",
-            ),
-            "status_code": String(
-                "200",
-            ),
-            "transaction": String(
-                "gEt /api/:version/users/",
-            ),
-            "transaction.method": String(
-                "POST",
-            ),
-            "transaction.op": String(
-                "myop",
-            ),
-            "user": String(
-                "id:user123",
-            ),
-        },
-        other: {},
-    },
-    Span {
-        timestamp: Timestamp(
-            2020-08-21T02:18:22Z,
-        ),
-        start_timestamp: Timestamp(
-            2020-08-21T02:18:20Z,
-        ),
-        exclusive_time: 2000.0,
-        description: "POST http://targetdomain.tld:targetport/api/hi",
-        op: "http.client",
-        span_id: SpanId(
-            "bd2eb23da2beb459",
-        ),
-        parent_span_id: SpanId(
-            "8f5a2b8768cafb4e",
-        ),
-        trace_id: TraceId(
-            "ff62a8b040f340bda5d830223def1d81",
-        ),
-        status: Ok,
-        tags: ~,
-        origin: ~,
-        data: {
-            "environment": String(
-                "fake_environment",
-            ),
-            "http.method": String(
-                "POST",
-            ),
-            "http.status_code": String(
-                "500",
-            ),
-            "release": String(
-                "1.2.3",
-            ),
-            "span.action": String(
-                "POST",
-            ),
-            "span.category": String(
-                "http",
-            ),
-            "span.description": String(
-                "POST targetdomain.tld:targetport/<unparameterized>",
-            ),
-            "span.domain": String(
-                "targetdomain.tld:targetport",
-            ),
-            "span.group": String(
-                "554e17b498f0131d",
-            ),
-            "span.module": String(
-                "http",
-            ),
-            "span.op": String(
-                "http.client",
-            ),
-            "span.status": String(
-                "ok",
-            ),
-            "span.status_code": String(
-                "200",
-            ),
-            "status_code": String(
-                "200",
-            ),
-            "transaction": String(
-                "gEt /api/:version/users/",
-            ),
-            "transaction.method": String(
-                "POST",
-            ),
-            "transaction.op": String(
-                "myop",
-            ),
-            "user": String(
-                "id:user123",
-            ),
-        },
-        other: {},
-    },
-    Span {
-        timestamp: Timestamp(
-            2020-08-21T02:18:22Z,
-        ),
-        start_timestamp: Timestamp(
-            2020-08-21T02:18:20Z,
-        ),
-        exclusive_time: 2000.0,
-        description: "POST http://targetdomain:targetport/api/id/0987654321",
+        description: "POST http://targetdomain.tld:1234/api/hi",
         op: "http.client",
         span_id: SpanId(
             "bd2eb23da2beb459",
@@ -462,7 +382,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "POST http://targetdomain:targetport/api/id/*",
+                "POST http://*/api/hi",
             ),
             "environment": String(
                 "fake_environment",
@@ -483,13 +403,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST http://targetdomain:targetport/api/id/*",
+                "POST http://*/api/hi",
             ),
             "span.domain": String(
-                "targetdomain:targetport",
+                "targetdomain.tld:1234",
             ),
             "span.group": String(
-                "ca77233e5cdb864b",
+                "d4d247da245a955d",
             ),
             "span.module": String(
                 "http",
@@ -529,7 +449,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+        description: "POST http://targetdomain:1234/api/id/0987654321",
         op: "http.client",
         span_id: SpanId(
             "bd2eb23da2beb459",
@@ -541,13 +461,12 @@ expression: event.value().unwrap().spans
             "ff62a8b040f340bda5d830223def1d81",
         ),
         status: Ok,
-        tags: {
-            "http.status_code": JsonLenientString(
-                "200",
-            ),
-        },
+        tags: ~,
         origin: ~,
         data: {
+            "description.scrubbed": String(
+                "POST http://*/api/id/*",
+            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -567,13 +486,100 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST *.domain.tld:targetport/<unparameterized>",
+                "POST http://*/api/id/*",
             ),
             "span.domain": String(
-                "*.domain.tld:targetport",
+                "targetdomain:1234",
             ),
             "span.group": String(
-                "b996518ca64bc885",
+                "89bd708971c05313",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "span.status": String(
+                "ok",
+            ),
+            "span.status_code": String(
+                "200",
+            ),
+            "status_code": String(
+                "200",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "POST http://sth.subdomain.domain.tld:1234/api/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd2eb23da2beb459",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: Ok,
+        tags: {
+            "http.status_code": JsonLenientString(
+                "200",
+            ),
+        },
+        origin: ~,
+        data: {
+            "description.scrubbed": String(
+                "POST http://*/api/hi",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.method": String(
+                "POST",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "POST",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.description": String(
+                "POST http://*/api/hi",
+            ),
+            "span.domain": String(
+                "*.domain.tld:1234",
+            ),
+            "span.group": String(
+                "d4d247da245a955d",
             ),
             "span.module": String(
                 "http",
@@ -610,7 +616,7 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
-        description: "POST http://sth.subdomain.domain.tld:targetport/api/hi",
+        description: "POST http://sth.subdomain.domain.tld:1234/api/hi",
         op: "http.client",
         span_id: SpanId(
             "bd2eb23da2beb459",
@@ -629,6 +635,9 @@ expression: event.value().unwrap().spans
         },
         origin: ~,
         data: {
+            "description.scrubbed": String(
+                "POST http://*/api/hi",
+            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -648,13 +657,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST *.domain.tld:targetport/<unparameterized>",
+                "POST http://*/api/hi",
             ),
             "span.domain": String(
-                "*.domain.tld:targetport",
+                "*.domain.tld:1234",
             ),
             "span.group": String(
-                "b996518ca64bc885",
+                "d4d247da245a955d",
             ),
             "span.module": String(
                 "http",
@@ -1160,7 +1169,7 @@ expression: event.value().unwrap().spans
                 "MyDatabase",
             ),
             "description.scrubbed": String(
-                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+                "SELECT col FROM table WHERE col = %s",
             ),
             "environment": String(
                 "fake_environment",
@@ -1178,13 +1187,13 @@ expression: event.value().unwrap().spans
                 "db",
             ),
             "span.description": String(
-                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s",
+                "SELECT col FROM table WHERE col = %s",
             ),
             "span.domain": String(
                 "table",
             ),
             "span.group": String(
-                "74f357d6eeea41b8",
+                "e0f7e81a59b030ba",
             ),
             "span.module": String(
                 "db",
@@ -1324,6 +1333,9 @@ expression: event.value().unwrap().spans
             ),
             "span.category": String(
                 "db",
+            ),
+            "span.domain": String(
+                "table",
             ),
             "span.module": String(
                 "db",
@@ -1532,6 +1544,9 @@ expression: event.value().unwrap().spans
             "release": String(
                 "1.2.3",
             ),
+            "span.action": String(
+                "GET",
+            ),
             "span.category": String(
                 "db",
             ),
@@ -1600,6 +1615,9 @@ expression: event.value().unwrap().spans
             "release": String(
                 "1.2.3",
             ),
+            "span.action": String(
+                "GET",
+            ),
             "span.category": String(
                 "db",
             ),
@@ -1667,6 +1685,9 @@ expression: event.value().unwrap().spans
             ),
             "release": String(
                 "1.2.3",
+            ),
+            "span.action": String(
+                "SET",
             ),
             "span.category": String(
                 "db",
