@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
+use url::Url;
 
 use crate::macros::derive_fromstr_and_display;
 use crate::protocol::{Event, Span, TraceContext};
@@ -217,9 +218,19 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         }
 
         let domain = if span_op == "http.client" {
+            // HACK: Parse the normalized description to get the normalized domain.
             scrubbed_description
                 .and_then(|d| d.split_once(' '))
-                .map(|(_, d)| d.to_lowercase())
+                .and_then(|(_, d)| Url::parse(d).ok())
+                .and_then(|url| {
+                    url.domain().map(|d| {
+                        let mut domain = d.to_lowercase();
+                        if let Some(port) = url.port() {
+                            domain = format!("{domain}:{port}");
+                        }
+                        domain
+                    })
+                })
         } else if span_op.starts_with("db") {
             span.description
                 .value()
@@ -235,24 +246,17 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             }
         }
 
-        let sanitized_description = sanitized_span_description(
-            scrubbed_description,
-            span_module,
-            action.as_deref(),
-            domain.as_deref(),
-        );
-
-        if let Some(scrubbed_desc) = sanitized_description {
+        if let Some(scrubbed_desc) = scrubbed_description {
             // Truncating the span description's tag value is, for now,
             // a temporary solution to not get large descriptions dropped. The
             // group tag mustn't be affected by this, and still be
             // computed from the full, untruncated description.
 
-            let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
+            let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
     }
@@ -275,38 +279,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
     }
 
     span_tags
-}
-
-/// Returns the sanitized span description.
-///
-/// If a scrub description is provided, that's returned. If not, a new
-/// description is built for `http*` modules with the following format:
-/// `{action} {domain}/<unparameterized>`.
-fn sanitized_span_description(
-    scrubbed_description: Option<&str>,
-    module: Option<&str>,
-    action: Option<&str>,
-    domain: Option<&str>,
-) -> Option<String> {
-    if let Some(scrubbed) = scrubbed_description {
-        return Some(scrubbed.to_owned());
-    }
-
-    if !module?.starts_with("http") {
-        return None;
-    }
-
-    let (action, space) = match action {
-        Some(s) => (s, " "),
-        None => ("", ""),
-    };
-
-    let (domain, slash) = match domain {
-        Some(s) => (s, "/"),
-        None => ("", ""),
-    };
-
-    Some(format!("{action}{space}{domain}{slash}<unparameterized>"))
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens

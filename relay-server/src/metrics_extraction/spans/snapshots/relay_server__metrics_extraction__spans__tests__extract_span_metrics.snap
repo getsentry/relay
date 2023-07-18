@@ -79,6 +79,9 @@ expression: event.value().unwrap().spans
         tags: ~,
         origin: ~,
         data: {
+            "description.scrubbed": String(
+                "GET http://domain.tld",
+            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -98,13 +101,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "GET domain.tld/<unparameterized>",
+                "GET http://domain.tld",
             ),
             "span.domain": String(
                 "domain.tld",
             ),
             "span.group": String(
-                "acf25aaa6550d863",
+                "d9dc18637d441612",
             ),
             "span.module": String(
                 "http",
@@ -168,12 +171,6 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "http",
             ),
-            "span.description": String(
-                "GET <unparameterized>",
-            ),
-            "span.group": String(
-                "90a40ce658beb0dd",
-            ),
             "span.module": String(
                 "http",
             ),
@@ -218,9 +215,6 @@ expression: event.value().unwrap().spans
         tags: ~,
         origin: ~,
         data: {
-            "description.scrubbed": String(
-                "POST http://*/api/hi",
-            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -238,12 +232,6 @@ expression: event.value().unwrap().spans
             ),
             "span.category": String(
                 "http",
-            ),
-            "span.description": String(
-                "POST http://*/api/hi",
-            ),
-            "span.group": String(
-                "d4d247da245a955d",
             ),
             "span.module": String(
                 "http",
@@ -299,7 +287,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "POST http://*/api/hi",
+                "POST http://*.domain.tld:1234",
             ),
             "environment": String(
                 "fake_environment",
@@ -320,13 +308,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST http://*/api/hi",
+                "POST http://*.domain.tld:1234",
             ),
             "span.domain": String(
                 "*.domain.tld:1234",
             ),
             "span.group": String(
-                "d4d247da245a955d",
+                "86818d1c74ecfc66",
             ),
             "span.module": String(
                 "http",
@@ -382,7 +370,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "POST http://*/api/hi",
+                "POST http://targetdomain.tld:1234",
             ),
             "environment": String(
                 "fake_environment",
@@ -403,13 +391,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST http://*/api/hi",
+                "POST http://targetdomain.tld:1234",
             ),
             "span.domain": String(
                 "targetdomain.tld:1234",
             ),
             "span.group": String(
-                "d4d247da245a955d",
+                "72ab88b506cb04b2",
             ),
             "span.module": String(
                 "http",
@@ -465,7 +453,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "POST http://*/api/id/*",
+                "POST http://targetdomain:1234",
             ),
             "environment": String(
                 "fake_environment",
@@ -486,13 +474,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST http://*/api/id/*",
+                "POST http://targetdomain:1234",
             ),
             "span.domain": String(
                 "targetdomain:1234",
             ),
             "span.group": String(
-                "89bd708971c05313",
+                "c8e531abe96ff360",
             ),
             "span.module": String(
                 "http",
@@ -552,7 +540,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "POST http://*/api/hi",
+                "POST http://*.domain.tld:1234",
             ),
             "environment": String(
                 "fake_environment",
@@ -573,13 +561,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST http://*/api/hi",
+                "POST http://*.domain.tld:1234",
             ),
             "span.domain": String(
                 "*.domain.tld:1234",
             ),
             "span.group": String(
-                "d4d247da245a955d",
+                "86818d1c74ecfc66",
             ),
             "span.module": String(
                 "http",
@@ -636,7 +624,7 @@ expression: event.value().unwrap().spans
         origin: ~,
         data: {
             "description.scrubbed": String(
-                "POST http://*/api/hi",
+                "POST http://*.domain.tld:1234",
             ),
             "environment": String(
                 "fake_environment",
@@ -657,13 +645,13 @@ expression: event.value().unwrap().spans
                 "http",
             ),
             "span.description": String(
-                "POST http://*/api/hi",
+                "POST http://*.domain.tld:1234",
             ),
             "span.domain": String(
                 "*.domain.tld:1234",
             ),
             "span.group": String(
-                "d4d247da245a955d",
+                "86818d1c74ecfc66",
             ),
             "span.module": String(
                 "http",
