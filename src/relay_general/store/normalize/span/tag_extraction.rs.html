@@ -864,8 +864,8 @@
 }
 
 <span class="doccomment">/// Regex with a capture group to extract the HTTP method from a string.
-</span><span class="kw">static </span>HTTP_METHOD_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)^(?P&lt;method&gt;(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\s&quot;#</span>)
+</span><span class="kw">pub static </span>HTTP_METHOD_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    Regex::new(<span class="string">r#&quot;(?i)^(?P&lt;method&gt;(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b&quot;#</span>)
         .unwrap()
 });
 

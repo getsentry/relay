@@ -751,6 +751,18 @@
 <a href="#751" id="751">751</a>
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -762,6 +774,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::protocol::Span;
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
+<span class="kw">use </span><span class="kw">crate</span>::store::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 <span class="kw">use </span><span class="kw">crate</span>::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
@@ -875,12 +888,23 @@
 
 <span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;mut </span>String) -&gt; bool {
     <span class="kw">let </span><span class="prelude-val">Some</span>((method, url)) = string.split_once(<span class="string">&#39; &#39;</span>) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-    <span class="kw">let </span><span class="prelude-val">Ok</span>(url) = Url::parse(url) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-    <span class="kw">let </span><span class="prelude-val">Some</span>(domain) = url.domain() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-    <span class="kw">let </span><span class="prelude-val">Some</span>(domain) = normalize_domain(domain, url.port()) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-    <span class="kw">let </span>scheme = url.scheme();
+    <span class="kw">if </span>!HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    };
 
-    <span class="kw-2">*</span>string = <span class="macro">format!</span>(<span class="string">&quot;{method} {scheme}://{domain}&quot;</span>);
+    <span class="kw-2">*</span>string = <span class="kw">match </span>Url::parse(url) {
+        <span class="prelude-val">Ok</span>(url) =&gt; {
+            <span class="kw">let </span><span class="prelude-val">Some</span>(host) = url.host().map(|h|h.to_string()) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+            <span class="kw">let </span><span class="prelude-val">Some</span>(domain) = normalize_domain(host.as_str(), url.port()) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+            <span class="kw">let </span>scheme = url.scheme();
+
+            <span class="macro">format!</span>(<span class="string">&quot;{method} {scheme}://{domain}&quot;</span>)
+        }
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+            <span class="macro">format!</span>(<span class="string">&quot;{method} *&quot;</span>)
+        }
+    };
+
     <span class="bool-val">true
 </span>}
 
@@ -1128,28 +1152,28 @@
         span_description_scrub_path_md5_hashes,
         <span class="string">&quot;GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_sha_hashes,
         <span class="string">&quot;GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_hex,
         <span class="string">&quot;GET /shop/de/f43/beef/3D6/my-beef&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_uuids,
         <span class="string">&quot;GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="comment">// TODO(iker): Add span description test for URLs with paths
