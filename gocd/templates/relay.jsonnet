@@ -18,6 +18,7 @@ local pipedream_config = {
   rollback: {
     material_name: 'relay_repo',
     stage: 'deploy-production',
+    elastic_profile_id: 'relay',
   },
 };
 
