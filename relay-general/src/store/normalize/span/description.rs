@@ -114,7 +114,7 @@ fn scrub_http(string: &mut String) -> bool {
     let Some((method, url)) = string.split_once(' ') else { return false };
     let Ok(url) = Url::parse(url) else { return false };
     let Some(domain) = url.domain() else { return false };
-    let Some(domain) = normalize_domain(domain, url.port()) else { return false};
+    let Some(domain) = normalize_domain(domain, url.port()) else { return false };
     let scheme = url.scheme();
 
     *string = format!("{method} {scheme}://{domain}");
