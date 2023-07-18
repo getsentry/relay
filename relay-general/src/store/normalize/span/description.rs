@@ -9,6 +9,7 @@ use url::Url;
 
 use crate::protocol::Span;
 use crate::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
+use crate::store::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
 use crate::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
@@ -122,12 +123,23 @@ fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
 
 fn scrub_http(string: &mut String) -> bool {
     let Some((method, url)) = string.split_once(' ') else { return false };
-    let Ok(url) = Url::parse(url) else { return false };
-    let Some(domain) = url.domain() else { return false };
-    let Some(domain) = normalize_domain(domain, url.port()) else { return false };
-    let scheme = url.scheme();
+    if !HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
+        return false;
+    };
 
-    *string = format!("{method} {scheme}://{domain}");
+    *string = match Url::parse(url) {
+        Ok(url) => {
+            let Some(host) = url.host().map(|h|h.to_string()) else { return false };
+            let Some(domain) = normalize_domain(host.as_str(), url.port()) else { return false };
+            let scheme = url.scheme();
+
+            format!("{method} {scheme}://{domain}")
+        }
+        Err(_) => {
+            format!("{method} *")
+        }
+    };
+
     true
 }
 
@@ -375,28 +387,28 @@ mod tests {
         span_description_scrub_path_md5_hashes,
         "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
         "http.client",
-        ""
+        "GET *"
     );
 
     span_description_test!(
         span_description_scrub_path_sha_hashes,
         "GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234",
         "http.client",
-        ""
+        "GET *"
     );
 
     span_description_test!(
         span_description_scrub_hex,
         "GET /shop/de/f43/beef/3D6/my-beef",
         "http.client",
-        ""
+        "GET *"
     );
 
     span_description_test!(
         span_description_scrub_path_uuids,
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
         "http.client",
-        ""
+        "GET *"
     );
 
     // TODO(iker): Add span description test for URLs with paths

@@ -153,6 +153,9 @@ expression: event.value().unwrap().spans
         tags: ~,
         origin: ~,
         data: {
+            "description.scrubbed": String(
+                "GET *",
+            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -170,6 +173,12 @@ expression: event.value().unwrap().spans
             ),
             "span.category": String(
                 "http",
+            ),
+            "span.description": String(
+                "GET *",
+            ),
+            "span.group": String(
+                "37e3d9fab1ae9162",
             ),
             "span.module": String(
                 "http",
@@ -215,6 +224,9 @@ expression: event.value().unwrap().spans
         tags: ~,
         origin: ~,
         data: {
+            "description.scrubbed": String(
+                "POST http://127.0.0.1:1234",
+            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -232,6 +244,12 @@ expression: event.value().unwrap().spans
             ),
             "span.category": String(
                 "http",
+            ),
+            "span.description": String(
+                "POST http://127.0.0.1:1234",
+            ),
+            "span.group": String(
+                "464fe695f9cf639c",
             ),
             "span.module": String(
                 "http",
