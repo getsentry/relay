@@ -592,6 +592,30 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -943,9 +967,9 @@
 }
 
 <span class="doccomment">/// Regex with a capture group to extract the table from a database query,
-/// based on `FROM` and `INTO` keywords.
+/// based on `FROM`, `INTO` and `UPDATE` keywords.
 </span><span class="kw">static </span>SQL_TABLE_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)(from|into)(\s|&quot;|&#39;|\()+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|&quot;|&#39;|\))+&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r#&quot;(?i)(from|into|update)(\s|&quot;|&#39;|\()+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|&quot;|&#39;|\))+&quot;#</span>).unwrap()
 });
 
 <span class="doccomment">/// Returns the table in the SQL query, if any.
@@ -1185,5 +1209,29 @@
         <span class="string">&quot;post&quot;</span>,
         <span class="string">&quot;POST&quot;
     </span>);
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>extract_table_select() {
+        <span class="kw">let </span>query = <span class="string">r#&quot;SELECT * FROM &quot;a.b&quot; WHERE &quot;x&quot; = 1&quot;#</span>;
+        <span class="macro">assert_eq!</span>(sql_table_from_query(query).unwrap(), <span class="string">&quot;a.b&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>extract_table_delete() {
+        <span class="kw">let </span>query = <span class="string">r#&quot;DELETE FROM &quot;a.b&quot; WHERE &quot;x&quot; = 1&quot;#</span>;
+        <span class="macro">assert_eq!</span>(sql_table_from_query(query).unwrap(), <span class="string">&quot;a.b&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>extract_table_insert() {
+        <span class="kw">let </span>query = <span class="string">r#&quot;INSERT INTO &quot;a&quot; (&quot;x&quot;, &quot;y&quot;) VALUES (%s, %s)&quot;#</span>;
+        <span class="macro">assert_eq!</span>(sql_table_from_query(query).unwrap(), <span class="string">&quot;a&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>extract_table_update() {
+        <span class="kw">let </span>query = <span class="string">r#&quot;UPDATE &quot;a&quot; SET &quot;x&quot; = %s, &quot;y&quot; = %s WHERE &quot;z&quot; = %s&quot;#</span>;
+        <span class="macro">assert_eq!</span>(sql_table_from_query(query).unwrap(), <span class="string">&quot;a&quot;</span>);
+    }
 }
 </code></pre></div></section></main></body></html>
