@@ -2,13 +2,13 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use url::Url;
 
 use crate::protocol::Span;
-use crate::store::regexes::{
-    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
-};
+use crate::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
 use crate::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
 use crate::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
@@ -53,10 +53,6 @@ static SQL_COLLAPSE_REGEX: Lazy<Regex> = Lazy::new(|| {
 static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
 
-/// Regex used by [`scrub_http`] in addition to [`TRANSACTION_NAME_NORMALIZER_REGEX`].
-static HTTP_SCRUB_ADDITIONAL: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)\b(?P<hex>[0-9a-f][0-9a-f]+)\b"#).unwrap());
-
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
@@ -72,7 +68,9 @@ pub(crate) fn scrub_span_description(
     let mut scrubbed = span.description.clone();
 
     let did_scrub = match span.op.value() {
-        Some(op) if op.starts_with("http") => scrub_http(&mut scrubbed)?,
+        Some(op) if op.starts_with("http") => {
+            scrubbed.value_mut().as_mut().map_or(false, scrub_http)
+        }
         Some(op) if op.starts_with("cache") || op == "db.redis" => scrub_redis_keys(&mut scrubbed)?,
         Some(op) if op.starts_with("db") && op != "db.redis" => scrub_sql_queries(&mut scrubbed)?,
         Some(op) if op.starts_with("resource") => scrub_resource_identifiers(&mut scrubbed)?,
@@ -112,11 +110,51 @@ fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
         .map_or(false, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
 }
 
-fn scrub_http(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    let mut scrubbed =
-        scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*")?;
-    scrubbed |= scrub_identifiers_with_regex(string, &HTTP_SCRUB_ADDITIONAL, "*")?;
-    Ok(scrubbed)
+fn scrub_http(string: &mut String) -> bool {
+    let Some((method, url)) = string.split_once(' ') else { return false };
+    let Ok(url) = Url::parse(url) else { return false };
+    let Some(domain) = url.domain() else { return false };
+    let Some(domain) = normalize_domain(domain, url.port()) else { return false};
+
+    *string = format!("{method} {domain}");
+    true
+}
+
+fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
+    if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
+        return Some(allow_listed);
+    }
+
+    let mut tokens = domain.rsplitn(3, '.');
+    let tld = tokens.next();
+    let domain = tokens.next();
+    let prefix = tokens.next().map(|_| "*");
+
+    let mut replaced = prefix
+        .iter()
+        .chain(domain.iter())
+        .chain(tld.iter())
+        .join(".");
+
+    if let Some(port) = port {
+        replaced = format!("{replaced}:{port}");
+    }
+
+    if replaced.is_empty() {
+        return None;
+    }
+    Some(replaced)
+}
+
+/// Allow list of domains to not get subdomains scrubbed.
+const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
+
+fn normalized_domain_from_allowlist(domain: &str, port: Option<u16>) -> Option<String> {
+    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
+        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
+        return Some(with_port);
+    }
+    None
 }
 
 fn scrub_redis_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
