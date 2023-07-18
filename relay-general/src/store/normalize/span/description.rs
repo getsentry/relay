@@ -108,12 +108,9 @@ fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingA
     mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_PLACEHOLDERS, "%s")?;
 
     if let Some(s) = string.as_str() {
-        match SQL_COLLAPSE_ENTITIES.replace_all(s, "$entity_name") {
-            Cow::Borrowed(_unchanged) => {
-                dbg!(_unchanged);
-            }
-            Cow::Owned(changed) => string.set_value(dbg!(Some(changed))),
-        };
+        if let Cow::Owned(changed) = SQL_COLLAPSE_ENTITIES.replace_all(s, "$entity_name") {
+            string.set_value(Some(changed));
+        }
     }
 
     Ok(mark_as_scrubbed)
