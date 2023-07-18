@@ -1334,6 +1334,9 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "db",
             ),
+            "span.domain": String(
+                "table",
+            ),
             "span.module": String(
                 "db",
             ),
