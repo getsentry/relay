@@ -61,7 +61,7 @@ mod tests {
         }
         "#;
 
-        let event: Annotated<Event> = Annotated::from_json(json).unwrap();
+        let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![
             Metric {
@@ -144,7 +144,7 @@ mod tests {
         }
         "#;
 
-        let event: Annotated<Event> = Annotated::from_json(json).unwrap();
+        let event = Annotated::from_json(json).unwrap();
 
         let mut metrics = vec![Metric {
             name: "d:transactions/measurements.lcp@millisecond".to_owned(),

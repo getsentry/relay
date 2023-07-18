@@ -391,7 +391,7 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(x) => x
+                Ok(state) => state
                     .map(ProjectState::sanitize)
                     .map(|mut state| {
                         state.global_config = self.global_config.clone();

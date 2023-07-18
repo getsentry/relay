@@ -39,13 +39,13 @@ impl GlobalConfigService {
     /// Forwards the given global config to the services that require it.
     fn update_global_config(&mut self) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
-        let cache = self.project_cache.clone();
+        let project_cache = self.project_cache.clone();
         tokio::spawn(async move {
             let query = GetGlobalConfig;
 
             if let Ok(Ok(response)) = upstream_relay.send(SendQuery(query)).await {
                 let global_config = Arc::new(response.global);
-                cache.send::<Arc<GlobalConfig>>(global_config);
+                project_cache.send::<Arc<GlobalConfig>>(global_config);
             };
         });
     }
