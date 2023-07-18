@@ -712,17 +712,56 @@
 <a href="#712" id="712">712</a>
 <a href="#713" id="713">713</a>
 <a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>url::Url;
 
 <span class="kw">use </span><span class="kw">crate</span>::protocol::Span;
-<span class="kw">use </span><span class="kw">crate</span>::store::regexes::{
-    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX, TRANSACTION_NAME_NORMALIZER_REGEX,
-};
+<span class="kw">use </span><span class="kw">crate</span>::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
 <span class="kw">use </span><span class="kw">crate</span>::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
 
@@ -771,10 +810,6 @@
 </span><span class="kw">static </span>SQL_ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; =
     Lazy::new(|| Regex::new(<span class="string">r#&quot;/\?|\$1|%s&quot;#</span>).unwrap());
 
-<span class="doccomment">/// Regex used by [`scrub_http`] in addition to [`TRANSACTION_NAME_NORMALIZER_REGEX`].
-</span><span class="kw">static </span>HTTP_SCRUB_ADDITIONAL: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r#&quot;(?i)\b(?P&lt;hex&gt;[0-9a-f][0-9a-f]+)\b&quot;#</span>).unwrap());
-
 <span class="doccomment">/// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
@@ -790,7 +825,9 @@
     <span class="kw">let </span><span class="kw-2">mut </span>scrubbed = span.description.clone();
 
     <span class="kw">let </span>did_scrub = <span class="kw">match </span>span.op.value() {
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;http&quot;</span>) =&gt; scrub_http(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
+        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;http&quot;</span>) =&gt; {
+            scrubbed.value_mut().as_mut().map_or(<span class="bool-val">false</span>, scrub_http)
+        }
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;cache&quot;</span>) || op == <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_redis_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;db&quot;</span>) &amp;&amp; op != <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
         <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;resource&quot;</span>) =&gt; scrub_resource_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
@@ -836,12 +873,53 @@
         .map_or(<span class="bool-val">false</span>, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
 }
 
-<span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>scrubbed =
-        scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>TRANSACTION_NAME_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)<span class="question-mark">?</span>;
-    scrubbed |= scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>HTTP_SCRUB_ADDITIONAL, <span class="string">&quot;*&quot;</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(scrubbed)
+<span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;mut </span>String) -&gt; bool {
+    <span class="kw">let </span><span class="prelude-val">Some</span>((method, url)) = string.split_once(<span class="string">&#39; &#39;</span>) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+    <span class="kw">let </span><span class="prelude-val">Ok</span>(url) = Url::parse(url) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+    <span class="kw">let </span><span class="prelude-val">Some</span>(domain) = url.domain() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+    <span class="kw">let </span><span class="prelude-val">Some</span>(domain) = normalize_domain(domain, url.port()) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+    <span class="kw">let </span>scheme = url.scheme();
+
+    <span class="kw-2">*</span>string = <span class="macro">format!</span>(<span class="string">&quot;{method} {scheme}://{domain}&quot;</span>);
+    <span class="bool-val">true
+</span>}
+
+<span class="kw">fn </span>normalize_domain(domain: <span class="kw-2">&amp;</span>str, port: <span class="prelude-ty">Option</span>&lt;u16&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(allow_listed) = normalized_domain_from_allowlist(domain, port) {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(allow_listed);
+    }
+
+    <span class="kw">let </span><span class="kw-2">mut </span>tokens = domain.rsplitn(<span class="number">3</span>, <span class="string">&#39;.&#39;</span>);
+    <span class="kw">let </span>tld = tokens.next();
+    <span class="kw">let </span>domain = tokens.next();
+    <span class="kw">let </span>prefix = tokens.next().map(|<span class="kw">_</span>| <span class="string">&quot;*&quot;</span>);
+
+    <span class="kw">let </span><span class="kw-2">mut </span>replaced = prefix
+        .iter()
+        .chain(domain.iter())
+        .chain(tld.iter())
+        .join(<span class="string">&quot;.&quot;</span>);
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = port {
+        replaced = <span class="macro">format!</span>(<span class="string">&quot;{replaced}:{port}&quot;</span>);
+    }
+
+    <span class="kw">if </span>replaced.is_empty() {
+        <span class="kw">return </span><span class="prelude-val">None</span>;
+    }
+    <span class="prelude-val">Some</span>(replaced)
 }
+
+<span class="doccomment">/// Allow list of domains to not get subdomains scrubbed.
+</span><span class="kw">const </span>DOMAIN_ALLOW_LIST: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;localhost&quot;</span>];
+
+<span class="kw">fn </span>normalized_domain_from_allowlist(domain: <span class="kw-2">&amp;</span>str, port: <span class="prelude-ty">Option</span>&lt;u16&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| <span class="kw-2">**</span>allowed == domain) {
+        <span class="kw">let </span>with_port = port.map_or_else(|| (<span class="kw-2">*</span>domain).to_owned(), |p| <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, domain, p));
+        <span class="kw">return </span><span class="prelude-val">Some</span>(with_port);
+    }
+    <span class="prelude-val">None
+</span>}
 
 <span class="kw">fn </span>scrub_redis_keys(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
     <span class="kw">let </span>parts = string
@@ -1015,63 +1093,63 @@
         span_description_scrub_only_domain,
         <span class="string">&quot;GET http://service.io&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;GET http://service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_only_urllike_on_http_ops,
         <span class="string">&quot;GET https://www.service.io/resources/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://www.service.io/resources/*&quot;
+        <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_ids_end,
         <span class="string">&quot;GET https://www.service.io/resources/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://www.service.io/resources/*&quot;
+        <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_ids_middle,
         <span class="string">&quot;GET https://www.service.io/resources/01234/details&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://www.service.io/resources/*/details&quot;
+        <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_multiple_ids,
         <span class="string">&quot;GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET https://www.service.io/users/*/settings/*&quot;
+        <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_md5_hashes,
         <span class="string">&quot;GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET /clients/*/project/*&quot;
+        <span class="string">&quot;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_sha_hashes,
         <span class="string">&quot;GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET /clients/*/project/*&quot;
+        <span class="string">&quot;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_hex,
         <span class="string">&quot;GET /shop/de/f43/beef/3D6/my-beef&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET /shop/*/*/*/*/my-*&quot;
+        <span class="string">&quot;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_path_uuids,
         <span class="string">&quot;GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
-        <span class="string">&quot;GET /clients/*/project/*&quot;
+        <span class="string">&quot;&quot;
     </span>);
 
     <span class="comment">// TODO(iker): Add span description test for URLs with paths
