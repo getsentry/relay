@@ -2092,7 +2092,7 @@ impl EnvelopeProcessorService {
                         has_profile: state.has_profile,
                     };
 
-                    let mut extracted: ExtractedMetrics = extractor.extract(event)?;
+                    let mut extracted = extractor.extract(event)?;
 
                     // TODO: Move conditional tagging to generic metrics extraction
                     let tagging_config = state.project_state.metric_conditional_tagging();
