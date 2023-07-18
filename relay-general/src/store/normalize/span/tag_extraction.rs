@@ -599,6 +599,12 @@ mod tests {
     }
 
     #[test]
+    fn extract_table_delete() {
+        let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
+        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+    }
+
+    #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a");
