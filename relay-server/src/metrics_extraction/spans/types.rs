@@ -1,18 +1,14 @@
 use std::collections::BTreeMap;
-use std::fmt::Display;
 
 use chrono::Duration;
 use relay_common::{DurationUnit, MetricUnit, UnixTimestamp};
+use relay_general::store::span::tag_extraction::SpanTagKey;
 use relay_metrics::{Metric, MetricNamespace, MetricValue};
 
 use crate::metrics_extraction::IntoMetric;
 
 #[derive(Clone, Debug)]
 pub(crate) enum SpanMetric {
-    User {
-        value: String,
-        tags: BTreeMap<SpanTagKey, String>,
-    },
     Duration {
         value: Duration,
         tags: BTreeMap<SpanTagKey, String>,
@@ -32,14 +28,6 @@ impl IntoMetric for SpanMetric {
         let namespace = MetricNamespace::Spans;
 
         match self {
-            SpanMetric::User { value, tags } => Metric::new_mri(
-                namespace,
-                "user",
-                MetricUnit::None,
-                MetricValue::set_from_str(&value),
-                timestamp,
-                span_tag_mapping_to_string_mapping(tags),
-            ),
             SpanMetric::Duration { value, tags } => Metric::new_mri(
                 namespace,
                 "duration",
@@ -78,61 +66,11 @@ fn span_tag_mapping_to_string_mapping(
     tags.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum SpanTagKey {
-    // Specific to a transaction
-    Release,
-    User,
-    Environment,
-    Transaction,
-    TransactionMethod,
-    TransactionOp,
-    HttpStatusCode,
-
-    // Specific to spans
-    Description,
-    Group,
-    SpanOp,
-    Category,
-    Module,
-    Action,
-    Domain,
-    System,
-    Status,
-    StatusCode,
-}
-
-impl Display for SpanTagKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
-            SpanTagKey::Release => "release",
-            SpanTagKey::User => "user",
-            SpanTagKey::Environment => "environment",
-            SpanTagKey::Transaction => "transaction",
-            SpanTagKey::TransactionMethod => "transaction.method",
-            SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
-
-            SpanTagKey::Description => "span.description",
-            SpanTagKey::Group => "span.group",
-            SpanTagKey::SpanOp => "span.op",
-            SpanTagKey::Category => "span.category",
-            SpanTagKey::Module => "span.module",
-            SpanTagKey::Action => "span.action",
-            SpanTagKey::Domain => "span.domain",
-            SpanTagKey::System => "span.system",
-            SpanTagKey::Status => "span.status",
-            SpanTagKey::StatusCode => "span.status_code",
-        };
-        write!(f, "{name}")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
-    use chrono::{TimeZone, Utc};
+    use chrono::{Duration, TimeZone, Utc};
     use relay_common::UnixTimestamp;
 
     use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
@@ -145,23 +83,23 @@ mod tests {
                 .unwrap();
 
         let tags = BTreeMap::from([(SpanTagKey::Release, "1.2.3".to_owned())]);
-        let metric = SpanMetric::User {
-            value: "usertag".to_owned(),
+        let metric = SpanMetric::Duration {
+            value: Duration::seconds(1),
             tags,
         };
         let converted = metric.into_metric(timestamp);
 
-        insta::assert_debug_snapshot!(converted, @r#"
+        insta::assert_debug_snapshot!(converted, @r###"
         Metric {
-            name: "s:spans/user@none",
-            value: Set(
-                1473472266,
+            name: "d:spans/duration@millisecond",
+            value: Distribution(
+                1000.0,
             ),
             timestamp: UnixTimestamp(946684800),
             tags: {
                 "release": "1.2.3",
             },
         }
-        "#);
+        "###);
     }
 }

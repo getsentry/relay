@@ -51,6 +51,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aho-corasick"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43f6cb1bf222025340178f382c426f13757b2960e89779dfcb319c32542a5a41"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "alloc-no-stdlib"
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -377,7 +386,7 @@ checksum = "ba3569f383e8f1598449f1a423e72e99569137b47740b1da11ef19af3d5c3223"
 dependencies = [
  "lazy_static",
  "memchr",
- "regex-automata",
+ "regex-automata 0.1.10",
 ]
 
 [[package]]
@@ -1460,7 +1469,7 @@ version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "029d74589adefde59de1a0c4f4732695c32805624aec7b68d91503d4dba79afc"
 dependencies = [
- "aho-corasick",
+ "aho-corasick 0.7.20",
  "bstr 1.2.0",
  "fnv",
  "log",
@@ -2084,7 +2093,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
 dependencies = [
- "regex-automata",
+ "regex-automata 0.1.10",
 ]
 
 [[package]]
@@ -2966,13 +2975,14 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.7.1"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48aaa5748ba571fb95cd2c85c09f629215d3a6ece942baa100950af03a34f733"
+checksum = "b2eae68fc220f7cf2532e4494aded17545fce192d59cd996e0fe7887f4ceb575"
 dependencies = [
- "aho-corasick",
+ "aho-corasick 1.0.2",
  "memchr",
- "regex-syntax",
+ "regex-automata 0.3.3",
+ "regex-syntax 0.7.4",
 ]
 
 [[package]]
@@ -2981,7 +2991,18 @@ version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
 dependencies = [
- "regex-syntax",
+ "regex-syntax 0.6.28",
+]
+
+[[package]]
+name = "regex-automata"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39354c10dd07468c2e73926b23bb9c2caca74c5501e38a35da70406f1d923310"
+dependencies = [
+ "aho-corasick 1.0.2",
+ "memchr",
+ "regex-syntax 0.7.4",
 ]
 
 [[package]]
@@ -2991,8 +3012,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
+name = "regex-syntax"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
+
+[[package]]
 name = "relay"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3010,7 +3037,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3026,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "relay-aws-extension"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -3057,7 +3084,7 @@ dependencies = [
 
 [[package]]
 name = "relay-common"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "chrono",
  "globset",
@@ -3075,7 +3102,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3095,7 +3122,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3103,7 +3130,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -3122,7 +3149,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3130,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -3138,7 +3165,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "globset",
  "insta",
@@ -3154,7 +3181,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3167,6 +3194,7 @@ dependencies = [
  "insta",
  "itertools",
  "maxminddb",
+ "md5",
  "minidump",
  "num-traits",
  "once_cell",
@@ -3193,7 +3221,7 @@ dependencies = [
 
 [[package]]
 name = "relay-general-derive"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3203,7 +3231,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "jsonschema",
  "rdkafka",
@@ -3220,7 +3248,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "chrono",
  "console",
@@ -3235,7 +3263,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "criterion",
  "float-ord",
@@ -3255,7 +3283,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "once_cell",
  "regex",
@@ -3268,7 +3296,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -3284,7 +3312,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "insta",
  "relay-common",
@@ -3298,7 +3326,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "r2d2",
  "redis",
@@ -3309,7 +3337,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "assert-json-diff",
  "criterion",
@@ -3326,7 +3354,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "chrono",
  "insta",
@@ -3344,7 +3372,7 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -3361,7 +3389,6 @@ dependencies = [
  "insta",
  "itertools",
  "json-forensics",
- "md5",
  "mime",
  "minidump",
  "multer",
@@ -3407,7 +3434,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "cadence",
  "parking_lot",
@@ -3417,7 +3444,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "futures",
  "once_cell",
@@ -3428,7 +3455,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "23.6.2"
+version = "23.7.0"
 dependencies = [
  "relay-log",
  "relay-system",
