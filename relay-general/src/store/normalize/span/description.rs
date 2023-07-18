@@ -115,8 +115,9 @@ fn scrub_http(string: &mut String) -> bool {
     let Ok(url) = Url::parse(url) else { return false };
     let Some(domain) = url.domain() else { return false };
     let Some(domain) = normalize_domain(domain, url.port()) else { return false};
+    let scheme = url.scheme();
 
-    *string = format!("{method} {domain}");
+    *string = format!("{method} {scheme}://{domain}");
     true
 }
 
@@ -329,63 +330,63 @@ mod tests {
         span_description_scrub_only_domain,
         "GET http://service.io",
         "http.client",
-        ""
+        "GET http://service.io"
     );
 
     span_description_test!(
         span_description_scrub_only_urllike_on_http_ops,
         "GET https://www.service.io/resources/01234",
         "http.client",
-        "GET https://www.service.io/resources/*"
+        "GET https://*.service.io"
     );
 
     span_description_test!(
         span_description_scrub_path_ids_end,
         "GET https://www.service.io/resources/01234",
         "http.client",
-        "GET https://www.service.io/resources/*"
+        "GET https://*.service.io"
     );
 
     span_description_test!(
         span_description_scrub_path_ids_middle,
         "GET https://www.service.io/resources/01234/details",
         "http.client",
-        "GET https://www.service.io/resources/*/details"
+        "GET https://*.service.io"
     );
 
     span_description_test!(
         span_description_scrub_path_multiple_ids,
         "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
         "http.client",
-        "GET https://www.service.io/users/*/settings/*"
+        "GET https://*.service.io"
     );
 
     span_description_test!(
         span_description_scrub_path_md5_hashes,
         "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
         "http.client",
-        "GET /clients/*/project/*"
+        ""
     );
 
     span_description_test!(
         span_description_scrub_path_sha_hashes,
         "GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234",
         "http.client",
-        "GET /clients/*/project/*"
+        ""
     );
 
     span_description_test!(
         span_description_scrub_hex,
         "GET /shop/de/f43/beef/3D6/my-beef",
         "http.client",
-        "GET /shop/*/*/*/*/my-*"
+        ""
     );
 
     span_description_test!(
         span_description_scrub_path_uuids,
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
         "http.client",
-        "GET /clients/*/project/*"
+        ""
     );
 
     // TODO(iker): Add span description test for URLs with paths
