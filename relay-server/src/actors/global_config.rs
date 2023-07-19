@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
-use relay_system::{Addr, Int, Service};
+use relay_system::{Addr, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
