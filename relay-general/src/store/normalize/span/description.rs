@@ -545,9 +545,9 @@ mod tests {
 
     span_description_test!(
         span_description_strip_prefixes,
-        r#"SELECT \"table\".\"foo\", \"table\".\"bar\" from \"table\" WHERE sku = %s"#,
+        r#"SELECT \"table\".\"foo\", \"table\".\"bar\", count(*) from \"table\" WHERE sku = %s"#,
         "db.sql.query",
-        r#"SELECT foo, bar from table WHERE sku = %s"#
+        r#"SELECT foo, bar, count(*) from table WHERE sku = %s"#
     );
 
     span_description_test!(
