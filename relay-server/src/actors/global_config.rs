@@ -2,18 +2,12 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
-use relay_system::{Addr, Interface, Service};
+use relay_system::{Addr, Int, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
-
-// No messages are accepted for now.
-#[derive(Debug)]
-pub enum GlobalConfigMessage {}
-
-impl Interface for GlobalConfigMessage {}
 
 /// Service implementing the [`GlobalConfig`] interface.
 ///
@@ -24,8 +18,6 @@ pub struct GlobalConfigService {
     envelope_processor: Addr<EnvelopeProcessor>,
     upstream: Addr<UpstreamRelay>,
 }
-
-impl Interface for GetGlobalConfig {}
 
 impl GlobalConfigService {
     pub fn new(envelope_processor: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
@@ -50,7 +42,7 @@ impl GlobalConfigService {
 }
 
 impl Service for GlobalConfigService {
-    type Interface = GlobalConfigMessage;
+    type Interface = ();
 
     fn spawn_handler(mut self, _rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
