@@ -320,7 +320,7 @@ fn sql_action_from_query(query: &str) -> Option<&str> {
 /// Regex with a capture group to extract the table from a database query,
 /// based on `FROM`, `INTO` and `UPDATE` keywords.
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)(from|into|update)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
+    Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
 /// Returns the table in the SQL query, if any.
@@ -510,6 +510,12 @@ mod tests {
     #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
+        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+    }
+
+    #[test]
+    fn extract_table_select_nested() {
+        let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
     }
 
