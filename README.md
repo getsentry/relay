@@ -212,7 +212,7 @@ make test-python
 
 To develop Relay with an existing Sentry devserver, self-hosted Sentry
 installation, or Sentry SaaS, configure the upstream to the URL of the Sentry
-server in `.relay/config.yml`. For example, in local development set
+server in `./.relay/config.yml`. For example, in local development set
 `relay.upstream` to `http://localhost:8000/`.
 
 To test processing mode with a local development Sentry, use this configuration:
