@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ops::Range;
 
 use chrono::{DateTime, Utc};
 use relay_general::protocol::{Addr, EventId};
@@ -12,12 +13,6 @@ use crate::utils::deserialize_number_from_string;
 use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
-
-#[derive(Debug)]
-struct Range {
-    start: usize,
-    end: usize,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
@@ -255,7 +250,7 @@ impl SampleProfile {
     }
 
     fn remove_idle_samples_at_the_edge(&mut self) {
-        let mut active_ranges: HashMap<u64, Range> = HashMap::new();
+        let mut active_ranges: HashMap<u64, Range<usize>> = HashMap::new();
 
         for (i, sample) in self.profile.samples.iter().enumerate() {
             let is_active = match self.profile.stacks.get(sample.stack_id) {
@@ -268,9 +263,9 @@ impl SampleProfile {
             }
 
             if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
-                range.end = i;
+                range.end = i + 1;
             } else {
-                active_ranges.insert(sample.thread_id, Range { start: i, end: i });
+                active_ranges.insert(sample.thread_id, i..i + 1);
             }
         }
 
@@ -280,8 +275,8 @@ impl SampleProfile {
             .drain(..)
             .enumerate()
             .filter(|(i, sample)| {
-                if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
-                    range.start <= *i && *i <= range.end
+                if let Some(range) = active_ranges.get(&sample.thread_id) {
+                    range.contains(i)
                 } else {
                     false
                 }
@@ -808,7 +803,7 @@ mod tests {
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 90,
+                elapsed_since_start_ns: 80,
                 thread_id: 3,
             },
             Sample {
