@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use relay_auth::PublicKey;
 use relay_filter::FiltersConfig;
@@ -112,7 +113,7 @@ impl ProjectConfig {
     /// first check if the project config has a value, if not we fall back on global.
     pub fn measurements<'a>(
         &'a self,
-        global_config: &'a GlobalConfig,
+        global_config: &'a Arc<GlobalConfig>,
     ) -> Option<&MeasurementsConfig> {
         self.measurements
             .as_ref()
@@ -125,7 +126,7 @@ impl ProjectConfig {
     /// TODO(tor): Implement the maybe-override values logic.
     pub fn metric_conditional_tagging<'a>(
         &'a self,
-        global_config: &'a GlobalConfig,
+        global_config: &'a Arc<GlobalConfig>,
     ) -> impl Iterator<Item = &TaggingRule> {
         self.metric_conditional_tagging
             .iter()

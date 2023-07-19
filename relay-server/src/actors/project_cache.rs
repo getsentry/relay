@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_dynamic_config::GlobalConfig;
 use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -334,7 +333,6 @@ impl ProjectSource {
         _redis: Option<RedisPool>,
     ) -> Self {
         let local_source = LocalProjectSourceService::new(config.clone()).start();
-        let global_config = Arc::new(GlobalConfig::default());
         let upstream_source =
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 

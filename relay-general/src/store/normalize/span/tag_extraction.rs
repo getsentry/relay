@@ -125,9 +125,9 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
             .and_then(|r| r.method.value())
             .map(|m| m.to_uppercase());
 
-        if let Some(transaction_method) = transaction_method_from_request
-            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
-        {
+        if let Some(transaction_method) = transaction_method_from_request.or_else(|| {
+            http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
+        }) {
             tags.insert(SpanTagKey::TransactionMethod, transaction_method);
         }
     }

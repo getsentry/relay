@@ -4,7 +4,7 @@ use std::error::Error;
 use std::io::Write;
 use std::net;
 use std::net::IpAddr as NetIPAddr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
@@ -292,6 +292,8 @@ struct ProcessEnvelopeState {
     /// This is the config used for trace-based dynamic sampling.
     sampling_project_state: Option<Arc<ProjectState>>,
 
+    global_config: Arc<GlobalConfig>,
+
     /// The id of the project that this envelope is ingested into.
     ///
     /// This identifier can differ from the one stated in the Envelope's DSN if the key was moved to
@@ -533,7 +535,7 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 pub struct EnvelopeProcessorService {
     config: Arc<Config>,
-    global_config: GlobalConfig,
+    global_config: RwLock<Arc<GlobalConfig>>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -553,7 +555,7 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
-        let global_config = GlobalConfig::default();
+        let global_config = RwLock::new(Arc::new(GlobalConfig::default()));
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
                 Ok(geoip) => Some(geoip),
@@ -1366,6 +1368,14 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
+        let global_config = match self.global_config.read() {
+            Ok(config) => config.clone(),
+            Err(_) => {
+                // some kinda metric
+                Arc::new(GlobalConfig::default())
+            }
+        };
+
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
@@ -1374,6 +1384,7 @@ impl EnvelopeProcessorService {
             sampling_result: SamplingResult::Keep,
             extracted_metrics: Default::default(),
             project_state,
+            global_config,
             sampling_project_state,
             project_id,
             managed_envelope,
@@ -2113,7 +2124,7 @@ impl EnvelopeProcessorService {
                     let tagging_config = state
                         .project_state
                         .config
-                        .metric_conditional_tagging(&self.global_config);
+                        .metric_conditional_tagging(&state.global_config);
                     crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
                         event,
                         tagging_config,
@@ -2356,7 +2367,10 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state.project_state.config.measurements(&self.global_config),
+                measurements_config: state
+                    .project_state
+                    .config
+                    .measurements(&state.global_config),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
@@ -2703,7 +2717,11 @@ impl EnvelopeProcessorService {
                 self.handle_rate_limit_flush_buckets(message);
             }
             EnvelopeProcessor::UpdateglobalConfig(global_config) => {
-                self.global_config = global_config
+                if let Ok(mut old_global_config) = self.global_config.write() {
+                    *old_global_config = Arc::new(global_config);
+                } else {
+                    // some kinda metrics
+                }
             }
         }
     }
@@ -2945,6 +2963,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
+                global_config: Arc::new(GlobalConfig::default()),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
@@ -3101,7 +3120,7 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
-            global_config: GlobalConfig::default(),
+            global_config: Arc::new(GlobalConfig::default()).into(),
         }
     }
 
@@ -3362,11 +3381,9 @@ mod tests {
         )
         .unwrap();
 
-        let config = ProjectConfig {
-            datascrubbing_settings,
-            pii_config: Some(pii_config),
-            ..Default::default()
-        };
+        let mut config = ProjectConfig::default();
+        config.datascrubbing_settings = datascrubbing_settings;
+        config.pii_config = Some(pii_config);
 
         let mut project_state = ProjectState::allowed();
         project_state.config = config;
