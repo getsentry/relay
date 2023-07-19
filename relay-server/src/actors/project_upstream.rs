@@ -124,9 +124,7 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
-pub enum UpstreamProjectSource {
-    FetchProjectState(FetchProjectState, BroadcastSender<Arc<ProjectState>>),
-}
+pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
 
 impl Interface for UpstreamProjectSource {}
 
@@ -423,24 +421,15 @@ impl UpstreamProjectSourceService {
         });
     }
 
-    fn handle_message(&mut self, message: UpstreamProjectSource) {
-        match message {
-            UpstreamProjectSource::FetchProjectState(fetch_project_state, sender) => {
-                self.handle_project_source(fetch_project_state, sender)
-            }
-        }
-    }
-
     /// Handles the incoming external messages.
-    fn handle_project_source(
-        &mut self,
-        fetch_project_state: FetchProjectState,
-        sender: BroadcastSender<Arc<ProjectState>>,
-    ) {
-        let FetchProjectState {
-            project_key,
-            no_cache,
-        } = fetch_project_state;
+    fn handle_message(&mut self, message: UpstreamProjectSource) {
+        let UpstreamProjectSource(
+            FetchProjectState {
+                project_key,
+                no_cache,
+            },
+            sender,
+        ) = message;
 
         let query_timeout = self.config.query_timeout();
 
