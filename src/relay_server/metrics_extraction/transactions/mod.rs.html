@@ -1560,6 +1560,14 @@
 <a href="#1560" id="1560">1560</a>
 <a href="#1561" id="1561">1561</a>
 <a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
@@ -1672,7 +1680,7 @@
         <span class="prelude-val">Some</span>(original_transaction_name.clone())
     } <span class="kw">else </span>{
         <span class="comment">// Pick a sentinel based on the transaction source:
-        </span><span class="kw">match </span>source {
+        </span><span class="kw">let </span>placeholder = <span class="kw">match </span>source {
             <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(TransactionSource::Other(<span class="kw">_</span>)) =&gt; {
                 name_used = <span class="string">&quot;none&quot;</span>;
                 <span class="prelude-val">None
@@ -1681,7 +1689,15 @@
                 name_used = <span class="string">&quot;placeholder&quot;</span>;
                 <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned())
             }
-        }
+        };
+        <span class="macro">relay_log::error!</span>(
+            <span class="comment">// project ID is already set by envelope processor.
+            </span>tags.placeholder = placeholder.as_deref().unwrap_or(<span class="string">&quot;none&quot;</span>),
+            tags.source = transaction_source_tag(event),
+            original_transaction_name = original_transaction_name,
+            <span class="string">&quot;Using placeholder as transaction tag&quot;
+        </span>);
+        placeholder
     };
 
     <span class="macro">relay_statsd::metric!</span>(
