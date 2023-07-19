@@ -8,11 +8,10 @@ use futures::future;
 use itertools::Itertools;
 use relay_common::ProjectKey;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
+use relay_dynamic_config::ErrorBoundary;
 use relay_statsd::metric;
 use relay_system::{
-    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, NoResponse,
-    Service,
+    Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -127,7 +126,6 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 #[derive(Debug)]
 pub enum UpstreamProjectSource {
     FetchProjectState(FetchProjectState, BroadcastSender<Arc<ProjectState>>),
-    FetchGlobalConfig(Arc<GlobalConfig>),
 }
 
 impl Interface for UpstreamProjectSource {}
@@ -140,14 +138,6 @@ impl FromMessage<FetchProjectState> for UpstreamProjectSource {
         sender: BroadcastSender<Arc<ProjectState>>,
     ) -> Self {
         Self::FetchProjectState(message, sender)
-    }
-}
-
-impl FromMessage<Arc<GlobalConfig>> for UpstreamProjectSource {
-    type Response = NoResponse;
-
-    fn from_message(message: Arc<GlobalConfig>, _: ()) -> Self {
-        Self::FetchGlobalConfig(message)
     }
 }
 
@@ -168,7 +158,6 @@ pub struct UpstreamResponse {
 pub struct UpstreamProjectSourceService {
     backoff: RetryBackoff,
     config: Arc<Config>,
-    global_config: Arc<GlobalConfig>,
     upstream_relay: Addr<UpstreamRelay>,
     state_channels: ProjectStateChannels,
     inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
@@ -178,11 +167,7 @@ pub struct UpstreamProjectSourceService {
 
 impl UpstreamProjectSourceService {
     /// Creates a new [`UpstreamProjectSourceService`] instance.
-    pub fn new(
-        config: Arc<Config>,
-        global_config: Arc<GlobalConfig>,
-        upstream_relay: Addr<UpstreamRelay>,
-    ) -> Self {
+    pub fn new(config: Arc<Config>, upstream_relay: Addr<UpstreamRelay>) -> Self {
         let (inner_tx, inner_rx) = mpsc::unbounded_channel();
 
         Self {
@@ -191,7 +176,6 @@ impl UpstreamProjectSourceService {
             fetch_handle: SleepHandle::idle(),
             upstream_relay,
             config,
-            global_config,
             inner_tx,
             inner_rx,
         }
@@ -443,9 +427,6 @@ impl UpstreamProjectSourceService {
         match message {
             UpstreamProjectSource::FetchProjectState(fetch_project_state, sender) => {
                 self.handle_project_source(fetch_project_state, sender)
-            }
-            UpstreamProjectSource::FetchGlobalConfig(global_config) => {
-                self.global_config = global_config;
             }
         }
     }

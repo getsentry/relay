@@ -108,7 +108,8 @@ impl Default for ProjectConfig {
 }
 
 impl ProjectConfig {
-    /// cool
+    /// Measurements are usually defined globally, but can be overriden per DNS. We therefore
+    /// first check if the project config has a value, if not we fall back on global.
     pub fn measurements<'a>(
         &'a self,
         global_config: &'a GlobalConfig,
@@ -118,14 +119,16 @@ impl ProjectConfig {
             .or(global_config.measurements.as_ref())
     }
 
-    /// nice
+    /// There's three types of tagging rules, one which is defined per dsn, one that is defined
+    /// globally for every dsn, and one that is only sometimes defined by the dsn. this method
+    /// will merge them together in the right order.
+    /// TODO(tor): Implement the maybe-override values logic.
     pub fn metric_conditional_tagging<'a>(
         &'a self,
         global_config: &'a GlobalConfig,
     ) -> impl Iterator<Item = &TaggingRule> {
         self.metric_conditional_tagging
             .iter()
-            .chain(global_config.maybe_metric_conditional_tagging.iter())
             .chain(global_config.metric_conditional_tagging.iter())
     }
 }

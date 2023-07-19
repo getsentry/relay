@@ -216,18 +216,9 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
-    UpdateGlobalConfig(Arc<GlobalConfig>),
 }
 
 impl Interface for ProjectCache {}
-
-impl FromMessage<Arc<GlobalConfig>> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: Arc<GlobalConfig>, _: ()) -> Self {
-        Self::UpdateGlobalConfig(message)
-    }
-}
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -329,7 +320,6 @@ impl FromMessage<SpoolHealth> for ProjectCache {
 #[derive(Clone, Debug)]
 struct ProjectSource {
     config: Arc<Config>,
-    global_config: Arc<GlobalConfig>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
     #[cfg(feature = "processing")]
@@ -345,19 +335,14 @@ impl ProjectSource {
     ) -> Self {
         let local_source = LocalProjectSourceService::new(config.clone()).start();
         let global_config = Arc::new(GlobalConfig::default());
-        let upstream_source = UpstreamProjectSourceService::new(
-            config.clone(),
-            global_config.clone(),
-            upstream_relay,
-        )
-        .start();
+        let upstream_source =
+            UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         Self {
             config,
-            global_config,
             local_source,
             upstream_source,
             #[cfg(feature = "processing")]
@@ -812,11 +797,6 @@ impl ProjectCacheBroker {
         self.buffer.send(spooler::Health(sender))
     }
 
-    fn handle_update_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        self.source.upstream_source.send(global_config.clone());
-        self.source.global_config = global_config;
-    }
-
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
@@ -834,7 +814,6 @@ impl ProjectCacheBroker {
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
-            ProjectCache::UpdateGlobalConfig(message) => self.handle_update_global_config(message),
         }
     }
 }

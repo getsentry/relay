@@ -584,6 +584,7 @@ impl EnvelopeProcessorService {
         #[cfg(not(feature = "processing"))]
         Self {
             config,
+            global_config,
             geoip_lookup,
             envelope_manager,
             outcome_aggregator,
