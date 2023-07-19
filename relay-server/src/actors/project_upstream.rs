@@ -128,17 +128,6 @@ pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectS
 
 impl Interface for UpstreamProjectSource {}
 
-impl FromMessage<FetchProjectState> for UpstreamProjectSource {
-    type Response = BroadcastResponse<Arc<ProjectState>>;
-
-    fn from_message(
-        message: FetchProjectState,
-        sender: BroadcastSender<Arc<ProjectState>>,
-    ) -> Self {
-        Self::FetchProjectState(message, sender)
-    }
-}
-
 /// The batch of the channels which used to fetch the project states.
 struct ChannelsBatch {
     nocache_channels: Vec<(ProjectKey, ProjectStateChannel)>,
