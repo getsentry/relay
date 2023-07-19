@@ -2,11 +2,15 @@
 
 ## 23.7.0
 
+**Unreleased**:
+
+- Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
+
+
 **Internal**:
 
 - Add support for `sampled` field in the DSC and error tagging. ([#2290](https://github.com/getsentry/relay/pull/2290))
 - Move span tag extraction from metrics to normalization. ([#2304](https://github.com/getsentry/relay/pull/2304))
-- Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
 
 ## 23.6.2
 

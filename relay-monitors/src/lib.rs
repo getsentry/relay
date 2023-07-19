@@ -36,7 +36,7 @@ pub enum ProcessCheckInError {
     #[error("the monitor slug is empty or invalid")]
     EmptySlug,
 
-    /// Environment name was invalid.environment.
+    /// Environment name was invalid.
     #[error("the environment is invalid")]
     InvalidEnvironment,
 }
