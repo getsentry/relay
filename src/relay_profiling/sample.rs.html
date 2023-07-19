@@ -969,7 +969,38 @@
 <a href="#969" id="969">969</a>
 <a href="#970" id="970">970</a>
 <a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
+<span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_general::protocol::{Addr, EventId};
@@ -1220,23 +1251,39 @@
     }
 
     <span class="kw">fn </span>remove_idle_samples_at_the_edge(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(start) = <span class="self">self</span>.profile.samples.iter().position(|sample| {
-            <span class="kw">match </span><span class="self">self</span>.profile.stacks.get(sample.stack_id) {
+        <span class="kw">let </span><span class="kw-2">mut </span>active_ranges: HashMap&lt;u64, Range&lt;usize&gt;&gt; = HashMap::new();
+
+        <span class="kw">for </span>(i, sample) <span class="kw">in </span><span class="self">self</span>.profile.samples.iter().enumerate() {
+            <span class="kw">let </span>is_active = <span class="kw">match </span><span class="self">self</span>.profile.stacks.get(sample.stack_id) {
                 <span class="prelude-val">Some</span>(stack) =&gt; !stack.is_empty(),
-                <span class="prelude-val">None </span>=&gt; <span class="bool-val">false</span>,
+                <span class="prelude-val">None </span>=&gt; <span class="bool-val">true</span>,
+            };
+
+            <span class="kw">if </span>!is_active {
+                <span class="kw">continue</span>;
             }
-        }) {
-            <span class="self">self</span>.profile.samples.drain(..start);
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = active_ranges.get_mut(<span class="kw-2">&amp;</span>sample.thread_id) {
+                range.end = i + <span class="number">1</span>;
+            } <span class="kw">else </span>{
+                active_ranges.insert(sample.thread_id, i..i + <span class="number">1</span>);
+            }
         }
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(end) = <span class="self">self</span>.profile.samples.iter().rposition(|sample| {
-            <span class="kw">match </span><span class="self">self</span>.profile.stacks.get(sample.stack_id) {
-                <span class="prelude-val">Some</span>(stack) =&gt; !stack.is_empty(),
-                <span class="prelude-val">None </span>=&gt; <span class="bool-val">false</span>,
-            }
-        }) {
-            <span class="self">self</span>.profile.samples.truncate(end + <span class="number">1</span>);
-        }
+        <span class="self">self</span>.profile.samples = <span class="self">self
+            </span>.profile
+            .samples
+            .drain(..)
+            .enumerate()
+            .filter(|(i, sample)| {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(range) = active_ranges.get(<span class="kw-2">&amp;</span>sample.thread_id) {
+                    range.contains(i)
+                } <span class="kw">else </span>{
+                    <span class="bool-val">false
+                </span>}
+            })
+            .map(|(<span class="kw">_</span>, sample)| sample)
+            .collect();
     }
 
     <span class="kw">fn </span>cleanup_thread_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
@@ -1695,6 +1742,18 @@
         profile.profile.stacks = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">0</span>], <span class="macro">vec!</span>[]];
         profile.profile.samples = <span class="macro">vec!</span>[
             Sample {
+                stack_id: <span class="number">0</span>,
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                elapsed_since_start_ns: <span class="number">40</span>,
+                thread_id: <span class="number">2</span>,
+            },
+            Sample {
+                stack_id: <span class="number">1</span>,
+                queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
+                elapsed_since_start_ns: <span class="number">50</span>,
+                thread_id: <span class="number">2</span>,
+            },
+            Sample {
                 stack_id: <span class="number">1</span>,
                 queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">10</span>,
@@ -1742,36 +1801,37 @@
                 elapsed_since_start_ns: <span class="number">90</span>,
                 thread_id: <span class="number">1</span>,
             },
-        ];
-
-        profile.remove_idle_samples_at_the_edge();
-
-        <span class="macro">assert_eq!</span>(profile.profile.samples.len(), <span class="number">3</span>);
-
-        profile.profile.samples = <span class="macro">vec!</span>[
             Sample {
-                stack_id: <span class="number">0</span>,
+                stack_id: <span class="number">1</span>,
                 queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
-                elapsed_since_start_ns: <span class="number">40</span>,
-                thread_id: <span class="number">1</span>,
+                elapsed_since_start_ns: <span class="number">80</span>,
+                thread_id: <span class="number">3</span>,
             },
             Sample {
                 stack_id: <span class="number">1</span>,
                 queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
-                elapsed_since_start_ns: <span class="number">50</span>,
-                thread_id: <span class="number">1</span>,
+                elapsed_since_start_ns: <span class="number">90</span>,
+                thread_id: <span class="number">3</span>,
             },
             Sample {
                 stack_id: <span class="number">0</span>,
                 queue_address: <span class="prelude-val">Some</span>(<span class="string">&quot;0xdeadbeef&quot;</span>.to_string()),
                 elapsed_since_start_ns: <span class="number">60</span>,
-                thread_id: <span class="number">1</span>,
+                thread_id: <span class="number">2</span>,
             },
         ];
 
         profile.remove_idle_samples_at_the_edge();
 
-        <span class="macro">assert_eq!</span>(profile.profile.samples.len(), <span class="number">3</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>sample_count_by_thread_id: HashMap&lt;u64, u32&gt; = HashMap::new();
+
+        <span class="kw">for </span>sample <span class="kw">in </span><span class="kw-2">&amp;</span>profile.profile.samples {
+            <span class="kw-2">*</span>sample_count_by_thread_id
+                .entry(sample.thread_id)
+                .or_default() += <span class="number">1</span>;
+        }
+
+        <span class="macro">assert_eq!</span>(sample_count_by_thread_id, HashMap::from([(<span class="number">1</span>, <span class="number">3</span>), (<span class="number">2</span>, <span class="number">3</span>),]));
     }
 
     <span class="attr">#[test]
