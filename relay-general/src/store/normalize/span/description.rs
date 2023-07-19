@@ -45,10 +45,15 @@ static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
 static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
-        ( (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)? ) |
+        ( (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)? )
         "#,
     )
     .unwrap()
+});
+
+/// Collapse simple lists of columns in select.
+static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)SELECT\s+(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?:FROM|$)"#).unwrap()
 });
 
 /// Regex to identify SQL queries that are already normalized.
@@ -111,6 +116,7 @@ fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingA
             string.set_value(Some(changed));
         }
     }
+    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_SELECT, "..")?;
 
     Ok(mark_as_scrubbed)
 }
