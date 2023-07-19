@@ -4,11 +4,8 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use relay_common::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_dynamic_config::{
-    Feature, GlobalConfig, LimitedProjectConfig, ProjectConfig, TaggingRule,
-};
+use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_general::store::MeasurementsConfig;
 use relay_metrics::{Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_statsd::metric;
@@ -82,11 +79,11 @@ pub struct ProjectState {
     /// The project's current config.
     #[serde(default)]
     pub config: ProjectConfig,
-    #[serde(default)]
-    pub global_config: Arc<GlobalConfig>,
     /// The organization id.
     #[serde(default)]
     pub organization_id: Option<u64>,
+
+    pub get_whatever: bool,
 
     /// The time at which this project state was last updated.
     #[serde(skip, default = "Instant::now")]
@@ -122,7 +119,6 @@ impl ProjectState {
             slug: None,
             config: ProjectConfig::default(),
             organization_id: None,
-            global_config: GlobalConfig::default().into(),
             last_fetch: Instant::now(),
             invalid: false,
         }
@@ -343,20 +339,6 @@ impl ProjectState {
 
     pub fn has_feature(&self, feature: Feature) -> bool {
         self.config.features.0.contains(&feature)
-    }
-
-    pub fn measurements(&self) -> Option<&MeasurementsConfig> {
-        self.config
-            .measurements
-            .as_ref()
-            .or(self.global_config.measurements.as_ref())
-    }
-
-    pub fn metric_conditional_tagging(&self) -> impl Iterator<Item = &TaggingRule> {
-        self.global_config
-            .metric_conditional_tagging
-            .iter()
-            .chain(self.config.metric_conditional_tagging.iter())
     }
 }
 

@@ -17,6 +17,9 @@ pub struct GlobalConfig {
     /// the event's content.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
+    /// only some proj configs want this
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub maybe_metric_conditional_tagging: Vec<TaggingRule>,
 }
 
 #[cfg(test)]

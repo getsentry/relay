@@ -361,7 +361,7 @@ impl UpstreamProjectSourceService {
                             self.state_channels.insert(key, channel);
                             continue;
                         }
-                        let mut state = response
+                        let state = response
                             .configs
                             .remove(&key)
                             .unwrap_or(ErrorBoundary::Ok(None))
@@ -379,7 +379,6 @@ impl UpstreamProjectSourceService {
                             counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                             result = result,
                         );
-                        state.global_config = self.global_config.clone();
                         channel.send(state.sanitize());
                     }
                 }

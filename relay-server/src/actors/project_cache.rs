@@ -391,13 +391,7 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(state) => state
-                    .map(ProjectState::sanitize)
-                    .map(|mut state| {
-                        state.global_config = self.global_config.clone();
-                        state
-                    })
-                    .map(Arc::new),
+                Ok(state) => state.map(ProjectState::sanitize).map(Arc::new),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,

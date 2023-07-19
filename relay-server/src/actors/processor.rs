@@ -23,7 +23,9 @@ use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
+use relay_dynamic_config::{
+    ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
+};
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -480,9 +482,18 @@ pub enum EnvelopeProcessor {
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
     RateLimitFlushBuckets(RateLimitFlushBuckets),
+    UpdateglobalConfig(GlobalConfig),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
+
+impl FromMessage<GlobalConfig> for EnvelopeProcessor {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: GlobalConfig, _sender: ()) -> Self {
+        Self::UpdateglobalConfig(message)
+    }
+}
 
 impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
     type Response = relay_system::NoResponse;
@@ -522,6 +533,7 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 pub struct EnvelopeProcessorService {
     config: Arc<Config>,
+    global_config: GlobalConfig,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -541,6 +553,7 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
+        let global_config = GlobalConfig::default();
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
                 Ok(geoip) => Some(geoip),
@@ -558,6 +571,7 @@ impl EnvelopeProcessorService {
 
             Self {
                 config,
+                global_config,
                 rate_limiter,
                 geoip_lookup,
                 envelope_manager,
@@ -2095,7 +2109,10 @@ impl EnvelopeProcessorService {
                     let mut extracted = extractor.extract(event)?;
 
                     // TODO: Move conditional tagging to generic metrics extraction
-                    let tagging_config = state.project_state.metric_conditional_tagging();
+                    let tagging_config = state
+                        .project_state
+                        .config
+                        .metric_conditional_tagging(&self.global_config);
                     crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
                         event,
                         tagging_config,
@@ -2338,7 +2355,7 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state.project_state.measurements(),
+                measurements_config: state.project_state.config.measurements(&self.global_config),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
@@ -2683,6 +2700,9 @@ impl EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             EnvelopeProcessor::RateLimitFlushBuckets(message) => {
                 self.handle_rate_limit_flush_buckets(message);
+            }
+            EnvelopeProcessor::UpdateglobalConfig(global_config) => {
+                self.global_config = global_config
             }
         }
     }
@@ -3080,6 +3100,7 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
+            global_config: GlobalConfig::default(),
         }
     }
 

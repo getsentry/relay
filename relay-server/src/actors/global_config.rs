@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::sync::Arc;
 use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
@@ -7,7 +6,7 @@ use relay_system::{Addr, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::project_cache::ProjectCache;
+use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 
 // No messages are accepted for now.
@@ -18,20 +17,20 @@ impl Interface for GlobalConfigMessage {}
 
 /// Service implementing the [`GlobalConfig`] interface.
 ///
-/// The service is responsible to fetch the global config appropriately and
-/// forward it to the services that require it.
+/// The service is responsible for fetching the global config and
+/// forwarding it to the services that require it.
 #[derive(Debug)]
 pub struct GlobalConfigService {
-    project_cache: Addr<ProjectCache>,
+    envelope_processor: Addr<EnvelopeProcessor>,
     upstream: Addr<UpstreamRelay>,
 }
 
 impl Interface for GetGlobalConfig {}
 
 impl GlobalConfigService {
-    pub fn new(project_cache: Addr<ProjectCache>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(envelope_processor: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
         Self {
-            project_cache,
+            envelope_processor,
             upstream,
         }
     }
@@ -39,13 +38,12 @@ impl GlobalConfigService {
     /// Forwards the given global config to the services that require it.
     fn update_global_config(&mut self) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
-        let project_cache = self.project_cache.clone();
+        let envelope_processor = self.envelope_processor.clone();
         tokio::spawn(async move {
             let query = GetGlobalConfig;
 
             if let Ok(Ok(response)) = upstream_relay.send(SendQuery(query)).await {
-                let global_config = Arc::new(response.global);
-                project_cache.send::<Arc<GlobalConfig>>(global_config);
+                envelope_processor.send::<GlobalConfig>(response.global);
             };
         });
     }
