@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ops::Range;
 
 use chrono::{DateTime, Utc};
 use relay_general::protocol::{Addr, EventId};
@@ -249,23 +250,39 @@ impl SampleProfile {
     }
 
     fn remove_idle_samples_at_the_edge(&mut self) {
-        if let Some(start) = self.profile.samples.iter().position(|sample| {
-            match self.profile.stacks.get(sample.stack_id) {
+        let mut active_ranges: HashMap<u64, Range<usize>> = HashMap::new();
+
+        for (i, sample) in self.profile.samples.iter().enumerate() {
+            let is_active = match self.profile.stacks.get(sample.stack_id) {
                 Some(stack) => !stack.is_empty(),
-                None => false,
+                None => true,
+            };
+
+            if !is_active {
+                continue;
             }
-        }) {
-            self.profile.samples.drain(..start);
+
+            if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
+                range.end = i + 1;
+            } else {
+                active_ranges.insert(sample.thread_id, i..i + 1);
+            }
         }
 
-        if let Some(end) = self.profile.samples.iter().rposition(|sample| {
-            match self.profile.stacks.get(sample.stack_id) {
-                Some(stack) => !stack.is_empty(),
-                None => false,
-            }
-        }) {
-            self.profile.samples.truncate(end + 1);
-        }
+        self.profile.samples = self
+            .profile
+            .samples
+            .drain(..)
+            .enumerate()
+            .filter(|(i, sample)| {
+                if let Some(range) = active_ranges.get(&sample.thread_id) {
+                    range.contains(i)
+                } else {
+                    false
+                }
+            })
+            .map(|(_, sample)| sample)
+            .collect();
     }
 
     fn cleanup_thread_metadata(&mut self) {
@@ -724,6 +741,18 @@ mod tests {
         profile.profile.stacks = vec![vec![0], vec![]];
         profile.profile.samples = vec![
             Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 2,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 50,
+                thread_id: 2,
+            },
+            Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
                 elapsed_since_start_ns: 10,
@@ -771,36 +800,37 @@ mod tests {
                 elapsed_since_start_ns: 90,
                 thread_id: 1,
             },
-        ];
-
-        profile.remove_idle_samples_at_the_edge();
-
-        assert_eq!(profile.profile.samples.len(), 3);
-
-        profile.profile.samples = vec![
             Sample {
-                stack_id: 0,
+                stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 40,
-                thread_id: 1,
+                elapsed_since_start_ns: 80,
+                thread_id: 3,
             },
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 50,
-                thread_id: 1,
+                elapsed_since_start_ns: 90,
+                thread_id: 3,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
                 elapsed_since_start_ns: 60,
-                thread_id: 1,
+                thread_id: 2,
             },
         ];
 
         profile.remove_idle_samples_at_the_edge();
 
-        assert_eq!(profile.profile.samples.len(), 3);
+        let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
+
+        for sample in &profile.profile.samples {
+            *sample_count_by_thread_id
+                .entry(sample.thread_id)
+                .or_default() += 1;
+        }
+
+        assert_eq!(sample_count_by_thread_id, HashMap::from([(1, 3), (2, 3),]));
     }
 
     #[test]
