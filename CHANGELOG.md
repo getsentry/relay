@@ -1,11 +1,16 @@
 # Changelog
 
-## 23.7.0
+## Unreleased
 
-**Unreleased**:
+**Bug Fixes**:
 
 - Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
 
+## 23.7.0
+
+**Bug Fixes**:
+
+- Filter idle samples at the edge per thread. ([#2321](https://github.com/getsentry/relay/pull/2321))
 
 **Internal**:
 
