@@ -126,6 +126,17 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 #[derive(Debug)]
 pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<Arc<ProjectState>>);
 
+impl FromMessage<FetchProjectState> for UpstreamProjectSource {
+    type Response = BroadcastResponse<Arc<ProjectState>>;
+
+    fn from_message(
+        message: FetchProjectState,
+        sender: BroadcastSender<Arc<ProjectState>>,
+    ) -> Self {
+        Self(message, sender)
+    }
+}
+
 impl Interface for UpstreamProjectSource {}
 
 /// The batch of the channels which used to fetch the project states.
