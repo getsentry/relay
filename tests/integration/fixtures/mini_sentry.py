@@ -92,7 +92,11 @@ class Sentry(SentryLike):
 
         return key_entry
 
-    def basic_project_config(self, project_id, dsn_public_key=None):
+    def basic_project_config(
+        self,
+        project_id,
+        dsn_public_key=None,
+    ):
         if dsn_public_key is None:
             dsn_public_key = {
                 "publicKey": uuid.uuid4().hex,
