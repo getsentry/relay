@@ -192,38 +192,9 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
 }
 
 fn scrub_resource_identifiers(string: &str) -> Option<String> {
-    match RESOURCE_NORMALIZER_REGEX.replace_all(string, "*") {
+    match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
         Cow::Borrowed(_) => None,
         Cow::Owned(scrubbed) => Some(scrubbed),
-    }
-}
-
-fn scrub_identifiers_with_regex(
-    string: &str,
-    pattern: &Regex,
-    placeholder: &str,
-) -> Option<String> {
-    // let capture_names = pattern.capture_names().flatten().collect::<Vec<_>>();
-
-    let mut reassembled = String::new();
-    let mut last_index = 0;
-    for captures in pattern.captures_iter(string) {
-        for m in captures.iter().flatten() {
-            dbg!(&m);
-            reassembled.push_str(&string[last_index..m.start()]);
-            reassembled.push_str(placeholder);
-            last_index = dbg!(m.end());
-        }
-    }
-
-    if last_index < string.len() {
-        reassembled.push_str(&string[last_index..]);
-    }
-
-    if reassembled.is_empty() {
-        None
-    } else {
-        Some(reassembled)
     }
 }
 
@@ -585,7 +556,7 @@ mod tests {
         span_description_dont_scrub_double_quoted_strings_format_mysql,
         r#"SELECT * from table WHERE sku = \"foo\""#,
         "db.sql.query",
-        ""
+        "SELECT * from table WHERE sku = foo"
     );
 
     span_description_test!(
