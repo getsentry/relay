@@ -7,7 +7,8 @@ pipelines:
     environment_variables:
       GCP_PROJECT: internal-sentry
 
-    group: relay-old
+    group: relay
+    display_order: 100 # Ensure it's last pipeline in UI
     lock_behavior: unlockWhenFinished
 
     materials:
