@@ -2,12 +2,14 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
+use relay_statsd::metric;
 use relay_system::{Addr, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
+use crate::statsd::RelayCounters;
 
 /// Service implementing the [`GlobalConfig`] interface.
 ///
@@ -35,8 +37,11 @@ impl GlobalConfigService {
             let query = GetGlobalConfig { global_config: () };
 
             if let Ok(Ok(response)) = upstream_relay.send(SendQuery(query)).await {
+                metric!(counter(RelayCounters::GlobalConfigFetchSuccess) += 1);
                 envelope_processor.send::<GlobalConfig>(response.global);
-            };
+            } else {
+                metric!(counter(RelayCounters::GlobalConfigFetchFailed) += 1);
+            }
         });
     }
 }

@@ -293,7 +293,8 @@ struct ProcessEnvelopeState {
     sampling_project_state: Option<Arc<ProjectState>>,
 
     /// The configuration options for projects which apply to all DSNs
-    global_config: Arc<GlobalConfig>,
+    /// TODO(tor) implement global config logic
+    _global_config: Arc<GlobalConfig>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -1370,9 +1371,12 @@ impl EnvelopeProcessorService {
         envelope.meta_mut().set_project_id(project_id);
 
         let global_config = match self.global_config.read() {
-            Ok(config) => config.clone(),
+            Ok(config) => {
+                metric!(counter(RelayCounters::GlobalConfigReadSuccess) += 1);
+                config.clone()
+            }
             Err(_) => {
-                // some kinda metric
+                metric!(counter(RelayCounters::GlobalConfigReadFailed) += 1);
                 Arc::new(GlobalConfig::default())
             }
         };
@@ -1385,7 +1389,7 @@ impl EnvelopeProcessorService {
             sampling_result: SamplingResult::Keep,
             extracted_metrics: Default::default(),
             project_state,
-            global_config,
+            _global_config: global_config,
             sampling_project_state,
             project_id,
             managed_envelope,
@@ -2122,10 +2126,7 @@ impl EnvelopeProcessorService {
                     let mut extracted = extractor.extract(event)?;
 
                     // TODO: Move conditional tagging to generic metrics extraction
-                    let tagging_config = state
-                        .project_state
-                        .config
-                        .metric_conditional_tagging(&state.global_config);
+                    let tagging_config = &state.project_state.config.metric_conditional_tagging;
                     crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
                         event,
                         tagging_config,
@@ -2368,10 +2369,7 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state
-                    .project_state
-                    .config
-                    .measurements(&state.global_config),
+                measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
@@ -2720,8 +2718,9 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::UpdateglobalConfig(global_config) => {
                 if let Ok(mut old_global_config) = self.global_config.write() {
                     *old_global_config = Arc::new(global_config);
+                    metric!(counter(RelayCounters::GlobalConfigWriteSuccess) += 1);
                 } else {
-                    // some kinda metrics
+                    metric!(counter(RelayCounters::GlobalConfigWriteFailed) += 1);
                 }
             }
         }
@@ -2964,7 +2963,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                global_config: Arc::new(GlobalConfig::default()),
+                _global_config: Arc::new(GlobalConfig::default()),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
@@ -3382,9 +3381,11 @@ mod tests {
         )
         .unwrap();
 
-        let mut config = ProjectConfig::default();
-        config.datascrubbing_settings = datascrubbing_settings;
-        config.pii_config = Some(pii_config);
+        let config = ProjectConfig {
+            datascrubbing_settings,
+            pii_config: Some(pii_config),
+            ..Default::default()
+        };
 
         let mut project_state = ProjectState::allowed();
         project_state.config = config;

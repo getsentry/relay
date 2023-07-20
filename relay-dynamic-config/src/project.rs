@@ -48,7 +48,7 @@ pub struct ProjectConfig {
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for measurements.
     #[serde(skip_serializing_if = "Option::is_none")]
-    measurements: Option<MeasurementsConfig>,
+    pub measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
@@ -66,7 +66,7 @@ pub struct ProjectConfig {
     pub span_attributes: BTreeSet<SpanAttribute>,
     /// Rules for applying metrics tags depending on the event's content.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    metric_conditional_tagging: Vec<TaggingRule>,
+    pub metric_conditional_tagging: Vec<TaggingRule>,
     /// Exposable features enabled for this project.
     #[serde(skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
@@ -111,7 +111,7 @@ impl Default for ProjectConfig {
 impl ProjectConfig {
     /// Measurements are usually defined globally, but can be overriden per DNS. We therefore
     /// first check if the project config has a value, if not we fall back on global.
-    pub fn measurements<'a>(
+    pub fn _measurements<'a>(
         &'a self,
         global_config: &'a Arc<GlobalConfig>,
     ) -> Option<&MeasurementsConfig> {
@@ -124,7 +124,7 @@ impl ProjectConfig {
     /// globally for every dsn, and one that is only sometimes defined by the dsn. this method
     /// will merge them together in the right order.
     /// TODO(tor): Implement the maybe-override values logic.
-    pub fn metric_conditional_tagging<'a>(
+    pub fn _metric_conditional_tagging<'a>(
         &'a self,
         global_config: &'a Arc<GlobalConfig>,
     ) -> impl Iterator<Item = &TaggingRule> {
