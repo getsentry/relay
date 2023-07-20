@@ -1526,7 +1526,6 @@ def test_profile_outcomes_rate_limited(
         "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
     }
 
-    del project_config["transactionMetrics"]
     upstream = relay_with_processing(config)
 
     with open(
