@@ -2776,7 +2776,7 @@
     scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>TRANSACTION_NAME_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_identifiers_with_regex(
+<span class="kw">fn </span>scrub_identifiers_with_regex(
     string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;,
     pattern: <span class="kw-2">&amp;</span>Lazy&lt;Regex&gt;,
     replacer: <span class="kw-2">&amp;</span>str,
@@ -2933,7 +2933,7 @@
         span.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
 
         <span class="kw">if </span><span class="self">self</span>.enrich_spans {
-            scrub_span_description(span, <span class="kw-2">&amp;</span><span class="self">self</span>.span_desc_rules)<span class="question-mark">?</span>;
+            scrub_span_description(span, <span class="kw-2">&amp;</span><span class="self">self</span>.span_desc_rules);
         }
 
         span.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;

@@ -799,6 +799,9 @@
 <a href="#799" id="799">799</a>
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -811,8 +814,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::Span;
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
 <span class="kw">use </span><span class="kw">crate</span>::store::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
-<span class="kw">use </span><span class="kw">crate</span>::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
-<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
+<span class="kw">use </span><span class="kw">crate</span>::store::SpanDescriptionRule;
+<span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, ProcessingResult, Remark, RemarkType, Value};
 
 <span class="doccomment">/// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
@@ -823,7 +826,7 @@
     Regex::new(
         <span class="string">r#&quot;(?xi)
         # Capture `SAVEPOINT` savepoints.
-        ((?-x)SAVEPOINT (?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
+        ((?-x)(?P&lt;pre&gt;SAVEPOINT )(?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
         # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
         ((?-x)(?P&lt;single_quoted_strs&gt;&#39;(?:\\&#39;|[^&#39;])*(?:&#39;|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
@@ -846,7 +849,7 @@
 </span><span class="kw">static </span>SQL_COLLAPSE_PLACEHOLDERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
         <span class="string">r#&quot;(?xi)
-        ( (VALUES|IN) \s+ \( (?P&lt;values&gt; ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)? )
+        (?P&lt;pre&gt;(?:VALUES|IN) \s+\() (?P&lt;values&gt; ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P&lt;post&gt;\s*\)?)
         &quot;#</span>,
     )
     .unwrap()
@@ -854,7 +857,8 @@
 
 <span class="doccomment">/// Collapse simple lists of columns in select.
 </span><span class="kw">static </span>SQL_COLLAPSE_SELECT: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)SELECT\s+(?P&lt;columns&gt;(\w+(?:\s*,\s*\w+)+))\s+(?:FROM|$)&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r#&quot;(?i)(?P&lt;select&gt;SELECT)\s+(?P&lt;columns&gt;(\w+(?:\s*,\s*\w+)+))\s+(?P&lt;from&gt;FROM|$)&quot;#</span>)
+        .unwrap()
 });
 
 <span class="doccomment">/// Regex to identify SQL queries that are already normalized.
@@ -868,76 +872,69 @@
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
 /// for the span group hash.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_span_description(
-    span: <span class="kw-2">&amp;mut </span>Span,
-    rules: <span class="kw-2">&amp;</span>Vec&lt;SpanDescriptionRule&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingAction&gt; {
-    <span class="kw">if </span>span.description.value().is_none() {
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scrub_span_description(span: <span class="kw-2">&amp;mut </span>Span, rules: <span class="kw-2">&amp;</span>Vec&lt;SpanDescriptionRule&gt;) {
+    <span class="kw">let </span><span class="prelude-val">Some</span>(description) = span.description.as_str() <span class="kw">else </span>{ <span class="kw">return </span>};
+
+    <span class="kw">let </span>scrubbed = span
+        .op
+        .as_str()
+        .map(|op| op.split_once(<span class="string">&#39;.&#39;</span>).unwrap_or((op, <span class="string">&quot;&quot;</span>)))
+        .and_then(|(op, sub)| <span class="kw">match </span>(op, sub) {
+            (<span class="string">&quot;http&quot;</span>, <span class="kw">_</span>) =&gt; scrub_http(description),
+            (<span class="string">&quot;cache&quot;</span>, <span class="kw">_</span>) | (<span class="string">&quot;db&quot;</span>, <span class="string">&quot;redis&quot;</span>) =&gt; scrub_redis_keys(description),
+            (<span class="string">&quot;db&quot;</span>, <span class="kw">_</span>) =&gt; scrub_sql_queries(description),
+            (<span class="string">&quot;resource&quot;</span>, <span class="kw">_</span>) =&gt; scrub_resource_identifiers(description),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        });
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed) = scrubbed {
+        span.data
+            .get_or_insert_with(BTreeMap::new)
+            <span class="comment">// We don&#39;t care what the cause of scrubbing was, since we assume
+            // that after scrubbing the value is sanitized.
+            </span>.insert(
+                <span class="string">&quot;description.scrubbed&quot;</span>.to_owned(),
+                Annotated::new(Value::String(scrubbed)),
+            );
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>scrubbed = span.description.clone();
-
-    <span class="kw">let </span>did_scrub = <span class="kw">match </span>span.op.value() {
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;http&quot;</span>) =&gt; {
-            scrubbed.value_mut().as_mut().map_or(<span class="bool-val">false</span>, scrub_http)
-        }
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;cache&quot;</span>) || op == <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_redis_keys(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;db&quot;</span>) &amp;&amp; op != <span class="string">&quot;db.redis&quot; </span>=&gt; scrub_sql_queries(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
-        <span class="prelude-val">Some</span>(op) <span class="kw">if </span>op.starts_with(<span class="string">&quot;resource&quot;</span>) =&gt; scrub_resource_identifiers(<span class="kw-2">&amp;mut </span>scrubbed)<span class="question-mark">?</span>,
-        <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-    };
-
-    <span class="kw">if </span>did_scrub {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(new_desc) = scrubbed.into_value() {
-            span.data
-                .get_or_insert_with(BTreeMap::new)
-                <span class="comment">// We don&#39;t care what the cause of scrubbing was, since we assume
-                // that after scrubbing the value is sanitized.
-                </span>.insert(
-                    <span class="string">&quot;description.scrubbed&quot;</span>.to_owned(),
-                    Annotated::new(Value::String(new_desc)),
-                );
-        };
-    }
-
-    apply_span_rename_rules(span, rules)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(())
-}
+    apply_span_rename_rules(span, rules).ok(); <span class="comment">// Only fails on InvalidTransaction
+</span>}
 
 <span class="doccomment">/// Normalizes the given SQL-query-like string.
-</span><span class="kw">fn </span>scrub_sql_queries(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>mark_as_scrubbed = is_sql_query_scrubbed(string);
-    mark_as_scrubbed |= scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;%s&quot;</span>)<span class="question-mark">?</span>;
-    mark_as_scrubbed |= scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_COLLAPSE_PLACEHOLDERS, <span class="string">&quot;%s&quot;</span>)<span class="question-mark">?</span>;
+</span><span class="kw">fn </span>scrub_sql_queries(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span>mark_as_scrubbed = SQL_ALREADY_NORMALIZED_REGEX.is_match(string);
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = string.as_str() {
-        <span class="kw">if let </span>Cow::Owned(changed) = SQL_COLLAPSE_ENTITIES.replace_all(s, <span class="string">&quot;$entity_name&quot;</span>) {
-            string.set_value(<span class="prelude-val">Some</span>(changed));
+    <span class="kw">let </span><span class="kw-2">mut </span>string = Cow::from(string);
+    <span class="kw">for </span>(regex, replacement) <span class="kw">in </span>[
+        (<span class="kw-2">&amp;</span>SQL_NORMALIZER_REGEX, <span class="string">&quot;$pre%s&quot;</span>),
+        (<span class="kw-2">&amp;</span>SQL_COLLAPSE_PLACEHOLDERS, <span class="string">&quot;$pre%s$post&quot;</span>),
+        (<span class="kw-2">&amp;</span>SQL_COLLAPSE_ENTITIES, <span class="string">&quot;$entity_name&quot;</span>),
+        (<span class="kw-2">&amp;</span>SQL_COLLAPSE_SELECT, <span class="string">&quot;$select .. $from&quot;</span>),
+    ] {
+        <span class="kw">let </span>replaced = regex.replace_all(<span class="kw-2">&amp;</span>string, replacement);
+        <span class="kw">if let </span>Cow::Owned(s) = replaced {
+            string = Cow::Owned(s);
         }
     }
-    mark_as_scrubbed |= scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>SQL_COLLAPSE_SELECT, <span class="string">&quot;..&quot;</span>)<span class="question-mark">?</span>;
 
-    <span class="prelude-val">Ok</span>(mark_as_scrubbed)
+    <span class="kw">match </span>string {
+        Cow::Owned(scrubbed) =&gt; <span class="prelude-val">Some</span>(scrubbed),
+        Cow::Borrowed(s) <span class="kw">if </span>mark_as_scrubbed =&gt; <span class="prelude-val">Some</span>(s.to_owned()),
+        Cow::Borrowed(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+    }
 }
 
-<span class="kw">fn </span>is_sql_query_scrubbed(query: <span class="kw-2">&amp;</span>Annotated&lt;String&gt;) -&gt; bool {
-    query
-        .value()
-        .map_or(<span class="bool-val">false</span>, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
-}
-
-<span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;mut </span>String) -&gt; bool {
-    <span class="kw">let </span><span class="prelude-val">Some</span>((method, url)) = string.split_once(<span class="string">&#39; &#39;</span>) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+<span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span>(method, url) = string.split_once(<span class="string">&#39; &#39;</span>)<span class="question-mark">?</span>;
     <span class="kw">if </span>!HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
-        <span class="kw">return </span><span class="bool-val">false</span>;
+        <span class="kw">return </span><span class="prelude-val">None</span>;
     };
 
-    <span class="kw-2">*</span>string = <span class="kw">match </span>Url::parse(url) {
+    <span class="kw">let </span>scrubbed = <span class="kw">match </span>Url::parse(url) {
         <span class="prelude-val">Ok</span>(url) =&gt; {
-            <span class="kw">let </span><span class="prelude-val">Some</span>(host) = url.host().map(|h|h.to_string()) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-            <span class="kw">let </span><span class="prelude-val">Some</span>(domain) = normalize_domain(host.as_str(), url.port()) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+            <span class="kw">let </span>host = url.host().map(|h| h.to_string())<span class="question-mark">?</span>;
+            <span class="kw">let </span>domain = normalize_domain(host.as_str(), url.port())<span class="question-mark">?</span>;
             <span class="kw">let </span>scheme = url.scheme();
 
             <span class="macro">format!</span>(<span class="string">&quot;{method} {scheme}://{domain}&quot;</span>)
@@ -947,8 +944,8 @@
         }
     };
 
-    <span class="bool-val">true
-</span>}
+    <span class="prelude-val">Some</span>(scrubbed)
+}
 
 <span class="kw">fn </span>normalize_domain(domain: <span class="kw-2">&amp;</span>str, port: <span class="prelude-ty">Option</span>&lt;u16&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(allow_listed) = normalized_domain_from_allowlist(domain, port) {
@@ -987,21 +984,23 @@
     <span class="prelude-val">None
 </span>}
 
-<span class="kw">fn </span>scrub_redis_keys(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    <span class="kw">let </span>parts = string
-        .as_str()
-        .and_then(|s| REDIS_COMMAND_REGEX.captures(s))
+<span class="kw">fn </span>scrub_redis_keys(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">let </span>parts = REDIS_COMMAND_REGEX
+        .captures(string)
         .map(|caps| (caps.name(<span class="string">&quot;command&quot;</span>), caps.name(<span class="string">&quot;args&quot;</span>)));
-    <span class="kw-2">*</span>string = Annotated::new(<span class="kw">match </span>parts {
+    <span class="kw">let </span>scrubbed = <span class="kw">match </span>parts {
         <span class="prelude-val">Some</span>((<span class="prelude-val">Some</span>(command), <span class="prelude-val">Some</span>(_args))) =&gt; command.as_str().to_owned() + <span class="string">&quot; *&quot;</span>,
         <span class="prelude-val">Some</span>((<span class="prelude-val">Some</span>(command), <span class="prelude-val">None</span>)) =&gt; command.as_str().into(),
         <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>((<span class="prelude-val">None</span>, <span class="kw">_</span>)) =&gt; <span class="string">&quot;*&quot;</span>.into(),
-    });
-    <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+    };
+    <span class="prelude-val">Some</span>(scrubbed)
 }
 
-<span class="kw">fn </span>scrub_resource_identifiers(string: <span class="kw-2">&amp;mut </span>Annotated&lt;String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, ProcessingAction&gt; {
-    scrub_identifiers_with_regex(string, <span class="kw-2">&amp;</span>RESOURCE_NORMALIZER_REGEX, <span class="string">&quot;*&quot;</span>)
+<span class="kw">fn </span>scrub_resource_identifiers(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="kw">match </span>RESOURCE_NORMALIZER_REGEX.replace_all(string, <span class="string">&quot;$pre*$post&quot;</span>) {
+        Cow::Borrowed(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+        Cow::Owned(scrubbed) =&gt; <span class="prelude-val">Some</span>(scrubbed),
+    }
 }
 
 <span class="doccomment">/// Applies rules to the span description.
@@ -1116,7 +1115,7 @@
 
                 <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(<span class="kw-2">&amp;</span>json).unwrap();
 
-                scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[]).unwrap();
+                scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[]);
 
                 <span class="comment">// The input description may contain escaped characters, and the
                 // default formatter (when taking the value from the span
@@ -1362,7 +1361,7 @@
         span_description_dont_scrub_double_quoted_strings_format_mysql,
         <span class="string">r#&quot;SELECT * from table WHERE sku = \&quot;foo\&quot;&quot;#</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;SELECT * from table WHERE sku = foo&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1493,6 +1492,13 @@
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s)&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_scrub_in,
+        <span class="string">&quot;select column FROM table WHERE id IN (1, 2, 3)&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;select column FROM table WHERE id IN (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
