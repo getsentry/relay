@@ -74,7 +74,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
     let scrubbed = span
         .op
         .as_str()
-        .and_then(|op| op.split_once('.'))
+        .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
@@ -108,7 +108,8 @@ fn scrub_sql_queries(string: &str) -> Option<String> {
         (&SQL_COLLAPSE_ENTITIES, "$entity_name"),
         (&SQL_COLLAPSE_SELECT, "$select .. $from"),
     ] {
-        if let Cow::Owned(s) = regex.replace_all(&string, replacement) {
+        let replaced = regex.replace_all(&string, replacement);
+        if let Cow::Owned(s) = replaced {
             string = Cow::Owned(s);
         }
     }
@@ -687,6 +688,13 @@ mod tests {
         "INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)",
         "db.sql.query",
         "INSERT INTO a (b, c, d, e) VALUES (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_in,
+        "select column FROM table WHERE id IN (1, 2, 3)",
+        "db.sql.query",
+        "select column FROM table WHERE id IN (%s)"
     );
 
     span_description_test!(
