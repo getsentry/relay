@@ -168,6 +168,24 @@ class Sentry(SentryLike):
 
         return ret_val
 
+    def add_full_project_config_with_transaction_metrics_config(
+        self, project_id, dsn_public_key=None, extra=None
+    ):
+        transaction_metrics_config = {
+            "transactionMetricsConfig": {
+                "version": 1,
+            },
+        }
+
+        if extra:
+            extra += transaction_metrics_config
+        else:
+            extra = transaction_metrics_config
+
+        return self.add_full_project_config(
+            project_id, dsn_public_key=dsn_public_key, extra=extra
+        )
+
     def add_full_project_config(self, project_id, dsn_public_key=None, extra=None):
         ret_val = self.full_project_config(project_id, dsn_public_key, extra)
         self.project_configs[project_id] = ret_val

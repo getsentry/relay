@@ -730,7 +730,9 @@ def test_outcomes_rate_limit(
 def test_outcome_to_client_report(relay, mini_sentry):
     # Create project config
     project_id = 42
-    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config = (
+        mini_sentry.add_full_project_config_with_transaction_metrics_config(project_id)
+    )
     project_config["config"]["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
