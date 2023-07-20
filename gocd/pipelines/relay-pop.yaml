@@ -19,7 +19,7 @@ pipelines:
       # Relay PoPs can't be deployed until the relay deploy pipeline reaches
       # the promote-to-pops stage.
       pipeline-deploy-relay-completed:
-        pipeline: deploy-relay
+        pipeline: deploy-relay-old
         stage: promote-to-pops
 
     stages:
