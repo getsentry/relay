@@ -2,7 +2,7 @@ use relay_dynamic_config::TaggingRule;
 use relay_general::protocol::Event;
 use relay_metrics::Metric;
 
-pub fn run_conditional_tagging(event: &Event, config: &Vec<TaggingRule>, metrics: &mut [Metric]) {
+pub fn run_conditional_tagging(event: &Event, config: &[TaggingRule], metrics: &mut [Metric]) {
     for rule in config {
         if !rule.condition.supported()
             || rule.target_metrics.is_empty()
