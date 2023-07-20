@@ -472,7 +472,7 @@ impl Processor for TransactionsProcessor<'_> {
         span.op.get_or_insert_with(|| "default".to_owned());
 
         if self.enrich_spans {
-            scrub_span_description(span, &self.span_desc_rules)?;
+            scrub_span_description(span, &self.span_desc_rules);
         }
 
         span.process_child_values(self, state)?;
