@@ -1047,7 +1047,7 @@ mod tests {
             let message = ValidateEnvelope { envelope };
 
             broker.handle_validate_envelope(message);
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(200)).await;
             // Nothing will be dequeued.
             assert!(buffer_rx.try_recv().is_err())
         }

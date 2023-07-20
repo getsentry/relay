@@ -2,7 +2,6 @@
 //! These are then used for metrics extraction.
 use std::collections::BTreeMap;
 
-use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use url::Url;
@@ -219,10 +218,19 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         }
 
         let domain = if span_op == "http.client" {
-            span.description
-                .value()
-                .and_then(|url| domain_from_http_url(url))
-                .map(|d| d.to_lowercase())
+            // HACK: Parse the normalized description to get the normalized domain.
+            scrubbed_description
+                .and_then(|d| d.split_once(' '))
+                .and_then(|(_, d)| Url::parse(d).ok())
+                .and_then(|url| {
+                    url.domain().map(|d| {
+                        let mut domain = d.to_lowercase();
+                        if let Some(port) = url.port() {
+                            domain = format!("{domain}:{port}");
+                        }
+                        domain
+                    })
+                })
         } else if span_op.starts_with("db") {
             span.description
                 .value()
@@ -238,24 +246,17 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             }
         }
 
-        let sanitized_description = sanitized_span_description(
-            scrubbed_description,
-            span_module,
-            action.as_deref(),
-            domain.as_deref(),
-        );
-
-        if let Some(scrubbed_desc) = sanitized_description {
+        if let Some(scrubbed_desc) = scrubbed_description {
             // Truncating the span description's tag value is, for now,
             // a temporary solution to not get large descriptions dropped. The
             // group tag mustn't be affected by this, and still be
             // computed from the full, untruncated description.
 
-            let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
+            let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
+            let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
     }
@@ -278,38 +279,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
     }
 
     span_tags
-}
-
-/// Returns the sanitized span description.
-///
-/// If a scrub description is provided, that's returned. If not, a new
-/// description is built for `http*` modules with the following format:
-/// `{action} {domain}/<unparameterized>`.
-fn sanitized_span_description(
-    scrubbed_description: Option<&str>,
-    module: Option<&str>,
-    action: Option<&str>,
-    domain: Option<&str>,
-) -> Option<String> {
-    if let Some(scrubbed) = scrubbed_description {
-        return Some(scrubbed.to_owned());
-    }
-
-    if !module?.starts_with("http") {
-        return None;
-    }
-
-    let (action, space) = match action {
-        Some(s) => (s, " "),
-        None => ("", ""),
-    };
-
-    let (domain, slash) = match domain {
-        Some(s) => (s, "/"),
-        None => ("", ""),
-    };
-
-    Some(format!("{action}{space}{domain}{slash}<unparameterized>"))
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens
@@ -351,7 +320,7 @@ fn sql_action_from_query(query: &str) -> Option<&str> {
 /// Regex with a capture group to extract the table from a database query,
 /// based on `FROM`, `INTO` and `UPDATE` keywords.
 static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)(from|into|update)(\s|"|'|\()+(?P<table>(\w+(\.\w+)*))(\s|"|'|\))+"#).unwrap()
+    Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
 /// Returns the table in the SQL query, if any.
@@ -362,8 +331,8 @@ fn sql_table_from_query(query: &str) -> Option<&str> {
 }
 
 /// Regex with a capture group to extract the HTTP method from a string.
-static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\s"#)
+pub static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b"#)
         .unwrap()
 });
 
@@ -415,60 +384,6 @@ fn span_op_to_category(op: &str) -> Option<&str> {
         // Map everything else to unknown:
         _ => None,
     }
-}
-
-fn domain_from_http_url(url: &str) -> Option<String> {
-    match url.split_once(' ') {
-        Some((_method, url)) => {
-            let url = Url::parse(url);
-            let (domain, port) = match &url {
-                Ok(url) => (url.domain(), url.port()),
-                Err(_) => (None, None),
-            };
-            match (domain, port) {
-                (Some(domain), port) => normalize_domain(domain, port),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(allow_listed) = normalized_domain_from_allowlist(domain, port) {
-        return Some(allow_listed);
-    }
-
-    let mut tokens = domain.rsplitn(3, '.');
-    let tld = tokens.next();
-    let domain = tokens.next();
-    let prefix = tokens.next().map(|_| "*");
-
-    let mut replaced = prefix
-        .iter()
-        .chain(domain.iter())
-        .chain(tld.iter())
-        .join(".");
-
-    if let Some(port) = port {
-        replaced = format!("{replaced}:{port}");
-    }
-
-    if replaced.is_empty() {
-        return None;
-    }
-    Some(replaced)
-}
-
-/// Allow list of domains to not get subdomains scrubbed.
-const DOMAIN_ALLOW_LIST: &[&str] = &["127.0.0.1", "localhost"];
-
-fn normalized_domain_from_allowlist(domain: &str, port: Option<u16>) -> Option<String> {
-    if let Some(domain) = DOMAIN_ALLOW_LIST.iter().find(|allowed| **allowed == domain) {
-        let with_port = port.map_or_else(|| (*domain).to_owned(), |p| format!("{}:{}", domain, p));
-        return Some(with_port);
-    }
-    None
 }
 
 #[cfg(test)]
@@ -595,6 +510,12 @@ mod tests {
     #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
+        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+    }
+
+    #[test]
+    fn extract_table_select_nested() {
+        let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
     }
 
