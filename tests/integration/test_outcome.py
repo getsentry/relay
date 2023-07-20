@@ -697,8 +697,6 @@ def test_outcomes_rate_limit(
         }
     ]
 
-    del project_config["config"]["transactionMetrics"]
-
     outcomes_consumer = outcomes_consumer()
 
     if category == "session":
