@@ -531,6 +531,12 @@
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -853,7 +859,7 @@
 <span class="doccomment">/// Regex with a capture group to extract the table from a database query,
 /// based on `FROM`, `INTO` and `UPDATE` keywords.
 </span><span class="kw">static </span>SQL_TABLE_EXTRACTOR_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)(from|into|update)(\s|&quot;|&#39;|\()+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|&quot;|&#39;|\))+&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r#&quot;(?i)(from|into|update)(\s|&quot;)+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|&quot;)+&quot;#</span>).unwrap()
 });
 
 <span class="doccomment">/// Returns the table in the SQL query, if any.
@@ -1043,6 +1049,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_select() {
         <span class="kw">let </span>query = <span class="string">r#&quot;SELECT * FROM &quot;a.b&quot; WHERE &quot;x&quot; = 1&quot;#</span>;
+        <span class="macro">assert_eq!</span>(sql_table_from_query(query).unwrap(), <span class="string">&quot;a.b&quot;</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>extract_table_select_nested() {
+        <span class="kw">let </span>query = <span class="string">r#&quot;SELECT * FROM (SELECT * FROM &quot;a.b&quot;) s WHERE &quot;x&quot; = 1&quot;#</span>;
         <span class="macro">assert_eq!</span>(sql_table_from_query(query).unwrap(), <span class="string">&quot;a.b&quot;</span>);
     }
 
