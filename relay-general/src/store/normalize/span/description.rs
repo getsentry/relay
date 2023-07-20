@@ -43,12 +43,6 @@ static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
 /// Regex to make multiple placeholders collapse into one.
 /// This can be used as a second pass after [`SQL_NORMALIZER_REGEX`].
 static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
-    // Regex::new(
-    //     r#"(?xi)
-    //     (?:VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)?
-    //     "#,
-    // )
-    // .unwrap()
     Regex::new(
         r#"(?xi)
         (?P<pre>(?:VALUES|IN) \s+\() (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P<post>\s*\)?)
@@ -59,7 +53,8 @@ static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 
 /// Collapse simple lists of columns in select.
 static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)SELECT\s+(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?:FROM|$)"#).unwrap()
+    Regex::new(r#"(?i)(?P<select>SELECT)\s+(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?P<from>FROM|$)"#)
+        .unwrap()
 });
 
 /// Regex to identify SQL queries that are already normalized.
@@ -106,10 +101,17 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
 fn scrub_sql_queries(string: &str) -> Option<String> {
     let mark_as_scrubbed = SQL_ALREADY_NORMALIZED_REGEX.is_match(string);
 
-    // let string = SQL_NORMALIZER_REGEX.replace_all(string, "%s");
-    let string = SQL_COLLAPSE_PLACEHOLDERS.replace_all(string, "$pre%s$post");
-    // let string = SQL_COLLAPSE_ENTITIES.replace_all(&string, "$entity_name");
-    // let string = SQL_COLLAPSE_SELECT.replace_all(&string, "..");
+    let mut string = Cow::from(string);
+    for (regex, replacement) in [
+        (&SQL_NORMALIZER_REGEX, "%s"),
+        (&SQL_COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
+        (&SQL_COLLAPSE_ENTITIES, "$entity_name"),
+        (&SQL_COLLAPSE_SELECT, "$select .. $from"),
+    ] {
+        if let Cow::Owned(s) = regex.replace_all(&string, replacement) {
+            string = Cow::Owned(s);
+        }
+    }
 
     match string {
         Cow::Owned(scrubbed) => Some(scrubbed),
