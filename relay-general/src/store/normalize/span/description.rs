@@ -53,7 +53,8 @@ static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 
 /// Collapse simple lists of columns in select.
 static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)SELECT\s+(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?:FROM|$)"#).unwrap()
+    Regex::new(r#"(?i)SELECT\s+((DISTINCT|ALL)\s+)?(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?:FROM|$)"#)
+        .unwrap()
 });
 
 /// Regex to identify SQL queries that are already normalized.
@@ -685,6 +686,13 @@ mod tests {
         r#"SELECT myfield1, \"a\".\"b\", count(*) AS c, another_field FROM table WHERE %s"#,
         "db.sql.query",
         "SELECT myfield1, b, count(*) AS c, another_field FROM table WHERE %s"
+    );
+
+    span_description_test!(
+        span_description_collapse_columns_distinct,
+        r#"SELECT DISTINCT a, b, c FROM table WHERE %s"#,
+        "db.sql.query",
+        "SELECT DISTINCT .. FROM table WHERE %s"
     );
 
     span_description_test!(
