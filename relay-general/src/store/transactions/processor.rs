@@ -315,7 +315,7 @@ pub(crate) fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, 
     scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*")
 }
 
-pub(crate) fn scrub_identifiers_with_regex(
+fn scrub_identifiers_with_regex(
     string: &mut Annotated<String>,
     pattern: &Lazy<Regex>,
     replacer: &str,
