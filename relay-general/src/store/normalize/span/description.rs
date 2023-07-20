@@ -45,10 +45,15 @@ static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
 static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
-        ( (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)? ) |
+        ( (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)? )
         "#,
     )
     .unwrap()
+});
+
+/// Collapse simple lists of columns in select.
+static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)SELECT\s+(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?:FROM|$)"#).unwrap()
 });
 
 /// Regex to identify SQL queries that are already normalized.
@@ -111,6 +116,7 @@ fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingA
             string.set_value(Some(changed));
         }
     }
+    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_SELECT, "..")?;
 
     Ok(mark_as_scrubbed)
 }
@@ -411,8 +417,6 @@ mod tests {
         "GET *"
     );
 
-    // TODO(iker): Add span description test for URLs with paths
-
     span_description_test!(
         span_description_scrub_only_dblike_on_db_ops,
         "SELECT count() FROM table WHERE id IN (%s, %s)",
@@ -541,9 +545,9 @@ mod tests {
 
     span_description_test!(
         span_description_strip_prefixes,
-        r#"SELECT \"table\".\"foo\", \"table\".\"bar\" from \"table\" WHERE sku = %s"#,
+        r#"SELECT \"table\".\"foo\", \"table\".\"bar\", count(*) from \"table\" WHERE sku = %s"#,
         "db.sql.query",
-        r#"SELECT foo, bar from table WHERE sku = %s"#
+        r#"SELECT foo, bar, count(*) from table WHERE sku = %s"#
     );
 
     span_description_test!(
@@ -649,6 +653,38 @@ mod tests {
         "SELECT * FROM table WHERE deleted_at IS NULL",
         "db.sql.query",
         ""
+    );
+
+    span_description_test!(
+        span_description_collapse_columns,
+        // Simple lists of columns will be collapsed
+        r#"SELECT myfield1, \"a\".\"b\", another_field FROM table WHERE %s"#,
+        "db.sql.query",
+        "SELECT .. FROM table WHERE %s"
+    );
+
+    span_description_test!(
+        span_description_do_not_collapse_single_column,
+        // Single columns remain intact
+        r#"SELECT a FROM table WHERE %s"#,
+        "db.sql.query",
+        "SELECT a FROM table WHERE %s"
+    );
+
+    span_description_test!(
+        span_description_collapse_columns_nested,
+        // Simple lists of columns will be collapsed
+        r#"SELECT a, b FROM (SELECT c, d FROM t) AS s WHERE %s"#,
+        "db.sql.query",
+        "SELECT .. FROM (SELECT .. FROM t) AS s WHERE %s"
+    );
+
+    span_description_test!(
+        span_description_do_not_collapse_columns,
+        // Leave select untouched if it contains more complex expressions
+        r#"SELECT myfield1, \"a\".\"b\", count(*) AS c, another_field FROM table WHERE %s"#,
+        "db.sql.query",
+        "SELECT myfield1, b, count(*) AS c, another_field FROM table WHERE %s"
     );
 
     span_description_test!(
