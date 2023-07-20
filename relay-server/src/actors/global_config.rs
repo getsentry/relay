@@ -32,7 +32,7 @@ impl GlobalConfigService {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
         let envelope_processor = self.envelope_processor.clone();
         tokio::spawn(async move {
-            let query = GetGlobalConfig;
+            let query = GetGlobalConfig { global_config: () };
 
             if let Ok(Ok(response)) = upstream_relay.send(SendQuery(query)).await {
                 envelope_processor.send::<GlobalConfig>(response.global);
@@ -63,7 +63,12 @@ impl Service for GlobalConfigService {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetGlobalConfig;
+pub struct GetGlobalConfig {
+    // This struct is only used for getting the global configs, meaning the presence of the key
+    // is enough, and no value needs to be included.
+    global_config: (),
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfigResponse {
@@ -78,7 +83,7 @@ impl UpstreamQuery for GetGlobalConfig {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4&global_config=true")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
     }
 
     fn priority() -> RequestPriority {
