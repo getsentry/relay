@@ -1253,10 +1253,34 @@ def test_span_metrics_secondary_aggregator(
     transaction["timestamp"] = timestamp.isoformat()
 
     metrics_consumer = metrics_consumer()
-    processing = relay_with_processing(options=TEST_CONFIG)
+    processing = relay_with_processing(
+        options={
+            "aggregator": {
+                # No metrics will arrive through the default aggregator:
+                "bucket_interval": 100,
+                "initial_delay": 100,
+                "debounce_delay": 100,
+            },
+            "secondary_aggregators": [
+                {
+                    "namespace": "spans",
+                    "config": {
+                        # The spans-specific aggregator has config that will deliver metrics:
+                        "bucket_interval": 1,
+                        "initial_delay": 0,
+                        "debounce_delay": 0,
+                    },
+                }
+            ],
+        }
+    )
     processing.send_transaction(project_id, transaction)
 
-    metrics = metrics_consumer.get_metrics()
+    metrics = list(metrics_consumer.get_metrics())
+
+    # Transaction metrics are still aggregated:
+    assert all([m[0]["name"].startswith("spans", 2) for m in metrics])
+
     span_metrics = [
         (metric, headers)
         for metric, headers in metrics
