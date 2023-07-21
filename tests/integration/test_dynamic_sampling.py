@@ -472,7 +472,7 @@ def test_multi_item_envelope(mini_sentry, relay, rule_type, event_factory):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetricsConfig"] = {"version": 1}
+    # config["config"]["transactionMetricsConfig"] = {"version": 1}
     # add a sampling rule to project config that removes all transactions (sample_rate=0)
     public_key = config["publicKeys"][0]["publicKey"]
     # add a sampling rule to project config that drops all events (sample_rate=0), it should be ignored
