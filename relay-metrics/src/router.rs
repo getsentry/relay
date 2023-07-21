@@ -19,11 +19,28 @@ use crate::{
 /// For now, the only way to scope an aggregator is by [`MetricNamespace`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ScopedAggregatorConfig {
-    /// TODO: docs
-    /// TODO: more generic condition
-    pub namespace: MetricNamespace,
-    /// TODO: docs
+    /// Condition that needs to be met for a metric or bucket to be routed to a
+    /// secondary aggregator.
+    pub condition: Condition,
+    /// The configuration of the secondary aggregator.
     pub config: AggregatorConfig,
+}
+
+/// Condition that needs to be met for a metric or bucket to be routed to a
+/// secondary aggregator.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "op", rename_all = "lowercase")]
+pub enum Condition {
+    /// Checks for equality on a specific field.
+    Eq(Field),
+}
+
+/// Contains a field and the value to compare to when the [`Condition`] is evaluated.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "field", content = "value", rename_all = "lowercase")]
+pub enum Field {
+    /// Field that allows comparison to a metric or bucket's namespace.
+    Namespace(MetricNamespace),
 }
 
 /// TODO: docs
@@ -44,8 +61,11 @@ impl RouterService {
             secondary_aggregators: secondary_aggregators
                 .into_iter()
                 .map(|c| {
+                    let namespace = match c.condition {
+                        Condition::Eq(Field::Namespace(namespace)) => namespace,
+                    };
                     (
-                        c.namespace,
+                        namespace,
                         AggregatorService::new(c.config, receiver.clone()),
                     )
                 })
@@ -175,5 +195,28 @@ impl StartedRouter {
             let message = M::from_parts(project_key, group.collect());
             agg.send(message);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_debug_snapshot;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn condition_roundtrip() {
+        let json = json!({"op": "eq", "field": "namespace", "value": "spans"});
+        assert_debug_snapshot!(
+            serde_json::from_value::<Condition>(json).unwrap(),
+            @r###"
+        Eq(
+            Namespace(
+                Spans,
+            ),
+        )
+        "###
+        );
     }
 }
