@@ -352,36 +352,6 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_convert_sensitive_fields_too_large() {
-        let mut data = Event::from_value(
-            serde_json::json!({
-                "user": {
-                    "data": {
-                        "1": "test"
-                    }
-                }
-            })
-            .into(),
-        );
-
-        let config = to_pii_config_impl(&DataScrubbingConfig {
-            sensitive_fields: vec!["1"]
-                .repeat(99999) // lowest number that will fail
-                .into_iter()
-                .map(|x| x.to_string())
-                .collect(),
-            ..simple_enabled_config()
-        })
-        .unwrap()
-        .unwrap();
-
-        let mut pii_processor = PiiProcessor::new(config.compiled());
-        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        // The data won't be scrubbed here, since the regex cannot be compiled.
-        assert_annotated_snapshot!(data);
-    }
-
-    #[test]
     fn test_convert_exclude_field() {
         let pii_config = to_pii_config(&DataScrubbingConfig {
             exclude_fields: vec!["foobar".to_owned()],

@@ -1,5 +1,5 @@
 local STAGE_NAME = 'deploy-pops';
-local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/v1.0.0/gocd-tasks.libsonnet';
+local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
 // Create a gocd job that will run the deploy-pop script
 local deploy_pop_job(region) =

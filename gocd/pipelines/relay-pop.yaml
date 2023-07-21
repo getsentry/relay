@@ -3,11 +3,12 @@
 # - https://www.notion.so/sentry/GoCD-New-Service-Quickstart-6d8db7a6964049b3b0e78b8a4b52e25d
 format_version: 10
 pipelines:
-  deploy-relay-pop:
+  deploy-relay-pop-old:
     environment_variables:
       GCP_PROJECT: internal-sentry
 
     group: relay
+    display_order: 100 # Ensure it's last pipeline in UI
     lock_behavior: unlockWhenFinished
 
     materials:
@@ -19,7 +20,7 @@ pipelines:
       # Relay PoPs can't be deployed until the relay deploy pipeline reaches
       # the promote-to-pops stage.
       pipeline-deploy-relay-completed:
-        pipeline: deploy-relay
+        pipeline: deploy-relay-old
         stage: promote-to-pops
 
     stages:
