@@ -1821,10 +1821,9 @@ impl AggregatorService {
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, value.cost());
 
-                    let entry = stats
+                    *stats
                         .entry((metric_type_tag(&value), metric_name_tag(&key.metric_name)))
-                        .or_insert(0usize);
-                    *entry += value.len();
+                        .or_insert(0usize) += value.len();
 
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets
