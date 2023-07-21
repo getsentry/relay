@@ -969,6 +969,50 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     assert mini_sentry.captured_events.qsize() == 0
 
 
+def test_transaction_name_too_long(
+    transactions_consumer,
+    metrics_consumer,
+    mini_sentry,
+    relay_with_processing,
+):
+    """When a transaction name is truncated, the transaction metric should get the truncated value"""
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    transaction = {
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "type": "transaction",
+        "transaction": 201 * "x",
+        "start_timestamp": 1597976392.6542819,
+        "contexts": {
+            "trace": {
+                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                "span_id": "FA90FDEAD5F74052",
+            }
+        },
+    }
+    timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = timestamp.isoformat()
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+    processing = relay_with_processing(options=TEST_CONFIG)
+    processing.send_transaction(project_id, transaction)
+
+    expected_transaction_name = 197 * "x" + "..."
+
+    transaction, _ = tx_consumer.get_event()
+    assert transaction["transaction"] == expected_transaction_name
+
+    metrics = metrics_consumer.get_metrics()
+    for metric, _ in metrics:
+        assert metric["tags"].get("transaction") == expected_transaction_name
+
+
 @pytest.mark.skip(reason="flake")
 def test_graceful_shutdown(mini_sentry, relay):
     relay = relay(
