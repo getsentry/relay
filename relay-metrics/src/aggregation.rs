@@ -18,7 +18,8 @@ use thiserror::Error;
 use tokio::time::Instant;
 
 use crate::statsd::{
-    metric_name_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers,
+    metric_name_tag, metric_type_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets,
+    MetricTimers,
 };
 use crate::{
     protocol, CounterType, DistributionType, GaugeType, Metric, MetricNamespace,
@@ -1808,6 +1809,8 @@ impl AggregatorService {
 
         let force = matches!(&self.state, AggregatorState::ShuttingDown);
 
+        let mut stats = BTreeMap::new();
+
         relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
             let bucket_interval = self.config.bucket_interval;
             let cost_tracker = &mut self.cost_tracker;
@@ -1817,6 +1820,12 @@ impl AggregatorService {
                     let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, value.cost());
+
+                    let entry = stats
+                        .entry((metric_type_tag(&value), metric_name_tag(&key.metric_name)))
+                        .or_insert(0usize);
+                    *entry += value.len();
+
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets
                         .entry(key.project_key)
@@ -1832,6 +1841,14 @@ impl AggregatorService {
                 }
             });
         });
+
+        for ((ty, name), size) in stats.into_iter() {
+            relay_statsd::metric!(
+                gauge(MetricGauges::AvgBucketSize) = size as u64,
+                metric_type = ty,
+                metric_name = name
+            );
+        }
 
         buckets
     }
