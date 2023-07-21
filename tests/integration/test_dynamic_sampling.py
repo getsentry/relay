@@ -246,7 +246,7 @@ def test_it_removes_events(mini_sentry, relay):
 
     # create a basic project config
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetricsConfig"] = {"version": 1}
+    config["config"]["transactionMetrics"] = {"version": 1}
 
     public_key = config["publicKeys"][0]["publicKey"]
 
@@ -404,14 +404,14 @@ def test_uses_trace_public_key(mini_sentry, relay):
     # create basic project configs
     project_id1 = 42
     config1 = mini_sentry.add_basic_project_config(project_id1)
-    config1["config"]["transactionMetricsConfig"] = {"version": 1}
+    config1["config"]["transactionMetrics"] = {"version": 1}
 
     public_key1 = config1["publicKeys"][0]["publicKey"]
     _add_sampling_config(config1, sample_rate=0, rule_type="trace")
 
     project_id2 = 43
     config2 = mini_sentry.add_basic_project_config(project_id2)
-    config2["config"]["transactionMetricsConfig"] = {"version": 1}
+    config2["config"]["transactionMetrics"] = {"version": 1}
     public_key2 = config2["publicKeys"][0]["publicKey"]
     _add_sampling_config(config2, sample_rate=1, rule_type="trace")
 
@@ -522,7 +522,7 @@ def test_client_sample_rate_adjusted(mini_sentry, relay, rule_type, event_factor
     project_id = 42
     relay = relay(mini_sentry)
     config = mini_sentry.add_basic_project_config(project_id)
-    config["config"]["transactionMetricsConfig"] = {"version": 1}
+    config["config"]["transactionMetrics"] = {"version": 1}
     public_key = config["publicKeys"][0]["publicKey"]
 
     # the closer to 0, the less flaky the test is
