@@ -793,7 +793,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 9,
+        "category": 2,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -949,7 +949,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 9,
+        "category": 2,
         "quantity": 2,
     }
     assert outcome == expected_outcome
@@ -1077,7 +1077,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 9,
+        "category": 2,
         "quantity": 1,
     }
     assert outcome == expected_outcome
