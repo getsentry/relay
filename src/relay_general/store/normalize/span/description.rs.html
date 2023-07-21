@@ -802,6 +802,13 @@
 <a href="#802" id="802">802</a>
 <a href="#803" id="803">803</a>
 <a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -857,7 +864,7 @@
 
 <span class="doccomment">/// Collapse simple lists of columns in select.
 </span><span class="kw">static </span>SQL_COLLAPSE_SELECT: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)(?P&lt;select&gt;SELECT)\s+(?P&lt;columns&gt;(\w+(?:\s*,\s*\w+)+))\s+(?P&lt;from&gt;FROM|$)&quot;#</span>)
+    Regex::new(<span class="string">r#&quot;(?i)(?P&lt;select&gt;SELECT(\s+(DISTINCT|ALL))?)\s+(?P&lt;columns&gt;(\w+(?:\s*,\s*\w+)+))\s+(?&lt;from&gt;FROM|$)&quot;#</span>)
         .unwrap()
 });
 
@@ -1485,6 +1492,13 @@
         </span><span class="string">r#&quot;SELECT myfield1, \&quot;a\&quot;.\&quot;b\&quot;, count(*) AS c, another_field FROM table WHERE %s&quot;#</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;SELECT myfield1, b, count(*) AS c, another_field FROM table WHERE %s&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_collapse_columns_distinct,
+        <span class="string">r#&quot;SELECT DISTINCT a, b, c FROM table WHERE %s&quot;#</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT DISTINCT .. FROM table WHERE %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
