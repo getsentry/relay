@@ -9,7 +9,7 @@
 **Internal**:
 
 - Add support for `sampled` field in the DSC and error tagging. ([#2290](https://github.com/getsentry/relay/pull/2290))
-- Skip dynamic sampling if relay doesn't support incoming metrics extraction version. ([#2273](https://github.com/getsentry/relay/pull/2273))
+- Skip dynamic sampling if relay does not support metrics extraction configuration. ([#2273](https://github.com/getsentry/relay/pull/2273))
 - Move span tag extraction from metrics to normalization. ([#2304](https://github.com/getsentry/relay/pull/2304))
 
 
