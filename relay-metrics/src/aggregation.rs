@@ -1989,7 +1989,6 @@ impl Service for AggregatorService {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
             let mut shutdown = Controller::shutdown_handle();
-            relay_log::info!("aggregator started");
 
             // Note that currently this loop never exists and will run till the tokio runtime shuts
             // down. This is about to change with the refactoring for the shutdown process.
@@ -2004,7 +2003,6 @@ impl Service for AggregatorService {
                     else => break,
                 }
             }
-            relay_log::info!("aggregator stopped");
         });
     }
 }
