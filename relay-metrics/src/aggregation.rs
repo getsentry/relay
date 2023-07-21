@@ -1371,8 +1371,8 @@ pub struct FlushBuckets {
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
-    project_key: ProjectKey,
-    metrics: Vec<Metric>,
+    pub(crate) project_key: ProjectKey,
+    pub(crate) metrics: Vec<Metric>,
 }
 
 impl InsertMetrics {
@@ -1402,8 +1402,8 @@ impl InsertMetrics {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
-    project_key: ProjectKey,
-    buckets: Vec<Bucket>,
+    pub(crate) project_key: ProjectKey,
+    pub(crate) buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {

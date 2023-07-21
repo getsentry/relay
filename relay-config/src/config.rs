@@ -14,7 +14,7 @@ use relay_common::{Dsn, Uuid};
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::AggregatorConfig;
+use relay_metrics::{AggregatorConfig, ScopedAggregatorConfig};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
