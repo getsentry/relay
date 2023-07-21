@@ -2716,11 +2716,9 @@ impl EnvelopeProcessorService {
                 self.handle_rate_limit_flush_buckets(message);
             }
             EnvelopeProcessor::UpdateglobalConfig(global_config) => {
-                if let Ok(mut old_global_config) = self.global_config.write() {
-                    *old_global_config = Arc::new(global_config);
-                    metric!(counter(RelayCounters::GlobalConfigWriteSuccess) += 1);
-                } else {
-                    metric!(counter(RelayCounters::GlobalConfigWriteFailed) += 1);
+                match self.global_config.write() {
+                    Ok(mut old_global_config) => *old_global_config = Arc::new(global_config),
+                    Err(e) => relay_log::error!("Failed to update global config: {}", e),
                 }
             }
         }

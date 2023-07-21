@@ -2,14 +2,12 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
-use relay_statsd::metric;
 use relay_system::{Addr, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
-use crate::statsd::RelayCounters;
 
 /// Service implementing the [`GlobalConfig`] interface.
 ///
@@ -34,14 +32,21 @@ impl GlobalConfigService {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
         let envelope_processor = self.envelope_processor.clone();
         tokio::spawn(async move {
-            let query = GetGlobalConfig { global_config: () };
+            let query = GetGlobalConfig {
+                global_config: true,
+            };
 
-            if let Ok(Ok(response)) = upstream_relay.send(SendQuery(query)).await {
-                metric!(counter(RelayCounters::GlobalConfigFetchSuccess) += 1);
-                envelope_processor.send::<GlobalConfig>(response.global);
-            } else {
-                metric!(counter(RelayCounters::GlobalConfigFetchFailed) += 1);
-            }
+            match upstream_relay.send(SendQuery(query)).await {
+                Ok(Ok(response)) => {
+                    envelope_processor.send::<GlobalConfig>(response.global);
+                }
+                Err(e) => {
+                    relay_log::error!("failed to send request: {}", e);
+                }
+                Ok(Err(e)) => {
+                    relay_log::error!("failed to fetch request: {}", e);
+                }
+            };
         });
     }
 }
@@ -69,9 +74,7 @@ impl Service for GlobalConfigService {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfig {
-    // This struct is only used for getting the global configs, meaning the presence of the key
-    // is enough, and no value needs to be included.
-    global_config: (),
+    global_config: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

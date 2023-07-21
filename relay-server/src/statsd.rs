@@ -536,14 +536,6 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     OpenTelemetryEvent,
-    /// Trying to get the global config from upstream but failing.
-    GlobalConfigFetchFailed,
-    /// Trying to get the global config from upstream and succeeding.
-    GlobalConfigFetchSuccess,
-    /// Successfully updated the global config.
-    GlobalConfigWriteSuccess,
-    /// Successfully updated the global config.
-    GlobalConfigWriteFailed,
     /// Successfully read from the global config.
     GlobalConfigReadSuccess,
     /// Successfully read from the global config.
@@ -583,10 +575,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             // Just temporary to check if infra for global config works before we implement it
-            RelayCounters::GlobalConfigFetchFailed => "global_config.fetch_failed",
-            RelayCounters::GlobalConfigFetchSuccess => "global_config.fetch_success",
-            RelayCounters::GlobalConfigWriteSuccess => "global_config.write_success",
-            RelayCounters::GlobalConfigWriteFailed => "global_config.write_failed",
             RelayCounters::GlobalConfigReadSuccess => "global_config.read_success",
             RelayCounters::GlobalConfigReadFailed => "global_config.read_failed",
         }
