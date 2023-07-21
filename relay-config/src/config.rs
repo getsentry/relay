@@ -1965,6 +1965,11 @@ impl Config {
         &self.values.aggregator
     }
 
+    /// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
+        &self.values.secondary_aggregators
+    }
+
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
         &self.values.auth.static_relays

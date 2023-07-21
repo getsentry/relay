@@ -17,7 +17,7 @@ use crate::{
 /// Contains an [`AggregatorConfig`] for a specific scope.
 ///
 /// For now, the only way to scope an aggregator is by [`MetricNamespace`].
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ScopedAggregatorConfig {
     /// TODO: docs
     /// TODO: more generic condition
