@@ -45,14 +45,18 @@ pub enum Field {
     Namespace(MetricNamespace),
 }
 
-/// TODO: docs
+/// Service that routes metrics & metric buckets to the appropriate aggregator.
+///
+/// Each aggregator gets its own configuration.
+/// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
+/// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
 pub struct RouterService {
     default_aggregator: AggregatorService,
     secondary_aggregators: BTreeMap<MetricNamespace, AggregatorService>,
 }
 
 impl RouterService {
-    /// TODO: docs
+    /// Create a new router service.
     pub fn new(
         aggregator_config: AggregatorConfig,
         secondary_aggregators: Vec<ScopedAggregatorConfig>,
@@ -100,6 +104,9 @@ impl Service for RouterService {
     }
 }
 
+/// Generalization of [`InsertMetrics`] and [`MergeBuckets`].
+///
+/// Used to handle these messages generically.
 trait Insert {
     type Item: MetricsContainer;
     fn into_parts(self) -> (ProjectKey, Vec<Self::Item>);
@@ -144,7 +151,7 @@ impl Insert for MergeBuckets {
     }
 }
 
-/// Helper struct that keeps the [`Addr`]s of started aggregators.
+/// Helper struct that holds the [`Addr`]s of started aggregators.
 struct StartedRouter {
     default_aggregator: Addr<Aggregator>,
     secondary_aggregators: BTreeMap<MetricNamespace, Addr<Aggregator>>,

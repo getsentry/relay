@@ -2387,7 +2387,6 @@ mod tests {
         MetricValue::Distribution(2.0)
             .merge_into(&mut value)
             .unwrap();
-        // TODO: This should be ordered
         assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2.]));
     }
 
