@@ -85,7 +85,7 @@ use serde_json::{Number, Value};
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{
-    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
+    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, Span, TraceContext,
 };
 use relay_general::store;
 
@@ -812,6 +812,36 @@ impl FieldValueProvider for DynamicSamplingContext {
                 Some(ref s) => Value::String(s.to_string()),
             },
             _ => Value::Null,
+        }
+    }
+}
+
+impl FieldValueProvider for Span {
+    fn get_value(&self, path: &str) -> serde_json::Value {
+        let Some(path) = path.strip_prefix("span.") else {
+            return Value::Null
+        };
+
+        match path {
+            "timestamp" => self.timestamp,
+            "start_timestamp" => self.start_timestamp,
+            "exclusive_time" => self.exclusive_time,
+            "description" => self.description,
+            "op" => self.op,
+            "span_id" => self.span_id,
+            "parent_span_id" => self.parent_span_id,
+            "trace_id" => self.trace_id,
+            "status" => self.status,
+            "tags" => self.tags,
+            "origin" => self.origin,
+            _ => {
+                if let Some(data_field) = path.strip_prefix("data.") {
+                    if let Some(v) = self.data.value().and_then(|data| data.get(data_field)) {
+                        Value::String(v)
+                    }
+                }
+                Value::Null
+            }
         }
     }
 }

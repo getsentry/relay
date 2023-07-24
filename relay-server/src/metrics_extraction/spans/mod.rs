@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use relay_common::{EventType, UnixTimestamp};
-use relay_general::protocol::Event;
+use relay_general::protocol::{Event, Span};
 use relay_general::store::span::tag_extraction::SpanTagKey;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
+use relay_sampling::FieldValueProvider;
 
 use crate::metrics_extraction::spans::types::SpanMetric;
 
