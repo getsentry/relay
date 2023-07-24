@@ -19,6 +19,8 @@ use crate::{
 /// For now, the only way to scope an aggregator is by [`MetricNamespace`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ScopedAggregatorConfig {
+    /// Name of the aggregator, used to tag statsd metrics.
+    pub name: String,
     /// Condition that needs to be met for a metric or bucket to be routed to a
     /// secondary aggregator.
     pub condition: Condition,
@@ -35,7 +37,7 @@ pub enum Condition {
     Eq(Field),
 }
 
-/// Contains a field and the value to compare to when the [`Condition`] is evaluated.
+/// Defines a field and a field value to compare to when a [`Condition`] is evaluated.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "field", content = "value", rename_all = "lowercase")]
 pub enum Field {
@@ -66,7 +68,7 @@ impl RouterService {
                     };
                     (
                         namespace,
-                        AggregatorService::new(c.config, receiver.clone()),
+                        AggregatorService::named(c.name, c.config, receiver.clone()),
                     )
                 })
                 .collect(),
