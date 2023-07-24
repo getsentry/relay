@@ -3,16 +3,16 @@ pipelines:
   rollback-relay:
     display_order: 1
     environment_variables:
-      ALL_PIPELINE_FLAGS: --pipeline=deploy-relay-monitor --pipeline=deploy-relay-us --pipeline=deploy-relay
+      ALL_PIPELINE_FLAGS: --pipeline=deploy-relay-s4s --pipeline=deploy-relay-us --pipeline=deploy-relay-customer-1 --pipeline=deploy-relay
       GOCD_ACCESS_TOKEN: '{{SECRET:[devinfra][gocd_access_token]}}'
-      REGION_PIPELINE_FLAGS: --pipeline=deploy-relay-monitor --pipeline=deploy-relay-us
+      REGION_PIPELINE_FLAGS: --pipeline=deploy-relay-s4s --pipeline=deploy-relay-us --pipeline=deploy-relay-customer-1
       ROLLBACK_MATERIAL_NAME: relay_repo
       ROLLBACK_STAGE: deploy-production
     group: relay
     lock_behavior: unlockWhenFinished
     materials:
-      deploy-relay-us-pipeline-complete:
-        pipeline: deploy-relay-us
+      deploy-relay-customer-1-pipeline-complete:
+        pipeline: deploy-relay-customer-1
         stage: pipeline-complete
     stages:
       - pause_pipelines:
