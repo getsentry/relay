@@ -1,5 +1,7 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
+use crate::BucketValue;
+
 /// Set metrics for Relay Metrics.
 pub enum MetricSets {
     /// Count the number of unique buckets created.
@@ -175,6 +177,12 @@ pub enum MetricGauges {
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsCost,
+    /// The average number of elements in a bucket when flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `metric_type`: "counter", "distribution", "gauge" or "set".
+    ///  - `metric_name`: Low-cardinality name of the metric.
+    AvgBucketSize,
 }
 
 impl GaugeMetric for MetricGauges {
@@ -182,6 +190,7 @@ impl GaugeMetric for MetricGauges {
         match *self {
             Self::Buckets => "metrics.buckets",
             Self::BucketsCost => "metrics.buckets.cost",
+            Self::AvgBucketSize => "metrics.buckets.size",
         }
     }
 }
@@ -190,8 +199,8 @@ impl GaugeMetric for MetricGauges {
 ///
 /// In order to keep this low-cardinality, we only enumerate a handful of well-known, high volume
 /// names. The rest gets mapped to "other".
-pub fn metric_name_tag(value: &str) -> &str {
-    if [
+pub(crate) fn metric_name_tag(value: &str) -> &'static str {
+    if let Some(value) = [
         "c:sessions/session@none",
         "s:sessions/user@none",
         "s:sessions/error@none",
@@ -199,7 +208,8 @@ pub fn metric_name_tag(value: &str) -> &str {
         "s:transactions/user@none",
         "c:transactions/count_per_root_project@none",
     ]
-    .contains(&value)
+    .into_iter()
+    .find(|x| x == &value)
     {
         return value;
     }
@@ -219,4 +229,14 @@ pub fn metric_name_tag(value: &str) -> &str {
     }
 
     "other"
+}
+
+/// Returns the metric type for use as a tag key on statsd metrics.
+pub(crate) fn metric_type_tag(value: &BucketValue) -> &'static str {
+    match value {
+        BucketValue::Counter(_) => "counter",
+        BucketValue::Distribution(_) => "distribution",
+        BucketValue::Set(_) => "set",
+        BucketValue::Gauge(_) => "gauge",
+    }
 }
