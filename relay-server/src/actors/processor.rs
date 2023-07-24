@@ -2355,6 +2355,7 @@ impl EnvelopeProcessorService {
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.geoip_lookup.as_ref(),
+                enable_trimming: true,
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
