@@ -3265,6 +3265,7 @@ dependencies = [
 name = "relay-metrics"
 version = "23.7.0"
 dependencies = [
+ "bytecount",
  "criterion",
  "float-ord",
  "fnv",
