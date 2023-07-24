@@ -2965,6 +2965,7 @@ mod tests {
         service.run_dynamic_sampling(&mut state);
         assert!(matches!(state.sampling_result, SamplingResult::Keep));
 
+        // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(1));
         service.run_dynamic_sampling(&mut state);
         assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));

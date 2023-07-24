@@ -5,7 +5,6 @@
 **Internal**:
 
 - Add support for `sampled` field in the DSC and error tagging. ([#2290](https://github.com/getsentry/relay/pull/2290))
-- Skip dynamic sampling if relay doesn't support incoming metrics extraction version. ([#2273](https://github.com/getsentry/relay/pull/2273))
 - Move span tag extraction from metrics to normalization. ([#2304](https://github.com/getsentry/relay/pull/2304))
 
 
@@ -19,6 +18,7 @@
 
 **Bug Fixes**:
 
+- Skip dynamic sampling if relay doesn't support incoming metrics extraction version. ([#2273](https://github.com/getsentry/relay/pull/2273))
 - Keep stack frames closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
 - Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
 
