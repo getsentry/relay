@@ -39,6 +39,9 @@ pub struct AppContext {
     /// A flag indicating whether the app is in foreground or not. An app is in foreground when it's visible to the user.
     pub in_foreground: Annotated<bool>,
 
+    /// The name of the currently visible view.
+    pub view_name: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -92,6 +95,7 @@ mod tests {
   "app_build": "100001",
   "app_memory": 22883948,
   "in_foreground": true,
+  "view_name": "FooViewController",
   "other": "value",
   "type": "app"
 }"#;
@@ -105,6 +109,7 @@ mod tests {
             app_build: Annotated::new("100001".to_string().into()),
             app_memory: Annotated::new(22883948),
             in_foreground: Annotated::new(true),
+            view_name: Annotated::new("FooViewController".to_string()),
             other: {
                 let mut map = Object::new();
                 map.insert(
