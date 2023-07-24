@@ -1263,6 +1263,7 @@ def test_span_metrics_secondary_aggregator(
             },
             "secondary_aggregators": [
                 {
+                    "name": "spans",
                     "condition": {"op": "eq", "field": "namespace", "value": "spans"},
                     "config": {
                         # The spans-specific aggregator has config that will deliver metrics:
