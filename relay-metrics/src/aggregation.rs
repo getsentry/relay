@@ -1821,9 +1821,11 @@ impl AggregatorService {
                     cost_tracker.subtract_cost(key.project_key, key.cost());
                     cost_tracker.subtract_cost(key.project_key, value.cost());
 
-                    *stats
+                    let (bucket_count, item_count) = stats
                         .entry((metric_type_tag(&value), metric_name_tag(&key.metric_name)))
-                        .or_insert(0usize) += value.len();
+                        .or_insert((0usize, 0usize));
+                    *bucket_count += 1;
+                    *item_count += value.len();
 
                     let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
                     buckets
@@ -1841,9 +1843,9 @@ impl AggregatorService {
             });
         });
 
-        for ((ty, name), size) in stats.into_iter() {
+        for ((ty, name), (bucket_count, item_count)) in stats.into_iter() {
             relay_statsd::metric!(
-                gauge(MetricGauges::AvgBucketSize) = size as u64,
+                gauge(MetricGauges::AvgBucketSize) = item_count as f64 / bucket_count as f64,
                 metric_type = ty,
                 metric_name = name
             );
