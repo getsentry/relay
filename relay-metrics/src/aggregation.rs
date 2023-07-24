@@ -2036,7 +2036,7 @@ impl Service for AggregatorService {
             let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
             let mut shutdown = Controller::shutdown_handle();
 
-            // Note that currently this loop never exists and will run till the tokio runtime shuts
+            // Note that currently this loop never exits and will run till the tokio runtime shuts
             // down. This is about to change with the refactoring for the shutdown process.
             loop {
                 tokio::select! {
