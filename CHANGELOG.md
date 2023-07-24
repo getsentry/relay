@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Interpret `aggregator.max_tag_value_length` as characters instead of bytes. ([#2343](https://github.com/getsentry/relay/pull/2343))
+
 ## 23.7.0
 
 **Bug Fixes**:
