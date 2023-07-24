@@ -1,5 +1,5 @@
 local pops = import './relay-pops.libsonnet';
-local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/v1.0.0/gocd-tasks.libsonnet';
+local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
 function(region) {
   environment_variables: {
