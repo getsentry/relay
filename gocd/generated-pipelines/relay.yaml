@@ -1,8 +1,8 @@
 format_version: 10
 pipelines:
-  deploy-relay-next:
+  deploy-relay:
     display_order: 0
-    group: relay-next
+    group: relay
     lock_behavior: unlockWhenFinished
     materials:
       relay_repo:

@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 23.7.0
+
+**Bug Fixes**:
+
+- Filter idle samples at the edge per thread. ([#2321](https://github.com/getsentry/relay/pull/2321))
 
 **Internal**:
 
