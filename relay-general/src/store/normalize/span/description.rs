@@ -10,8 +10,8 @@ use url::Url;
 use crate::protocol::Span;
 use crate::store::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
 use crate::store::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
-use crate::store::{scrub_identifiers_with_regex, SpanDescriptionRule};
-use crate::types::{Annotated, ProcessingAction, ProcessingResult, Remark, RemarkType, Value};
+use crate::store::SpanDescriptionRule;
+use crate::types::{Annotated, ProcessingResult, Remark, RemarkType, Value};
 
 /// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
@@ -22,7 +22,7 @@ static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
         # Capture `SAVEPOINT` savepoints.
-        ((?-x)SAVEPOINT (?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
+        ((?-x)(?P<pre>SAVEPOINT )(?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
         # Capture single-quoted strings, including the remaining substring if `\'` is found.
         ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
@@ -45,7 +45,7 @@ static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
 static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r#"(?xi)
-        ( (VALUES|IN) \s+ \( (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) \)? )
+        (?P<pre>(?:VALUES|IN) \s+\() (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P<post>\s*\)?)
         "#,
     )
     .unwrap()
@@ -53,7 +53,8 @@ static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 
 /// Collapse simple lists of columns in select.
 static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)SELECT\s+(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?:FROM|$)"#).unwrap()
+    Regex::new(r#"(?i)(?P<select>SELECT(\s+(DISTINCT|ALL))?)\s+(?P<columns>(\w+(?:\s*,\s*\w+)+))\s+(?<from>FROM|$)"#)
+        .unwrap()
 });
 
 /// Regex to identify SQL queries that are already normalized.
@@ -67,76 +68,69 @@ static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
 ///
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
 /// for the span group hash.
-pub(crate) fn scrub_span_description(
-    span: &mut Span,
-    rules: &Vec<SpanDescriptionRule>,
-) -> Result<(), ProcessingAction> {
-    if span.description.value().is_none() {
-        return Ok(());
+pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptionRule>) {
+    let Some(description) = span.description.as_str() else { return };
+
+    let scrubbed = span
+        .op
+        .as_str()
+        .map(|op| op.split_once('.').unwrap_or((op, "")))
+        .and_then(|(op, sub)| match (op, sub) {
+            ("http", _) => scrub_http(description),
+            ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
+            ("db", _) => scrub_sql_queries(description),
+            ("resource", _) => scrub_resource_identifiers(description),
+            _ => None,
+        });
+
+    if let Some(scrubbed) = scrubbed {
+        span.data
+            .get_or_insert_with(BTreeMap::new)
+            // We don't care what the cause of scrubbing was, since we assume
+            // that after scrubbing the value is sanitized.
+            .insert(
+                "description.scrubbed".to_owned(),
+                Annotated::new(Value::String(scrubbed)),
+            );
     }
 
-    let mut scrubbed = span.description.clone();
-
-    let did_scrub = match span.op.value() {
-        Some(op) if op.starts_with("http") => {
-            scrubbed.value_mut().as_mut().map_or(false, scrub_http)
-        }
-        Some(op) if op.starts_with("cache") || op == "db.redis" => scrub_redis_keys(&mut scrubbed)?,
-        Some(op) if op.starts_with("db") && op != "db.redis" => scrub_sql_queries(&mut scrubbed)?,
-        Some(op) if op.starts_with("resource") => scrub_resource_identifiers(&mut scrubbed)?,
-        _ => false,
-    };
-
-    if did_scrub {
-        if let Some(new_desc) = scrubbed.into_value() {
-            span.data
-                .get_or_insert_with(BTreeMap::new)
-                // We don't care what the cause of scrubbing was, since we assume
-                // that after scrubbing the value is sanitized.
-                .insert(
-                    "description.scrubbed".to_owned(),
-                    Annotated::new(Value::String(new_desc)),
-                );
-        };
-    }
-
-    apply_span_rename_rules(span, rules)?;
-
-    Ok(())
+    apply_span_rename_rules(span, rules).ok(); // Only fails on InvalidTransaction
 }
 
 /// Normalizes the given SQL-query-like string.
-fn scrub_sql_queries(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    let mut mark_as_scrubbed = is_sql_query_scrubbed(string);
-    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_NORMALIZER_REGEX, "%s")?;
-    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_PLACEHOLDERS, "%s")?;
+fn scrub_sql_queries(string: &str) -> Option<String> {
+    let mark_as_scrubbed = SQL_ALREADY_NORMALIZED_REGEX.is_match(string);
 
-    if let Some(s) = string.as_str() {
-        if let Cow::Owned(changed) = SQL_COLLAPSE_ENTITIES.replace_all(s, "$entity_name") {
-            string.set_value(Some(changed));
+    let mut string = Cow::from(string);
+    for (regex, replacement) in [
+        (&SQL_NORMALIZER_REGEX, "$pre%s"),
+        (&SQL_COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
+        (&SQL_COLLAPSE_ENTITIES, "$entity_name"),
+        (&SQL_COLLAPSE_SELECT, "$select .. $from"),
+    ] {
+        let replaced = regex.replace_all(&string, replacement);
+        if let Cow::Owned(s) = replaced {
+            string = Cow::Owned(s);
         }
     }
-    mark_as_scrubbed |= scrub_identifiers_with_regex(string, &SQL_COLLAPSE_SELECT, "..")?;
 
-    Ok(mark_as_scrubbed)
+    match string {
+        Cow::Owned(scrubbed) => Some(scrubbed),
+        Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
+        Cow::Borrowed(_) => None,
+    }
 }
 
-fn is_sql_query_scrubbed(query: &Annotated<String>) -> bool {
-    query
-        .value()
-        .map_or(false, |q| SQL_ALREADY_NORMALIZED_REGEX.is_match(q))
-}
-
-fn scrub_http(string: &mut String) -> bool {
-    let Some((method, url)) = string.split_once(' ') else { return false };
+fn scrub_http(string: &str) -> Option<String> {
+    let (method, url) = string.split_once(' ')?;
     if !HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
-        return false;
+        return None;
     };
 
-    *string = match Url::parse(url) {
+    let scrubbed = match Url::parse(url) {
         Ok(url) => {
-            let Some(host) = url.host().map(|h|h.to_string()) else { return false };
-            let Some(domain) = normalize_domain(host.as_str(), url.port()) else { return false };
+            let host = url.host().map(|h| h.to_string())?;
+            let domain = normalize_domain(host.as_str(), url.port())?;
             let scheme = url.scheme();
 
             format!("{method} {scheme}://{domain}")
@@ -146,7 +140,7 @@ fn scrub_http(string: &mut String) -> bool {
         }
     };
 
-    true
+    Some(scrubbed)
 }
 
 fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
@@ -186,21 +180,23 @@ fn normalized_domain_from_allowlist(domain: &str, port: Option<u16>) -> Option<S
     None
 }
 
-fn scrub_redis_keys(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    let parts = string
-        .as_str()
-        .and_then(|s| REDIS_COMMAND_REGEX.captures(s))
+fn scrub_redis_keys(string: &str) -> Option<String> {
+    let parts = REDIS_COMMAND_REGEX
+        .captures(string)
         .map(|caps| (caps.name("command"), caps.name("args")));
-    *string = Annotated::new(match parts {
+    let scrubbed = match parts {
         Some((Some(command), Some(_args))) => command.as_str().to_owned() + " *",
         Some((Some(command), None)) => command.as_str().into(),
         None | Some((None, _)) => "*".into(),
-    });
-    Ok(true)
+    };
+    Some(scrubbed)
 }
 
-fn scrub_resource_identifiers(string: &mut Annotated<String>) -> Result<bool, ProcessingAction> {
-    scrub_identifiers_with_regex(string, &RESOURCE_NORMALIZER_REGEX, "*")
+fn scrub_resource_identifiers(string: &str) -> Option<String> {
+    match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
+        Cow::Borrowed(_) => None,
+        Cow::Owned(scrubbed) => Some(scrubbed),
+    }
 }
 
 /// Applies rules to the span description.
@@ -315,7 +311,7 @@ mod tests {
 
                 let mut span = Annotated::<Span>::from_json(&json).unwrap();
 
-                scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]).unwrap();
+                scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
 
                 // The input description may contain escaped characters, and the
                 // default formatter (when taking the value from the span
@@ -561,7 +557,7 @@ mod tests {
         span_description_dont_scrub_double_quoted_strings_format_mysql,
         r#"SELECT * from table WHERE sku = \"foo\""#,
         "db.sql.query",
-        ""
+        "SELECT * from table WHERE sku = foo"
     );
 
     span_description_test!(
@@ -688,10 +684,24 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_collapse_columns_distinct,
+        r#"SELECT DISTINCT a, b, c FROM table WHERE %s"#,
+        "db.sql.query",
+        "SELECT DISTINCT .. FROM table WHERE %s"
+    );
+
+    span_description_test!(
         span_description_scrub_values,
         "INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)",
         "db.sql.query",
         "INSERT INTO a (b, c, d, e) VALUES (%s)"
+    );
+
+    span_description_test!(
+        span_description_scrub_in,
+        "select column FROM table WHERE id IN (1, 2, 3)",
+        "db.sql.query",
+        "select column FROM table WHERE id IN (%s)"
     );
 
     span_description_test!(

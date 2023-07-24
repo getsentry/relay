@@ -315,7 +315,7 @@ pub(crate) fn scrub_identifiers(string: &mut Annotated<String>) -> Result<bool, 
     scrub_identifiers_with_regex(string, &TRANSACTION_NAME_NORMALIZER_REGEX, "*")
 }
 
-pub(crate) fn scrub_identifiers_with_regex(
+fn scrub_identifiers_with_regex(
     string: &mut Annotated<String>,
     pattern: &Lazy<Regex>,
     replacer: &str,
@@ -472,7 +472,7 @@ impl Processor for TransactionsProcessor<'_> {
         span.op.get_or_insert_with(|| "default".to_owned());
 
         if self.enrich_spans {
-            scrub_span_description(span, &self.span_desc_rules)?;
+            scrub_span_description(span, &self.span_desc_rules);
         }
 
         span.process_child_values(self, state)?;
