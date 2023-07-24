@@ -91,7 +91,7 @@ impl UpstreamQuery for GetGlobalConfig {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
+        Cow::Borrowed("/api/0/relays/projectconfigs/")
     }
 
     fn priority() -> RequestPriority {
