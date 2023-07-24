@@ -1,8 +1,11 @@
+// Learn more about GoCD Pipedream here:
+// https://www.notion.so/sentry/Pipedreams-in-GoCD-with-Jsonnet-430f46b87fa14650a80adf6708b088d9
+
 local relay = import './libs/relay.libsonnet';
 local pipedream = import 'github.com/getsentry/gocd-jsonnet/libs/pipedream.libsonnet';
 
 local pipedream_config = {
-  name: 'relay-next',
+  name: 'relay',
   auto_deploy: false,
   materials: {
     relay_repo: {
@@ -15,6 +18,7 @@ local pipedream_config = {
   rollback: {
     material_name: 'relay_repo',
     stage: 'deploy-production',
+    elastic_profile_id: 'relay',
   },
 };
 
