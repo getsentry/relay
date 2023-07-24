@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 const SLUG_LENGTH: usize = 50;
 
 /// Maximum length of environment names.
-const ENVIRONMENT_LENGTH: usize = MaxChars::Environment.limit();
+const ENVIRONMENT_LENGTH: usize = 64;
 
 /// Error returned from [`process_check_in`].
 #[derive(Debug, thiserror::Error)]
