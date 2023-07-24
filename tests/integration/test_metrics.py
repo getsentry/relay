@@ -1010,7 +1010,8 @@ def test_transaction_name_too_long(
 
     metrics = metrics_consumer.get_metrics()
     for metric, _ in metrics:
-        assert metric["tags"].get("transaction") == expected_transaction_name
+        if metric["name"] != "c:transactions/count_per_root_project@none":
+            assert metric["tags"].get("transaction") == expected_transaction_name
 
 
 @pytest.mark.skip(reason="flake")
