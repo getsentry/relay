@@ -3151,10 +3151,10 @@ mod tests {
 
         insta::assert_debug_snapshot!(tail, @r###"
         [
-            "metrics.buckets.per_batch:1|h",
-            "metrics.buckets.batches_per_partition:1|h",
-            "metrics.buckets.per_batch:1|h",
-            "metrics.buckets.batches_per_partition:1|h",
+            "metrics.buckets.per_batch:1|h|#aggregator:default",
+            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
+            "metrics.buckets.per_batch:1|h|#aggregator:default",
+            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
         ]
         "###);
     }
