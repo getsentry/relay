@@ -165,11 +165,20 @@ impl StartedRouter {
     fn handle_message(&mut self, msg: Aggregator) {
         match msg {
             Aggregator::AcceptsMetrics(_, sender) => {
-                // TODO: Should ask secondary aggregators as well.
-                let req = self.default_aggregator.send(AcceptsMetrics);
+                let requests: Vec<_> = Some(self.default_aggregator.send(AcceptsMetrics))
+                    .into_iter()
+                    .chain(
+                        self.secondary_aggregators
+                            .values_mut()
+                            .map(|agg| agg.send(AcceptsMetrics)),
+                    )
+                    .collect();
                 tokio::spawn(async {
-                    let res = req.await;
-                    sender.send(res.unwrap_or_default());
+                    let mut accepts = true;
+                    for req in requests {
+                        accepts &= req.await.unwrap_or_default();
+                    }
+                    sender.send(accepts);
                 });
             }
             Aggregator::InsertMetrics(msg) => self.handle_metrics(msg),

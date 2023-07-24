@@ -1172,7 +1172,6 @@ impl Ord for QueuedBucket {
 /// This is cheaper to pass around than a (BucketKey, Bucket) pair.
 pub struct HashedBucket {
     // This is only public because pop_flush_buckets is used in benchmark.
-    // TODO: Find better name for this struct
     hashed_key: u64,
     bucket: Bucket,
 }
@@ -2074,8 +2073,6 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct TestReceiver {
-        // TODO: Better way to communicate with service after it's started?
-        // Messages, maybe?
         data: Arc<RwLock<ReceivedData>>,
         reject_all: bool,
     }
