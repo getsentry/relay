@@ -183,7 +183,29 @@
 <a href="#183" id="183">183</a>
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+
+<span class="kw">use </span><span class="kw">crate</span>::BucketValue;
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
 </span><span class="kw">pub enum </span>MetricSets {
@@ -323,6 +345,12 @@
     </span>Buckets,
     <span class="doccomment">/// The total storage cost of metric buckets in Relay&#39;s metrics aggregator.
     </span>BucketsCost,
+    <span class="doccomment">/// The average number of elements in a bucket when flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `metric_type`: &quot;counter&quot;, &quot;distribution&quot;, &quot;gauge&quot; or &quot;set&quot;.
+    ///  - `metric_name`: Low-cardinality name of the metric.
+    </span>AvgBucketSize,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>MetricGauges {
@@ -330,6 +358,7 @@
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="self">Self</span>::Buckets =&gt; <span class="string">&quot;metrics.buckets&quot;</span>,
             <span class="self">Self</span>::BucketsCost =&gt; <span class="string">&quot;metrics.buckets.cost&quot;</span>,
+            <span class="self">Self</span>::AvgBucketSize =&gt; <span class="string">&quot;metrics.buckets.size&quot;</span>,
         }
     }
 }
@@ -338,8 +367,8 @@
 ///
 /// In order to keep this low-cardinality, we only enumerate a handful of well-known, high volume
 /// names. The rest gets mapped to &quot;other&quot;.
-</span><span class="kw">pub fn </span>metric_name_tag(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;</span>str {
-    <span class="kw">if </span>[
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>metric_name_tag(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = [
         <span class="string">&quot;c:sessions/session@none&quot;</span>,
         <span class="string">&quot;s:sessions/user@none&quot;</span>,
         <span class="string">&quot;s:sessions/error@none&quot;</span>,
@@ -347,7 +376,8 @@
         <span class="string">&quot;s:transactions/user@none&quot;</span>,
         <span class="string">&quot;c:transactions/count_per_root_project@none&quot;</span>,
     ]
-    .contains(<span class="kw-2">&amp;</span>value)
+    .into_iter()
+    .find(|x| x == <span class="kw-2">&amp;</span>value)
     {
         <span class="kw">return </span>value;
     }
@@ -368,4 +398,14 @@
 
     <span class="string">&quot;other&quot;
 </span>}
+
+<span class="doccomment">/// Returns the metric type for use as a tag key on statsd metrics.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>metric_type_tag(value: <span class="kw-2">&amp;</span>BucketValue) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+    <span class="kw">match </span>value {
+        BucketValue::Counter(<span class="kw">_</span>) =&gt; <span class="string">&quot;counter&quot;</span>,
+        BucketValue::Distribution(<span class="kw">_</span>) =&gt; <span class="string">&quot;distribution&quot;</span>,
+        BucketValue::Set(<span class="kw">_</span>) =&gt; <span class="string">&quot;set&quot;</span>,
+        BucketValue::Gauge(<span class="kw">_</span>) =&gt; <span class="string">&quot;gauge&quot;</span>,
+    }
+}
 </code></pre></div></section></main></body></html>
