@@ -137,6 +137,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         max_tag_value_length: usize::MAX,
         span_description_rules: None,
         geoip_lookup: None, // only supported in relay
+        enable_trimming: config.enable_trimming.unwrap_or_default(),
     };
     light_normalize_event(&mut event, light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
