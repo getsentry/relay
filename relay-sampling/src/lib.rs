@@ -823,9 +823,10 @@ impl FieldValueProvider for Span {
         };
 
         match path {
-            "timestamp" => self.timestamp,
-            "start_timestamp" => self.start_timestamp,
-            "exclusive_time" => self.exclusive_time,
+            "exclusive_time" => self
+                .exclusive_time
+                .value()
+                .map_or(Value::Null, |&v| v.into()),
             "description" => self.description,
             "op" => self.op,
             "span_id" => self.span_id,
