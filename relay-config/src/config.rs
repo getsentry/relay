@@ -14,7 +14,7 @@ use relay_common::{Dsn, Uuid};
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::AggregatorConfig;
+use relay_metrics::{AggregatorConfig, ScopedAggregatorConfig};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -1220,6 +1220,8 @@ struct ConfigValues {
     #[serde(default)]
     aggregator: AggregatorConfig,
     #[serde(default)]
+    secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    #[serde(default)]
     auth: AuthConfig,
     #[serde(default)]
     aws: AwsConfig,
@@ -1961,6 +1963,11 @@ impl Config {
     /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
     pub fn aggregator_config(&self) -> &AggregatorConfig {
         &self.values.aggregator
+    }
+
+    /// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
+        &self.values.secondary_aggregators
     }
 
     /// Return the statically configured Relays.
