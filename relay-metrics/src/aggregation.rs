@@ -936,7 +936,7 @@ pub enum ShiftKey {
     #[default]
     Project,
 
-    /// Shifts the flush time by an offset based on the [`BucketKey`] itself.
+    /// Shifts the flush time by an offset based on the bucket key itself.
     ///
     /// This allows for a completely random distribution of bucket flush times.
     ///
