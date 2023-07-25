@@ -203,6 +203,43 @@
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
 <a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="kw">use </span><span class="kw">crate</span>::BucketValue;
@@ -217,6 +254,10 @@
     ///
     /// The hashing is platform-dependent at the moment, so all your relays that send this metric
     /// should run on the same CPU architecture, otherwise this metric is not reliable.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
     </span>UniqueBucketsCreated,
 }
 
@@ -232,22 +273,31 @@
 </span><span class="kw">pub enum </span>MetricCounters {
     <span class="doccomment">/// Incremented for every metric that is inserted.
     ///
-    /// Tagged by metric type and name.
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `metric_type`: The type of the metric (e.g. `&quot;counter&quot;`).
     </span>InsertMetric,
 
     <span class="doccomment">/// Incremented every time two buckets or two metrics are merged.
     ///
-    /// Tagged by metric type and name.
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
     </span>MergeHit,
 
     <span class="doccomment">/// Incremented every time a bucket is created.
     ///
-    /// Tagged by metric type and name.
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
+    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
     </span>MergeMiss,
 
     <span class="doccomment">/// Incremented every time a bucket is dropped.
     ///
     /// This should only happen when a project state is invalid during graceful shutdown.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BucketsDropped,
 }
 
@@ -269,6 +319,9 @@
     /// Relay scans metric buckets in regular intervals and flushes expired buckets. This timer
     /// shows the time it takes to perform this scan and remove the buckets from the internal cache.
     /// Sending the metric buckets to upstream is outside of this timer.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BucketsScanDuration,
 }
 
@@ -284,6 +337,9 @@
 </span><span class="attr">#[allow(clippy::enum_variant_names)]
 </span><span class="kw">pub enum </span>MetricHistograms {
     <span class="doccomment">/// The total number of metric buckets flushed in a cycle across all projects.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BucketsFlushed,
 
     <span class="doccomment">/// The number of metric buckets flushed in a cycle for each project.
@@ -291,6 +347,9 @@
     /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
     /// is logged for each project that is being flushed. The count of the histogram values is
     /// equivalent to the number of projects being flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BucketsFlushedPerProject,
 
     <span class="doccomment">/// The reporting delay at which a bucket arrives in Relay.
@@ -306,17 +365,26 @@
     </span>BucketsDelay,
 
     <span class="doccomment">/// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BatchesPerPartition,
 
     <span class="doccomment">/// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].
     ///
     /// This corresponds to the number of buckets that will end up in an envelope.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BucketsPerBatch,
 
     <span class="doccomment">/// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>PartitionKeys,
 
     <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.
@@ -342,8 +410,14 @@
 <span class="doccomment">/// Gauge metrics for Relay Metrics.
 </span><span class="kw">pub enum </span>MetricGauges {
     <span class="doccomment">/// The total number of metric buckets in Relay&#39;s metrics aggregator.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>Buckets,
     <span class="doccomment">/// The total storage cost of metric buckets in Relay&#39;s metrics aggregator.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
     </span>BucketsCost,
     <span class="doccomment">/// The average number of elements in a bucket when flushed.
     ///

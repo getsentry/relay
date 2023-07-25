@@ -2029,6 +2029,13 @@
 <a href="#2029" id="2029">2029</a>
 <a href="#2030" id="2030">2030</a>
 <a href="#2031" id="2031">2031</a>
+<a href="#2032" id="2032">2032</a>
+<a href="#2033" id="2033">2033</a>
+<a href="#2034" id="2034">2034</a>
+<a href="#2035" id="2035">2035</a>
+<a href="#2036" id="2036">2036</a>
+<a href="#2037" id="2037">2037</a>
+<a href="#2038" id="2038">2038</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2045,7 +2052,7 @@
 <span class="kw">use </span>relay_kafka::{
     ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-<span class="kw">use </span>relay_metrics::AggregatorConfig;
+<span class="kw">use </span>relay_metrics::{AggregatorConfig, ScopedAggregatorConfig};
 <span class="kw">use </span>relay_redis::RedisConfig;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -3251,6 +3258,8 @@
     <span class="attr">#[serde(default)]
     </span>aggregator: AggregatorConfig,
     <span class="attr">#[serde(default)]
+    </span>secondary_aggregators: Vec&lt;ScopedAggregatorConfig&gt;,
+    <span class="attr">#[serde(default)]
     </span>auth: AuthConfig,
     <span class="attr">#[serde(default)]
     </span>aws: AwsConfig,
@@ -3992,6 +4001,11 @@
     <span class="doccomment">/// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
     </span><span class="kw">pub fn </span>aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorConfig {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
+    }
+
+    <span class="doccomment">/// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    </span><span class="kw">pub fn </span>secondary_aggregator_configs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;ScopedAggregatorConfig&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators
     }
 
     <span class="doccomment">/// Return the statically configured Relays.

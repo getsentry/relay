@@ -1065,7 +1065,7 @@
 /// Right now this successfully deserializes any kind of string, but in reality only `&quot;sessions&quot;`
 /// (for release health) and `&quot;transactions&quot;` (for metrics-enhanced performance) is supported.
 /// Everything else is dropped both in the metrics aggregator and in the store service.
-</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 </span><span class="kw">pub enum </span>MetricNamespace {
     <span class="doccomment">/// Metrics extracted from sessions.
     </span>Sessions,

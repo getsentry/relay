@@ -292,6 +292,7 @@
 <a href="#292" id="292">292</a>
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -301,7 +302,7 @@
 <span class="kw">use </span>axum::http::request::Parts;
 <span class="kw">use </span>relay_aws_extension::AwsExtension;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_metrics::{Aggregator, AggregatorService};
+<span class="kw">use </span>relay_metrics::Aggregator;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
@@ -434,8 +435,9 @@
         )
         .start();
 
-        <span class="kw">let </span>aggregator = AggregatorService::new(
+        <span class="kw">let </span>aggregator = relay_metrics::RouterService::new(
             config.aggregator_config().clone(),
+            config.secondary_aggregator_configs().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )
         .start_in(<span class="kw-2">&amp;</span>aggregator_runtime);
