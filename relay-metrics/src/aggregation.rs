@@ -991,7 +991,7 @@ pub struct AggregatorConfig {
 
     /// The length the tag value is allowed to be.
     ///
-    /// Defaults to `200` bytes.
+    /// Defaults to `200` chars.
     pub max_tag_value_length: usize,
 
     /// Maximum amount of bytes used for metrics aggregation.
@@ -1637,7 +1637,7 @@ impl AggregatorService {
                 relay_log::debug!("Invalid metric tag key");
                 return false;
             }
-            if tag_value.len() > aggregator_config.max_tag_value_length {
+            if bytecount::num_chars(tag_value.as_bytes()) > aggregator_config.max_tag_value_length {
                 relay_log::configure_scope(|scope| {
                     scope.set_extra("bucket.project_key", proj_key.to_owned().into());
                     scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
@@ -3050,6 +3050,25 @@ mod tests {
             AggregatorService::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
                 .unwrap();
         assert_eq!(validation.tags.len(), 0);
+    }
+
+    #[test]
+    fn test_validate_tag_values_special_chars() {
+        relay_test::setup();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let aggregator_config = test_config();
+
+        let tag_value = "x".repeat(199) + "ø";
+        assert_eq!(tag_value.chars().count(), 200); // Should be allowed
+        let short_metric = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: "c:transactions/a_short_metric".to_owned(),
+            tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
+        };
+        let validated_bucket =
+            AggregatorService::validate_metric_tags(short_metric, &aggregator_config);
+        assert_eq!(validated_bucket.tags["foo"], tag_value);
     }
 
     #[test]

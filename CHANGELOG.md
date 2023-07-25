@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Trim fields (e.g. `transaction`) before metrics extraction. ([#2342](https://github.com/getsentry/relay/pull/2342))
+- Interpret `aggregator.max_tag_value_length` as characters instead of bytes. ([#2343](https://github.com/getsentry/relay/pull/2343))
 
 **Internal**:
 
