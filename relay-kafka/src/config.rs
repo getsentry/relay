@@ -50,7 +50,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 12] = [
+        static TOPICS: [KafkaTopic; 13] = [
             Events,
             Attachments,
             Transactions,
@@ -63,6 +63,7 @@ impl KafkaTopic {
             ReplayEvents,
             ReplayRecordings,
             Monitors,
+            Spans,
         ];
         TOPICS.iter()
     }

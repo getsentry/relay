@@ -28,6 +28,7 @@ from .fixtures.processing import (
     metrics_consumer,
     replay_events_consumer,
     monitors_consumer,
+    spans_consumer,
 )  # noqa
 
 
