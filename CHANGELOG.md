@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Trim fields (e.g. `transaction`) before metrics extraction. ([#2342](https://github.com/getsentry/relay/pull/2342))
+
 **Internal**:
 
 - Add capability to configure metrics aggregators per use case. ([#2341](https://github.com/getsentry/relay/pull/2341))
