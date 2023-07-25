@@ -7,7 +7,7 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
-use relay_metrics::{Aggregator, AggregatorService};
+use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
@@ -140,8 +140,9 @@ impl ServiceState {
         )
         .start();
 
-        let aggregator = AggregatorService::new(
+        let aggregator = relay_metrics::RouterService::new(
             config.aggregator_config().clone(),
+            config.secondary_aggregator_configs().clone(),
             Some(project_cache.clone().recipient()),
         )
         .start_in(&aggregator_runtime);

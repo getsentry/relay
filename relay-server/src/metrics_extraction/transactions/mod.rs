@@ -110,7 +110,7 @@ fn get_transaction_name(event: &Event) -> Option<String> {
         Some(original_transaction_name.clone())
     } else {
         // Pick a sentinel based on the transaction source:
-        let placeholder = match source {
+        match source {
             None | Some(TransactionSource::Other(_)) => {
                 name_used = "none";
                 None
@@ -119,15 +119,7 @@ fn get_transaction_name(event: &Event) -> Option<String> {
                 name_used = "placeholder";
                 Some("<< unparameterized >>".to_owned())
             }
-        };
-        relay_log::error!(
-            // project ID is already set by envelope processor.
-            tags.placeholder = placeholder.as_deref().unwrap_or("none"),
-            tags.source = transaction_source_tag(event),
-            original_transaction_name = original_transaction_name,
-            "Using placeholder as transaction tag"
-        );
-        placeholder
+        }
     };
 
     relay_statsd::metric!(

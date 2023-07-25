@@ -159,7 +159,7 @@ impl fmt::Display for ParseMetricError {
 /// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
 /// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
 /// Everything else is dropped both in the metrics aggregator and in the store service.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.
     Sessions,
