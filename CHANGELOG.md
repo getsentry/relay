@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
 - Interpret `aggregator.max_tag_value_length` as characters instead of bytes. ([#2343](https://github.com/getsentry/relay/pull/2343))
+
+**Internal**:
+
 - Add capability to configure metrics aggregators per use case. ([#2341](https://github.com/getsentry/relay/pull/2341))
+- Configurable flush time offsets for metrics buckets. ([#2349](https://github.com/getsentry/relay/pull/2349))
 
 ## 23.7.0
 
