@@ -3223,6 +3223,25 @@
 <a href="#3223" id="3223">3223</a>
 <a href="#3224" id="3224">3224</a>
 <a href="#3225" id="3225">3225</a>
+<a href="#3226" id="3226">3226</a>
+<a href="#3227" id="3227">3227</a>
+<a href="#3228" id="3228">3228</a>
+<a href="#3229" id="3229">3229</a>
+<a href="#3230" id="3230">3230</a>
+<a href="#3231" id="3231">3231</a>
+<a href="#3232" id="3232">3232</a>
+<a href="#3233" id="3233">3233</a>
+<a href="#3234" id="3234">3234</a>
+<a href="#3235" id="3235">3235</a>
+<a href="#3236" id="3236">3236</a>
+<a href="#3237" id="3237">3237</a>
+<a href="#3238" id="3238">3238</a>
+<a href="#3239" id="3239">3239</a>
+<a href="#3240" id="3240">3240</a>
+<a href="#3241" id="3241">3241</a>
+<a href="#3242" id="3242">3242</a>
+<a href="#3243" id="3243">3243</a>
+<a href="#3244" id="3244">3244</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4216,7 +4235,7 @@
 
     <span class="doccomment">/// The length the tag value is allowed to be.
     ///
-    /// Defaults to `200` bytes.
+    /// Defaults to `200` chars.
     </span><span class="kw">pub </span>max_tag_value_length: usize,
 
     <span class="doccomment">/// Maximum amount of bytes used for metrics aggregation.
@@ -4862,7 +4881,7 @@
                 <span class="macro">relay_log::debug!</span>(<span class="string">&quot;Invalid metric tag key&quot;</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             }
-            <span class="kw">if </span>tag_value.len() &gt; aggregator_config.max_tag_value_length {
+            <span class="kw">if </span>bytecount::num_chars(tag_value.as_bytes()) &gt; aggregator_config.max_tag_value_length {
                 relay_log::configure_scope(|scope| {
                     scope.set_extra(<span class="string">&quot;bucket.project_key&quot;</span>, proj_key.to_owned().into());
                     scope.set_extra(<span class="string">&quot;bucket.metric.tag_value&quot;</span>, tag_value.to_owned().into());
@@ -6275,6 +6294,25 @@
             AggregatorService::validate_bucket_key(short_metric_long_tag_value, <span class="kw-2">&amp;</span>aggregator_config)
                 .unwrap();
         <span class="macro">assert_eq!</span>(validation.tags.len(), <span class="number">0</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_validate_tag_values_special_chars() {
+        relay_test::setup();
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
+        <span class="kw">let </span>aggregator_config = test_config();
+
+        <span class="kw">let </span>tag_value = <span class="string">&quot;x&quot;</span>.repeat(<span class="number">199</span>) + <span class="string">&quot;ø&quot;</span>;
+        <span class="macro">assert_eq!</span>(tag_value.chars().count(), <span class="number">200</span>); <span class="comment">// Should be allowed
+        </span><span class="kw">let </span>short_metric = BucketKey {
+            project_key,
+            timestamp: UnixTimestamp::now(),
+            metric_name: <span class="string">&quot;c:transactions/a_short_metric&quot;</span>.to_owned(),
+            tags: BTreeMap::from([(<span class="string">&quot;foo&quot;</span>.into(), tag_value.clone())]),
+        };
+        <span class="kw">let </span>validated_bucket =
+            AggregatorService::validate_metric_tags(short_metric, <span class="kw-2">&amp;</span>aggregator_config);
+        <span class="macro">assert_eq!</span>(validated_bucket.tags[<span class="string">&quot;foo&quot;</span>], tag_value);
     }
 
     <span class="attr">#[test]

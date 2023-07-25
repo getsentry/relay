@@ -43,7 +43,7 @@ by setting the header <code>X-Sentry-Relay-Shard</code>.</p>
 </div><span id="structfield.max_tag_key_length" class="structfield small-section-header"><a href="#structfield.max_tag_key_length" class="anchor field">§</a><code>max_tag_key_length: <a class="primitive" href="https://doc.rust-lang.org/1.71.0/std/primitive.usize.html">usize</a></code></span><div class="docblock"><p>The length the tag key is allowed to be.</p>
 <p>Defaults to <code>200</code> bytes.</p>
 </div><span id="structfield.max_tag_value_length" class="structfield small-section-header"><a href="#structfield.max_tag_value_length" class="anchor field">§</a><code>max_tag_value_length: <a class="primitive" href="https://doc.rust-lang.org/1.71.0/std/primitive.usize.html">usize</a></code></span><div class="docblock"><p>The length the tag value is allowed to be.</p>
-<p>Defaults to <code>200</code> bytes.</p>
+<p>Defaults to <code>200</code> chars.</p>
 </div><span id="structfield.max_total_bucket_bytes" class="structfield small-section-header"><a href="#structfield.max_total_bucket_bytes" class="anchor field">§</a><code>max_total_bucket_bytes: <a class="enum" href="https://doc.rust-lang.org/1.71.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.71.0/std/primitive.usize.html">usize</a>&gt;</code></span><div class="docblock"><p>Maximum amount of bytes used for metrics aggregation.</p>
 <p>When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
 This is only an approximation and does not take into account things such as pre-allocation

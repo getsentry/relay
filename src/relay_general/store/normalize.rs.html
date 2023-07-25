@@ -3882,7 +3882,7 @@
     <span class="kw">pub </span>device_class_synthesis_config: bool,
     <span class="kw">pub </span>enrich_spans: bool,
     <span class="kw">pub </span>light_normalize_spans: bool,
-    <span class="kw">pub </span>max_tag_value_size: usize, <span class="comment">// TODO: move span related fields into separate config.
+    <span class="kw">pub </span>max_tag_value_length: usize, <span class="comment">// TODO: move span related fields into separate config.
     </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;SpanDescriptionRule&gt;&gt;,
     <span class="kw">pub </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GeoIpLookup&gt;,
 }
@@ -3904,7 +3904,7 @@
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             light_normalize_spans: Default::default(),
-            max_tag_value_size: usize::MAX,
+            max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             geoip_lookup: Default::default(),
         }
@@ -3928,7 +3928,7 @@
             config.transaction_name_config,
             config.enrich_spans,
             config.span_description_rules,
-            config.max_tag_value_size,
+            config.max_tag_value_length,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 

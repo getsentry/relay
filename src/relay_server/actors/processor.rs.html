@@ -6223,7 +6223,7 @@
                 enrich_spans: state
                     .project_state
                     .has_feature(Feature::SpanMetricsExtraction),
-                max_tag_value_size: <span class="self">self</span>.config.aggregator_config().max_tag_value_length,
+                max_tag_value_length: <span class="self">self</span>.config.aggregator_config().max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
