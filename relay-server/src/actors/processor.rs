@@ -2232,6 +2232,19 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    #[cfg(feature = "processing")]
+    fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
+        if !state.project_state.has_feature(Feature::StandaloneSpans) {
+            return;
+        };
+
+        let Some(spans) = state.event.value().and_then(|e| e.spans.value()) else { return };
+        for span in spans {
+            let Some(span) = span.value() else  { continue };
+            self.store_forwarder.send(StoreSpan(span));
+        }
+    }
+
     /// Computes the sampling decision on the incoming event
     fn run_dynamic_sampling(&self, state: &mut ProcessEnvelopeState) {
         // Running dynamic sampling involves either:
@@ -2421,6 +2434,7 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             self.scrub_event(state)?;
             self.serialize_event(state)?;
+            self.extract_spans(state);
         }
 
         self.scrub_attachments(state);

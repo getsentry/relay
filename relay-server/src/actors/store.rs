@@ -732,6 +732,31 @@ impl StoreService {
 
         Ok(())
     }
+
+    fn produce_span(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        let message = KafkaMessage::Span(SpanKafkaMessage {
+            project_id,
+            retention_days,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            payload: item.payload(),
+        });
+
+        self.produce(KafkaTopic::Spans, organization_id, message)?;
+
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "span"
+        );
+
+        Ok(())
+    }
 }
 
 impl Service for StoreService {
@@ -990,6 +1015,18 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
+#[derive(Debug, Serialize)]
+struct SpanKafkaMessage {
+    /// Raw span payload.
+    payload: Bytes,
+    /// Time at which the span was received by Relay.
+    start_time: u64,
+    /// The project id for the current span.
+    project_id: ProjectId,
+    // Number of days to retain.
+    retention_days: u16,
+}
+
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -1010,6 +1047,7 @@ enum KafkaMessage {
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
+    Span(SpanKafkaMessage),
 }
 
 impl Message for KafkaMessage {
@@ -1025,6 +1063,7 @@ impl Message for KafkaMessage {
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
+            KafkaMessage::Span(_) => "span",
         }
     }
 
@@ -1041,6 +1080,7 @@ impl Message for KafkaMessage {
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
             Self::CheckIn(_message) => Uuid::nil(),
+            Self::Span(_) => Uuid::nil(), // TODO
         };
 
         if uuid.is_nil() {

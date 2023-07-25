@@ -41,6 +41,8 @@ pub enum KafkaTopic {
     ReplayRecordings,
     /// Monitor check-ins.
     Monitors,
+    /// Standalone spans without a transaction.
+    Spans,
 }
 
 impl KafkaTopic {
@@ -98,6 +100,8 @@ pub struct TopicAssignments {
     pub replay_recordings: TopicAssignment,
     /// Monitor check-ins.
     pub monitors: TopicAssignment,
+    /// Standalone spans without a transaction.
+    pub spans: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -117,6 +121,7 @@ impl TopicAssignments {
             KafkaTopic::ReplayEvents => &self.replay_events,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
             KafkaTopic::Monitors => &self.monitors,
+            KafkaTopic::Spans => &self.spans,
         }
     }
 }
@@ -137,6 +142,7 @@ impl Default for TopicAssignments {
             replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
             monitors: "ingest-monitors".to_owned().into(),
+            spans: "ingest-spans".to_owned().into(),
         }
     }
 }
