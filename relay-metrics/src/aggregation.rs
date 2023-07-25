@@ -1079,7 +1079,7 @@ impl AggregatorConfig {
         if !self.timestamp_range().contains(&output_timestamp) {
             let delta = (ts as i64) - (UnixTimestamp::now().as_secs() as i64);
             relay_statsd::metric!(
-                histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64
+                histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64,
             );
             return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
         }
@@ -1108,7 +1108,7 @@ impl AggregatorConfig {
         let delay = UnixTimestamp::now().as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
         relay_statsd::metric!(
             histogram(MetricHistograms::BucketsDelay) = delay as f64,
-            backedated = if flush.is_none() { "true" } else { "false" },
+            backdated = if flush.is_none() { "true" } else { "false" },
         );
 
         // If the initial flush time has passed or cannot be represented, debounce future flushes
@@ -1208,7 +1208,6 @@ impl Ord for QueuedBucket {
 /// This is cheaper to pass around than a (BucketKey, Bucket) pair.
 pub struct HashedBucket {
     // This is only public because pop_flush_buckets is used in benchmark.
-    // TODO: Find better name for this struct
     hashed_key: u64,
     bucket: Bucket,
 }
@@ -1407,8 +1406,8 @@ pub struct FlushBuckets {
 /// A message containing a list of [`Metric`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct InsertMetrics {
-    project_key: ProjectKey,
-    metrics: Vec<Metric>,
+    pub(crate) project_key: ProjectKey,
+    pub(crate) metrics: Vec<Metric>,
 }
 
 impl InsertMetrics {
@@ -1438,8 +1437,8 @@ impl InsertMetrics {
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
-    project_key: ProjectKey,
-    buckets: Vec<Bucket>,
+    pub(crate) project_key: ProjectKey,
+    pub(crate) buckets: Vec<Bucket>,
 }
 
 impl MergeBuckets {
@@ -1541,6 +1540,7 @@ impl FromMessage<MergeBuckets> for Aggregator {
 ///
 /// Receivers must implement a handler for the [`FlushBuckets`] message.
 pub struct AggregatorService {
+    name: String,
     config: AggregatorConfig,
     buckets: HashMap<BucketKey, QueuedBucket>,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
@@ -1557,7 +1557,17 @@ impl AggregatorService {
         config: AggregatorConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
+        Self::named("default".to_owned(), config, receiver)
+    }
+
+    /// Like [`Self::new`], but with a provided name.
+    pub(crate) fn named(
+        name: String,
+        config: AggregatorConfig,
+        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    ) -> Self {
         Self {
+            name,
             config,
             buckets: HashMap::new(),
             receiver,
@@ -1737,6 +1747,7 @@ impl AggregatorService {
             Entry::Occupied(mut entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
+                    aggregator = &self.name,
                     metric_name = metric_name_tag(&entry.key().metric_name),
                 );
                 let bucket_value = &mut entry.get_mut().value;
@@ -1748,10 +1759,12 @@ impl AggregatorService {
             Entry::Vacant(entry) => {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
+                    aggregator = &self.name,
                     metric_name = metric_name_tag(&entry.key().metric_name),
                 );
                 relay_statsd::metric!(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
+                    aggregator = &self.name,
                     metric_name = metric_name_tag(&entry.key().metric_name),
                 );
 
@@ -1777,6 +1790,7 @@ impl AggregatorService {
     ) -> Result<(), AggregateMetricsError> {
         relay_statsd::metric!(
             counter(MetricCounters::InsertMetric) += 1,
+            aggregator = &self.name,
             metric_type = metric.value.ty().as_str(),
         );
         let key = BucketKey {
@@ -1831,7 +1845,10 @@ impl AggregatorService {
     ///
     /// Note that this function is primarily intended for tests.
     pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<HashedBucket>> {
-        relay_statsd::metric!(gauge(MetricGauges::Buckets) = self.buckets.len() as u64);
+        relay_statsd::metric!(
+            gauge(MetricGauges::Buckets) = self.buckets.len() as u64,
+            aggregator = &self.name,
+        );
 
         // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
         // assuming that this gives us more than enough data points.
@@ -1845,37 +1862,41 @@ impl AggregatorService {
 
         let mut stats = BTreeMap::new();
 
-        relay_statsd::metric!(timer(MetricTimers::BucketsScanDuration), {
-            let bucket_interval = self.config.bucket_interval;
-            let cost_tracker = &mut self.cost_tracker;
-            self.buckets.retain(|key, entry| {
-                if force || entry.elapsed() {
-                    // Take the value and leave a placeholder behind. It'll be removed right after.
-                    let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                    cost_tracker.subtract_cost(key.project_key, key.cost());
-                    cost_tracker.subtract_cost(key.project_key, value.cost());
+        relay_statsd::metric!(
+            timer(MetricTimers::BucketsScanDuration),
+            aggregator = &self.name,
+            {
+                let bucket_interval = self.config.bucket_interval;
+                let cost_tracker = &mut self.cost_tracker;
+                self.buckets.retain(|key, entry| {
+                    if force || entry.elapsed() {
+                        // Take the value and leave a placeholder behind. It'll be removed right after.
+                        let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                        cost_tracker.subtract_cost(key.project_key, key.cost());
+                        cost_tracker.subtract_cost(key.project_key, value.cost());
 
-                    let (bucket_count, item_count) = stats
-                        .entry((metric_type_tag(&value), metric_name_tag(&key.metric_name)))
-                        .or_insert((0usize, 0usize));
-                    *bucket_count += 1;
-                    *item_count += value.len();
+                        let (bucket_count, item_count) = stats
+                            .entry((metric_type_tag(&value), metric_name_tag(&key.metric_name)))
+                            .or_insert((0usize, 0usize));
+                        *bucket_count += 1;
+                        *item_count += value.len();
 
-                    let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
-                    buckets
-                        .entry(key.project_key)
-                        .or_default()
-                        .push(HashedBucket {
-                            hashed_key: key.hash64(),
-                            bucket,
-                        });
+                        let bucket = Bucket::from_parts(key.clone(), bucket_interval, value);
+                        buckets
+                            .entry(key.project_key)
+                            .or_default()
+                            .push(HashedBucket {
+                                hashed_key: key.hash64(),
+                                bucket,
+                            });
 
-                    false
-                } else {
-                    true
-                }
-            });
-        });
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        );
 
         for ((ty, name), (bucket_count, item_count)) in stats.into_iter() {
             relay_statsd::metric!(
@@ -1910,7 +1931,8 @@ impl AggregatorService {
 
             // Log the distribution of buckets over partition key
             relay_statsd::metric!(
-                histogram(MetricHistograms::PartitionKeys) = partition_key as f64
+                histogram(MetricHistograms::PartitionKeys) = partition_key as f64,
+                aggregator = &self.name,
             );
         }
         partitions
@@ -1929,6 +1951,7 @@ impl AggregatorService {
             .map(|batch| {
                 relay_statsd::metric!(
                     histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                    aggregator = &self.name,
                 );
                 process(batch);
             })
@@ -1936,6 +1959,7 @@ impl AggregatorService {
 
         relay_statsd::metric!(
             histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+            aggregator = &self.name,
         );
     }
 
@@ -1957,7 +1981,8 @@ impl AggregatorService {
         for (project_key, project_buckets) in flush_buckets.into_iter() {
             let bucket_count = project_buckets.len() as u64;
             relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count
+                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                aggregator = &self.name,
             );
             total_bucket_count += bucket_count;
 
@@ -1975,7 +2000,10 @@ impl AggregatorService {
                 });
             }
         }
-        relay_statsd::metric!(histogram(MetricHistograms::BucketsFlushed) = total_bucket_count);
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
+            aggregator = &self.name,
+        );
     }
 
     fn handle_accepts_metrics(&self, sender: Sender<bool>) {
@@ -2041,9 +2069,8 @@ impl Service for AggregatorService {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
             let mut shutdown = Controller::shutdown_handle();
-            relay_log::info!("aggregator started");
 
-            // Note that currently this loop never exists and will run till the tokio runtime shuts
+            // Note that currently this loop never exits and will run till the tokio runtime shuts
             // down. This is about to change with the refactoring for the shutdown process.
             loop {
                 tokio::select! {
@@ -2056,7 +2083,6 @@ impl Service for AggregatorService {
                     else => break,
                 }
             }
-            relay_log::info!("aggregator stopped");
         });
     }
 }
@@ -2067,7 +2093,8 @@ impl Drop for AggregatorService {
         if remaining_buckets > 0 {
             relay_log::error!("metrics aggregator dropping {remaining_buckets} buckets");
             relay_statsd::metric!(
-                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64
+                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64,
+                aggregator = &self.name,
             );
         }
     }
@@ -2098,8 +2125,6 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct TestReceiver {
-        // TODO: Better way to communicate with service after it's started?
-        // Messages, maybe?
         data: Arc<RwLock<ReceivedData>>,
         reject_all: bool,
     }
@@ -2414,7 +2439,6 @@ mod tests {
         MetricValue::Distribution(2.0)
             .merge_into(&mut value)
             .unwrap();
-        // TODO: This should be ordered
         assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2.]));
     }
 
@@ -3158,8 +3182,8 @@ mod tests {
         let output = run_test_bucket_partitioning(None);
         insta::assert_debug_snapshot!(output, @r###"
         [
-            "metrics.buckets.per_batch:2|h",
-            "metrics.buckets.batches_per_partition:1|h",
+            "metrics.buckets.per_batch:2|h|#aggregator:default",
+            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
         ]
         "###);
     }
@@ -3172,17 +3196,17 @@ mod tests {
         let (partition_keys, tail) = output.split_at(2);
         insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r###"
         {
-            "metrics.buckets.partition_keys:59|h",
-            "metrics.buckets.partition_keys:62|h",
+            "metrics.buckets.partition_keys:59|h|#aggregator:default",
+            "metrics.buckets.partition_keys:62|h|#aggregator:default",
         }
         "###);
 
         insta::assert_debug_snapshot!(tail, @r###"
         [
-            "metrics.buckets.per_batch:1|h",
-            "metrics.buckets.batches_per_partition:1|h",
-            "metrics.buckets.per_batch:1|h",
-            "metrics.buckets.batches_per_partition:1|h",
+            "metrics.buckets.per_batch:1|h|#aggregator:default",
+            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
+            "metrics.buckets.per_batch:1|h|#aggregator:default",
+            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
         ]
         "###);
     }
