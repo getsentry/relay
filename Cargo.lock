@@ -3270,6 +3270,7 @@ dependencies = [
  "fnv",
  "hash32",
  "insta",
+ "itertools",
  "relay-common",
  "relay-log",
  "relay-statsd",
