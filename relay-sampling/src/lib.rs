@@ -78,6 +78,7 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
+use relay_general::types::Annotated;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
@@ -827,17 +828,35 @@ impl FieldValueProvider for Span {
                 .exclusive_time
                 .value()
                 .map_or(Value::Null, |&v| v.into()),
-            "description" => self.description,
-            "op" => self.op,
-            "span_id" => self.span_id,
-            "parent_span_id" => self.parent_span_id,
-            "trace_id" => self.trace_id,
-            "status" => self.status,
-            "tags" => self.tags,
-            "origin" => self.origin,
+            "description" => self.description.as_str().map_or(Value::Null, Value::from),
+            "op" => self.op.as_str().map_or(Value::Null, Value::from),
+            "span_id" => self
+                .span_id
+                .value()
+                .map_or(Value::Null, |s| s.0.as_str().into()),
+            "parent_span_id" => self
+                .parent_span_id
+                .value()
+                .map_or(Value::Null, |s| s.0.as_str().into()),
+            "trace_id" => self
+                .trace_id
+                .value()
+                .map_or(Value::Null, |s| s.0.as_str().into()),
+            "status" => self
+                .status
+                .value()
+                .map_or(Value::Null, |s| s.as_str().into()),
+            "origin" => self.origin.as_str().map_or(Value::Null, Value::from),
             _ => {
-                if let Some(data_field) = path.strip_prefix("data.") {
-                    if let Some(v) = self.data.value().and_then(|data| data.get(data_field)) {
+                if let Some(key) = path.strip_prefix("tags.") {
+                    return self
+                        .tags
+                        .value()
+                        .and_then(|tags| tags.get(rest))
+                        .map_or(Value::Null, Value::from);
+                }
+                if let Some(key) = path.strip_prefix("data.") {
+                    if let Some(v) = self.data.value().and_then(|data| data.get(key)) {
                         Value::String(v)
                     }
                 }
