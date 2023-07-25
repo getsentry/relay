@@ -19,9 +19,9 @@ pub enum Feature {
     /// Enables metric extraction from spans.
     #[serde(rename = "projects:span-metrics-extraction")]
     SpanMetricsExtraction,
-    /// Enables extraction and forwarding of spans from transactions.
-    #[serde(rename = "projects:standalone-spans")]
-    StandaloneSpans,
+    /// Extract spans from transactions and convert them to standalone spans.
+    #[serde(rename = "projects:extract-standalone-spans")]
+    ExtractStandaloneSpans,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

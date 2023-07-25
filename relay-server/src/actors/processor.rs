@@ -1633,6 +1633,7 @@ impl EnvelopeProcessorService {
             ItemType::ReplayEvent => false,
             ItemType::ReplayRecording => false,
             ItemType::CheckIn => false,
+            ItemType::Span => false,
 
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
@@ -2234,14 +2235,31 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
-        if !state.project_state.has_feature(Feature::StandaloneSpans) {
+        // For now, drop any spans submitted by the SDK.
+        state.managed_envelope.retain_items(|item| match item.ty() {
+            ItemType::Span => ItemAction::DropSilently,
+            _ => ItemAction::Keep,
+        });
+
+        if !state
+            .project_state
+            .has_feature(Feature::ExtractStandaloneSpans)
+        {
             return;
         };
 
         let Some(spans) = state.event.value().and_then(|e| e.spans.value()) else { return };
         for span in spans {
-            let Some(span) = span.value() else  { continue };
-            self.store_forwarder.send(StoreSpan(span));
+            let span = match span.to_json() {
+                Ok(span) => span,
+                Err(e) => {
+                    relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
+                    continue;
+                }
+            };
+            let mut item = Item::new(ItemType::Span);
+            item.set_payload(ContentType::Json, span);
+            state.managed_envelope.envelope_mut().add_item(item);
         }
     }
 

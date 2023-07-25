@@ -109,6 +109,8 @@ pub enum ItemType {
     ReplayRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
+    /// A standalone span.
+    Span,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -151,6 +153,7 @@ impl fmt::Display for ItemType {
             Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
             Self::CheckIn => write!(f, "check_in"),
+            Self::Span => write!(f, "span"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -178,6 +181,7 @@ impl std::str::FromStr for ItemType {
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
             "check_in" => Self::CheckIn,
+            "span" => Self::Span,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -559,6 +563,7 @@ impl Item {
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Unknown(_) => None,
+            ItemType::Span => None, // No outcomes, for now
         }
     }
 
@@ -722,7 +727,8 @@ impl Item {
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
             | ItemType::Profile
-            | ItemType::CheckIn => false,
+            | ItemType::CheckIn
+            | ItemType::Span => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -752,6 +758,7 @@ impl Item {
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
+            ItemType::Span => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two

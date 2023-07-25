@@ -202,6 +202,13 @@ impl StoreService {
                     retention,
                     item,
                 )?,
+                ItemType::Span => self.produce_span(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
+                    retention,
+                    item,
+                )?,
                 _ => {}
             }
         }
