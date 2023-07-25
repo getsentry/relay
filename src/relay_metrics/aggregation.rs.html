@@ -3242,6 +3242,47 @@
 <a href="#3242" id="3242">3242</a>
 <a href="#3243" id="3243">3243</a>
 <a href="#3244" id="3244">3244</a>
+<a href="#3245" id="3245">3245</a>
+<a href="#3246" id="3246">3246</a>
+<a href="#3247" id="3247">3247</a>
+<a href="#3248" id="3248">3248</a>
+<a href="#3249" id="3249">3249</a>
+<a href="#3250" id="3250">3250</a>
+<a href="#3251" id="3251">3251</a>
+<a href="#3252" id="3252">3252</a>
+<a href="#3253" id="3253">3253</a>
+<a href="#3254" id="3254">3254</a>
+<a href="#3255" id="3255">3255</a>
+<a href="#3256" id="3256">3256</a>
+<a href="#3257" id="3257">3257</a>
+<a href="#3258" id="3258">3258</a>
+<a href="#3259" id="3259">3259</a>
+<a href="#3260" id="3260">3260</a>
+<a href="#3261" id="3261">3261</a>
+<a href="#3262" id="3262">3262</a>
+<a href="#3263" id="3263">3263</a>
+<a href="#3264" id="3264">3264</a>
+<a href="#3265" id="3265">3265</a>
+<a href="#3266" id="3266">3266</a>
+<a href="#3267" id="3267">3267</a>
+<a href="#3268" id="3268">3268</a>
+<a href="#3269" id="3269">3269</a>
+<a href="#3270" id="3270">3270</a>
+<a href="#3271" id="3271">3271</a>
+<a href="#3272" id="3272">3272</a>
+<a href="#3273" id="3273">3273</a>
+<a href="#3274" id="3274">3274</a>
+<a href="#3275" id="3275">3275</a>
+<a href="#3276" id="3276">3276</a>
+<a href="#3277" id="3277">3277</a>
+<a href="#3278" id="3278">3278</a>
+<a href="#3279" id="3279">3279</a>
+<a href="#3280" id="3280">3280</a>
+<a href="#3281" id="3281">3281</a>
+<a href="#3282" id="3282">3282</a>
+<a href="#3283" id="3283">3283</a>
+<a href="#3284" id="3284">3284</a>
+<a href="#3285" id="3285">3285</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4170,6 +4211,24 @@
     }
 }
 
+<span class="doccomment">/// Configuration value for [`AggregatorConfig::shift_key`].
+</span><span class="attr">#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
+</span><span class="kw">pub enum </span>ShiftKey {
+    <span class="doccomment">/// Shifts the flush time by an offset based on the [`ProjectKey`].
+    ///
+    /// This allows buckets from the same project to be flushed together.
+    </span><span class="attr">#[default]
+    </span>Project,
+
+    <span class="doccomment">/// Shifts the flush time by an offset based on the bucket key itself.
+    ///
+    /// This allows for a completely random distribution of bucket flush times.
+    ///
+    /// Only for use in processing Relays.
+    </span>Bucket,
+}
+
 <span class="doccomment">/// Parameters used by the [`AggregatorService`].
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
@@ -4254,6 +4313,12 @@
     ///
     /// Defaults to `None`, i.e. no limit.
     </span><span class="kw">pub </span>max_project_key_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+
+    <span class="doccomment">/// Key used to shift the flush time of a bucket.
+    ///
+    /// This prevents flushing all buckets from a bucket interval at the same
+    /// time by computing an offset from the hash of the given key.
+    </span><span class="kw">pub </span>shift_key: ShiftKey,
 }
 
 <span class="kw">impl </span>AggregatorConfig {
@@ -4312,28 +4377,21 @@
     ///
     /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
     /// is, buckets that lie in the past, are flushed after the shorter `debounce_delay`.
-    </span><span class="kw">fn </span>get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket_timestamp: UnixTimestamp, project_key: ProjectKey) -&gt; Instant {
+    </span><span class="kw">fn </span>get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket_key: <span class="kw-2">&amp;</span>BucketKey) -&gt; Instant {
         <span class="kw">let </span>now = Instant::now();
         <span class="kw">let </span><span class="kw-2">mut </span>flush = <span class="prelude-val">None</span>;
 
-        <span class="kw">if let </span>MonotonicResult::Instant(instant) = bucket_timestamp.to_instant() {
+        <span class="kw">if let </span>MonotonicResult::Instant(instant) = bucket_key.timestamp.to_instant() {
             <span class="kw">let </span>instant = Instant::from_std(instant);
             <span class="kw">let </span>bucket_end = instant + <span class="self">self</span>.bucket_interval();
             <span class="kw">let </span>initial_flush = bucket_end + <span class="self">self</span>.initial_delay();
             <span class="comment">// If the initial flush is still pending, use that.
             </span><span class="kw">if </span>initial_flush &gt; now {
-                <span class="comment">// Shift deterministically within one bucket interval based on the project key. This
-                // distributes buckets over time while also flushing all buckets of the same project
-                // key together.
-                </span><span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-                hasher.write(project_key.as_str().as_bytes());
-                <span class="kw">let </span>shift_millis = hasher.finish() % (<span class="self">self</span>.bucket_interval * <span class="number">1000</span>);
-
-                flush = <span class="prelude-val">Some</span>(initial_flush + Duration::from_millis(shift_millis));
+                flush = <span class="prelude-val">Some</span>(initial_flush + <span class="self">self</span>.flush_time_shift(bucket_key));
             }
         }
 
-        <span class="kw">let </span>delay = UnixTimestamp::now().as_secs() <span class="kw">as </span>i64 - bucket_timestamp.as_secs() <span class="kw">as </span>i64;
+        <span class="kw">let </span>delay = UnixTimestamp::now().as_secs() <span class="kw">as </span>i64 - bucket_key.timestamp.as_secs() <span class="kw">as </span>i64;
         <span class="macro">relay_statsd::metric!</span>(
             histogram(MetricHistograms::BucketsDelay) = delay <span class="kw">as </span>f64,
             backdated = <span class="kw">if </span>flush.is_none() { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
@@ -4345,6 +4403,23 @@
             <span class="prelude-val">Some</span>(initial_flush) =&gt; initial_flush,
             <span class="prelude-val">None </span>=&gt; now + <span class="self">self</span>.debounce_delay(),
         }
+    }
+
+    <span class="comment">// Shift deterministically within one bucket interval based on the project or bucket key.
+    //
+    // This distributes buckets over time to prevent peaks.
+    </span><span class="kw">fn </span>flush_time_shift(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw-2">&amp;</span>BucketKey) -&gt; Duration {
+        <span class="kw">let </span>hash_value = <span class="kw">match </span><span class="self">self</span>.shift_key {
+            ShiftKey::Project =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
+                hasher.write(bucket.project_key.as_str().as_bytes());
+                hasher.finish()
+            }
+            ShiftKey::Bucket =&gt; bucket.hash64(),
+        };
+        <span class="kw">let </span>shift_millis = hash_value % (<span class="self">self</span>.bucket_interval * <span class="number">1000</span>);
+
+        Duration::from_millis(shift_millis)
     }
 }
 
@@ -4363,6 +4438,7 @@
             max_tag_value_length: <span class="number">200</span>,
             max_total_bucket_bytes: <span class="prelude-val">None</span>,
             max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
+            shift_key: ShiftKey::default(),
         }
     }
 }
@@ -4915,7 +4991,6 @@
         key: BucketKey,
         value: T,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
-        <span class="kw">let </span>timestamp = key.timestamp;
         <span class="kw">let </span>project_key = key.project_key;
 
         <span class="kw">let </span>key = <span class="self">Self</span>::validate_bucket_key(key, <span class="kw-2">&amp;</span><span class="self">self</span>.config)<span class="question-mark">?</span>;
@@ -4978,7 +5053,7 @@
                     metric_name = metric_name_tag(<span class="kw-2">&amp;</span>entry.key().metric_name),
                 );
 
-                <span class="kw">let </span>flush_at = <span class="self">self</span>.config.get_flush_time(timestamp, project_key);
+                <span class="kw">let </span>flush_at = <span class="self">self</span>.config.get_flush_time(entry.key());
                 <span class="kw">let </span>bucket = value.into();
                 added_cost = entry.key().cost() + bucket.cost();
                 entry.insert(QueuedBucket::new(flush_at, bucket));
@@ -6484,6 +6559,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_capped_iter_completeness_100() {
         test_capped_iter_completeness(<span class="number">100</span>, <span class="number">4</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_shift_key() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;shift_key&quot;: &quot;bucket&quot;}&quot;#</span>;
+        <span class="kw">let </span>parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(parsed.shift_key, ShiftKey::Bucket));
     }
 }
 </code></pre></div></section></main></body></html>
