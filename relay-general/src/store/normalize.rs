@@ -21,7 +21,8 @@ use crate::protocol::{
     VALID_PLATFORMS,
 };
 use crate::store::{
-    ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
+    trimming, ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig,
+    TransactionNameConfig,
 };
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
@@ -751,6 +752,7 @@ pub struct LightNormalizationConfig<'a> {
     pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
     pub geoip_lookup: Option<&'a GeoIpLookup>,
+    pub enable_trimming: bool,
 }
 
 impl Default for LightNormalizationConfig<'_> {
@@ -773,6 +775,7 @@ impl Default for LightNormalizationConfig<'_> {
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             geoip_lookup: Default::default(),
+            enable_trimming: false,
         }
     }
 }
@@ -872,6 +875,15 @@ pub fn light_normalize_event(
                 event,
                 &BTreeSet::from([SpanAttribute::ExclusiveTime]),
             );
+        }
+
+        if config.enable_trimming {
+            // Trim large strings and databags down
+            trimming::TrimmingProcessor::new().process_event(
+                event,
+                meta,
+                ProcessingState::root(),
+            )?;
         }
 
         Ok(())
