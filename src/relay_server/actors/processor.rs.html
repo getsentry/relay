@@ -3871,6 +3871,7 @@
 <a href="#3871" id="3871">3871</a>
 <a href="#3872" id="3872">3872</a>
 <a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6228,6 +6229,7 @@
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.geoip_lookup.as_ref(),
+                enable_trimming: <span class="bool-val">true</span>,
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
