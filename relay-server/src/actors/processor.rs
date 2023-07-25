@@ -2452,7 +2452,9 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             self.scrub_event(state)?;
             self.serialize_event(state)?;
-            self.extract_spans(state);
+            if_processing!({
+                self.extract_spans(state);
+            });
         }
 
         self.scrub_attachments(state);
