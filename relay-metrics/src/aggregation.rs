@@ -939,6 +939,7 @@ pub enum ShiftKey {
     /// Shifts the flush time by an offset based on the [`BucketKey`] itself.
     ///
     /// This allows for a completely random distribution of bucket flush times.
+    #[cfg(feature = "processing")]
     Bucket,
 }
 
@@ -1029,7 +1030,7 @@ pub struct AggregatorConfig {
 
     /// Key used to shift the flush time of a bucket.
     ///
-    /// This prevents flushing all buckets from [`Self::bucket_interval`] at the same
+    /// This prevents flushing all buckets from a bucket interval at the same
     /// time by computing an offset from the hash of the given key.
     pub shift_key: ShiftKey,
 }
@@ -1128,6 +1129,7 @@ impl AggregatorConfig {
                 hasher.write(bucket.project_key.as_str().as_bytes());
                 hasher.finish()
             }
+            #[cfg(feature = "processing")]
             ShiftKey::Bucket => bucket.hash64(),
         };
         let shift_millis = hash_value % (self.bucket_interval * 1000);
@@ -3232,6 +3234,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "processing")]
     fn test_parse_shift_key() {
         let json = r#"{"shift_key": "bucket"}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
