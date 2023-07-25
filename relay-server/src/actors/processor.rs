@@ -486,15 +486,15 @@ pub enum EnvelopeProcessor {
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
     RateLimitFlushBuckets(RateLimitFlushBuckets),
-    UpdateglobalConfig(GlobalConfig),
+    UpdateglobalConfig(Arc<GlobalConfig>),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
 
-impl FromMessage<GlobalConfig> for EnvelopeProcessor {
+impl FromMessage<Arc<GlobalConfig>> for EnvelopeProcessor {
     type Response = relay_system::NoResponse;
 
-    fn from_message(message: GlobalConfig, _sender: ()) -> Self {
+    fn from_message(message: Arc<GlobalConfig>, _sender: ()) -> Self {
         Self::UpdateglobalConfig(message)
     }
 }
@@ -557,6 +557,7 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
+        // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
         let global_config = RwLock::new(Arc::new(GlobalConfig::default()));
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -1372,11 +1373,17 @@ impl EnvelopeProcessorService {
 
         let global_config = match self.global_config.read() {
             Ok(config) => {
-                metric!(counter(RelayCounters::GlobalConfigReadSuccess) += 1);
+                metric!(
+                    counter(RelayCounters::GlobalConfigRead) += 1,
+                    success = "true"
+                );
                 config.clone()
             }
             Err(_) => {
-                metric!(counter(RelayCounters::GlobalConfigReadFailed) += 1);
+                metric!(
+                    counter(RelayCounters::GlobalConfigRead) += 1,
+                    success = "false"
+                );
                 Arc::new(GlobalConfig::default())
             }
         };
@@ -2717,7 +2724,7 @@ impl EnvelopeProcessorService {
             }
             EnvelopeProcessor::UpdateglobalConfig(global_config) => {
                 match self.global_config.write() {
-                    Ok(mut old_global_config) => *old_global_config = Arc::new(global_config),
+                    Ok(mut old_global_config) => *old_global_config = global_config.clone(),
                     Err(e) => relay_log::error!("Failed to update global config: {}", e),
                 }
             }

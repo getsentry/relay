@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::sync::Arc;
 use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
@@ -38,13 +39,13 @@ impl GlobalConfigService {
 
             match upstream_relay.send(SendQuery(query)).await {
                 Ok(Ok(response)) => {
-                    envelope_processor.send::<GlobalConfig>(response.global);
+                    envelope_processor.send::<Arc<GlobalConfig>>(response.global);
                 }
                 Err(e) => {
-                    relay_log::error!("failed to send request: {}", e);
+                    relay_log::error!("failed to send global config request: {}", e);
                 }
                 Ok(Err(e)) => {
-                    relay_log::error!("failed to fetch request: {}", e);
+                    relay_log::error!("failed to fetch global config request: {}", e);
                 }
             };
         });
@@ -80,7 +81,7 @@ pub struct GetGlobalConfig {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfigResponse {
-    global: GlobalConfig,
+    global: Arc<GlobalConfig>,
 }
 
 impl UpstreamQuery for GetGlobalConfig {
