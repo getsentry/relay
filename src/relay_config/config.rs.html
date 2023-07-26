@@ -2036,6 +2036,17 @@
 <a href="#2036" id="2036">2036</a>
 <a href="#2037" id="2037">2037</a>
 <a href="#2038" id="2038">2038</a>
+<a href="#2039" id="2039">2039</a>
+<a href="#2040" id="2040">2040</a>
+<a href="#2041" id="2041">2041</a>
+<a href="#2042" id="2042">2042</a>
+<a href="#2043" id="2043">2043</a>
+<a href="#2044" id="2044">2044</a>
+<a href="#2045" id="2045">2045</a>
+<a href="#2046" id="2046">2046</a>
+<a href="#2047" id="2047">2047</a>
+<a href="#2048" id="2048">2048</a>
+<a href="#2049" id="2049">2049</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2052,7 +2063,7 @@
 <span class="kw">use </span>relay_kafka::{
     ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-<span class="kw">use </span>relay_metrics::{AggregatorConfig, ScopedAggregatorConfig};
+<span class="kw">use </span>relay_metrics::{AggregatorConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig};
 <span class="kw">use </span>relay_redis::RedisConfig;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -4006,6 +4017,17 @@
     <span class="doccomment">/// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
     </span><span class="kw">pub fn </span>secondary_aggregator_configs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;ScopedAggregatorConfig&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators
+    }
+
+    <span class="doccomment">/// Returns aggregator config for a given metrics namespace.
+    </span><span class="kw">pub fn </span>aggregator_config_for(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>AggregatorConfig {
+        <span class="kw">for </span>entry <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators {
+            <span class="kw">match </span>entry.condition {
+                Condition::Eq(Field::Namespace(ns)) <span class="kw">if </span>ns == namespace =&gt; <span class="kw">return </span><span class="kw-2">&amp;</span>entry.config,
+                <span class="kw">_ </span>=&gt; (),
+            }
+        }
+        <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
     }
 
     <span class="doccomment">/// Return the statically configured Relays.

@@ -3872,6 +3872,9 @@
 <a href="#3872" id="3872">3872</a>
 <a href="#3873" id="3873">3873</a>
 <a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -3913,7 +3916,7 @@
 };
 <span class="kw">use </span>relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
 <span class="kw">use </span>relay_general::user_agent::RawUserAgentInfo;
-<span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+<span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
@@ -6224,7 +6227,10 @@
                 enrich_spans: state
                     .project_state
                     .has_feature(Feature::SpanMetricsExtraction),
-                max_tag_value_length: <span class="self">self</span>.config.aggregator_config().max_tag_value_length,
+                max_tag_value_length: <span class="self">self
+                    </span>.config
+                    .aggregator_config_for(MetricNamespace::Spans)
+                    .max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
