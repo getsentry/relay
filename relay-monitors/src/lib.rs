@@ -167,8 +167,10 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
         return Err(ProcessCheckInError::EmptySlug);
     }
 
-    if check_in.environment.is_some()
-        && check_in.environment.unwrap().as_str().chars().count() > ENVIRONMENT_LENGTH
+    if check_in
+        .environment
+        .as_ref()
+        .is_some_and(|e| e.chars().count() > ENVIRONMENT_LENGTH)
     {
         return Err(ProcessCheckInError::InvalidEnvironment);
     }
