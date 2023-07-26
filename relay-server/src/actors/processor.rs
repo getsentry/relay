@@ -2922,7 +2922,6 @@ mod tests {
             let mut project_state = state_with_rule_and_condition(
                 Some(0.0),
                 RuleType::Transaction,
-                SamplingMode::Received,
                 RuleCondition::all(),
             );
 
