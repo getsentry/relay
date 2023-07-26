@@ -306,7 +306,7 @@ mod tests {
         let json = r#"{
           "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
           "monitor_slug": "test",
-          "status": "in_progress"
+          "status": "in_progress",
           "environment": "1234567890123456789012345678901234567890123456789012345678901234567890"
         }"#;
 
