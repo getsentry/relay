@@ -43,7 +43,11 @@ def test_crons_endpoint_get_with_processing(
 
     monitor_slug = "my-monitor"
     public_key = relay.get_dsn_public_key(project_id)
-    relay.get(f"/api/{project_id}/cron/{monitor_slug}/{public_key}?status=ok")
+    response = relay.get(
+        f"/api/{project_id}/cron/{monitor_slug}/{public_key}?status=ok"
+    )
+
+    assert response.status_code == 202
 
     check_in, message = monitors_consumer.get_check_in()
     assert message["start_time"] is not None
@@ -68,10 +72,12 @@ def test_crons_endpoint_post_auth_basic_with_processing(
     monitor_slug = "my-monitor"
     public_key = relay.get_dsn_public_key(project_id)
     basic_auth = base64.b64encode((public_key + ":").encode("utf-8")).decode("utf-8")
-    relay.post(
+    response = relay.post(
         f"/api/{project_id}/cron/{monitor_slug}?status=ok",
         headers={"Authorization": "Basic " + basic_auth},
     )
+
+    assert response.status_code == 202
 
     check_in, message = monitors_consumer.get_check_in()
     assert message["start_time"] is not None
@@ -95,9 +101,11 @@ def test_crons_endpoint_embedded_auth_with_processing(
 
     monitor_slug = "my-monitor"
     public_key = relay.get_dsn_public_key(project_id)
-    relay.post(
+    response = relay.post(
         f"/api/{project_id}/cron/{monitor_slug}/{public_key}?status=ok",
     )
+
+    assert response.status_code == 202
 
     check_in, message = monitors_consumer.get_check_in()
     assert message["start_time"] is not None
