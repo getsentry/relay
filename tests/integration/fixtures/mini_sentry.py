@@ -308,13 +308,13 @@ def mini_sentry(request):
         pending = []
         version = flask_request.args.get("version")
         if version in [None, "1"]:
-            for project_id in flask_request.json["projects"]:
+            for project_id in flask_request.json.get("projects", []):
                 project_config = sentry.project_configs[int(project_id)]
                 if is_trusted(relay_id, project_config):
                     configs[project_id] = project_config
 
         elif version in ["2", "3"]:
-            for public_key in flask_request.json["publicKeys"]:
+            for public_key in flask_request.json.get("publicKeys", []):
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
                     for key in project_config["publicKeys"]:
@@ -337,8 +337,7 @@ def mini_sentry(request):
 
         else:
             abort(500, "unsupported version")
-
-        return jsonify(configs=configs, pending=pending)
+        return jsonify({"configs": configs, "pending": pending, "global": {}})
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():
