@@ -85,7 +85,10 @@
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
 <a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
+<span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{on, MethodFilter, MethodRouter};
 <span class="kw">use </span>relay_common::Uuid;
@@ -94,7 +97,7 @@
 <span class="kw">use </span>relay_monitors::{CheckIn, CheckInStatus};
 <span class="kw">use </span>serde::Deserialize;
 
-<span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest, TextResponse};
+<span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
@@ -159,8 +162,9 @@
         <span class="prelude-val">Ok</span>(<span class="kw">_</span>) | <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(<span class="kw">_</span>)) =&gt; (),
         <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(error),
     };
-    <span class="comment">// What do we want to return?
-    </span><span class="prelude-val">Ok</span>(TextResponse(<span class="prelude-val">None</span>))
+
+    <span class="comment">// Event will be proccessed by Sentry, respond with a 202
+    </span><span class="prelude-val">Ok</span>(StatusCode::ACCEPTED)
 }
 
 <span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
