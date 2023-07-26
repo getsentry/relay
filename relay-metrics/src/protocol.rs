@@ -207,6 +207,7 @@ impl fmt::Display for MetricNamespace {
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
+#[derive(Debug)]
 pub struct MetricResourceIdentifier<'a> {
     /// The metric type.
     pub ty: MetricType,

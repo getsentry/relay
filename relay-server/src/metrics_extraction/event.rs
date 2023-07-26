@@ -27,25 +27,25 @@ pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> 
         category => category,
     };
 
-    for metric_spec in &config.metrics {
-        if metric_spec.category != category {
+    for metric_spec in dbg!(&config.metrics) {
+        if dbg!(metric_spec.category) != dbg!(category) {
             continue;
         }
 
-        if let Some(ref condition) = metric_spec.condition {
-            if !condition.matches(event) {
+        if let Some(ref condition) = dbg!(&metric_spec.condition) {
+            if !dbg!(condition.matches(event)) {
                 continue;
             }
         }
 
         // Parse the MRI so that we can obtain the type, but subsequently re-serialize it into the
         // generated metric to ensure the MRI is normalized.
-        let Ok(mri) = MetricResourceIdentifier::parse(&metric_spec.mri) else {
+        let Ok(mri) = dbg!(MetricResourceIdentifier::parse(&metric_spec.mri)) else {
             relay_log::error!(mri=metric_spec.mri, "invalid MRI for metric extraction");
             continue;
         };
 
-        let Some(value) = read_metric_value(event, metric_spec.field.as_deref(), mri.ty) else {
+        let Some(value) = dbg!(read_metric_value(event, metric_spec.field.as_deref(), mri.ty)) else {
             continue;
         };
 

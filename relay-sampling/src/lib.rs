@@ -818,7 +818,7 @@ impl FieldValueProvider for DynamicSamplingContext {
 }
 
 impl FieldValueProvider for Span {
-    fn get_value(&self, path: &str) -> serde_json::Value {
+    fn get_value(&self, path: &str) -> Value {
         let Some(path) = path.strip_prefix("span.") else {
             return Value::Null
         };
@@ -849,15 +849,23 @@ impl FieldValueProvider for Span {
             "origin" => self.origin.as_str().map_or(Value::Null, Value::from),
             _ => {
                 if let Some(key) = path.strip_prefix("tags.") {
-                    return self
+                    if let Some(v) = self
                         .tags
                         .value()
-                        .and_then(|tags| tags.get(rest))
-                        .map_or(Value::Null, Value::from);
+                        .and_then(|tags| tags.get(key))
+                        .and_then(Annotated::value)
+                    {
+                        return Value::from(v.as_str());
+                    }
                 }
                 if let Some(key) = path.strip_prefix("data.") {
-                    if let Some(v) = self.data.value().and_then(|data| data.get(key)) {
-                        Value::String(v)
+                    if let Some(v) = self
+                        .data
+                        .value()
+                        .and_then(|data| data.get(key))
+                        .and_then(Annotated::value)
+                    {
+                        return Value::from(v.clone());
                     }
                 }
                 Value::Null
