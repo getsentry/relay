@@ -2998,7 +2998,6 @@ mod tests {
             let project_state = state_with_rule_and_condition(
                 Some(sample_rate),
                 RuleType::Transaction,
-                SamplingMode::Received,
                 RuleCondition::all(),
             );
 

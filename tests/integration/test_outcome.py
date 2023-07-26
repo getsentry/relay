@@ -747,7 +747,6 @@ def test_outcome_to_client_report(relay, mini_sentry):
             }
         ],
     }
-    project_config["config"]["transactionMetrics"] = {"version": 1}
 
     upstream = relay(
         mini_sentry,
