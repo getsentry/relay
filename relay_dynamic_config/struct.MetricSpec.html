@@ -2,7 +2,7 @@
     pub category: <a class="enum" href="../relay_common/constants/enum.DataCategory.html" title="enum relay_common::constants::DataCategory">DataCategory</a>,
     pub mri: <a class="struct" href="https://doc.rust-lang.org/1.71.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     pub field: <a class="enum" href="https://doc.rust-lang.org/1.71.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.71.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;,
-    pub condition: <a class="enum" href="https://doc.rust-lang.org/1.71.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;RuleCondition&gt;,
+    pub condition: <a class="enum" href="https://doc.rust-lang.org/1.71.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../relay_sampling/enum.RuleCondition.html" title="enum relay_sampling::RuleCondition">RuleCondition</a>&gt;,
     pub tags: <a class="struct" href="https://doc.rust-lang.org/1.71.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.TagSpec.html" title="struct relay_dynamic_config::TagSpec">TagSpec</a>&gt;,
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Specification for a metric to extract from some data.</p>
 </div></details><h2 id="fields" class="fields small-section-header">Fields<a href="#fields" class="anchor">§</a></h2><span id="structfield.category" class="structfield small-section-header"><a href="#structfield.category" class="anchor field">§</a><code>category: <a class="enum" href="../relay_common/constants/enum.DataCategory.html" title="enum relay_common::constants::DataCategory">DataCategory</a></code></span><div class="docblock"><p>Category of data to extract this metric for.</p>
@@ -10,7 +10,7 @@
 </div><span id="structfield.field" class="structfield small-section-header"><a href="#structfield.field" class="anchor field">§</a><code>field: <a class="enum" href="https://doc.rust-lang.org/1.71.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.71.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>A path to the field to extract the metric from.</p>
 <p>This value contains a fully qualified expression pointing at the data field in the payload
 to extract the metric from. It follows the
-<a href="relay_sampling::FieldValueProvider"><code>FieldValueProvider</code></a> syntax that is also used for
+<a href="../relay_sampling/trait.FieldValueProvider.html" title="trait relay_sampling::FieldValueProvider"><code>FieldValueProvider</code></a> syntax that is also used for
 dynamic sampling.</p>
 <p>How the value is treated depends on the metric type:</p>
 <ul>
@@ -24,8 +24,8 @@ not numeric, metric extraction will be skipped.</li>
 value. Insertion of numbers and other types is undefined.</li>
 </ul>
 <p>If the field does not exist, extraction is skipped.</p>
-</div><span id="structfield.condition" class="structfield small-section-header"><a href="#structfield.condition" class="anchor field">§</a><code>condition: <a class="enum" href="https://doc.rust-lang.org/1.71.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;RuleCondition&gt;</code></span><div class="docblock"><p>An optional condition to meet before extraction.</p>
-<p>See [<code>RuleCondition</code>] for all available options to specify and combine conditions. If no
+</div><span id="structfield.condition" class="structfield small-section-header"><a href="#structfield.condition" class="anchor field">§</a><code>condition: <a class="enum" href="https://doc.rust-lang.org/1.71.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../relay_sampling/enum.RuleCondition.html" title="enum relay_sampling::RuleCondition">RuleCondition</a>&gt;</code></span><div class="docblock"><p>An optional condition to meet before extraction.</p>
+<p>See <a href="../relay_sampling/enum.RuleCondition.html" title="enum relay_sampling::RuleCondition"><code>RuleCondition</code></a> for all available options to specify and combine conditions. If no
 condition is specified, the metric is extracted unconditionally.</p>
 </div><span id="structfield.tags" class="structfield small-section-header"><a href="#structfield.tags" class="anchor field">§</a><code>tags: <a class="struct" href="https://doc.rust-lang.org/1.71.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.TagSpec.html" title="struct relay_dynamic_config::TagSpec">TagSpec</a>&gt;</code></span><div class="docblock"><p>A list of tags to add to the metric.</p>
 <p>Tags can be conditional, see <a href="struct.TagSpec.html" title="struct relay_dynamic_config::TagSpec"><code>TagSpec</code></a> for configuration options. For this reason, it is
