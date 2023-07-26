@@ -749,7 +749,7 @@ pub struct LightNormalizationConfig<'a> {
     pub device_class_synthesis_config: bool,
     pub enrich_spans: bool,
     pub light_normalize_spans: bool,
-    pub max_tag_value_size: usize, // TODO: move span related fields into separate config.
+    pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
     pub geoip_lookup: Option<&'a GeoIpLookup>,
     pub enable_trimming: bool,
@@ -772,7 +772,7 @@ impl Default for LightNormalizationConfig<'_> {
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             light_normalize_spans: Default::default(),
-            max_tag_value_size: usize::MAX,
+            max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
@@ -797,7 +797,7 @@ pub fn light_normalize_event(
             config.transaction_name_config,
             config.enrich_spans,
             config.span_description_rules,
-            config.max_tag_value_size,
+            config.max_tag_value_length,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
