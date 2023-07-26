@@ -1,5 +1,4 @@
 import gzip
-import json
 import os
 import re
 import uuid
@@ -182,7 +181,7 @@ def _get_project_id(public_key, project_configs):
 
 
 @pytest.fixture
-def mini_sentry(request):
+def mini_sentry(request):  # noqa
     app = Flask(__name__)
     app.debug = True
     sentry = None
@@ -230,7 +229,6 @@ def mini_sentry(request):
 
         relay_info = sentry.known_relays[relay_id]
 
-        public_key = flask_request.json["public_key"]
         version = flask_request.json.get("version")
         registered_version = relay_info["version"]
 

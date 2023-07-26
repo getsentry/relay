@@ -6,7 +6,6 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
-import json
 
 
 @pytest.fixture
