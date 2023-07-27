@@ -82,9 +82,11 @@ pub struct ProjectState {
     /// The organization id.
     #[serde(default)]
     pub organization_id: Option<u64>,
+
     /// The time at which this project state was last updated.
     #[serde(skip, default = "Instant::now")]
     pub last_fetch: Instant,
+
     /// True if this project state failed fetching or was incompatible with this Relay.
     #[serde(skip, default)]
     pub invalid: bool,
