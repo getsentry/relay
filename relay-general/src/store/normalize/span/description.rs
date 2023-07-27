@@ -13,6 +13,7 @@ use crate::store::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::store::SpanDescriptionRule;
 use crate::types::{Annotated, ProcessingResult, Remark, RemarkType, Value};
 
+/// Removes SQL comments starting with "--".
 static SQL_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"--.*(?P<newline>\n)").unwrap());
 
 /// Regex with multiple capture groups for SQL tokens we should scrub.
