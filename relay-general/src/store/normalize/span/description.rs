@@ -13,6 +13,8 @@ use crate::store::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::store::SpanDescriptionRule;
 use crate::types::{Annotated, ProcessingResult, Remark, RemarkType, Value};
 
+static SQL_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"--.*(?P<newline>\n)").unwrap());
+
 /// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
 /// Slightly modified from
@@ -35,6 +37,8 @@ static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     )
     .unwrap()
 });
+
+static SQL_WHITESPACE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
 
 /// Regex to shorten table or column references, e.g. `"table1"."col1"` -> `col1`.
 static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
@@ -101,8 +105,11 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
 fn scrub_sql_queries(string: &str) -> Option<String> {
     let mark_as_scrubbed = SQL_ALREADY_NORMALIZED_REGEX.is_match(string);
 
-    let mut string = Cow::from(string);
+    let mut string = Cow::from(string.trim());
+
     for (regex, replacement) in [
+        (&SQL_COMMENTS, "\n"),
+        (&SQL_WHITESPACE, " "),
         (&SQL_NORMALIZER_REGEX, "$pre%s"),
         (&SQL_COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
         (&SQL_COLLAPSE_ENTITIES, "$entity_name"),
@@ -298,7 +305,7 @@ mod tests {
                 let json = format!(
                     r#"
                     {{
-                        "description": "{}",
+                        "description": "",
                         "span_id": "bd2eb23da2beb459",
                         "start_timestamp": 1597976393.4619668,
                         "timestamp": 1597976393.4718769,
@@ -306,24 +313,17 @@ mod tests {
                         "op": "{}"
                     }}
                 "#,
-                    $description_in, $op_in
+                    $op_in
                 );
 
                 let mut span = Annotated::<Span>::from_json(&json).unwrap();
+                span.value_mut()
+                    .as_mut()
+                    .unwrap()
+                    .description
+                    .set_value(Some($description_in.into()));
 
                 scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-
-                // The input description may contain escaped characters, and the
-                // default formatter (when taking the value from the span
-                // description) automatically escapes them. The goal is to
-                // compute raw values, so we want to get rid of character
-                // escaping, and the debug formatter does that. The debug
-                // formatter doesn't remove the leading and trailing `"`s, so we
-                // manually add them to the input literal.
-                assert_eq!(
-                    format!("\"{}\"", $description_in),
-                    format!("{:?}", span.value().unwrap().description.value().unwrap())
-                );
 
                 if $output == "" {
                     assert!(span
@@ -333,15 +333,12 @@ mod tests {
                         .is_none());
                 } else {
                     assert_eq!(
-                        format!("\"{}\"", $output),
-                        format!(
-                            "{:?}",
-                            span.value()
-                                .and_then(|span| span.data.value())
-                                .and_then(|data| data.get("description.scrubbed"))
-                                .and_then(|an_value| an_value.as_str())
-                                .unwrap()
-                        )
+                        $output,
+                        span.value()
+                            .and_then(|span| span.data.value())
+                            .and_then(|data| data.get("description.scrubbed"))
+                            .and_then(|an_value| an_value.as_str())
+                            .unwrap()
                     );
                 }
             }
@@ -534,28 +531,28 @@ mod tests {
 
     span_description_test!(
         span_description_dont_scrub_double_quoted_strings_format_postgres,
-        r#"SELECT * from \"table\" WHERE sku = %s"#,
+        r#"SELECT * from "table" WHERE sku = %s"#,
         "db.sql.query",
         r#"SELECT * from table WHERE sku = %s"#
     );
 
     span_description_test!(
         span_description_strip_prefixes,
-        r#"SELECT \"table\".\"foo\", \"table\".\"bar\", count(*) from \"table\" WHERE sku = %s"#,
+        r#"SELECT "table"."foo", "table"."bar", count(*) from "table" WHERE sku = %s"#,
         "db.sql.query",
         r#"SELECT foo, bar, count(*) from table WHERE sku = %s"#
     );
 
     span_description_test!(
         span_description_strip_prefixes_truncated,
-        r#"SELECT foo = %s FROM \"db\".\"ba"#,
+        r#"SELECT foo = %s FROM "db"."ba"#,
         "db.sql.query",
         r#"SELECT foo = %s FROM ba"#
     );
 
     span_description_test!(
         span_description_dont_scrub_double_quoted_strings_format_mysql,
-        r#"SELECT * from table WHERE sku = \"foo\""#,
+        r#"SELECT * from table WHERE sku = "foo""#,
         "db.sql.query",
         "SELECT * from table WHERE sku = foo"
     );
@@ -654,7 +651,7 @@ mod tests {
     span_description_test!(
         span_description_collapse_columns,
         // Simple lists of columns will be collapsed
-        r#"SELECT myfield1, \"a\".\"b\", another_field FROM table WHERE %s"#,
+        r#"SELECT myfield1, "a"."b", another_field FROM table WHERE %s"#,
         "db.sql.query",
         "SELECT .. FROM table WHERE %s"
     );
@@ -678,7 +675,7 @@ mod tests {
     span_description_test!(
         span_description_do_not_collapse_columns,
         // Leave select untouched if it contains more complex expressions
-        r#"SELECT myfield1, \"a\".\"b\", count(*) AS c, another_field FROM table WHERE %s"#,
+        r#"SELECT myfield1, "a"."b", count(*) AS c, another_field FROM table WHERE %s"#,
         "db.sql.query",
         "SELECT myfield1, b, count(*) AS c, another_field FROM table WHERE %s"
     );
@@ -716,6 +713,25 @@ mod tests {
         "INSERT INTO a (b, c, d) VALUES ('foo'::date, 123::bigint[], %s::bigint[])",
         "db.sql.query",
         "INSERT INTO a (b, c, d) VALUES (%s)"
+    );
+
+    span_description_test!(
+        whitespace_and_comments,
+        "
+            select a, b, c, d
+            from (
+                select *
+                -- Some comment here.
+                from (
+                    -- Another comment.
+                    select a, b, c, d from x where foo = 1
+                ) srpe
+                where x = %s --inline comment
+            ) srpe
+            inner join foo on foo.id = foo_id
+        ",
+        "db.sql.query",
+        "select .. from (select * from (select .. from x where foo = %s) srpe where x = %s) srpe inner join foo on foo.id = foo_id"
     );
 
     span_description_test!(
