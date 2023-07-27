@@ -264,7 +264,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     relay = relay(mini_sentry, config)
 
-    event_id = _send_event(relay, event_type=event_type)
+    _send_event(relay, event_type=event_type)
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -464,7 +464,7 @@ def test_outcome_forwarding(
 
     downstream_relay = relay(upstream, config_downstream)
 
-    event_id = _send_event(downstream_relay, event_type=event_type)
+    _send_event(downstream_relay, event_type=event_type)
 
     outcome = outcomes_consumer.get_outcome()
 
@@ -817,7 +817,7 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
         },
     )
 
-    event_id = _send_event(relay, event_type="error")
+    _send_event(relay, event_type="error")
 
     envelope = mini_sentry.captured_events.get(timeout=10)
     items = envelope.items

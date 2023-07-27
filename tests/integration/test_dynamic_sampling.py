@@ -281,9 +281,7 @@ def test_it_does_not_sample_error(mini_sentry, relay):
     public_key = config["publicKeys"][0]["publicKey"]
 
     # add a sampling rule to project config that removes all traces of release "1.0"
-    rules = _add_sampling_config(
-        config, sample_rate=0, rule_type="trace", releases=["1.0"]
-    )
+    _add_sampling_config(config, sample_rate=0, rule_type="trace", releases=["1.0"])
 
     # create an envelope with a trace context that is initiated by this project (for simplicity)
     envelope, event_id = _create_error_envelope(public_key)
