@@ -262,7 +262,7 @@ fn normalize_app_start_spans(event: &mut Event) {
                 if let Some(op) = span.op.value() {
                     if op == "app_start_cold" {
                         span.op.set_value(Some("app.start.cold".to_string()));
-                    } else if (op == "app_start_warm") {
+                    } else if op == "app_start_warm" {
                         span.op.set_value(Some("app.start.warm".to_string()));
                     }
                 }
