@@ -90,22 +90,8 @@
 <a href="#90" id="90">90</a>
 <a href="#91" id="91">91</a>
 <a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
-<span class="kw">use </span>chrono::Duration;
 <span class="kw">use </span>relay_common::{DurationUnit, MetricUnit, UnixTimestamp};
 <span class="kw">use </span>relay_general::store::span::tag_extraction::SpanTagKey;
 <span class="kw">use </span>relay_metrics::{Metric, MetricNamespace, MetricValue};
@@ -114,10 +100,6 @@
 
 <span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>SpanMetric {
-    Duration {
-        value: Duration,
-        tags: BTreeMap&lt;SpanTagKey, String&gt;,
-    },
     ExclusiveTime {
         value: f64,
         tags: BTreeMap&lt;SpanTagKey, String&gt;,
@@ -133,14 +115,6 @@
         <span class="kw">let </span>namespace = MetricNamespace::Spans;
 
         <span class="kw">match </span><span class="self">self </span>{
-            SpanMetric::Duration { value, tags } =&gt; Metric::new_mri(
-                namespace,
-                <span class="string">&quot;duration&quot;</span>,
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(relay_common::chrono_to_positive_millis(value)),
-                timestamp,
-                span_tag_mapping_to_string_mapping(tags),
-            ),
             SpanMetric::ExclusiveTime { value, tags } =&gt; Metric::new_mri(
                 namespace,
                 <span class="string">&quot;exclusive_time&quot;</span>,
@@ -175,7 +149,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::collections::BTreeMap;
 
-    <span class="kw">use </span>chrono::{Duration, TimeZone, Utc};
+    <span class="kw">use </span>chrono::{TimeZone, Utc};
     <span class="kw">use </span>relay_common::UnixTimestamp;
 
     <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
@@ -188,15 +162,15 @@
                 .unwrap();
 
         <span class="kw">let </span>tags = BTreeMap::from([(SpanTagKey::Release, <span class="string">&quot;1.2.3&quot;</span>.to_owned())]);
-        <span class="kw">let </span>metric = SpanMetric::Duration {
-            value: Duration::seconds(<span class="number">1</span>),
+        <span class="kw">let </span>metric = SpanMetric::ExclusiveTime {
+            value: <span class="number">1000.0</span>,
             tags,
         };
         <span class="kw">let </span>converted = metric.into_metric(timestamp);
 
         <span class="macro">insta::assert_debug_snapshot!</span>(converted, @<span class="string">r###&quot;
         Metric {
-            name: &quot;d:spans/duration@millisecond&quot;,
+            name: &quot;d:spans/exclusive_time@millisecond&quot;,
             value: Distribution(
                 1000.0,
             ),
