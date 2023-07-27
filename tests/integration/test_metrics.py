@@ -579,6 +579,7 @@ def test_transaction_metrics(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
+
     timestamp = datetime.now(tz=timezone.utc)
 
     if extract_metrics:

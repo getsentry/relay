@@ -696,6 +696,7 @@ def test_outcomes_rate_limit(
             "reasonCode": reason_code,
         }
     ]
+
     outcomes_consumer = outcomes_consumer()
 
     if category == "session":
@@ -730,6 +731,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {"version": 1}
     project_config["config"]["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
@@ -790,7 +792,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 2,
+        "category": 9,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -913,6 +915,8 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         ],
     }
 
+    project_config["config"]["transactionMetrics"] = {"version": 1}
+
     upstream = relay(
         mini_sentry,
         {
@@ -946,7 +950,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 2,
+        "category": 9,
         "quantity": 2,
     }
     assert outcome == expected_outcome
@@ -1018,6 +1022,7 @@ def test_graceful_shutdown(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {"version": 1}
     project_config["config"]["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
@@ -1074,7 +1079,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 2,
+        "category": 9,
         "quantity": 1,
     }
     assert outcome == expected_outcome
