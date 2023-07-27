@@ -1200,7 +1200,7 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 3
+    assert len(span_metrics) == 2
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         assert metric["tags"]["span.description"] == expected_description
@@ -1331,12 +1331,12 @@ def test_span_metrics_secondary_aggregator(
     span_metrics = [
         (metric, headers)
         for metric, headers in metrics
-        if metric["name"] == "d:spans/duration@millisecond"
+        if metric["name"] == "d:spans/exclusive_time@millisecond"
     ]
     assert span_metrics == [
         (
             {
-                "name": "d:spans/duration@millisecond",
+                "name": "d:spans/exclusive_time@millisecond",
                 "org_id": 1,
                 "project_id": 42,
                 "retention_days": 90,

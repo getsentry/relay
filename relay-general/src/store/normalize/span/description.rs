@@ -28,7 +28,7 @@ static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         # Capture single-quoted strings, including the remaining substring if `\'` is found.
         ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
-        (   (?P<placeholder> (?:\?+|\$\d+|%s) (::\w+(\[\]?)?)? )   ) |
+        (   (?P<placeholder> (?:\?+|\$\d+|%s|:\w+) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
         ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
@@ -449,6 +449,13 @@ mod tests {
         "SELECT count() FROM table WHERE id IN (100, 101, 102)",
         "db.sql.query",
         "SELECT count() FROM table WHERE id IN (%s)"
+    );
+
+    span_description_test!(
+        php_placeholders,
+        r"SELECT x FROM y WHERE (z = :c0 AND w = :c1) LIMIT 1",
+        "db.sql.query",
+        "SELECT x FROM y WHERE (z = %s AND w = %s) LIMIT %s"
     );
 
     span_description_test!(

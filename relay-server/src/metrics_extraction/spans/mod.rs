@@ -88,20 +88,6 @@ pub(crate) fn extract_span_metrics(
                 .into_metric(timestamp),
             );
         }
-
-        if let (Some(&span_start), Some(&span_end)) =
-            (span.start_timestamp.value(), span.timestamp.value())
-        {
-            // The `duration` of a span. This metric also serves as the
-            // counter metric `throughput`.
-            metrics.push(
-                SpanMetric::Duration {
-                    value: span_end - span_start,
-                    tags: span_tags.clone(),
-                }
-                .into_metric(timestamp),
-            );
-        };
     }
 
     Ok(metrics)
