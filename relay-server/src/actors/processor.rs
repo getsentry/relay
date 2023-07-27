@@ -4,7 +4,7 @@ use std::error::Error;
 use std::io::Write;
 use std::net;
 use std::net::IpAddr as NetIPAddr;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
@@ -17,6 +17,8 @@ use once_cell::sync::OnceCell;
 use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
+
+use parking_lot::RwLock;
 
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
@@ -1371,22 +1373,7 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let global_config = match self.global_config.read() {
-            Ok(config) => {
-                metric!(
-                    counter(RelayCounters::GlobalConfigRead) += 1,
-                    success = "true"
-                );
-                config.clone()
-            }
-            Err(_) => {
-                metric!(
-                    counter(RelayCounters::GlobalConfigRead) += 1,
-                    success = "false"
-                );
-                Arc::new(GlobalConfig::default())
-            }
-        };
+        let global_config = self.global_config.read().clone();
 
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
@@ -2727,10 +2714,7 @@ impl EnvelopeProcessorService {
                 self.handle_rate_limit_flush_buckets(message);
             }
             EnvelopeProcessor::UpdateglobalConfig(global_config) => {
-                match self.global_config.write() {
-                    Ok(mut old_global_config) => *old_global_config = global_config.clone(),
-                    Err(e) => relay_log::error!("Failed to update global config: {}", e),
-                }
+                *self.global_config.write() = global_config;
             }
         }
     }

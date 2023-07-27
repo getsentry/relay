@@ -16,13 +16,16 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 /// forwarding it to the services that require it.
 #[derive(Debug)]
 pub struct GlobalConfigService {
+    global_config: Arc<GlobalConfig>,
     envelope_processor: Addr<EnvelopeProcessor>,
     upstream: Addr<UpstreamRelay>,
 }
 
 impl GlobalConfigService {
     pub fn new(envelope_processor: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
+        let global_config = Arc::new(GlobalConfig::default());
         Self {
+            global_config,
             envelope_processor,
             upstream,
         }
@@ -39,6 +42,7 @@ impl GlobalConfigService {
 
             match upstream_relay.send(SendQuery(query)).await {
                 Ok(Ok(response)) => {
+                    //self.global_config = response.global.clone();
                     envelope_processor.send::<Arc<GlobalConfig>>(response.global);
                 }
                 Err(e) => {
