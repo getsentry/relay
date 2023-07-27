@@ -200,6 +200,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     fn normalize_spans(&self, event: &mut Event) {
         if event.ty.value() == Some(&EventType::Transaction) {
+            normalize_app_start_spans(event);
             span::attributes::normalize_spans(event, &self.config.span_attributes);
         }
     }
@@ -250,6 +251,22 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectStaple
         } else {
             EventType::Default
+        }
+    }
+}
+
+fn normalize_app_start_spans(event: &mut Event) {
+    if let Some(spans) = event.spans.value_mut() {
+        for span in spans {
+            if let Some(span) = span.value_mut() {
+                if let Some(op) = span.op.value() {
+                    if op == "app_start_cold" {
+                        span.op.set_value(Some("app.start.cold".to_string()));
+                    } else if (op == "app_start_warm") {
+                        span.op.set_value(Some("app.start.warm".to_string()));
+                    }
+                }
+            }
         }
     }
 }
@@ -375,6 +392,15 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
     }
 }
 
+fn normalize_app_start_measurements(measurements: &mut Measurements) {
+    if let Some(app_start_cold_value) = measurements.remove("app.start.cold") {
+        measurements.insert("app_start_cold".to_string(), app_start_cold_value);
+    }
+    if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
+        measurements.insert("app_start_warm".to_string(), app_start_warm_value);
+    }
+}
+
 fn normalize_units(measurements: &mut Measurements) {
     for (name, measurement) in measurements.iter_mut() {
         let measurement = match measurement.value_mut() {
@@ -400,6 +426,7 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
+        normalize_app_start_measurements(measurements);
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
             remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
@@ -864,6 +891,10 @@ pub fn light_normalize_event(
             config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+
+        if event.ty.value() == Some(&EventType::Transaction) {
+            normalize_app_start_spans(event);
+        }
 
         if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
