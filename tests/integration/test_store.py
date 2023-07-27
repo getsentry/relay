@@ -1208,7 +1208,7 @@ def test_spans(
 
     msg = spans_consumer.get_message()
     assert msg["type"] == "span"
-    span = json.loads(msg["payload"])
+    span = msg["span"]
     assert span == {
         "description": "GET /api/0/organizations/?member=1",
         "op": "http",

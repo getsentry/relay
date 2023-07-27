@@ -206,7 +206,6 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     start_time,
-                    retention,
                     item,
                 )?,
                 _ => {}
@@ -745,14 +744,23 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
-        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
+        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
+        let span: serde_json::Value = match serde_json::from_slice(&item.payload()) {
+            Ok(span) => span,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse span"
+                );
+                return Ok(());
+            }
+        };
         let message = KafkaMessage::Span(SpanKafkaMessage {
             project_id,
-            retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            payload: item.payload(),
+            span,
         });
 
         self.produce(KafkaTopic::Spans, organization_id, message)?;
@@ -1024,14 +1032,12 @@ struct CheckInKafkaMessage {
 
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage {
-    /// Raw span payload.
-    payload: Bytes,
+    /// Raw span data.
+    span: serde_json::Value,
     /// Time at which the span was received by Relay.
     start_time: u64,
     /// The project id for the current span.
     project_id: ProjectId,
-    // Number of days to retain.
-    retention_days: u16,
 }
 
 /// An enum over all possible ingest messages.
