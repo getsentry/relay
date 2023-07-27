@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use relay_common::ProjectKey;
 use relay_config::{Config, RelayMode};
+use relay_dynamic_config::GlobalConfig;
 use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -215,9 +216,18 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
     SpoolHealth(Sender<bool>),
+    UpdateGlobalConfig(Arc<GlobalConfig>),
 }
 
 impl Interface for ProjectCache {}
+
+impl FromMessage<Arc<GlobalConfig>> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: Arc<GlobalConfig>, _: ()) -> Self {
+        Self::UpdateGlobalConfig(message)
+    }
+}
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -453,6 +463,7 @@ impl Services {
 #[derive(Debug)]
 struct ProjectCacheBroker {
     config: Arc<Config>,
+    global_config: Arc<GlobalConfig>,
     services: Services,
     // Need hashbrown because drain_filter is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
@@ -701,6 +712,7 @@ impl ProjectCacheBroker {
             let mut process = ProcessEnvelope {
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
+                global_config: self.global_config.clone(),
                 sampling_project_state: None,
             };
 
@@ -812,6 +824,7 @@ impl ProjectCacheBroker {
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
             ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
+            ProjectCache::UpdateGlobalConfig(global_config) => self.global_config = global_config,
         }
     }
 }
@@ -890,6 +903,7 @@ impl Service for ProjectCacheService {
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
+                global_config: Arc::new(GlobalConfig::default()),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), redis),
@@ -1011,6 +1025,7 @@ mod tests {
         (
             ProjectCacheBroker {
                 config: config.clone(),
+                global_config: Arc::new(GlobalConfig::default()),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),

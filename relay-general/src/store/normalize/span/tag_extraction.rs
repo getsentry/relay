@@ -213,7 +213,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             _ => None,
         };
 
-        if let Some(act) = action.clone() {
+        if let Some(act) = action {
             span_tags.insert(SpanTagKey::Action, act);
         }
 
@@ -241,7 +241,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         };
 
         if !span_op.starts_with("db.redis") {
-            if let Some(dom) = domain.clone() {
+            if let Some(dom) = domain {
                 span_tags.insert(SpanTagKey::Domain, dom);
             }
         }

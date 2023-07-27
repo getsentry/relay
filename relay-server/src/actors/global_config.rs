@@ -7,7 +7,7 @@ use relay_system::{Addr, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::actors::processor::EnvelopeProcessor;
+use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 
 /// Service implementing the [`GlobalConfig`] interface.
@@ -16,17 +16,14 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 /// forwarding it to the services that require it.
 #[derive(Debug)]
 pub struct GlobalConfigService {
-    global_config: Arc<GlobalConfig>,
-    envelope_processor: Addr<EnvelopeProcessor>,
+    project_cache: Addr<ProjectCache>,
     upstream: Addr<UpstreamRelay>,
 }
 
 impl GlobalConfigService {
-    pub fn new(envelope_processor: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
-        let global_config = Arc::new(GlobalConfig::default());
+    pub fn new(project_cache: Addr<ProjectCache>, upstream: Addr<UpstreamRelay>) -> Self {
         Self {
-            global_config,
-            envelope_processor,
+            project_cache,
             upstream,
         }
     }
@@ -34,7 +31,7 @@ impl GlobalConfigService {
     /// Forwards the given global config to the services that require it.
     fn update_global_config(&mut self) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
-        let envelope_processor = self.envelope_processor.clone();
+        let project_cache = self.project_cache.clone();
         tokio::spawn(async move {
             let query = GetGlobalConfig {
                 global_config: true,
@@ -43,7 +40,7 @@ impl GlobalConfigService {
             match upstream_relay.send(SendQuery(query)).await {
                 Ok(Ok(response)) => {
                     //self.global_config = response.global.clone();
-                    envelope_processor.send::<Arc<GlobalConfig>>(response.global);
+                    project_cache.send::<Arc<GlobalConfig>>(response.global);
                 }
                 Err(e) => {
                     relay_log::error!("failed to send global config request: {}", e);

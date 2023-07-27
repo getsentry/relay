@@ -18,8 +18,6 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
-use parking_lot::RwLock;
-
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -427,6 +425,7 @@ pub struct ProcessEnvelopeResponse {
 pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
+    pub global_config: Arc<GlobalConfig>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
 }
 
@@ -488,18 +487,9 @@ pub enum EnvelopeProcessor {
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
     RateLimitFlushBuckets(RateLimitFlushBuckets),
-    UpdateglobalConfig(Arc<GlobalConfig>),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
-
-impl FromMessage<Arc<GlobalConfig>> for EnvelopeProcessor {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: Arc<GlobalConfig>, _sender: ()) -> Self {
-        Self::UpdateglobalConfig(message)
-    }
-}
 
 impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
     type Response = relay_system::NoResponse;
@@ -539,7 +529,6 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 pub struct EnvelopeProcessorService {
     config: Arc<Config>,
-    global_config: RwLock<Arc<GlobalConfig>>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -560,7 +549,6 @@ impl EnvelopeProcessorService {
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
-        let global_config = RwLock::new(Arc::new(GlobalConfig::default()));
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
                 Ok(geoip) => Some(geoip),
@@ -578,7 +566,6 @@ impl EnvelopeProcessorService {
 
             Self {
                 config,
-                global_config,
                 rate_limiter,
                 geoip_lookup,
                 envelope_manager,
@@ -591,7 +578,6 @@ impl EnvelopeProcessorService {
         #[cfg(not(feature = "processing"))]
         Self {
             config,
-            global_config,
             geoip_lookup,
             envelope_manager,
             outcome_aggregator,
@@ -1339,6 +1325,7 @@ impl EnvelopeProcessorService {
         let ProcessEnvelope {
             envelope: mut managed_envelope,
             project_state,
+            global_config,
             sampling_project_state,
         } = message;
 
@@ -1373,8 +1360,6 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let global_config = self.global_config.read().clone();
-
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
@@ -1383,11 +1368,11 @@ impl EnvelopeProcessorService {
             sampling_result: SamplingResult::Keep,
             extracted_metrics: Default::default(),
             project_state,
-            _global_config: global_config,
             sampling_project_state,
             project_id,
             managed_envelope,
             has_profile: false,
+            _global_config: global_config,
         })
     }
 
@@ -2713,9 +2698,6 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::RateLimitFlushBuckets(message) => {
                 self.handle_rate_limit_flush_buckets(message);
             }
-            EnvelopeProcessor::UpdateglobalConfig(global_config) => {
-                *self.global_config.write() = global_config;
-            }
         }
     }
 }
@@ -3113,7 +3095,6 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
-            global_config: Arc::new(GlobalConfig::default()).into(),
         }
     }
 
@@ -3146,6 +3127,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            global_config: Arc::new(GlobalConfig::default()),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3165,6 +3147,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
         };
@@ -3384,6 +3367,7 @@ mod tests {
         project_state.config = config;
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
         };
@@ -3454,6 +3438,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3502,6 +3487,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3558,6 +3544,7 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };

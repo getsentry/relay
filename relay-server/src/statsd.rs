@@ -536,8 +536,6 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     OpenTelemetryEvent,
-    /// Reading the global config from the RwLock
-    GlobalConfigRead,
 }
 
 impl CounterMetric for RelayCounters {
@@ -572,7 +570,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
-            RelayCounters::GlobalConfigRead => "global_config.read",
         }
     }
 }
