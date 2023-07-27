@@ -39,7 +39,7 @@ use relay_general::store::{
 };
 use relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
 use relay_general::user_agent::RawUserAgentInfo;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric};
+use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
@@ -2357,7 +2357,10 @@ impl EnvelopeProcessorService {
                 enrich_spans: state
                     .project_state
                     .has_feature(Feature::SpanMetricsExtraction),
-                max_tag_value_length: self.config.aggregator_config().max_tag_value_length,
+                max_tag_value_length: self
+                    .config
+                    .aggregator_config_for(MetricNamespace::Spans)
+                    .max_tag_value_length,
                 is_renormalize: false,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),

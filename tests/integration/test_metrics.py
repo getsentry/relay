@@ -1284,7 +1284,7 @@ def test_span_metrics_secondary_aggregator(
         },
         "spans": [
             {
-                "description": "this_is_too_long",
+                "description": "SELECT %s FROM foo",
                 "op": "db",
                 "parent_span_id": "8f5a2b8768cafb4e",
                 "span_id": "bd429c44b67a3eb4",
@@ -1316,6 +1316,7 @@ def test_span_metrics_secondary_aggregator(
                         "bucket_interval": 1,
                         "initial_delay": 0,
                         "debounce_delay": 0,
+                        "max_tag_value_length": 10,
                     },
                 }
             ],
@@ -1341,10 +1342,11 @@ def test_span_metrics_secondary_aggregator(
                 "project_id": 42,
                 "retention_days": 90,
                 "tags": {
+                    "span.action": "SELECT",
+                    "span.description": "SELECT %s*",
                     "span.category": "db",
                     "span.module": "db",
                     "span.op": "db",
-                    "transaction": "/organizations/:orgId/performance/:eventSlug/",
                 },
                 "timestamp": int(timestamp.timestamp()),
                 "type": "d",

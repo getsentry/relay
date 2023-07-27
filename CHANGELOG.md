@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
+
 ## 23.7.1
 
 **Bug Fixes**:
