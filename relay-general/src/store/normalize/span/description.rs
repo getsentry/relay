@@ -38,7 +38,12 @@ static SQL_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-static SQL_WHITESPACE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s+").unwrap());
+/// Removes extra whitespace and newlines.
+static SQL_WHITESPACE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(\s*\n\s*)|(\s\s+)").unwrap());
+
+/// Removes whitespace around parentheses.
+static SQL_PARENS: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"((?P<pre>\()\s+)|(\s+(?P<post>\)))").unwrap());
 
 /// Regex to shorten table or column references, e.g. `"table1"."col1"` -> `col1`.
 static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
@@ -109,8 +114,9 @@ fn scrub_sql_queries(string: &str) -> Option<String> {
 
     for (regex, replacement) in [
         (&SQL_COMMENTS, "\n"),
-        (&SQL_WHITESPACE, " "),
         (&SQL_NORMALIZER_REGEX, "$pre%s"),
+        (&SQL_WHITESPACE, " "),
+        (&SQL_PARENS, "$pre$post"),
         (&SQL_COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
         (&SQL_COLLAPSE_ENTITIES, "$entity_name"),
         (&SQL_COLLAPSE_SELECT, "$select .. $from"),
@@ -718,7 +724,7 @@ mod tests {
     span_description_test!(
         whitespace_and_comments,
         "
-            select a, b, c, d
+            select a,  b, c, d
             from (
                 select *
                 -- Some comment here.
