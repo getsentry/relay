@@ -809,6 +809,13 @@
 <a href="#809" id="809">809</a>
 <a href="#810" id="810">810</a>
 <a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -837,7 +844,7 @@
         # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
         ((?-x)(?P&lt;single_quoted_strs&gt;&#39;(?:\\&#39;|[^&#39;])*(?:&#39;|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
-        (   (?P&lt;placeholder&gt; (?:\?+|\$\d+|%s) (::\w+(\[\]?)?)? )   ) |
+        (   (?P&lt;placeholder&gt; (?:\?+|\$\d+|%s|:\w+) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
         ((?-x)(?P&lt;number&gt;(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
@@ -1257,6 +1264,13 @@
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (100, 101, 102)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s)&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        php_placeholders,
+        <span class="string">r&quot;SELECT x FROM y WHERE (z = :c0 AND w = :c1) LIMIT 1&quot;</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT x FROM y WHERE (z = %s AND w = %s) LIMIT %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
