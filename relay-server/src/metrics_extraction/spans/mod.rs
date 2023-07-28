@@ -20,7 +20,7 @@ mod types;
 
 static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
     Lazy::new(|| MetricExtractionConfig {
-        version: Default::default(),
+        version: 1,
         metrics: vec![
             MetricSpec {
                 category: DataCategory::Span,
@@ -31,7 +31,7 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
                     key: "transaction".into(),
                     field: Some("span.data.transaction".into()),
                     value: None,
-                    condition: Default::default(),
+                    condition: None,
                 }],
             },
             MetricSpec {
@@ -79,6 +79,12 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
                     condition: None,
                 },
                 TagSpec {
+                    key: "span.domain".into(),
+                    field: Some("span.data.span.domain".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
                     key: "span.group".into(),
                     field: Some("span.data.span.group".into()),
                     value: None,
@@ -103,8 +109,14 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
                     condition: None,
                 },
                 TagSpec {
-                    key: "transaction".into(),
-                    field: Some("span.data.transaction".into()),
+                    key: "span.status_code".into(),
+                    field: Some("span.data.span.status_code".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.system".into(),
+                    field: Some("span.data.span.system".into()),
                     value: None,
                     condition: None,
                 },
