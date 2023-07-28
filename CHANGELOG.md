@@ -39,6 +39,7 @@
 
 **Bug Fixes**:
 
+- Skip dynamic sampling if relay doesn't support incoming metrics extraction version. ([#2273](https://github.com/getsentry/relay/pull/2273))
 - Keep stack frames closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
 - Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
 

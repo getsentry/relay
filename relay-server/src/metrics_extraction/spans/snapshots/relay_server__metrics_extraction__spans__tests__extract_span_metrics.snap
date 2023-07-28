@@ -1100,6 +1100,9 @@ expression: event.value().unwrap().spans
             "db.system": String(
                 "MyDatabase",
             ),
+            "description.scrubbed": String(
+                "SELECT * FROM table WHERE id IN (val)",
+            ),
             "environment": String(
                 "fake_environment",
             ),
@@ -1115,8 +1118,14 @@ expression: event.value().unwrap().spans
             "span.category": String(
                 "db",
             ),
+            "span.description": String(
+                "SELECT * FROM table WHERE id IN (val)",
+            ),
             "span.domain": String(
                 "table",
+            ),
+            "span.group": String(
+                "03cb381cee3f1463",
             ),
             "span.module": String(
                 "db",
