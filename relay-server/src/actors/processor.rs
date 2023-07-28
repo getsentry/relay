@@ -294,7 +294,7 @@ struct ProcessEnvelopeState {
 
     /// The configuration options for projects which apply to all DSNs
     /// TODO(tor) implement global config logic
-    global_config: Arc<GlobalConfig>,
+    _global_config: Arc<GlobalConfig>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -1372,7 +1372,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             has_profile: false,
-            global_config,
+            _global_config: global_config,
         })
     }
 
@@ -2938,7 +2938,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                global_config: Arc::new(GlobalConfig::default()),
+                _global_config: Arc::new(GlobalConfig::default()),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
