@@ -256,6 +256,17 @@ impl<'a> NormalizeProcessor<'a> {
 }
 
 fn normalize_app_start_spans(event: &mut Event) {
+    if !event.sdk_name().eq("sentry.javascript.react-native")
+        || !(event.sdk_version().starts_with("4.4")
+            || event.sdk_version().starts_with("4.3")
+            || event.sdk_version().starts_with("4.2")
+            || event.sdk_version().starts_with("4.1")
+            || event.sdk_version().starts_with("4.0")
+            || event.sdk_version().starts_with('3'))
+    {
+        return;
+    }
+
     if let Some(spans) = event.spans.value_mut() {
         for span in spans {
             if let Some(span) = span.value_mut() {
@@ -892,16 +903,13 @@ pub fn light_normalize_event(
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
-        if event.ty.value() == Some(&EventType::Transaction) {
-            normalize_app_start_spans(event);
-        }
-
         if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don't have many spans, but if this is no longer the
             // case and we roll this flag out for most projects, we may want to
             // reconsider this approach.
+            normalize_app_start_spans(event);
             span::attributes::normalize_spans(
                 event,
                 &BTreeSet::from([SpanAttribute::ExclusiveTime]),
@@ -3173,5 +3181,198 @@ mod tests {
 
         // Checks whether the measurement is dropped.
         measurements.len() == 0
+    }
+
+    #[test]
+    fn test_normalize_app_start_measurements_does_not_add_measurements() {
+        let mut measurements = Annotated::<Measurements>::from_json(r###"{}"###)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {},
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {},
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_cold_measurements() {
+        let mut measurements = Annotated::<Measurements>::from_json(
+            r###"{
+                "app.start.cold": {"value": 1.1}
+            }"###,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app.start.cold": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_warm_measurements() {
+        let mut measurements = Annotated::<Measurements>::from_json(
+            r###"{
+                "app.start.warm": {"value": 1.1}
+            }"###,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app.start.warm": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app_start_warm": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_spans_only_for_react_native_3_to_4_4() {
+        let mut event = Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("app_start_cold".to_owned()),
+                ..Default::default()
+            })]),
+            client_sdk: Annotated::new(ClientSdkInfo {
+                name: Annotated::new("sentry.javascript.react-native".to_owned()),
+                version: Annotated::new("4.5.0".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r###"
+        [
+            Span {
+                timestamp: ~,
+                start_timestamp: ~,
+                exclusive_time: ~,
+                description: ~,
+                op: "app_start_cold",
+                span_id: ~,
+                parent_span_id: ~,
+                trace_id: ~,
+                status: ~,
+                tags: ~,
+                origin: ~,
+                data: ~,
+                other: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_cold_spans_for_react_native() {
+        let mut event = Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("app_start_cold".to_owned()),
+                ..Default::default()
+            })]),
+            client_sdk: Annotated::new(ClientSdkInfo {
+                name: Annotated::new("sentry.javascript.react-native".to_owned()),
+                version: Annotated::new("4.4.0".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r###"
+        [
+            Span {
+                timestamp: ~,
+                start_timestamp: ~,
+                exclusive_time: ~,
+                description: ~,
+                op: "app.start.cold",
+                span_id: ~,
+                parent_span_id: ~,
+                trace_id: ~,
+                status: ~,
+                tags: ~,
+                origin: ~,
+                data: ~,
+                other: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_warm_spans_for_react_native() {
+        let mut event = Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("app.start.warm".to_owned()),
+                ..Default::default()
+            })]),
+            client_sdk: Annotated::new(ClientSdkInfo {
+                name: Annotated::new("sentry.javascript.react-native".to_owned()),
+                version: Annotated::new("4.4.0".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r###"
+        [
+            Span {
+                timestamp: ~,
+                start_timestamp: ~,
+                exclusive_time: ~,
+                description: ~,
+                op: "app.start.warm",
+                span_id: ~,
+                parent_span_id: ~,
+                trace_id: ~,
+                status: ~,
+                tags: ~,
+                origin: ~,
+                data: ~,
+                other: {},
+            },
+        ]
+        "###);
     }
 }
