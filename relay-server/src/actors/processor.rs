@@ -294,7 +294,7 @@ struct ProcessEnvelopeState {
 
     /// The configuration options for projects which apply to all DSNs
     /// TODO(tor) implement global config logic
-    _global_config: Arc<GlobalConfig>,
+    global_config: Arc<GlobalConfig>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -1372,7 +1372,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             has_profile: false,
-            _global_config: global_config,
+            global_config,
         })
     }
 
@@ -2446,6 +2446,7 @@ impl EnvelopeProcessorService {
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let mut state = self.prepare_state(message)?;
+        let _ = state.global_config.as_ref();
         let project_id = state.project_id;
         let client = state.envelope().meta().client().map(str::to_owned);
         let user_agent = state.envelope().meta().user_agent().map(str::to_owned);
@@ -2938,7 +2939,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                _global_config: Arc::new(GlobalConfig::default()),
+                global_config: Arc::new(GlobalConfig::default()),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
