@@ -7,6 +7,7 @@ use relay_system::{Addr, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
+use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_cache::ProjectCache;
 use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 
@@ -16,12 +17,12 @@ use crate::actors::upstream::{RequestPriority, SendQuery, UpstreamQuery, Upstrea
 /// forwarding it to the services that require it.
 #[derive(Debug)]
 pub struct GlobalConfigService {
-    project_cache: Addr<ProjectCache>,
+    project_cache: Addr<EnvelopeProcessor>,
     upstream: Addr<UpstreamRelay>,
 }
 
 impl GlobalConfigService {
-    pub fn new(project_cache: Addr<ProjectCache>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(project_cache: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
         Self {
             project_cache,
             upstream,

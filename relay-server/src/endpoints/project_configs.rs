@@ -90,6 +90,8 @@ struct GetProjectStatesRequest {
     full_config: bool,
     #[serde(default)]
     no_cache: bool,
+    #[serde(default)]
+    global_config: bool,
 }
 
 async fn inner(

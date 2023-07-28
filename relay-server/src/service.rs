@@ -190,7 +190,7 @@ impl ServiceState {
         drop(guard);
 
         let global_config =
-            GlobalConfigService::new(project_cache.clone(), upstream_relay.clone()).start();
+            GlobalConfigService::new(processor.clone(), upstream_relay.clone()).start();
 
         let health_check = HealthCheckService::new(
             config.clone(),

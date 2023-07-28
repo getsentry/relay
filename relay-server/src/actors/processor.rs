@@ -487,9 +487,18 @@ pub enum EnvelopeProcessor {
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
     RateLimitFlushBuckets(RateLimitFlushBuckets),
+    UpdateGlobalConfig(Arc<GlobalConfig>),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
+
+impl FromMessage<Arc<GlobalConfig>> for EnvelopeProcessor {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: Arc<GlobalConfig>, _sender: ()) -> Self {
+        Self::UpdateGlobalConfig(message)
+    }
+}
 
 impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
     type Response = relay_system::NoResponse;
@@ -527,8 +536,14 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
+#[derive(Clone)]
 pub struct EnvelopeProcessorService {
     config: Arc<Config>,
+    global_config: Arc<GlobalConfig>,
+    inner: Arc<InnerEnvelopeProcessorService>,
+}
+
+struct InnerEnvelopeProcessorService {
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -559,30 +574,31 @@ impl EnvelopeProcessorService {
             }
         });
 
+        let inner = InnerEnvelopeProcessorService {
+            envelope_manager,
+            project_cache,
+            outcome_aggregator,
+            upstream_relay,
+            geoip_lookup,
+            #[cfg(feature = "processing")]
+            rate_limiter: _redis
+                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
+        };
+
         #[cfg(feature = "processing")]
         {
-            let rate_limiter =
-                _redis.map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit()));
-
             Self {
                 config,
-                rate_limiter,
-                geoip_lookup,
-                envelope_manager,
-                outcome_aggregator,
-                project_cache,
-                upstream_relay,
+                global_config: Arc::new(GlobalConfig::default()),
+                inner: Arc::new(inner),
             }
         }
 
         #[cfg(not(feature = "processing"))]
         Self {
             config,
-            geoip_lookup,
-            envelope_manager,
-            outcome_aggregator,
-            project_cache,
-            upstream_relay,
+            global_config: Arc::new(GlobalConfig::default()),
+            inner: Arc::new(inner),
         }
     }
 
@@ -1052,7 +1068,7 @@ impl EnvelopeProcessorService {
                 }
             };
 
-            self.outcome_aggregator.send(TrackOutcome {
+            self.inner.outcome_aggregator.send(TrackOutcome {
                 // If we get to this point, the unwrap should not be used anymore, since we know by
                 // now that the timestamp can be parsed, but just incase we fallback to UTC current
                 // `DateTime`.
@@ -1945,7 +1961,8 @@ impl EnvelopeProcessorService {
             client_hints: envelope.meta().client_hints().to_owned(),
         };
 
-        let mut store_processor = StoreProcessor::new(store_config, self.geoip_lookup.as_ref());
+        let mut store_processor =
+            StoreProcessor::new(store_config, self.inner.geoip_lookup.as_ref());
         metric!(timer(RelayTimers::EventProcessingProcess), {
             process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -2014,7 +2031,7 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn enforce_quotas(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        let rate_limiter = match self.rate_limiter.as_ref() {
+        let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),
         };
@@ -2046,7 +2063,8 @@ impl EnvelopeProcessorService {
         });
 
         if limits.is_limited() {
-            self.project_cache
+            self.inner
+                .project_cache
                 .send(UpdateRateLimits::new(scoping.project_key, limits));
         }
 
@@ -2058,7 +2076,7 @@ impl EnvelopeProcessorService {
         enforcement.track_outcomes(
             state.envelope(),
             &state.managed_envelope.scoping(),
-            self.outcome_aggregator.clone(),
+            self.inner.outcome_aggregator.clone(),
         );
 
         Ok(())
@@ -2374,7 +2392,7 @@ impl EnvelopeProcessorService {
                 is_renormalize: false,
                 light_normalize_spans,
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
-                geoip_lookup: self.geoip_lookup.as_ref(),
+                geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
             };
 
@@ -2478,7 +2496,7 @@ impl EnvelopeProcessorService {
 
                         state.extracted_metrics.send_metrics(
                             state.managed_envelope.envelope(),
-                            self.project_cache.clone(),
+                            self.inner.project_cache.clone(),
                         );
 
                         let envelope_response = if state.managed_envelope.envelope().is_empty() {
@@ -2505,7 +2523,7 @@ impl EnvelopeProcessorService {
                         if err.should_keep_metrics() {
                             state.extracted_metrics.send_metrics(
                                 state.managed_envelope.envelope(),
-                                self.project_cache.clone(),
+                                self.inner.project_cache.clone(),
                             );
                         }
 
@@ -2528,7 +2546,7 @@ impl EnvelopeProcessorService {
         match result {
             Ok(response) => {
                 if let Some(managed_envelope) = response.envelope {
-                    self.envelope_manager.send(SubmitEnvelope {
+                    self.inner.envelope_manager.send(SubmitEnvelope {
                         envelope: managed_envelope,
                     })
                 };
@@ -2571,7 +2589,8 @@ impl EnvelopeProcessorService {
                     Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
 
                 relay_log::trace!("inserting metrics into project cache");
-                self.project_cache
+                self.inner
+                    .project_cache
                     .send(InsertMetrics::new(public_key, metrics));
             } else if item.ty() == &ItemType::MetricBuckets {
                 match Bucket::parse_all(&payload) {
@@ -2581,7 +2600,8 @@ impl EnvelopeProcessorService {
                         }
 
                         relay_log::trace!("merging metric buckets into project cache");
-                        self.project_cache
+                        self.inner
+                            .project_cache
                             .send(MergeBuckets::new(public_key, buckets));
                     }
                     Err(error) => {
@@ -2613,7 +2633,7 @@ impl EnvelopeProcessorService {
 
         let scoping = *bucket_limiter.scoping();
 
-        if let Some(rate_limiter) = self.rate_limiter.as_ref() {
+        if let Some(rate_limiter) = self.inner.rate_limiter.as_ref() {
             let item_scoping = ItemScoping {
                 category: DataCategory::Transaction,
                 scoping: &scoping,
@@ -2631,13 +2651,14 @@ impl EnvelopeProcessorService {
 
             let was_enforced = bucket_limiter.enforce_limits(
                 rate_limits.as_ref().map_err(|_| ()),
-                self.outcome_aggregator.clone(),
+                self.inner.outcome_aggregator.clone(),
             );
 
             if was_enforced {
                 if let Ok(limits) = rate_limits {
                     // Update the rate limits in the project cache.
-                    self.project_cache
+                    self.inner
+                        .project_cache
                         .send(UpdateRateLimits::new(scoping.project_key, limits));
                 }
             }
@@ -2646,7 +2667,7 @@ impl EnvelopeProcessorService {
         let buckets = bucket_limiter.into_metrics();
         if !buckets.is_empty() {
             // Forward buckets to envelope manager to send them to upstream or kafka:
-            self.envelope_manager.send(SendMetrics {
+            self.inner.envelope_manager.send(SendMetrics {
                 buckets,
                 scoping,
                 partition_key,
@@ -2691,7 +2712,7 @@ impl EnvelopeProcessorService {
             }
             Ok(envelope_body) => {
                 request.envelope_body = envelope_body;
-                self.upstream_relay.send(SendRequest(request));
+                self.inner.upstream_relay.send(SendRequest(request));
             }
         }
     }
@@ -2705,6 +2726,8 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::RateLimitFlushBuckets(message) => {
                 self.handle_rate_limit_flush_buckets(message);
             }
+            // This message is handled in the spawn_handler loop.
+            EnvelopeProcessor::UpdateGlobalConfig(_) => {}
         }
     }
 }
@@ -2712,22 +2735,29 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let thread_count = self.config.cpu_concurrency();
         relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
-            let service = Arc::new(self);
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
             while let (Some(message), Ok(permit)) =
                 tokio::join!(rx.recv(), semaphore.clone().acquire_owned())
             {
-                let service = service.clone();
-                tokio::task::spawn_blocking(move || {
-                    service.handle_message(message);
-                    drop(permit);
-                });
+                match message {
+                    EnvelopeProcessor::UpdateGlobalConfig(global_config) => {
+                        self.global_config = global_config
+                    }
+                    message => {
+                        let service = self.clone();
+
+                        tokio::task::spawn_blocking(move || {
+                            service.handle_message(message);
+                            drop(permit);
+                        });
+                    }
+                }
             }
         });
     }
@@ -3168,15 +3198,20 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        EnvelopeProcessorService {
-            config: Arc::new(config),
+        let inner = InnerEnvelopeProcessorService {
             envelope_manager,
-            outcome_aggregator,
             project_cache,
+            outcome_aggregator,
             upstream_relay,
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
+        };
+
+        EnvelopeProcessorService {
+            config: Arc::new(config),
+            global_config: Arc::new(GlobalConfig::default()),
+            inner: Arc::new(inner),
         }
     }
 
