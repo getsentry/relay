@@ -24,13 +24,6 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
         metrics: vec![
             MetricSpec {
                 category: DataCategory::Span,
-                mri: "d:spans/exclusive_time_light@millisecond".into(),
-                field: Some("span.exclusive_time".into()),
-                condition: None,
-                tags: Default::default(),
-            },
-            MetricSpec {
-                category: DataCategory::Span,
                 mri: "d:spans/exclusive_time@millisecond".into(),
                 field: Some("span.exclusive_time".into()),
                 condition: None,
@@ -40,6 +33,13 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
                     value: None,
                     condition: Default::default(),
                 }],
+            },
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: "d:spans/exclusive_time_light@millisecond".into(),
+                field: Some("span.exclusive_time".into()),
+                condition: None,
+                tags: Default::default(),
             },
         ],
         tags: vec![TagMapping {
