@@ -2242,8 +2242,15 @@ impl EnvelopeProcessorService {
                 self.tag_error_with_sampling_decision(state);
             }
             EventType::Transaction => {
-                self.compute_sampling_decision(state);
+                if let Some(ErrorBoundary::Ok(config)) =
+                    &state.project_state.config.transaction_metrics
+                {
+                    if config.is_enabled() {
+                        self.compute_sampling_decision(state);
+                    }
+                }
             }
+
             _ => {}
         }
     }
@@ -2893,6 +2900,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_dsc_respects_metrics_extracted() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let service: EnvelopeProcessorService = create_test_processor(config);
+
+        // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
+        let get_state = |version: Option<u16>| {
+            let event = Event {
+                id: Annotated::new(EventId::new()),
+                ty: Annotated::new(EventType::Transaction),
+                transaction: Annotated::new("testing".to_owned()),
+                ..Event::default()
+            };
+
+            let mut project_state = state_with_rule_and_condition(
+                Some(0.0),
+                RuleType::Transaction,
+                RuleCondition::all(),
+            );
+
+            if let Some(version) = version {
+                project_state.config.transaction_metrics =
+                    ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
+                        version,
+                        ..Default::default()
+                    })
+                    .into();
+            }
+
+            ProcessEnvelopeState {
+                event: Annotated::from(event),
+                metrics: Default::default(),
+                sample_rates: None,
+                sampling_result: SamplingResult::Keep,
+                extracted_metrics: Default::default(),
+                project_state: Arc::new(project_state),
+                sampling_project_state: None,
+                project_id: ProjectId::new(42),
+                managed_envelope: ManagedEnvelope::new(
+                    new_envelope(false, "foo"),
+                    TestSemaphore::new(42).try_acquire().unwrap(),
+                    outcome_aggregator.clone(),
+                    test_store.clone(),
+                ),
+                has_profile: false,
+                event_metrics_extracted: false,
+            }
+        };
+
+        // None represents no TransactionMetricsConfig, DS will not be run
+        let mut state = get_state(None);
+        service.run_dynamic_sampling(&mut state);
+        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+
+        // Current version is 1, so it won't run DS if it's outdated
+        let mut state = get_state(Some(0));
+        service.run_dynamic_sampling(&mut state);
+        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+
+        // Dynamic sampling is run, as the transactionmetrics version is up to date.
+        let mut state = get_state(Some(1));
+        service.run_dynamic_sampling(&mut state);
+        assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
+    }
+
+    #[tokio::test]
     async fn test_it_keeps_or_drops_transactions() {
         relay_test::setup();
 
@@ -2919,7 +3001,6 @@ mod tests {
             let project_state = state_with_rule_and_condition(
                 Some(sample_rate),
                 RuleType::Transaction,
-                SamplingMode::Received,
                 RuleCondition::all(),
             );
 

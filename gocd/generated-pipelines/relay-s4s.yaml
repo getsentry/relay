@@ -1,9 +1,9 @@
 format_version: 10
 pipelines:
-  deploy-relay-monitor:
+  deploy-relay-s4s:
     display_order: 2
     environment_variables:
-      SENTRY_REGION: monitor
+      SENTRY_REGION: s4s
     group: relay
     lock_behavior: unlockWhenFinished
     materials:
@@ -81,10 +81,10 @@ pipelines:
       - deploy-pops:
           fetch_materials: true
           jobs:
-            deploy-pops-monitor:
+            deploy-pops-s4s:
               elastic_profile_id: relay-pop
               environment_variables:
-                SENTRY_REGION: monitor
+                SENTRY_REGION: s4s
               tasks:
                 - script: |
                     ##!/bin/bash

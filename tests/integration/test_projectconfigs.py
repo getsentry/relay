@@ -5,8 +5,6 @@ Tests the project_configs endpoint (/api/0/relays/projectconfigs/)
 import uuid
 import pytest
 import time
-from requests.exceptions import HTTPError
-import queue
 from collections import namedtuple
 import tempfile
 import os
@@ -175,7 +173,7 @@ def test_pending_projects(mini_sentry, relay):
     # subsequent request will contain the response.  However if the machine executing this
     # test is very slow this could still be a flaky test.
     relay = relay(mini_sentry, wait_health_check=True)
-    project = mini_sentry.add_basic_project_config(42)
+    mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 
     body = {"publicKeys": [public_key]}

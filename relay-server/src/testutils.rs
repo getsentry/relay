@@ -12,7 +12,6 @@ use crate::extractors::RequestMeta;
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
     rule_type: RuleType,
-    mode: SamplingMode,
     condition: RuleCondition,
 ) -> ProjectState {
     let rules = match sample_rate {
@@ -30,7 +29,7 @@ pub fn state_with_rule_and_condition(
     project_state_with_config(SamplingConfig {
         rules: vec![],
         rules_v2: rules,
-        mode,
+        mode: SamplingMode::Received,
     })
 }
 
