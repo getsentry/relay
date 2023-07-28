@@ -858,14 +858,14 @@ impl FieldValueProvider for Span {
                         return Value::from(v.as_str());
                     }
                 }
-                if let Some(key) = path.strip_prefix("data.") {
+                if let Some(key) = dbg!(path.strip_prefix("data.")) {
                     if let Some(v) = self
                         .data
                         .value()
                         .and_then(|data| data.get(key))
                         .and_then(Annotated::value)
                     {
-                        return Value::from(v.clone());
+                        return dbg!(Value::from(v.clone()));
                     }
                 }
                 Value::Null

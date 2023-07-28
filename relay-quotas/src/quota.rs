@@ -108,9 +108,11 @@ impl CategoryUnit {
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
+            | DataCategory::Span
             | DataCategory::Monitor => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+
             DataCategory::Unknown => None,
         }
     }

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::{MetricExtractionConfig, TagSource, TagSpec};
-use relay_general::protocol::Event;
+use relay_general::protocol::{Event, Span, Timestamp};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
 
@@ -12,55 +12,102 @@ use relay_sampling::FieldValueProvider;
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
 pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
+    extract_metrics(event, config)
+}
+
+/// Item from which metrics can be extracted.
+pub trait Extractable {
+    fn category(&self) -> DataCategory;
+    fn timestamp(&self) -> Option<Timestamp>;
+}
+
+impl Extractable for Event {
+    fn category(&self) -> DataCategory {
+        // Obtain the event's data category, but treat default events as error events for the purpose of
+        // metric tagging.
+        match DataCategory::from(self.ty.value().copied().unwrap_or_default()) {
+            DataCategory::Default => DataCategory::Error,
+            category => category,
+        }
+    }
+
+    fn timestamp(&self) -> Option<Timestamp> {
+        self.timestamp.value().copied()
+    }
+}
+
+impl Extractable for Span {
+    fn category(&self) -> DataCategory {
+        DataCategory::Span
+    }
+
+    fn timestamp(&self) -> Option<Timestamp> {
+        self.timestamp.value().copied()
+    }
+}
+
+pub fn extract_metrics<T>(data: &T, config: &MetricExtractionConfig) -> Vec<Metric>
+where
+    T: Extractable + FieldValueProvider,
+{
     let mut metrics = Vec::new();
 
-    let event_ts = event.timestamp.value();
+    let event_ts = data.timestamp();
     let Some(timestamp) = event_ts.and_then(|d| UnixTimestamp::from_datetime(d.0)) else {
         relay_log::error!(timestamp = ?event_ts, "invalid event timestamp for metric extraction");
         return metrics
     };
 
-    // Obtain the event's data category, but treat default events as error events for the purpose of
-    // metric tagging.
-    let category = match DataCategory::from(event.ty.value().copied().unwrap_or_default()) {
-        DataCategory::Default => DataCategory::Error,
-        category => category,
-    };
-
-    for metric_spec in dbg!(&config.metrics) {
-        if dbg!(metric_spec.category) != dbg!(category) {
+    for metric_spec in &config.metrics {
+        if metric_spec.category != data.category() {
             continue;
         }
 
-        if let Some(ref condition) = dbg!(&metric_spec.condition) {
-            if !dbg!(condition.matches(event)) {
+        if let Some(ref condition) = &metric_spec.condition {
+            if condition.matches(data) {
                 continue;
             }
         }
 
         // Parse the MRI so that we can obtain the type, but subsequently re-serialize it into the
         // generated metric to ensure the MRI is normalized.
-        let Ok(mri) = dbg!(MetricResourceIdentifier::parse(&metric_spec.mri)) else {
+        let Ok(mri) = MetricResourceIdentifier::parse(&metric_spec.mri) else {
             relay_log::error!(mri=metric_spec.mri, "invalid MRI for metric extraction");
             continue;
         };
 
-        let Some(value) = dbg!(read_metric_value(event, metric_spec.field.as_deref(), mri.ty)) else {
+        let Some(value) = read_metric_value(data, metric_spec.field.as_deref(), mri.ty) else {
             continue;
         };
+
+        // Combine global tag mapping with metric's own tags.
+        // Global tags are overwritten by metric-specific tags.
+        let tags = config
+            .tags
+            .iter()
+            .filter_map(|t| {
+                t.metrics
+                    .contains(&metric_spec.mri)
+                    .then_some(t.tags.iter())
+            })
+            .flatten()
+            .chain(metric_spec.tags.iter());
 
         metrics.push(Metric {
             name: mri.to_string(),
             value,
             timestamp,
-            tags: extract_event_tags(event, &metric_spec.tags),
+            tags: extract_event_tags(data, tags),
         });
     }
 
     metrics
 }
 
-fn extract_event_tags(event: &Event, tags: &[TagSpec]) -> BTreeMap<String, String> {
+fn extract_event_tags<'a>(
+    event: &impl FieldValueProvider,
+    tags: impl Iterator<Item = &'a TagSpec>,
+) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
 
     for tag_spec in tags {
@@ -87,7 +134,11 @@ fn extract_event_tags(event: &Event, tags: &[TagSpec]) -> BTreeMap<String, Strin
     map
 }
 
-fn read_metric_value(event: &Event, field: Option<&str>, ty: MetricType) -> Option<MetricValue> {
+fn read_metric_value(
+    event: &impl FieldValueProvider,
+    field: Option<&str>,
+    ty: MetricType,
+) -> Option<MetricValue> {
     Some(match ty {
         MetricType::Counter => MetricValue::Counter(match field {
             Some(field) => event.get_value(field).as_f64()?,

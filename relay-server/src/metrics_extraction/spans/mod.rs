@@ -3,14 +3,14 @@ use std::str::FromStr;
 
 use once_cell::sync::Lazy;
 use relay_common::{DataCategory, EventType, UnixTimestamp};
-use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagSpec};
+use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use relay_general::protocol::{Event, Span};
 use relay_general::store::span::tag_extraction::SpanTagKey;
 use relay_general::types::{Annotated, Value};
 use relay_metrics::{AggregatorConfig, Metric};
 use relay_sampling::FieldValueProvider;
 
-use crate::metrics_extraction::event::extract_event_metrics;
+use crate::metrics_extraction::event::{extract_event_metrics, extract_metrics};
 use crate::metrics_extraction::spans::types::SpanMetric;
 
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
@@ -21,19 +21,107 @@ mod types;
 static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
     Lazy::new(|| MetricExtractionConfig {
         version: Default::default(),
-        metrics: vec![MetricSpec {
-            category: DataCategory::Transaction,
-            mri: "d:spans/exclusive_time_light@millisecond".into(),
-            field: Some("span.exclusive_time".into()),
-            condition: None,
-            tags: vec![TagSpec {
-                key: "span.description".into(),
-                field: Some("span.description".into()),
-                value: None,
-                condition: Default::default(),
-            }],
+        metrics: vec![
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: "d:spans/exclusive_time_light@millisecond".into(),
+                field: Some("span.exclusive_time".into()),
+                condition: None,
+                tags: Default::default(),
+            },
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: "d:spans/exclusive_time@millisecond".into(),
+                field: Some("span.exclusive_time".into()),
+                condition: None,
+                tags: vec![TagSpec {
+                    key: "transaction".into(),
+                    field: Some("span.data.transaction".into()),
+                    value: None,
+                    condition: Default::default(),
+                }],
+            },
+        ],
+        tags: vec![TagMapping {
+            metrics: vec![
+                "d:spans/exclusive_time@millisecond".into(),
+                "d:spans/exclusive_time_light@millisecond".into(),
+            ],
+            tags: vec![
+                TagSpec {
+                    key: "environment".into(),
+                    field: Some("span.data.environment".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "http.status_code".into(),
+                    field: Some("span.data.http.status_code".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.action".into(),
+                    field: Some("span.data.span.action".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.category".into(),
+                    field: Some("span.data.span.category".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.description".into(),
+                    field: Some("span.data.span.description".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.group".into(),
+                    field: Some("span.data.span.group".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.module".into(),
+                    field: Some("span.data.span.module".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.op".into(),
+                    field: Some("span.data.span.op".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "span.status".into(),
+                    field: Some("span.data.span.status".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "transaction".into(),
+                    field: Some("span.data.transaction".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "transaction.method".into(),
+                    field: Some("span.data.transaction.method".into()),
+                    value: None,
+                    condition: None,
+                },
+                TagSpec {
+                    key: "transaction.op".into(),
+                    field: Some("span.data.transaction.op".into()),
+                    value: None,
+                    condition: None,
+                },
+            ],
         }],
-        tags: Default::default(),
     });
 
 /// Extracts metrics from the spans of the given transaction, and sets common
@@ -126,8 +214,13 @@ pub(crate) fn extract_span_metrics(
     //     };
     // }
 
-    let additional_metrics = extract_event_metrics(event, &SPAN_EXTRACTION_CONFIG);
-    metrics.extend(additional_metrics);
+    let Some(spans) = event.spans.value() else { return Ok(metrics) };
+
+    for annotated_span in spans {
+        let Some(span) = annotated_span.value() else { continue };
+        let span_metrics = extract_metrics(span, &SPAN_EXTRACTION_CONFIG);
+        metrics.extend(span_metrics);
+    }
 
     Ok(metrics)
 }
@@ -510,7 +603,7 @@ mod tests {
         let metrics =
             extract_span_metrics(&aggregator_config, event.value_mut().as_mut().unwrap()).unwrap();
 
-        //     insta::assert_debug_snapshot!(event.value().unwrap().spans);
-        //     insta::assert_debug_snapshot!(metrics);
+        insta::assert_debug_snapshot!(event.value().unwrap().spans);
+        insta::assert_debug_snapshot!(metrics);
     }
 }
