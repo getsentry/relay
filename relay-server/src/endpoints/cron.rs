@@ -1,4 +1,5 @@
 use axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter, MethodRouter};
 use relay_common::Uuid;
@@ -7,7 +8,7 @@ use relay_general::protocol::EventId;
 use relay_monitors::{CheckIn, CheckInStatus};
 use serde::Deserialize;
 
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
@@ -72,8 +73,9 @@ async fn handle(
         Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
         Err(error) => return Err(error),
     };
-    // What do we want to return?
-    Ok(TextResponse(None))
+
+    // Event will be proccessed by Sentry, respond with a 202
+    Ok(StatusCode::ACCEPTED)
 }
 
 pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>

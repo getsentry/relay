@@ -109,7 +109,7 @@ lint-rust: setup-git ## run lint on Rust code using clippy
 .PHONY: lint-rust
 
 lint-python: setup-venv ## run lint on Python code using flake8
-	.venv/bin/flake8 py
+	.venv/bin/flake8 py tests
 .PHONY: lint-python
 
 lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
