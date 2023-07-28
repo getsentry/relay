@@ -1,22 +1,12 @@
-use std::collections::BTreeMap;
-use std::str::FromStr;
-
 use once_cell::sync::Lazy;
-use relay_common::{DataCategory, EventType, UnixTimestamp};
+use relay_common::DataCategory;
 use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
-use relay_general::protocol::{Event, Span};
-use relay_general::store::span::tag_extraction::SpanTagKey;
-use relay_general::types::{Annotated, Value};
-use relay_metrics::{AggregatorConfig, Metric};
-use relay_sampling::FieldValueProvider;
+use relay_general::protocol::Event;
+use relay_metrics::Metric;
 
-use crate::metrics_extraction::event::{extract_event_metrics, extract_metrics};
-use crate::metrics_extraction::spans::types::SpanMetric;
+use crate::metrics_extraction::event::extract_metrics_from;
 
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
-use crate::metrics_extraction::IntoMetric;
-
-mod types;
 
 static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
     Lazy::new(|| MetricExtractionConfig {
@@ -136,101 +126,15 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
         }],
     });
 
-/// Extracts metrics from the spans of the given transaction, and sets common
-/// tags for all the metrics and spans. If a span already contains a tag
-/// extracted for a metric, the tag value is overwritten.
-pub(crate) fn extract_span_metrics(
-    aggregator_config: &AggregatorConfig,
-    event: &Event,
-) -> Result<Vec<Metric>, ExtractMetricsError> {
+/// Extracts metrics from the spans of the given transaction.
+pub(crate) fn extract_span_metrics(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {
     // TODO(iker): measure the performance of this whole method
     let mut metrics = Vec::new();
-
-    // if event.ty.value() != Some(&EventType::Transaction) {
-    //     return Ok(metrics);
-    // }
-    // let (Some(&_start), Some(&end)) = (event.start_timestamp.value(), event.timestamp.value()) else {
-    //     relay_log::debug!("failed to extract the start and the end timestamps from the event");
-    //     return Err(ExtractMetricsError::MissingTimestamp);
-    // };
-
-    // let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-    //     relay_log::debug!("event timestamp is not a valid unix timestamp");
-    //     return Err(ExtractMetricsError::InvalidTimestamp);
-    // };
-
-    // // Validate the transaction event against the metrics timestamp limits. If the metric is too
-    // // old or too new, we cannot extract the metric and also need to drop the transaction event
-    // // for consistency between metrics and events.
-    // if !aggregator_config.timestamp_range().contains(&timestamp) {
-    //     relay_log::debug!("event timestamp is out of the valid range for metrics");
-    //     return Err(ExtractMetricsError::InvalidTimestamp);
-    // }
-
-    // let Some(spans) = event.spans.value() else { return Ok(metrics) };
-
-    // for annotated_span in spans {
-    //     let Some(span) = annotated_span.value() else { continue };
-
-    //     // Get parts of `span.data` that are designated as metrics
-    //     let span_tags: BTreeMap<_, _> = span
-    //         .data
-    //         .value()
-    //         .iter()
-    //         .flat_map(|x| x.iter())
-    //         .filter_map(
-    //             |(key, value)| match (SpanTagKey::from_str(key.as_str()), value) {
-    //                 (Ok(key), Annotated(Some(Value::String(s)), _)) if key.is_metric_tag() => {
-    //                     Some((key, s.clone()))
-    //                 }
-    //                 _ => None,
-    //             },
-    //         )
-    //         .collect();
-
-    //     if let Some(exclusive_time) = span.exclusive_time.value() {
-    //         // NOTE(iker): this exclusive time doesn't consider all cases,
-    //         // such as sub-transactions. We accept these limitations for
-    //         // now.
-    //         metrics.push(
-    //             SpanMetric::ExclusiveTime {
-    //                 value: *exclusive_time,
-    //                 tags: span_tags.clone(),
-    //             }
-    //             .into_metric(timestamp),
-    //         );
-
-    //         // let mut reduced_tags = span_tags.clone();
-    //         // reduced_tags.remove(&SpanTagKey::Transaction);
-    //         // metrics.push(
-    //         //     SpanMetric::ExclusiveTimeLight {
-    //         //         value: *exclusive_time,
-    //         //         tags: reduced_tags,
-    //         //     }
-    //         //     .into_metric(timestamp),
-    //         // );
-    //     }
-
-    //     if let (Some(&span_start), Some(&span_end)) =
-    //         (span.start_timestamp.value(), span.timestamp.value())
-    //     {
-    //         // The `duration` of a span. This metric also serves as the
-    //         // counter metric `throughput`.
-    //         metrics.push(
-    //             SpanMetric::Duration {
-    //                 value: span_end - span_start,
-    //                 tags: span_tags.clone(),
-    //             }
-    //             .into_metric(timestamp),
-    //         );
-    //     };
-    // }
-
     let Some(spans) = event.spans.value() else { return Ok(metrics) };
 
     for annotated_span in spans {
         let Some(span) = annotated_span.value() else { continue };
-        let span_metrics = extract_metrics(span, &SPAN_EXTRACTION_CONFIG);
+        let span_metrics = extract_metrics_from(span, &SPAN_EXTRACTION_CONFIG);
         metrics.extend(span_metrics);
     }
 
@@ -241,8 +145,6 @@ pub(crate) fn extract_span_metrics(
 mod tests {
     use relay_general::store::{self, LightNormalizationConfig};
     use relay_general::types::Annotated;
-
-    use relay_metrics::AggregatorConfig;
 
     use crate::metrics_extraction::spans::extract_span_metrics;
 
@@ -606,14 +508,7 @@ mod tests {
         );
         assert!(res.is_ok());
 
-        let aggregator_config = AggregatorConfig {
-            max_secs_in_past: u64::MAX,
-            max_secs_in_future: u64::MAX,
-            ..Default::default()
-        };
-
-        let metrics =
-            extract_span_metrics(&aggregator_config, event.value_mut().as_mut().unwrap()).unwrap();
+        let metrics = extract_span_metrics(event.value_mut().as_mut().unwrap()).unwrap();
 
         insta::assert_debug_snapshot!(event.value().unwrap().spans);
         insta::assert_debug_snapshot!(metrics);

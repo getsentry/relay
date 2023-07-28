@@ -12,7 +12,7 @@ use relay_sampling::FieldValueProvider;
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
 pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
-    extract_metrics(event, config)
+    extract_metrics_from(event, config)
 }
 
 /// Item from which metrics can be extracted.
@@ -46,7 +46,7 @@ impl Extractable for Span {
     }
 }
 
-pub fn extract_metrics<T>(data: &T, config: &MetricExtractionConfig) -> Vec<Metric>
+pub fn extract_metrics_from<T>(data: &T, config: &MetricExtractionConfig) -> Vec<Metric>
 where
     T: Extractable + FieldValueProvider,
 {
@@ -86,6 +86,7 @@ where
             .tags
             .iter()
             .filter_map(|t| {
+                // TODO: support wildcards as the docs suggest.
                 t.metrics
                     .contains(&metric_spec.mri)
                     .then_some(t.tags.iter())
