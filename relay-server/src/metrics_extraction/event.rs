@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_dynamic_config::{MetricExtractionConfig, TagSource, TagSpec};
+use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagSource, TagSpec};
 use relay_general::protocol::{Event, Span, Timestamp};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
@@ -17,7 +17,10 @@ pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> 
 
 /// Item from which metrics can be extracted.
 pub trait Extractable {
+    /// Data category for [`MetricSpec`] to match on.
     fn category(&self) -> DataCategory;
+
+    /// The timestamp to associate with the extracted metrics.
     fn timestamp(&self) -> Option<Timestamp>;
 }
 

@@ -190,7 +190,7 @@ pub struct MetricSpec {
 
     /// An optional condition to meet before extraction.
     ///
-    /// See [`RuleCondition`] for all available options to speecify and combine conditions. If no
+    /// See [`RuleCondition`] for all available options to specify and combine conditions. If no
     /// condition is specified, the metric is extracted unconditionally.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub condition: Option<RuleCondition>,
