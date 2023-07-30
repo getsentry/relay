@@ -579,7 +579,6 @@ impl EnvelopeProcessorService {
         #[cfg(not(feature = "processing"))]
         Self {
             config,
-            global_config: Arc::new(GlobalConfig::default()),
             inner: Arc::new(inner),
         }
     }
