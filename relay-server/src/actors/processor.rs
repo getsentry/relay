@@ -425,7 +425,6 @@ pub struct ProcessEnvelopeResponse {
 pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
-    pub global_config: Arc<GlobalConfig>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
 }
 
@@ -1341,7 +1340,6 @@ impl EnvelopeProcessorService {
         let ProcessEnvelope {
             envelope: mut managed_envelope,
             project_state,
-            global_config: _global_config,
             sampling_project_state,
         } = message;
 
@@ -1385,7 +1383,7 @@ impl EnvelopeProcessorService {
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
-            _global_config,
+            _global_config: self.global_config.clone(),
             project_id,
             managed_envelope,
             has_profile: false,
@@ -3244,7 +3242,6 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
-            global_config: Arc::new(GlobalConfig::default()),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3264,7 +3261,6 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
         };
@@ -3484,7 +3480,6 @@ mod tests {
         project_state.config = config;
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
         };
@@ -3555,7 +3550,6 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3604,7 +3598,6 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };
@@ -3661,7 +3654,6 @@ mod tests {
 
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
-            global_config: Arc::new(GlobalConfig::default()),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
         };

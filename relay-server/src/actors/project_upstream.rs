@@ -8,7 +8,7 @@ use futures::future;
 use itertools::Itertools;
 use relay_common::ProjectKey;
 use relay_config::Config;
-use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use relay_statsd::metric;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
@@ -32,9 +32,10 @@ use crate::utils::{RetryBackoff, SleepHandle};
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
-    public_keys: Vec<ProjectKey>,
-    full_config: bool,
-    no_cache: bool,
+    pub public_keys: Vec<ProjectKey>,
+    pub full_config: bool,
+    pub no_cache: bool,
+    pub global_config: bool,
 }
 
 /// The response of the projects states requests.
@@ -48,6 +49,8 @@ pub struct GetProjectStatesResponse {
     pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
     #[serde(default)]
     pub pending: Vec<ProjectKey>,
+    #[serde(default)]
+    pub global: Arc<GlobalConfig>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -272,6 +275,7 @@ impl UpstreamProjectSourceService {
                 public_keys: channels_batch.keys().copied().collect(),
                 full_config: config.processing_enabled(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
+                global_config: false,
             };
 
             // count number of http requests for project states

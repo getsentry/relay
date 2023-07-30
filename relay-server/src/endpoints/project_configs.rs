@@ -7,9 +7,10 @@ use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
 use relay_common::ProjectKey;
-use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
+use crate::actors::global_config::GetGlobalConfig;
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
@@ -76,6 +77,8 @@ struct GetProjectStatesResponseWrapper {
     configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global: Option<GlobalConfig>,
 }
 
 /// Request payload of the project config endpoint.
@@ -84,7 +87,7 @@ struct GetProjectStatesResponseWrapper {
 /// which allows skipping invalid project keys.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GetProjectStatesRequest {
+pub struct GetProjectStatesRequest {
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
     #[serde(default)]
     full_config: bool,
@@ -101,6 +104,7 @@ async fn inner(
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
     let project_cache = &state.project_cache().clone();
+    let global_config_service = &state.global_config().clone();
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
@@ -124,6 +128,15 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
+    let global = if inner.global_config {
+        global_config_service
+            .send(GetGlobalConfig)
+            .await
+            .ok()
+            .map(|gc| (*gc).clone())
+    } else {
+        None
+    };
 
     for (project_key, state_result) in future::join_all(futures).await {
         let Some(project_state) = state_result? else {
@@ -152,7 +165,11 @@ async fn inner(
         };
     }
 
-    Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
+    Ok(Json(GetProjectStatesResponseWrapper {
+        configs,
+        pending,
+        global,
+    }))
 }
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.

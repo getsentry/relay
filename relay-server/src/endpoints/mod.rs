@@ -12,7 +12,7 @@ mod forward;
 mod health_check;
 mod minidump;
 mod outcomes;
-mod project_configs;
+pub mod project_configs;
 mod public_keys;
 mod security_report;
 mod statics;

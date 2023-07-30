@@ -13,7 +13,7 @@ use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
-use crate::actors::global_config::GlobalConfigService;
+use crate::actors::global_config::{GlobalConfigResponse, GlobalConfigService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -53,7 +53,7 @@ pub struct Registry {
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
-    pub global_config: Addr<()>,
+    pub global_config: Addr<GlobalConfigResponse>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
 }
@@ -283,6 +283,11 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn processor(&self) -> &Addr<EnvelopeProcessor> {
         &self.inner.registry.processor
+    }
+
+    /// Returns the address of the [`GlobalConfigService`] service.
+    pub fn global_config(&self) -> &Addr<GlobalConfigResponse> {
+        &self.inner.registry.global_config
     }
 
     /// Returns the address of the [`OutcomeProducer`] service.
