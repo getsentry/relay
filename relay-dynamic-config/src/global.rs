@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use relay_general::store::MeasurementsConfig;
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +19,15 @@ pub struct GlobalConfig {
     /// the event's content.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
+}
+
+/// some docs
+#[derive(Clone)]
+pub enum GCState {
+    ///a
+    UnInit,
+    ///b
+    Fetched(Arc<GlobalConfig>),
 }
 
 #[cfg(test)]

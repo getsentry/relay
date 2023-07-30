@@ -18,13 +18,14 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::actors::spooler::QueueKey;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{
-    ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
+    ErrorBoundary, Feature, GCState, GlobalConfig, ProjectConfig, SessionMetricsConfig,
 };
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
@@ -294,7 +295,7 @@ struct ProcessEnvelopeState {
 
     /// The configuration options for projects which apply to all DSNs
     /// TODO(tor) implement global config logic
-    _global_config: Arc<GlobalConfig>,
+    global_config: Arc<GlobalConfig>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -538,7 +539,7 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
     config: Arc<Config>,
-    global_config: Arc<GlobalConfig>,
+    global_config: GCState,
     inner: Arc<InnerEnvelopeProcessorService>,
 }
 
@@ -588,7 +589,7 @@ impl EnvelopeProcessorService {
         {
             Self {
                 config,
-                global_config: Arc::new(GlobalConfig::default()),
+                global_config: GCState::UnInit,
                 inner: Arc::new(inner),
             }
         }
@@ -1374,6 +1375,11 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
+        let global_config = match &self.global_config {
+            GCState::Fetched(global_config) => global_config.clone(),
+            GCState::UnInit => todo!(),
+        };
+
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
@@ -1383,7 +1389,7 @@ impl EnvelopeProcessorService {
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
-            _global_config: self.global_config.clone(),
+            global_config,
             project_id,
             managed_envelope,
             has_profile: false,
@@ -2121,7 +2127,10 @@ impl EnvelopeProcessorService {
                     let mut extracted = extractor.extract(event)?;
 
                     // TODO: Move conditional tagging to generic metrics extraction
-                    let tagging_config = &state.project_state.config.metric_conditional_tagging;
+                    let tagging_config = state
+                        .project_state
+                        .config
+                        .metric_conditional_tagging(&state.global_config);
                     crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
                         event,
                         tagging_config,
@@ -2371,7 +2380,10 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state.project_state.config.measurements.as_ref(),
+                measurements_config: state
+                    .project_state
+                    .config
+                    .measurements(&state.global_config),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
@@ -2536,6 +2548,14 @@ impl EnvelopeProcessorService {
         let project_key = message.envelope.envelope().meta().public_key();
         let wait_time = message.envelope.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
+
+        let gc = &self.global_config;
+        if matches!(gc, GCState::UnInit) {
+            let own_key = message.envelope.meta().public_key();
+            let sampling_key = utils::get_sampling_key(message.envelope.envelope());
+            let _key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
+            // if it's not initialized, send the envelope to the buffer from here
+        }
 
         let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), {
             self.process(message)
@@ -2745,7 +2765,7 @@ impl Service for EnvelopeProcessorService {
             {
                 match message {
                     EnvelopeProcessor::UpdateGlobalConfig(global_config) => {
-                        self.global_config = global_config
+                        self.global_config = GCState::Fetched(global_config);
                     }
                     message => {
                         let service = self.clone();
@@ -2979,7 +2999,7 @@ mod tests {
             ProcessEnvelopeState {
                 event: Annotated::from(event),
                 metrics: Default::default(),
-                _global_config: Arc::new(GlobalConfig::default()),
+                global_config: Arc::new(GlobalConfig::default()),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
@@ -3048,7 +3068,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                _global_config: Arc::new(GlobalConfig::default()),
+                global_config: Arc::new(GlobalConfig::default()),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
@@ -3208,7 +3228,7 @@ mod tests {
 
         EnvelopeProcessorService {
             config: Arc::new(config),
-            global_config: Arc::new(GlobalConfig::default()),
+            global_config: GCState::UnInit,
             inner: Arc::new(inner),
         }
     }
@@ -3470,11 +3490,9 @@ mod tests {
         )
         .unwrap();
 
-        let config = ProjectConfig {
-            datascrubbing_settings,
-            pii_config: Some(pii_config),
-            ..Default::default()
-        };
+        let mut config = ProjectConfig::default();
+        config.datascrubbing_settings = datascrubbing_settings;
+        config.pii_config = Some(pii_config);
 
         let mut project_state = ProjectState::allowed();
         project_state.config = config;

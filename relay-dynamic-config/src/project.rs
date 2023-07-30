@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::metrics::{
     MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::{ErrorBoundary, FeatureSet};
+use crate::{ErrorBoundary, FeatureSet, GlobalConfig};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +47,7 @@ pub struct ProjectConfig {
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for measurements.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub measurements: Option<MeasurementsConfig>,
+    measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
@@ -65,7 +65,7 @@ pub struct ProjectConfig {
     pub span_attributes: BTreeSet<SpanAttribute>,
     /// Rules for applying metrics tags depending on the event's content.
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub metric_conditional_tagging: Vec<TaggingRule>,
+    metric_conditional_tagging: Vec<TaggingRule>,
     /// Exposable features enabled for this project.
     #[serde(skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
@@ -78,6 +78,28 @@ pub struct ProjectConfig {
     /// Span description renaming rules.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+}
+
+impl ProjectConfig {
+    /// cool
+    pub fn measurements<'a>(
+        &'a self,
+        global_config: &'a GlobalConfig,
+    ) -> Option<&MeasurementsConfig> {
+        self.measurements
+            .as_ref()
+            .or(global_config.measurements.as_ref())
+    }
+
+    /// nice
+    pub fn metric_conditional_tagging<'a>(
+        &'a self,
+        global_config: &'a GlobalConfig,
+    ) -> impl Iterator<Item = &TaggingRule> {
+        self.metric_conditional_tagging
+            .iter()
+            .chain(global_config.metric_conditional_tagging.iter())
+    }
 }
 
 impl Default for ProjectConfig {
