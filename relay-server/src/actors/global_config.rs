@@ -8,7 +8,7 @@ use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::actors::upstream::{SendQuery, UpstreamRelay};
 
-/// Service implementing the [`GlobalConfig`] interface.
+/// Service implementing the [`GlobalConfigResponse`] interface.
 ///
 /// The service is responsible for fetching the global config and
 /// forwarding it to the services that require it.
@@ -19,8 +19,9 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
 }
 
-/// Service interface for the [`IsHealthy`] message.
+/// Service interface for the [`GetGlobalConfig`] message.
 pub struct GlobalConfigResponse(Sender<Arc<GlobalConfig>>);
+
 pub struct GetGlobalConfig;
 
 impl FromMessage<GetGlobalConfig> for GlobalConfigResponse {
@@ -56,10 +57,14 @@ impl GlobalConfigService {
         };
 
         match upstream_relay.send(SendQuery(query)).await {
-            Ok(Ok(response)) => {
-                self.global_config = response.global.clone();
-                project_cache.send::<Arc<GlobalConfig>>(response.global);
-            }
+            Ok(Ok(response)) => match response.global {
+                Some(global_config) => {
+                    let global_config = Arc::new(global_config);
+                    self.global_config = global_config.clone();
+                    project_cache.send::<Arc<GlobalConfig>>(global_config);
+                }
+                None => relay_log::error!("Global config request returned a None value"),
+            },
             Err(e) => {
                 relay_log::error!("failed to send global config request: {}", e);
             }
@@ -83,8 +88,9 @@ impl Service for GlobalConfigService {
                     biased;
                     _ = ticker.tick() => self.update_global_config().await,
                     message = rx.recv() => {
-                       let x =  message.unwrap();
-                       x.0.send(self.global_config.clone());
+                        if let Some(sender) = message {
+                            sender.0.send(self.global_config.clone());
+                        }
                     },
                     else => break,
                 }

@@ -50,7 +50,7 @@ pub struct GetProjectStatesResponse {
     #[serde(default)]
     pub pending: Vec<ProjectKey>,
     #[serde(default)]
-    pub global: Arc<GlobalConfig>,
+    pub global: Option<GlobalConfig>,
 }
 
 impl UpstreamQuery for GetProjectStates {
