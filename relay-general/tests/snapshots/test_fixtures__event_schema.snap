@@ -1,5 +1,6 @@
 ---
 source: relay-general/tests/test_fixtures.rs
+assertion_line: 109
 expression: "relay_general::protocol::event_json_schema()"
 ---
 {
@@ -479,13 +480,19 @@ expression: "relay_general::protocol::event_json_schema()"
                 "null"
               ]
             },
-            "view_name": {
-              "description": " The name of the currently visible view.",
+            "view_names": {
+              "description": " The names of the currently visible views.",
               "default": null,
               "type": [
-                "string",
+                "array",
                 "null"
-              ]
+              ],
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           },
           "additionalProperties": false
