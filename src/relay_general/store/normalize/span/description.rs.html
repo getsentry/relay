@@ -839,6 +839,18 @@
 <a href="#839" id="839">839</a>
 <a href="#840" id="840">840</a>
 <a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -903,8 +915,12 @@
 });
 
 <span class="doccomment">/// Collapse simple lists of columns in select.
+/// For example:
+///   SELECT a, b FROM x -&gt; SELECT .. FROM x
+///   SELECT &quot;a.b&quot; AS a__b, &quot;a.c&quot; AS a__c FROM x -&gt; SELECT .. FROM x
 </span><span class="kw">static </span>SQL_COLLAPSE_SELECT: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?i)(?P&lt;select&gt;SELECT(\s+(DISTINCT|ALL))?)\s+(?P&lt;columns&gt;(\w+(?:\s*,\s*\w+)+))\s+(?&lt;from&gt;FROM|$)&quot;#</span>)
+    <span class="kw">let </span>col = <span class="string">r&quot;\w+( AS \w+)?&quot;</span>;
+    Regex::new(<span class="macro">format!</span>(<span class="string">r#&quot;(?i)(?P&lt;select&gt;SELECT(\s+(DISTINCT|ALL))?)\s+(?P&lt;columns&gt;({col}(?:\s*,\s*{col})+))\s+(?&lt;from&gt;FROM|$)&quot;#</span>).as_str())
         .unwrap()
 });
 
@@ -1540,6 +1556,14 @@
         <span class="string">r#&quot;SELECT DISTINCT a, b, c FROM table WHERE %s&quot;#</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;SELECT DISTINCT .. FROM table WHERE %s&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_collapse_columns_with_as,
+        <span class="comment">// Simple lists of columns will be collapsed.
+        </span><span class="string">r#&quot;SELECT myfield1, &quot;a&quot;.&quot;b&quot; AS a__b, another_field as bar FROM table WHERE %s&quot;#</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT .. FROM table WHERE %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
