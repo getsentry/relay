@@ -72,7 +72,7 @@ impl ProjectStateWrapper {
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections.  This list is always empty before V3.
 ///
-/// The Response may also have a [`GlobalConfig`] which should be returned if the `global_config`
+/// The response may also have a [`GlobalConfig`] which should be returned if the `global_config`
 /// flag is enabled on [`GetProjectStatesRequest`]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -81,7 +81,7 @@ struct GetProjectStatesResponseWrapper {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    global: Option<GlobalConfig>,
+    global_config: Option<GlobalConfig>,
 }
 
 /// Request payload of the project config endpoint.
@@ -171,7 +171,7 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global,
+        global_config: global,
     }))
 }
 

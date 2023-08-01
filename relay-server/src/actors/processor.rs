@@ -2724,8 +2724,9 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::RateLimitFlushBuckets(message) => {
                 self.handle_rate_limit_flush_buckets(message);
             }
-            // This message is handled in the spawn_handler loop.
-            EnvelopeProcessor::UpdateGlobalConfig(_) => {}
+            EnvelopeProcessor::UpdateGlobalConfig(_) => {
+                relay_log::error!("UpdateGlobalConfig should be handled in the spawn_handler of EnvelopeProcessorService")
+            }
         }
     }
 }
