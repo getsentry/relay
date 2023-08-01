@@ -2355,6 +2355,7 @@ impl EnvelopeProcessorService {
                 let outcome = Outcome::FilteredSampling(rule_ids.clone());
                 state.managed_envelope.retain_items(|item| {
                     if feature_enabled && item.ty() == &ItemType::Profile {
+                        item.set_header("sampled", false);
                         ItemAction::Keep
                     } else {
                         ItemAction::Drop(outcome.clone())
