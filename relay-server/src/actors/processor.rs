@@ -292,7 +292,7 @@ struct ProcessEnvelopeState {
     /// This is the config used for trace-based dynamic sampling.
     sampling_project_state: Option<Arc<ProjectState>>,
 
-    /// The configuration options for projects which apply to all DSNs
+    /// The configuration options for projects which apply to all DSNs.
     /// TODO(tor) implement global config logic
     _global_config: Arc<GlobalConfig>,
 

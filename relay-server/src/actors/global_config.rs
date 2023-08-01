@@ -82,7 +82,7 @@ impl GlobalConfigurationService {
                         };
                         envelope_processor.send::<Arc<GlobalConfig>>(global_config);
                     }
-                    None => relay_log::error!("Upstream response didn't include a global config"),
+                    None => relay_log::error!("Global config is missing in upstream response"),
                 },
                 Err(e) => {
                     relay_log::error!("failed to send global config request: {}", e);
