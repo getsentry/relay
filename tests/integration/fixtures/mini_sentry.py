@@ -339,7 +339,7 @@ def mini_sentry(request):  # noqa
 
         else:
             abort(500, "unsupported version")
-        return jsonify({"configs": configs, "pending": pending, "global": {}})
+        return jsonify({"configs": configs, "pending": pending, "global_config": {}})
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():
