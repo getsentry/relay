@@ -71,7 +71,7 @@ impl GlobalConfigurationService {
             };
 
             match upstream_relay.send(SendQuery(query)).await {
-                Ok(Ok(response)) => match response.global_config {
+                Ok(Ok(response)) => match response.global {
                     Some(global_config) => {
                         let global_config = Arc::new(global_config);
                         if let Err(e) = global_tx.send(global_config.clone()) {

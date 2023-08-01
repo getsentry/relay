@@ -53,7 +53,7 @@ pub struct GetProjectStatesResponse {
     pub(crate) pending: Vec<ProjectKey>,
     /// The global config fetched from the upstream.
     #[serde(default)]
-    pub(crate) global_config: Option<GlobalConfig>,
+    pub(crate) global: Option<GlobalConfig>,
 }
 
 impl UpstreamQuery for GetProjectStates {
