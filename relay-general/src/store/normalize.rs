@@ -255,6 +255,10 @@ impl<'a> NormalizeProcessor<'a> {
     }
 }
 
+/// Replaces snake_case app start spans op with dot.case op.
+/// This is done for the affected RN SDK versions (from 3 to 4.4).
+/// Because we have to iterate over the spans we should do it only
+/// for the affected events.
 fn normalize_app_start_spans(event: &mut Event) {
     if !event.sdk_name().eq("sentry.javascript.react-native")
         || !(event.sdk_version().starts_with("4.4")
@@ -403,6 +407,9 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
     }
 }
 
+/// Replaces dot.case app start measurements keys with snake_case keys.
+/// The dot.case app start measurements keys are treated as custom measurements.
+/// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
 fn normalize_app_start_measurements(measurements: &mut Measurements) {
     if let Some(app_start_cold_value) = measurements.remove("app.start.cold") {
         measurements.insert("app_start_cold".to_string(), app_start_cold_value);
