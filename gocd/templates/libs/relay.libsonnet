@@ -66,26 +66,5 @@ function(region) {
         },
       },
     },
-
-    {
-      'progress-to-pops': {
-        approval: {
-          type: 'manual',
-          allow_only_on_success: true,
-        },
-        jobs: {
-          'progress-to-pops': {
-            timeout: 1200,
-            elastic_profile_id: 'relay',
-            tasks: [
-              gocdtasks.noop,
-            ],
-          },
-        },
-      },
-    },
-  ] + [
-    // Append the relay-pops deployment stages
-    pops.stage(region),
-  ],
+  ] + pops.stages(region),
 }
