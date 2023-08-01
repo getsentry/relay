@@ -522,11 +522,11 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
-    config: Arc<Config>,
     inner: Arc<InnerProcessor>,
 }
 
 struct InnerProcessor {
+    config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -557,20 +557,20 @@ impl EnvelopeProcessorService {
         });
 
         let inner = InnerProcessor {
+            #[cfg(feature = "processing")]
+            rate_limiter: _redis
+                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
+            config,
             envelope_manager,
             project_cache,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
-            #[cfg(feature = "processing")]
-            rate_limiter: _redis
-                .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
         };
 
         #[cfg(feature = "processing")]
         {
             Self {
-                config,
                 inner: Arc::new(inner),
             }
         }
@@ -628,13 +628,13 @@ impl EnvelopeProcessorService {
         received: DateTime<Utc>,
         timestamp: DateTime<Utc>,
     ) -> bool {
-        let max_age = SignedDuration::seconds(self.config.max_session_secs_in_past());
+        let max_age = SignedDuration::seconds(self.inner.config.max_session_secs_in_past());
         if (received - timestamp) > max_age {
             relay_log::trace!("skipping session older than {} days", max_age.num_days());
             return false;
         }
 
-        let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
+        let max_future = SignedDuration::seconds(self.inner.config.max_secs_in_future());
         if (timestamp - received) > max_future {
             relay_log::trace!(
                 "skipping session more than {}s in the future",
@@ -715,7 +715,9 @@ impl EnvelopeProcessorService {
             }
         }
 
-        if self.config.processing_enabled() && matches!(session.status, SessionStatus::Unknown(_)) {
+        if self.inner.config.processing_enabled()
+            && matches!(session.status, SessionStatus::Unknown(_))
+        {
             return false;
         }
 
@@ -927,9 +929,9 @@ impl EnvelopeProcessorService {
     fn process_client_reports(&self, state: &mut ProcessEnvelopeState) {
         // if client outcomes are disabled we leave the the client reports unprocessed
         // and pass them on.
-        if !self.config.emit_outcomes().any() || !self.config.emit_client_outcomes() {
+        if !self.inner.config.emit_outcomes().any() || !self.inner.config.emit_client_outcomes() {
             // if a processing relay has client outcomes disabled we drop them.
-            if self.config.processing_enabled() {
+            if self.inner.config.processing_enabled() {
                 state.managed_envelope.retain_items(|item| match item.ty() {
                     ItemType::ClientReport => ItemAction::DropSilently,
                     _ => ItemAction::Keep,
@@ -1011,7 +1013,7 @@ impl EnvelopeProcessorService {
             clock_drift_processor.process_timestamp(timestamp);
         }
 
-        let max_age = SignedDuration::seconds(self.config.max_secs_in_past());
+        let max_age = SignedDuration::seconds(self.inner.config.max_secs_in_past());
         // also if we unable to parse the timestamp, we assume it's way too old here.
         let in_past = timestamp
             .as_datetime()
@@ -1025,7 +1027,7 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let max_future = SignedDuration::seconds(self.config.max_secs_in_future());
+        let max_future = SignedDuration::seconds(self.inner.config.max_secs_in_future());
         // also if we unable to parse the timestamp, we assume it's way far in the future here.
         let in_future = timestamp
             .as_datetime()
@@ -1130,7 +1132,7 @@ impl EnvelopeProcessorService {
             ItemType::Profile => {
                 match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
                     Ok((profile_id, payload)) => {
-                        if payload.len() <= self.config.max_profile_size() {
+                        if payload.len() <= self.inner.config.max_profile_size() {
                             if let Some(event) = state.event.value_mut() {
                                 if event.ty.value() == Some(&EventType::Transaction) {
                                     let contexts = event.contexts.get_or_insert_with(Contexts::new);
@@ -1190,7 +1192,7 @@ impl EnvelopeProcessorService {
         let client_addr = meta.client_addr();
         let event_id = state.envelope().event_id();
 
-        let limit = self.config.max_replay_uncompressed_size();
+        let limit = self.inner.config.max_replay_uncompressed_size();
         let config = project_state.config();
         let datascrubbing_config = config
             .datascrubbing_settings
@@ -1387,7 +1389,7 @@ impl EnvelopeProcessorService {
         let envelope = &mut state.envelope_mut();
 
         if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
-            utils::expand_unreal_envelope(item, envelope, &self.config)?;
+            utils::expand_unreal_envelope(item, envelope, &self.inner.config)?;
         }
 
         Ok(())
@@ -1621,7 +1623,7 @@ impl EnvelopeProcessorService {
             ItemType::RawSecurity => true,
 
             // These should be removed conditionally:
-            ItemType::UnrealReport => self.config.processing_enabled(),
+            ItemType::UnrealReport => self.inner.config.processing_enabled(),
 
             // These may be forwarded to upstream / store:
             ItemType::Attachment => false,
@@ -1705,7 +1707,12 @@ impl EnvelopeProcessorService {
                 })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
             relay_log::trace!("extracting attached event data");
-            Self::event_from_attachments(&self.config, attachment_item, breadcrumbs1, breadcrumbs2)?
+            Self::event_from_attachments(
+                &self.inner.config,
+                attachment_item,
+                breadcrumbs1,
+                breadcrumbs2,
+            )?
         } else if let Some(item) = form_item {
             relay_log::trace!("extracting form data");
             let len = item.len();
@@ -1768,11 +1775,11 @@ impl EnvelopeProcessorService {
 
         let event = match state.event.value_mut() {
             Some(event) => event,
-            None if !self.config.processing_enabled() => return Ok(()),
+            None if !self.inner.config.processing_enabled() => return Ok(()),
             None => return Err(ProcessingError::NoEventPayload),
         };
 
-        if !self.config.processing_enabled() {
+        if !self.inner.config.processing_enabled() {
             static MY_VERSION_STRING: OnceCell<String> = OnceCell::new();
             let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
 
@@ -1782,6 +1789,7 @@ impl EnvelopeProcessorService {
                 .push(Annotated::new(RelayInfo {
                     version: Annotated::new(my_version.clone()),
                     public_key: self
+                        .inner
                         .config
                         .public_key()
                         .map_or(Annotated::empty(), |pk| Annotated::new(pk.to_string())),
@@ -1800,7 +1808,7 @@ impl EnvelopeProcessorService {
 
         // In processing mode, also write metrics into the event. Most metrics have already been
         // collected at this state, except for the combined size of all attachments.
-        if self.config.processing_enabled() {
+        if self.inner.config.processing_enabled() {
             let mut metrics = std::mem::take(&mut state.metrics);
 
             let attachment_size = envelope
@@ -1924,8 +1932,8 @@ impl EnvelopeProcessorService {
             protocol_version: Some(envelope.meta().version().to_string()),
             grouping_config: project_state.config.grouping_config.clone(),
             user_agent: envelope.meta().user_agent().map(str::to_owned),
-            max_secs_in_future: Some(self.config.max_secs_in_future()),
-            max_secs_in_past: Some(self.config.max_secs_in_past()),
+            max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+            max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
             enable_trimming: Some(true),
             is_renormalize: Some(false),
             remove_other: Some(true),
@@ -2091,7 +2099,7 @@ impl EnvelopeProcessorService {
                         .and_then(|dsc| dsc.transaction.as_deref());
 
                     let extractor = TransactionExtractor {
-                        aggregator_config: self.config.aggregator_config(),
+                        aggregator_config: self.inner.config.aggregator_config(),
                         config,
                         transaction_from_dsc,
                         sampling_result: &state.sampling_result,
@@ -2119,7 +2127,7 @@ impl EnvelopeProcessorService {
                 .has_feature(Feature::SpanMetricsExtraction)
             {
                 let metrics = crate::metrics_extraction::spans::extract_span_metrics(
-                    self.config.aggregator_config(),
+                    self.inner.config.aggregator_config(),
                     event,
                 )?;
                 state.extracted_metrics.project_metrics.extend(metrics);
@@ -2264,7 +2272,7 @@ impl EnvelopeProcessorService {
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
         state.sampling_result = utils::get_sampling_result(
-            self.config.processing_enabled(),
+            self.inner.config.processing_enabled(),
             Some(&state.project_state),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
@@ -2283,7 +2291,7 @@ impl EnvelopeProcessorService {
         }
 
         let sampled = utils::is_trace_fully_sampled(
-            self.config.processing_enabled(),
+            self.inner.config.processing_enabled(),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
         );
@@ -2343,10 +2351,11 @@ impl EnvelopeProcessorService {
                     client_hints: request_meta.client_hints().as_deref(),
                 },
                 received_at: Some(state.managed_envelope.received_at()),
-                max_secs_in_past: Some(self.config.max_secs_in_past()),
-                max_secs_in_future: Some(self.config.max_secs_in_future()),
+                max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
+                max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
                 max_name_and_unit_len: Some(
-                    self.config
+                    self.inner
+                        .config
                         .aggregator_config()
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
@@ -2364,6 +2373,7 @@ impl EnvelopeProcessorService {
                     .project_state
                     .has_feature(Feature::SpanMetricsExtraction),
                 max_tag_value_length: self
+                    .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
                     .max_tag_value_length,
@@ -2387,7 +2397,7 @@ impl EnvelopeProcessorService {
         macro_rules! if_processing {
             ($if_true:block) => {
                 #[cfg(feature = "processing")] {
-                    if self.config.processing_enabled() $if_true
+                    if self.inner.config.processing_enabled() $if_true
                 }
             };
         }
@@ -2712,7 +2722,7 @@ impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let thread_count = self.config.cpu_concurrency();
+        let thread_count = self.inner.config.cpu_concurrency();
         relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
@@ -3166,6 +3176,7 @@ mod tests {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
         let inner = InnerProcessor {
+            config: Arc::new(config),
             envelope_manager,
             project_cache,
             outcome_aggregator,
@@ -3176,7 +3187,6 @@ mod tests {
         };
 
         EnvelopeProcessorService {
-            config: Arc::new(config),
             inner: Arc::new(inner),
         }
     }
