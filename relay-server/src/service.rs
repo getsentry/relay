@@ -53,7 +53,7 @@ pub struct Registry {
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
-    pub global_config: Addr<GlobalConfiguration>,
+    pub global_configuration: Addr<GlobalConfiguration>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
 }
@@ -216,7 +216,7 @@ impl ServiceState {
             envelope_manager,
             test_store,
             relay_cache,
-            global_config,
+            global_configuration: global_config,
             project_cache,
             upstream_relay,
         };
@@ -287,7 +287,7 @@ impl ServiceState {
 
     /// Returns the address of the [`GlobalConfigurationService`] service.
     pub fn global_configuration(&self) -> &Addr<GlobalConfiguration> {
-        &self.inner.registry.global_config
+        &self.inner.registry.global_configuration
     }
 
     /// Returns the address of the [`OutcomeProducer`] service.

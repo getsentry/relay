@@ -8,7 +8,7 @@ use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_upstream::GetProjectStates;
 use crate::actors::upstream::{SendQuery, UpstreamRelay};
 
-/// Service implementing the [`GlobalConfigResponse`] interface.
+/// Service implementing the [`GlobalConfiguration`] interface.
 ///
 /// The service is responsible for fetching the global config and
 /// forwarding it to the services that require it.
