@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Normalize old RN SDK app start time measurements and spans. ([#2358](https://github.com/getsentry/relay/pull/2358))
+- Normalize old React Native SDK app start time measurements and spans. ([#2358](https://github.com/getsentry/relay/pull/2358))
 
 **Bug Fixes**:
 
