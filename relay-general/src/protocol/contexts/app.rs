@@ -113,12 +113,10 @@ mod tests {
             app_build: Annotated::new("100001".to_string().into()),
             app_memory: Annotated::new(22883948),
             in_foreground: Annotated::new(true),
-            view_names: Annotated::new(
-                vec![
-                    Annotated::new("FooViewController".to_string()),
-                    Annotated::new("BarViewController".to_string()),
-                ]
-            ),
+            view_names: Annotated::new(vec![
+                Annotated::new("FooViewController".to_string()),
+                Annotated::new("BarViewController".to_string()),
+            ]),
             other: {
                 let mut map = Object::new();
                 map.insert(
