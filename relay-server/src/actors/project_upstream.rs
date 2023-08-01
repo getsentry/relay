@@ -48,7 +48,7 @@ pub struct GetProjectStatesResponse {
     /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
     #[serde(default)]
     pub(crate) configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
-    /// The [`ProjectKey`]'s that couldn't be immediatly retrieved from the upstream.
+    /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
     pub(crate) pending: Vec<ProjectKey>,
     /// The global config fetched from the upstream.

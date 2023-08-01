@@ -26,7 +26,7 @@ pub enum GlobalConfiguration {
 
 impl Interface for GlobalConfiguration {}
 
-/// The message for requesting the most recent global config from [`GlobalConfigurationService`]
+/// The message for requesting the most recent global config from [`GlobalConfigurationService`].
 pub struct GetGlobalConfig;
 
 impl FromMessage<GetGlobalConfig> for GlobalConfiguration {
@@ -38,7 +38,7 @@ impl FromMessage<GetGlobalConfig> for GlobalConfiguration {
 }
 
 impl GlobalConfigurationService {
-    /// Creates a new [`GlobalConfigurationService`]
+    /// Creates a new [`GlobalConfigurationService`].
     pub fn new(envelope_processor: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
         let global_config = Arc::new(GlobalConfig::default());
         Self {
