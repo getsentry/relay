@@ -11,7 +11,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 
 /// Configuration for extracting metrics from spans.
 ///
-/// This configuration is temporarily hard-coded here. It will later move to project config
+/// This configuration is temporarily hard-coded here. It will later be moved to project config
 /// and be provided by the upstream.
 static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
     Lazy::new(|| MetricExtractionConfig {
