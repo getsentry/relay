@@ -71,6 +71,9 @@ impl ProjectStateWrapper {
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections.  This list is always empty before V3.
+///
+/// The response may also have a [`GlobalConfig`] which should be returned if the `global_config`
+/// flag is enabled on [`GetProjectStatesRequest`]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
@@ -78,7 +81,7 @@ struct GetProjectStatesResponseWrapper {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    global: Option<GlobalConfig>,
+    global_config: Option<GlobalConfig>,
 }
 
 /// Request payload of the project config endpoint.
@@ -104,7 +107,7 @@ async fn inner(
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
     let project_cache = &state.project_cache().clone();
-    let global_config_service = &state.global_config().clone();
+    let global_configuration_service = &state.global_configuration().clone();
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
@@ -128,12 +131,18 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
-    let global = if inner.global_config {
-        global_config_service
-            .send(GetGlobalConfig)
-            .await
-            .ok()
-            .map(|gc| (*gc).clone())
+    let global_config = if inner.global_config {
+        match global_configuration_service.send(GetGlobalConfig).await {
+            Ok(global_config) => Some(global_config),
+            Err(e) => {
+                relay_log::error!(
+                    "Failed to fetch globalconfig from GlobalConfiguration service: {}",
+                    e
+                );
+                None
+            }
+        }
+        .map(|gc| (*gc).clone())
     } else {
         None
     };
@@ -168,7 +177,7 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global,
+        global_config,
     }))
 }
 

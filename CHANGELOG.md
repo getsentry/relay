@@ -6,6 +6,10 @@
 
 - Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
 
+**Internal**:
+
+- Add new service for fetching global configs. ([#2320](https://github.com/getsentry/relay/pull/2320))
+
 ## 23.7.1
 
 **Bug Fixes**:
@@ -26,7 +30,6 @@
 
 **Internal**:
 
-- Add new service for fetching global configs. ([#2320](https://github.com/getsentry/relay/pull/2320))
 - Add support for `sampled` field in the DSC and error tagging. ([#2290](https://github.com/getsentry/relay/pull/2290))
 - Move span tag extraction from metrics to normalization. ([#2304](https://github.com/getsentry/relay/pull/2304))
 

@@ -13,7 +13,7 @@ use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
-use crate::actors::global_config::{GlobalConfigResponse, GlobalConfigService};
+use crate::actors::global_config::{GlobalConfiguration, GlobalConfigurationService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -53,7 +53,7 @@ pub struct Registry {
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
-    pub global_config: Addr<GlobalConfigResponse>,
+    pub global_configuration: Addr<GlobalConfiguration>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
 }
@@ -189,8 +189,8 @@ impl ServiceState {
         .spawn_handler(project_cache_rx);
         drop(guard);
 
-        let global_config =
-            GlobalConfigService::new(processor.clone(), upstream_relay.clone()).start();
+        let global_configuration =
+            GlobalConfigurationService::new(processor.clone(), upstream_relay.clone()).start();
 
         let health_check = HealthCheckService::new(
             config.clone(),
@@ -216,7 +216,7 @@ impl ServiceState {
             envelope_manager,
             test_store,
             relay_cache,
-            global_config,
+            global_configuration,
             project_cache,
             upstream_relay,
         };
@@ -285,9 +285,9 @@ impl ServiceState {
         &self.inner.registry.processor
     }
 
-    /// Returns the address of the [`GlobalConfigService`] service.
-    pub fn global_config(&self) -> &Addr<GlobalConfigResponse> {
-        &self.inner.registry.global_config
+    /// Returns the address of the [`GlobalConfigurationService`] service.
+    pub fn global_configuration(&self) -> &Addr<GlobalConfiguration> {
+        &self.inner.registry.global_configuration
     }
 
     /// Returns the address of the [`OutcomeProducer`] service.

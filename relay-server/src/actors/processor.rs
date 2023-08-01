@@ -2741,8 +2741,9 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::RateLimitFlushBuckets(message) => {
                 self.handle_rate_limit_flush_buckets(message);
             }
-            // This message is handled in the spawn_handler loop.
-            EnvelopeProcessor::UpdateGlobalConfig(_) => {}
+            EnvelopeProcessor::UpdateGlobalConfig(_) => {
+                relay_log::error!("UpdateGlobalConfig should be handled in the spawn_handler of EnvelopeProcessorService")
+            }
         }
     }
 }
@@ -2750,7 +2751,7 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let thread_count = self.inner.config.cpu_concurrency();
         relay_log::info!("starting {thread_count} envelope processing workers");
 
@@ -2760,12 +2761,19 @@ impl Service for EnvelopeProcessorService {
             while let (Some(message), Ok(permit)) =
                 tokio::join!(rx.recv(), semaphore.clone().acquire_owned())
             {
-                let service = self.clone();
+                match message {
+                    EnvelopeProcessor::UpdateGlobalConfig(global_config) => {
+                        self.global_config = global_config
+                    }
+                    message => {
+                        let service = self.clone();
 
-                tokio::task::spawn_blocking(move || {
-                    service.handle_message(message);
-                    drop(permit);
-                });
+                        tokio::task::spawn_blocking(move || {
+                            service.handle_message(message);
+                            drop(permit);
+                        });
+                    }
+                }
             }
         });
     }
