@@ -277,8 +277,10 @@ fn normalize_app_start_spans(event: &mut Event) {
                 if let Some(op) = span.op.value() {
                     if op == "app_start_cold" {
                         span.op.set_value(Some("app.start.cold".to_string()));
+                        break;
                     } else if op == "app_start_warm" {
                         span.op.set_value(Some("app.start.warm".to_string()));
+                        break;
                     }
                 }
             }
@@ -3351,7 +3353,7 @@ mod tests {
     fn test_normalize_app_start_warm_spans_for_react_native() {
         let mut event = Event {
             spans: Annotated::new(vec![Annotated::new(Span {
-                op: Annotated::new("app.start.warm".to_owned()),
+                op: Annotated::new("app_start_warm".to_owned()),
                 ..Default::default()
             })]),
             client_sdk: Annotated::new(ClientSdkInfo {
