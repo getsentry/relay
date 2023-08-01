@@ -11,7 +11,7 @@ use crate::actors::upstream::{SendQuery, UpstreamRelay};
 /// Service implementing the [`GlobalConfiguration`] interface.
 ///
 /// The service is responsible for fetching the global config and
-/// forwarding it to the services that require it.
+/// forwarding it to the services that require it, and for serving downstream relays.
 #[derive(Debug)]
 pub struct GlobalConfigurationService {
     global_config: Arc<GlobalConfig>,
