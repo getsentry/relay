@@ -45,12 +45,15 @@ pub struct GetProjectStates {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
+    /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
     #[serde(default)]
-    pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    pub(crate) configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    /// The [`ProjectKey`]'s that couldn't be immediatly retrieved from the upstream.
     #[serde(default)]
-    pub pending: Vec<ProjectKey>,
+    pub(crate) pending: Vec<ProjectKey>,
+    /// The global config fetched from the upstream.
     #[serde(default)]
-    pub global_config: Option<GlobalConfig>,
+    pub(crate) global_config: Option<GlobalConfig>,
 }
 
 impl UpstreamQuery for GetProjectStates {

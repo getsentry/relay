@@ -26,6 +26,7 @@ pub enum GlobalConfiguration {
 
 impl Interface for GlobalConfiguration {}
 
+/// The message for requesting the most recent global config from [`GlobalConfigurationService`]
 pub struct GetGlobalConfig;
 
 impl FromMessage<GetGlobalConfig> for GlobalConfiguration {
@@ -37,19 +38,20 @@ impl FromMessage<GetGlobalConfig> for GlobalConfiguration {
 }
 
 impl GlobalConfigurationService {
-    pub fn new(project_cache: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
+    /// Creates a new [`GlobalConfigurationService`]
+    pub fn new(envelope_processor: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
         let global_config = Arc::new(GlobalConfig::default());
         Self {
             global_config,
-            envelope_processor: project_cache,
+            envelope_processor,
             upstream,
         }
     }
 
     fn handle_message(&self, message: GlobalConfiguration) {
         match message {
-            GlobalConfiguration::GetGlobalConfig(global_config) => {
-                global_config.send(self.global_config.clone());
+            GlobalConfiguration::GetGlobalConfig(sender) => {
+                sender.send(Arc::clone(&self.global_config));
             }
         }
     }
@@ -57,7 +59,7 @@ impl GlobalConfigurationService {
     /// Forwards the given global config to the services that require it.
     async fn update_global_config(&mut self) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
-        let project_cache = self.envelope_processor.clone();
+        let envelope_processor = self.envelope_processor.clone();
 
         let query = GetProjectStates {
             public_keys: vec![],
@@ -71,7 +73,7 @@ impl GlobalConfigurationService {
                 Some(global_config) => {
                     let global_config = Arc::new(global_config);
                     self.global_config = global_config.clone();
-                    project_cache.send::<Arc<GlobalConfig>>(global_config);
+                    envelope_processor.send::<Arc<GlobalConfig>>(global_config);
                 }
                 None => relay_log::error!("Upstream response didn't include a global config"),
             },
