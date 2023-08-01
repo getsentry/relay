@@ -85,12 +85,12 @@
 
 </span><span class="kw">mod </span>attachments;
 <span class="kw">mod </span>common;
-<span class="kw">mod </span>cron;
 <span class="kw">mod </span>envelope;
 <span class="kw">mod </span>events;
 <span class="kw">mod </span>forward;
 <span class="kw">mod </span>health_check;
 <span class="kw">mod </span>minidump;
+<span class="kw">mod </span>monitor;
 <span class="kw">mod </span>outcomes;
 <span class="kw">mod </span>project_configs;
 <span class="kw">mod </span>public_keys;
@@ -134,11 +134,11 @@
     </span><span class="kw">let </span>store_routes = Router::new()
         <span class="comment">// Legacy store path that is missing the project parameter.
         </span>.route(<span class="string">&quot;/api/store/&quot;</span>, store::route(config))
-        <span class="comment">// cron level routes.  These are user facing APIs and as such support trailing slashes.
-        </span>.route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug/:sentry_key&quot;</span>, cron::route(config))
-        .route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug/:sentry_key/&quot;</span>, cron::route(config))
-        .route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug&quot;</span>, cron::route(config))
-        .route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug/&quot;</span>, cron::route(config))
+        <span class="comment">// cron monitor level routes.  These are user facing APIs and as such support trailing slashes.
+        </span>.route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug/:sentry_key&quot;</span>, monitor::route(config))
+        .route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug/:sentry_key/&quot;</span>, monitor::route(config))
+        .route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug&quot;</span>, monitor::route(config))
+        .route(<span class="string">&quot;/api/:project_id/cron/:monitor_slug/&quot;</span>, monitor::route(config))
 
         .route(<span class="string">&quot;/api/:project_id/store/&quot;</span>, store::route(config))
         .route(<span class="string">&quot;/api/:project_id/envelope/&quot;</span>, envelope::route(config))
