@@ -17,7 +17,16 @@ RUN yum -y update \
     llvm-toolset-7.0-clang-devel \
     && yum clean all \
     && rm -rf /var/cache/yum \
-    && ln -s /usr/bin/cmake3 /usr/bin/cmake
+    && ln -s /usr/bin/cmake3 /usr/bin/cmake \
+    && if [ ${BUILD_ARCH} == "aarch64" ]; then \
+    yum -y install curl dnf ca-certificates gcc-aarch64-linux-gnu qemu-user \
+    && dnf --forcearch aarch64 --release 7 install -y glibc glibc-devel  --installroot "/usr/aarch64-linux-gnu/sys-root/" \
+    && curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 \
+    && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7 \
+    && ln -s "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so.1" "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so" \
+    # NOTE(iker): work-around to create a cmake toolchain file for arch-specific builds, since only objcopy is needed.
+    && rm -rf "/usr/bin/objcopy" && ln -s "/usr/bin/aarch64-linux-gnu-objcopy" "/usr/bin/objcopy" ; \
+    fi
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
@@ -25,7 +34,8 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
-    && echo -e '[registries.crates-io]\nprotocol = "sparse"\n[net]\ngit-fetch-with-cli = true' > $CARGO_HOME/config
+    && echo -e '[registries.crates-io]\nprotocol = "sparse"\n[net]\ngit-fetch-with-cli = true' > $CARGO_HOME/config \
+    && rustup target add aarch64-unknown-linux-gnu
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 

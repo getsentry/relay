@@ -3,14 +3,14 @@ name: Binary Release Build
 on:
   push:
     branches:
-      - release/**
+      # - release/**  # testing
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  linux:
-    name: Linux
+  linux_x86:
+    name: Linux x86
     runs-on: ubuntu-latest
 
     steps:
@@ -37,6 +37,35 @@ jobs:
         with:
           name: ${{ github.sha }}
           path: target/x86_64-unknown-linux-gnu/release/relay-Linux-x86_64*
+
+  linux_arm:
+      name: Linux ARM
+      runs-on: ubuntu-latest
+
+      steps:
+        - uses: actions/checkout@v3
+          with:
+            submodules: recursive
+
+        - name: Build in Docker
+          run: |
+            # Get the latest stable rust toolchain version available
+            TOOLCHAIN=$(curl -s 'https://static.rust-lang.org/dist/channel-rust-stable.toml' | awk '/\[pkg.rust\]/ {getline;print;}' | sed -r 's/^version = "([0-9.]+) .*/\1/')
+            scripts/docker-build-linux.sh "$TOOLCHAIN"
+          env:
+            BUILD_ARCH: aarch64
+            RELAY_FEATURES:
+
+        - name: Bundle Debug File
+          run: |
+            cd target/aarch64-unknown-linux-gnu/release/
+            zip relay-Linux-aarch64-debug.zip relay.debug
+            mv relay relay-Linux-aarch64
+
+        - uses: actions/upload-artifact@v3
+          with:
+            name: ${{ github.sha }}
+            path: target/aarch64-unknown-linux-gnu/release/relay-Linux-aarch64*
 
   macos:
     name: macOS

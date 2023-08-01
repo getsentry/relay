@@ -3,7 +3,9 @@ set -eux
 
 TOOLCHAIN=$1
 
-if [ "${BUILD_ARCH}" = "x86_64" ]; then
+if [ "${BUILD_ARCH}" = "aarch64" ]; then
+  DOCKER_ARCH="amd64"
+elif [ "${BUILD_ARCH}" = "x86_64" ]; then
   DOCKER_ARCH="amd64"
 elif [ "${BUILD_ARCH}" = "i686" ]; then
   DOCKER_ARCH="i386"
