@@ -2241,6 +2241,12 @@ impl EnvelopeProcessorService {
             _ => ItemAction::Keep,
         });
 
+        // Only extract spans from transactions (not errors).
+        if state.event_type() != Some(EventType::Transaction) {
+            return;
+        };
+
+        // Check feature flag.
         if !state
             .project_state
             .has_feature(Feature::ExtractStandaloneSpans)
@@ -2248,6 +2254,7 @@ impl EnvelopeProcessorService {
             return;
         };
 
+        // Extract.
         let Some(spans) = state.event.value().and_then(|e| e.spans.value()) else { return };
         for span in spans {
             let span = match span.to_json() {
