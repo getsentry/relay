@@ -107,7 +107,7 @@ async fn inner(
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
     let project_cache = &state.project_cache().clone();
-    let global_config_service = &state.global_configuration().clone();
+    let global_configuration_service = &state.global_configuration().clone();
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
@@ -132,7 +132,7 @@ async fn inner(
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
     let global_config = if inner.global_config {
-        global_config_service
+        global_configuration_service
             .send(GetGlobalConfig)
             .await
             .ok()

@@ -91,7 +91,7 @@ impl Service for GlobalConfigurationService {
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(Duration::from_secs(10));
-            relay_log::info!("global config started");
+            relay_log::info!("global configuration service started");
 
             loop {
                 tokio::select! {
@@ -101,7 +101,7 @@ impl Service for GlobalConfigurationService {
                     else => break,
                 }
             }
-            relay_log::info!("global config stopped");
+            relay_log::info!("global configuration service stopped");
         });
     }
 }
