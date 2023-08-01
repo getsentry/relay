@@ -124,9 +124,9 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
             .and_then(|r| r.method.value())
             .map(|m| m.to_uppercase());
 
-        if let Some(transaction_method) = transaction_method_from_request
-            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
-        {
+        if let Some(transaction_method) = transaction_method_from_request.or_else(|| {
+            http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
+        }) {
             tags.insert(SpanTagKey::TransactionMethod, transaction_method);
         }
     }
@@ -213,7 +213,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             _ => None,
         };
 
-        if let Some(act) = action.clone() {
+        if let Some(act) = action {
             span_tags.insert(SpanTagKey::Action, act);
         }
 
@@ -241,7 +241,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         };
 
         if !span_op.starts_with("db.redis") {
-            if let Some(dom) = domain.clone() {
+            if let Some(dom) = domain {
                 span_tags.insert(SpanTagKey::Domain, dom);
             }
         }
