@@ -542,7 +542,7 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
-    /// The maximum payload size for a span
+    /// The maximum payload size for a span.
     max_span_size: ByteSize,
     /// The maximum payload size for a compressed replay.
     max_replay_compressed_size: ByteSize,

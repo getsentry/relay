@@ -1093,7 +1093,7 @@ impl Message for KafkaMessage {
             Self::ReplayEvent(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
             Self::CheckIn(_message) => Uuid::nil(),
-            Self::Span(_) => Uuid::nil(), // TODO
+            Self::Span(_) => Uuid::nil(), // random partitioning
         };
 
         if uuid.is_nil() {
