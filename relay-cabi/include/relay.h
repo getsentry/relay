@@ -77,7 +77,7 @@ enum RelayDataCategory {
   /**
    * Span
    *
-   * Used for spans processed indepently of transactions.
+   * Used for spans processed independently of transactions.
    */
   RELAY_DATA_CATEGORY_SPAN = 12,
   /**

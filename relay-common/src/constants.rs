@@ -130,7 +130,7 @@ pub enum DataCategory {
     ProfileIndexed = 11,
     /// Span
     ///
-    /// Used for spans processed indepently of transactions.
+    /// Used for spans processed independently of transactions.
     Span = 12,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run

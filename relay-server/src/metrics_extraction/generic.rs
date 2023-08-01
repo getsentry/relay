@@ -6,15 +6,6 @@ use relay_general::protocol::{Event, Span, Timestamp};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
 
-/// Extract metrics from an [`Event`].
-///
-/// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
-/// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
-/// valid timestamps.
-pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
-    extract_metrics_from(event, config)
-}
-
 /// Item from which metrics can be extracted.
 pub trait Extractable {
     /// Data category for the metric spec to match on.
@@ -49,25 +40,30 @@ impl Extractable for Span {
     }
 }
 
-pub fn extract_metrics_from<T>(data: &T, config: &MetricExtractionConfig) -> Vec<Metric>
+/// Extract metrics from any type that implements both [`Extractable`] and [`FieldValueProvider`].
+///
+/// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
+/// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
+/// valid timestamps.
+pub fn extract_metrics_from<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
 where
     T: Extractable + FieldValueProvider,
 {
     let mut metrics = Vec::new();
 
-    let event_ts = data.timestamp();
-    let Some(timestamp) = event_ts.and_then(|d| UnixTimestamp::from_datetime(d.0)) else {
-        relay_log::error!(timestamp = ?event_ts, "invalid event timestamp for metric extraction");
+    let ts = instance.timestamp();
+    let Some(timestamp) = ts.and_then(|d| UnixTimestamp::from_datetime(d.0)) else {
+        relay_log::error!(timestamp = ?ts, "invalid event timestamp for metric extraction");
         return metrics
     };
 
     for metric_spec in &config.metrics {
-        if metric_spec.category != data.category() {
+        if metric_spec.category != instance.category() {
             continue;
         }
 
         if let Some(ref condition) = &metric_spec.condition {
-            if !condition.matches(data) {
+            if !condition.matches(instance) {
                 continue;
             }
         }
@@ -79,7 +75,7 @@ where
             continue;
         };
 
-        let Some(value) = read_metric_value(data, metric_spec.field.as_deref(), mri.ty) else {
+        let Some(value) = read_metric_value(instance, metric_spec.field.as_deref(), mri.ty) else {
             continue;
         };
 
@@ -101,29 +97,29 @@ where
             name: mri.to_string(),
             value,
             timestamp,
-            tags: extract_event_tags(data, tags),
+            tags: extract_tags(instance, tags),
         });
     }
 
     metrics
 }
 
-fn extract_event_tags<'a>(
-    event: &impl FieldValueProvider,
+fn extract_tags<'a>(
+    instance: &impl FieldValueProvider,
     tags: impl Iterator<Item = &'a TagSpec>,
 ) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
 
     for tag_spec in tags {
         if let Some(ref condition) = tag_spec.condition {
-            if !condition.matches(event) {
+            if !condition.matches(instance) {
                 continue;
             }
         }
 
         let value_opt = match tag_spec.source() {
             TagSource::Literal(value) => Some(value.to_owned()),
-            TagSource::Field(field) => event.get_value(field).as_str().map(str::to_owned),
+            TagSource::Field(field) => instance.get_value(field).as_str().map(str::to_owned),
             TagSource::Unknown => None,
         };
 
@@ -139,18 +135,18 @@ fn extract_event_tags<'a>(
 }
 
 fn read_metric_value(
-    event: &impl FieldValueProvider,
+    instance: &impl FieldValueProvider,
     field: Option<&str>,
     ty: MetricType,
 ) -> Option<MetricValue> {
     Some(match ty {
         MetricType::Counter => MetricValue::Counter(match field {
-            Some(field) => event.get_value(field).as_f64()?,
+            Some(field) => instance.get_value(field).as_f64()?,
             None => 1.0,
         }),
-        MetricType::Distribution => MetricValue::Distribution(event.get_value(field?).as_f64()?),
-        MetricType::Set => MetricValue::set_from_str(event.get_value(field?).as_str()?),
-        MetricType::Gauge => MetricValue::Gauge(event.get_value(field?).as_f64()?),
+        MetricType::Distribution => MetricValue::Distribution(instance.get_value(field?).as_f64()?),
+        MetricType::Set => MetricValue::set_from_str(instance.get_value(field?).as_str()?),
+        MetricType::Gauge => MetricValue::Gauge(instance.get_value(field?).as_f64()?),
     })
 }
 
@@ -180,7 +176,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
@@ -216,7 +212,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
@@ -254,7 +250,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
@@ -304,7 +300,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r###"
         [
             Metric {
