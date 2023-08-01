@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use relay_dynamic_config::GlobalConfig;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
+use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_upstream::GetProjectStates;
@@ -57,33 +58,40 @@ impl GlobalConfigurationService {
     }
 
     /// Forwards the given global config to the services that require it.
-    async fn update_global_config(&mut self) {
+    fn update_global_config(&mut self, global_tx: UnboundedSender<Arc<GlobalConfig>>) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
         let envelope_processor = self.envelope_processor.clone();
 
-        let query = GetProjectStates {
-            public_keys: vec![],
-            full_config: false,
-            no_cache: false,
-            global_config: true,
-        };
+        tokio::spawn(async move {
+            let query = GetProjectStates {
+                public_keys: vec![],
+                full_config: false,
+                no_cache: false,
+                global_config: true,
+            };
 
-        match upstream_relay.send(SendQuery(query)).await {
-            Ok(Ok(response)) => match response.global_config {
-                Some(global_config) => {
-                    let global_config = Arc::new(global_config);
-                    self.global_config = global_config.clone();
-                    envelope_processor.send::<Arc<GlobalConfig>>(global_config);
+            match upstream_relay.send(SendQuery(query)).await {
+                Ok(Ok(response)) => match response.global_config {
+                    Some(global_config) => {
+                        let global_config = Arc::new(global_config);
+                        if let Err(e) = global_tx.send(global_config.clone()) {
+                            relay_log::error!(
+                                "Failed to send global config to GlobalConfigurationService: {}",
+                                e
+                            );
+                        };
+                        envelope_processor.send::<Arc<GlobalConfig>>(global_config);
+                    }
+                    None => relay_log::error!("Upstream response didn't include a global config"),
+                },
+                Err(e) => {
+                    relay_log::error!("failed to send global config request: {}", e);
                 }
-                None => relay_log::error!("Upstream response didn't include a global config"),
-            },
-            Err(e) => {
-                relay_log::error!("failed to send global config request: {}", e);
-            }
-            Ok(Err(e)) => {
-                relay_log::error!("failed to fetch global config request: {}", e);
-            }
-        };
+                Ok(Err(e)) => {
+                    relay_log::error!("failed to fetch global config request: {}", e);
+                }
+            };
+        });
     }
 }
 
@@ -95,10 +103,14 @@ impl Service for GlobalConfigurationService {
             let mut ticker = tokio::time::interval(Duration::from_secs(10));
             relay_log::info!("global configuration service started");
 
+            // Channel for async global config responses back into the GlobalConfigurationService.
+            let (global_tx, mut global_rx) = mpsc::unbounded_channel();
+
             loop {
                 tokio::select! {
                     biased;
-                    _ = ticker.tick() => self.update_global_config().await,
+                    _ = ticker.tick() => self.update_global_config(global_tx.clone()),
+                    Some(global_config) = global_rx.recv() => self.global_config = global_config,
                     Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
