@@ -13,7 +13,7 @@
 //! be happening.
 //!
 //! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
-//! [`crate::project::ProjectState`] it continue to use the memory as temporary spool.
+//! [`crate::actors::project::ProjectState`] it continue to use the memory as temporary spool.
 //!
 //! In case of an incident when the in-memory spool gets full (see, `spool.envelopes.max_memory_size` config option)
 //! or if the processing pipeline gets too many messages in-flight, the internal state will be
