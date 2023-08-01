@@ -220,7 +220,7 @@ def test_store_buffer_size(mini_sentry, relay):
             relay.send_event(project_id, {"message": "pls ignore"})
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
-        for (_, error) in mini_sentry.test_failures:
+        for _, error in mini_sentry.test_failures:
             assert isinstance(error, AssertionError)
             assert "buffer capacity exceeded" in str(error)
     finally:
@@ -1177,3 +1177,46 @@ def test_invalid_project_id(mini_sentry, relay):
 
     relay.send_event(99, headers=headers)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+
+
+def test_spans(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = ["projects:extract-standalone-spans"]
+
+    event = make_transaction({})
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": 1000,
+            "timestamp": 3000,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    relay.send_event(project_id, event)
+
+    msg = spans_consumer.get_message()
+    assert msg["type"] == "span"
+    span = msg["span"]
+    assert span == {
+        "description": "GET /api/0/organizations/?member=1",
+        "op": "http",
+        "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "span_id": "bbbbbbbbbbbbbbbb",
+        "start_timestamp": 1000.0,
+        "timestamp": 3000.0,
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+    }
+
+    spans_consumer.assert_empty()
