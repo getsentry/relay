@@ -1,6 +1,4 @@
 import pytest
-import logging
-from time import sleep
 from urllib.parse import urlparse
 from flask import Flask, request as flask_request
 from pytest_localserver.http import WSGIServer

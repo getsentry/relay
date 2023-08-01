@@ -4,7 +4,6 @@ import gzip
 import pytest
 import signal
 import zlib
-import subprocess
 
 
 def test_graceful_shutdown(mini_sentry, relay):
@@ -54,7 +53,7 @@ def test_forced_shutdown(mini_sentry, relay):
 
         # we are expecting at least a dropped unfinished future error
         dropped_unfinished_error_found = False
-        for (route, error) in failures:
+        for route, error in failures:
             assert route == "/api/666/envelope/"
             if "Dropped unfinished future" in str(error):
                 dropped_unfinished_error_found = True

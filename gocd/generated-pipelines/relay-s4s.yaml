@@ -1,9 +1,9 @@
 format_version: 10
 pipelines:
-  deploy-relay-monitor:
+  deploy-relay-s4s:
     display_order: 2
     environment_variables:
-      SENTRY_REGION: monitor
+      SENTRY_REGION: s4s
     group: relay
     lock_behavior: unlockWhenFinished
     materials:
@@ -67,24 +67,13 @@ pipelines:
                         --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                         --container-name="relay"
               timeout: 1200
-      - progress-to-pops:
-          approval:
-            allow_only_on_success: true
-            type: manual
-          jobs:
-            progress-to-pops:
-              elastic_profile_id: relay
-              tasks:
-                - exec:
-                    command: true
-              timeout: 1200
       - deploy-pops:
           fetch_materials: true
           jobs:
-            deploy-pops-monitor:
+            deploy-pops-s4s:
               elastic_profile_id: relay-pop
               environment_variables:
-                SENTRY_REGION: monitor
+                SENTRY_REGION: s4s
               tasks:
                 - script: |
                     ##!/bin/bash

@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use chrono::Duration;
 use relay_common::{DurationUnit, MetricUnit, UnixTimestamp};
 use relay_general::store::span::tag_extraction::SpanTagKey;
 use relay_metrics::{Metric, MetricNamespace, MetricValue};
@@ -9,10 +8,6 @@ use crate::metrics_extraction::IntoMetric;
 
 #[derive(Clone, Debug)]
 pub(crate) enum SpanMetric {
-    Duration {
-        value: Duration,
-        tags: BTreeMap<SpanTagKey, String>,
-    },
     ExclusiveTime {
         value: f64,
         tags: BTreeMap<SpanTagKey, String>,
@@ -28,14 +23,6 @@ impl IntoMetric for SpanMetric {
         let namespace = MetricNamespace::Spans;
 
         match self {
-            SpanMetric::Duration { value, tags } => Metric::new_mri(
-                namespace,
-                "duration",
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(relay_common::chrono_to_positive_millis(value)),
-                timestamp,
-                span_tag_mapping_to_string_mapping(tags),
-            ),
             SpanMetric::ExclusiveTime { value, tags } => Metric::new_mri(
                 namespace,
                 "exclusive_time",
@@ -70,7 +57,7 @@ fn span_tag_mapping_to_string_mapping(
 mod tests {
     use std::collections::BTreeMap;
 
-    use chrono::{Duration, TimeZone, Utc};
+    use chrono::{TimeZone, Utc};
     use relay_common::UnixTimestamp;
 
     use crate::metrics_extraction::spans::types::{SpanMetric, SpanTagKey};
@@ -83,15 +70,15 @@ mod tests {
                 .unwrap();
 
         let tags = BTreeMap::from([(SpanTagKey::Release, "1.2.3".to_owned())]);
-        let metric = SpanMetric::Duration {
-            value: Duration::seconds(1),
+        let metric = SpanMetric::ExclusiveTime {
+            value: 1000.0,
             tags,
         };
         let converted = metric.into_metric(timestamp);
 
         insta::assert_debug_snapshot!(converted, @r###"
         Metric {
-            name: "d:spans/duration@millisecond",
+            name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
                 1000.0,
             ),

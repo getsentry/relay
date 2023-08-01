@@ -8,8 +8,6 @@ import threading
 
 import pytest
 
-from flask import jsonify
-
 from requests.exceptions import HTTPError
 import zstandard
 
@@ -145,7 +143,7 @@ def test_query_retry(failure_type, mini_sentry, relay):
         assert retry_count == 2
 
         if mini_sentry.test_failures:
-            for (_, error) in mini_sentry.test_failures:
+            for _, error in mini_sentry.test_failures:
                 assert isinstance(error, (socket.error, AssertionError))
     finally:
         mini_sentry.test_failures.clear()

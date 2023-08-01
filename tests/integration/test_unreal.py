@@ -1,7 +1,6 @@
 import os
 import pytest
 import json
-import time
 
 
 def _load_dump_file(base_file_name: str):

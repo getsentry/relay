@@ -109,7 +109,7 @@ lint-rust: setup-git ## run lint on Rust code using clippy
 .PHONY: lint-rust
 
 lint-python: setup-venv ## run lint on Python code using flake8
-	.venv/bin/flake8 py
+	.venv/bin/flake8 py tests
 .PHONY: lint-python
 
 lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
@@ -183,6 +183,6 @@ gocd: ## Build GoCD pipelines
 	@ cd ./gocd/templates && jb install && jb update
 	@ find . -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -print0 | xargs -n 1 -0 jsonnetfmt -i
 	@ find . -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -print0 | xargs -n 1 -0 jsonnet-lint -J ./gocd/templates/vendor
-	@ cd ./gocd/templates && jsonnet -J vendor -m ../generated-pipelines ./relay.jsonnet
+	@ cd ./gocd/templates && jsonnet --ext-code output-files=true -J vendor -m ../generated-pipelines ./relay.jsonnet
 	@ cd ./gocd/generated-pipelines && find . -type f \( -name '*.yaml' \) -print0 | xargs -n 1 -0 yq -p json -o yaml -i
 .PHONY: gocd
