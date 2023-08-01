@@ -132,11 +132,17 @@ async fn inner(
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
     let global_config = if inner.global_config {
-        global_configuration_service
-            .send(GetGlobalConfig)
-            .await
-            .ok()
-            .map(|gc| (*gc).clone())
+        match global_configuration_service.send(GetGlobalConfig).await {
+            Ok(global_config) => Some(global_config),
+            Err(e) => {
+                relay_log::error!(
+                    "Failed to fetch globalconfig from GlobalConfiguration service: {}",
+                    e
+                );
+                None
+            }
+        }
+        .map(|gc| (*gc).clone())
     } else {
         None
     };
