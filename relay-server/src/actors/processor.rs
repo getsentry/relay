@@ -1383,7 +1383,7 @@ impl EnvelopeProcessorService {
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
-            _global_config: self.global_config.clone(),
+            _global_config: Arc::clone(&self.global_config),
             project_id,
             managed_envelope,
             has_profile: false,

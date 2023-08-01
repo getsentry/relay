@@ -71,6 +71,9 @@ impl ProjectStateWrapper {
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections.  This list is always empty before V3.
+///
+/// The Response may also have a [`GlobalConfig`] which should be returned if the `global_config`
+/// flag is enabled on [`GetProjectStatesRequest`]
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {

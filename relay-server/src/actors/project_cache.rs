@@ -693,11 +693,6 @@ impl ProjectCacheBroker {
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
 
-            // TODO(iker): merge the global config to the project state before
-            // processing an envelope. This approach simplifies the processing
-            // of the envelope by abstracting the existence of the global
-            // config.
-
             let mut process = ProcessEnvelope {
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
