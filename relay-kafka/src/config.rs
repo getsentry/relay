@@ -1,3 +1,11 @@
+//! Configuration primitives to configure the kafka producer and properly set up the connection.
+//!
+//! The configuration can be either;
+//! - [`Primary`] - the main and default kafka Configuration
+//! - [`Secondary`] - used to configure any additional kafka topic
+//! - [`Sharded`] - if we want to configure multiple kafka clusters,
+//! we can create a mapping of the range of logical shards to the kafka configuration.
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -243,7 +251,7 @@ impl TopicAssignment {
     /// Get the kafka config for the current topic assignment.
     ///
     /// # Errors
-    /// Returns [`ConfigError`] if the configuration for the current topic assignement is invalid.
+    /// Returns [`ConfigError`] if the configuration for the current topic assignment is invalid.
     pub fn kafka_config<'a>(
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
