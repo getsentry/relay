@@ -523,10 +523,10 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
     config: Arc<Config>,
-    inner: Arc<InnerEnvelopeProcessorService>,
+    inner: Arc<InnerProcessor>,
 }
 
-struct InnerEnvelopeProcessorService {
+struct InnerProcessor {
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -546,7 +546,6 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
-        // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
                 Ok(geoip) => Some(geoip),
@@ -557,7 +556,7 @@ impl EnvelopeProcessorService {
             }
         });
 
-        let inner = InnerEnvelopeProcessorService {
+        let inner = InnerProcessor {
             envelope_manager,
             project_cache,
             outcome_aggregator,
@@ -3166,7 +3165,7 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        let inner = InnerEnvelopeProcessorService {
+        let inner = InnerProcessor {
             envelope_manager,
             project_cache,
             outcome_aggregator,
