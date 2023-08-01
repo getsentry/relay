@@ -1649,6 +1649,7 @@ impl EnvelopeProcessorService {
             ItemType::ReplayEvent => false,
             ItemType::ReplayRecording => false,
             ItemType::CheckIn => false,
+            ItemType::Span => false,
 
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
@@ -2256,6 +2257,43 @@ impl EnvelopeProcessorService {
         Ok(())
     }
 
+    #[cfg(feature = "processing")]
+    fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
+        // For now, drop any spans submitted by the SDK.
+        state.managed_envelope.retain_items(|item| match item.ty() {
+            ItemType::Span => ItemAction::DropSilently,
+            _ => ItemAction::Keep,
+        });
+
+        // Only extract spans from transactions (not errors).
+        if state.event_type() != Some(EventType::Transaction) {
+            return;
+        };
+
+        // Check feature flag.
+        if !state
+            .project_state
+            .has_feature(Feature::ExtractStandaloneSpans)
+        {
+            return;
+        };
+
+        // Extract.
+        let Some(spans) = state.event.value().and_then(|e| e.spans.value()) else { return };
+        for span in spans {
+            let span = match span.to_json() {
+                Ok(span) => span,
+                Err(e) => {
+                    relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
+                    continue;
+                }
+            };
+            let mut item = Item::new(ItemType::Span);
+            item.set_payload(ContentType::Json, span);
+            state.managed_envelope.envelope_mut().add_item(item);
+        }
+    }
+
     /// Computes the sampling decision on the incoming event
     fn run_dynamic_sampling(&self, state: &mut ProcessEnvelopeState) {
         // Running dynamic sampling involves either:
@@ -2457,6 +2495,9 @@ impl EnvelopeProcessorService {
         if state.has_event() {
             self.scrub_event(state)?;
             self.serialize_event(state)?;
+            if_processing!({
+                self.extract_spans(state);
+            });
         }
 
         self.scrub_attachments(state);

@@ -9,6 +9,7 @@
 **Internal**:
 
 - Add new service for fetching global configs. ([#2320](https://github.com/getsentry/relay/pull/2320))
+- Feature-flagged extraction & publishing of spans from transactions. ([#2350](https://github.com/getsentry/relay/pull/2350))
 
 ## 23.7.1
 
