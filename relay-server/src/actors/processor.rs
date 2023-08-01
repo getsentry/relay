@@ -568,16 +568,7 @@ impl EnvelopeProcessorService {
             geoip_lookup,
         };
 
-        #[cfg(feature = "processing")]
-        {
-            Self {
-                inner: Arc::new(inner),
-            }
-        }
-
-        #[cfg(not(feature = "processing"))]
         Self {
-            config,
             inner: Arc::new(inner),
         }
     }
