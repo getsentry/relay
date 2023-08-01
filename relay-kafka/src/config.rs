@@ -1,9 +1,9 @@
 //! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
-//! - [`Primary`] - the main and default kafka Configuration
-//! - [`Secondary`] - used to configure any additional kafka topic
-//! - [`Sharded`] - if we want to configure multiple kafka clusters,
+//! - [`TopicAssignment::Primary`] - the main and default kafka Configuration
+//! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic
+//! - [`TopicAssignment::Sharded`] - if we want to configure multiple kafka clusters,
 //! we can create a mapping of the range of logical shards to the kafka configuration.
 
 use std::collections::BTreeMap;
