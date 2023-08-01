@@ -1,9 +1,9 @@
 format_version: 10
 pipelines:
-  deploy-relay-s4s:
-    display_order: 2
+  deploy-relay-customer-5:
+    display_order: 8
     environment_variables:
-      SENTRY_REGION: s4s
+      SENTRY_REGION: customer-5
     group: relay
     lock_behavior: unlockWhenFinished
     materials:
@@ -70,10 +70,10 @@ pipelines:
       - deploy-pops:
           fetch_materials: true
           jobs:
-            deploy-pops-s4s:
+            deploy-pops-customer-5:
               elastic_profile_id: relay-pop
               environment_variables:
-                SENTRY_REGION: s4s
+                SENTRY_REGION: customer-5
               tasks:
                 - script: |
                     ##!/bin/bash
