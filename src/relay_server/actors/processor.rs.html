@@ -3970,6 +3970,47 @@
 <a href="#3970" id="3970">3970</a>
 <a href="#3971" id="3971">3971</a>
 <a href="#3972" id="3972">3972</a>
+<a href="#3973" id="3973">3973</a>
+<a href="#3974" id="3974">3974</a>
+<a href="#3975" id="3975">3975</a>
+<a href="#3976" id="3976">3976</a>
+<a href="#3977" id="3977">3977</a>
+<a href="#3978" id="3978">3978</a>
+<a href="#3979" id="3979">3979</a>
+<a href="#3980" id="3980">3980</a>
+<a href="#3981" id="3981">3981</a>
+<a href="#3982" id="3982">3982</a>
+<a href="#3983" id="3983">3983</a>
+<a href="#3984" id="3984">3984</a>
+<a href="#3985" id="3985">3985</a>
+<a href="#3986" id="3986">3986</a>
+<a href="#3987" id="3987">3987</a>
+<a href="#3988" id="3988">3988</a>
+<a href="#3989" id="3989">3989</a>
+<a href="#3990" id="3990">3990</a>
+<a href="#3991" id="3991">3991</a>
+<a href="#3992" id="3992">3992</a>
+<a href="#3993" id="3993">3993</a>
+<a href="#3994" id="3994">3994</a>
+<a href="#3995" id="3995">3995</a>
+<a href="#3996" id="3996">3996</a>
+<a href="#3997" id="3997">3997</a>
+<a href="#3998" id="3998">3998</a>
+<a href="#3999" id="3999">3999</a>
+<a href="#4000" id="4000">4000</a>
+<a href="#4001" id="4001">4001</a>
+<a href="#4002" id="4002">4002</a>
+<a href="#4003" id="4003">4003</a>
+<a href="#4004" id="4004">4004</a>
+<a href="#4005" id="4005">4005</a>
+<a href="#4006" id="4006">4006</a>
+<a href="#4007" id="4007">4007</a>
+<a href="#4008" id="4008">4008</a>
+<a href="#4009" id="4009">4009</a>
+<a href="#4010" id="4010">4010</a>
+<a href="#4011" id="4011">4011</a>
+<a href="#4012" id="4012">4012</a>
+<a href="#4013" id="4013">4013</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -5602,6 +5643,7 @@
             ItemType::ReplayEvent =&gt; <span class="bool-val">false</span>,
             ItemType::ReplayRecording =&gt; <span class="bool-val">false</span>,
             ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
+            ItemType::Span =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// Without knowing more, `Unknown` items are allowed to be repeated
             </span>ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
@@ -6209,6 +6251,43 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>extract_spans(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+        <span class="comment">// For now, drop any spans submitted by the SDK.
+        </span>state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+            ItemType::Span =&gt; ItemAction::DropSilently,
+            <span class="kw">_ </span>=&gt; ItemAction::Keep,
+        });
+
+        <span class="comment">// Only extract spans from transactions (not errors).
+        </span><span class="kw">if </span>state.event_type() != <span class="prelude-val">Some</span>(EventType::Transaction) {
+            <span class="kw">return</span>;
+        };
+
+        <span class="comment">// Check feature flag.
+        </span><span class="kw">if </span>!state
+            .project_state
+            .has_feature(Feature::ExtractStandaloneSpans)
+        {
+            <span class="kw">return</span>;
+        };
+
+        <span class="comment">// Extract.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(spans) = state.event.value().and_then(|e| e.spans.value()) <span class="kw">else </span>{ <span class="kw">return </span>};
+        <span class="kw">for </span>span <span class="kw">in </span>spans {
+            <span class="kw">let </span>span = <span class="kw">match </span>span.to_json() {
+                <span class="prelude-val">Ok</span>(span) =&gt; span,
+                <span class="prelude-val">Err</span>(e) =&gt; {
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;Failed to serialize span&quot;</span>);
+                    <span class="kw">continue</span>;
+                }
+            };
+            <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Span);
+            item.set_payload(ContentType::Json, span);
+            state.managed_envelope.envelope_mut().add_item(item);
+        }
+    }
+
     <span class="doccomment">/// Computes the sampling decision on the incoming event
     </span><span class="kw">fn </span>run_dynamic_sampling(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="comment">// Running dynamic sampling involves either:
@@ -6410,6 +6489,9 @@
         <span class="kw">if </span>state.has_event() {
             <span class="self">self</span>.scrub_event(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.serialize_event(state)<span class="question-mark">?</span>;
+            <span class="macro">if_processing!</span>({
+                <span class="self">self</span>.extract_spans(state);
+            });
         }
 
         <span class="self">self</span>.scrub_attachments(state);

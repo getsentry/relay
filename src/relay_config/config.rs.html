@@ -2047,6 +2047,14 @@
 <a href="#2047" id="2047">2047</a>
 <a href="#2048" id="2048">2048</a>
 <a href="#2049" id="2049">2049</a>
+<a href="#2050" id="2050">2050</a>
+<a href="#2051" id="2051">2051</a>
+<a href="#2052" id="2052">2052</a>
+<a href="#2053" id="2053">2053</a>
+<a href="#2054" id="2054">2054</a>
+<a href="#2055" id="2055">2055</a>
+<a href="#2056" id="2056">2056</a>
+<a href="#2057" id="2057">2057</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2591,6 +2599,8 @@
     </span>max_api_chunk_upload_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a profile
     </span>max_profile_size: ByteSize,
+    <span class="doccomment">/// The maximum payload size for a span.
+    </span>max_span_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a compressed replay.
     </span>max_replay_compressed_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for an uncompressed replay.
@@ -2631,6 +2641,7 @@
             max_api_file_upload_size: ByteSize::mebibytes(<span class="number">40</span>),
             max_api_chunk_upload_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_profile_size: ByteSize::mebibytes(<span class="number">50</span>),
+            max_span_size: ByteSize::mebibytes(<span class="number">1</span>),
             max_replay_compressed_size: ByteSize::mebibytes(<span class="number">10</span>),
             max_replay_uncompressed_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_replay_message_size: ByteSize::mebibytes(<span class="number">15</span>),
@@ -3839,20 +3850,25 @@
         <span class="self">self</span>.values.limits.max_attachment_size.as_bytes()
     }
 
-    <span class="doccomment">/// Returns the maxmium combined size of attachments or payloads containing attachments
+    <span class="doccomment">/// Returns the maximum combined size of attachments or payloads containing attachments
     /// (minidump, unreal, standalone attachments) in bytes.
     </span><span class="kw">pub fn </span>max_attachments_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.limits.max_attachments_size.as_bytes()
     }
 
-    <span class="doccomment">/// Returns the maxmium combined size of client reports in bytes.
+    <span class="doccomment">/// Returns the maximum combined size of client reports in bytes.
     </span><span class="kw">pub fn </span>max_client_reports_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.limits.max_client_reports_size.as_bytes()
     }
 
-    <span class="doccomment">/// Returns the maxmium payload size of a monitor check-in in bytes.
+    <span class="doccomment">/// Returns the maximum payload size of a monitor check-in in bytes.
     </span><span class="kw">pub fn </span>max_check_in_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.limits.max_check_in_size.as_bytes()
+    }
+
+    <span class="doccomment">/// Returns the maximum payload size of a span in bytes.
+    </span><span class="kw">pub fn </span>max_span_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.limits.max_span_size.as_bytes()
     }
 
     <span class="doccomment">/// Returns the maximum size of an envelope payload in bytes.

@@ -1219,6 +1219,59 @@
 <a href="#1219" id="1219">1219</a>
 <a href="#1220" id="1220">1220</a>
 <a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
+<a href="#1224" id="1224">1224</a>
+<a href="#1225" id="1225">1225</a>
+<a href="#1226" id="1226">1226</a>
+<a href="#1227" id="1227">1227</a>
+<a href="#1228" id="1228">1228</a>
+<a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
+<a href="#1234" id="1234">1234</a>
+<a href="#1235" id="1235">1235</a>
+<a href="#1236" id="1236">1236</a>
+<a href="#1237" id="1237">1237</a>
+<a href="#1238" id="1238">1238</a>
+<a href="#1239" id="1239">1239</a>
+<a href="#1240" id="1240">1240</a>
+<a href="#1241" id="1241">1241</a>
+<a href="#1242" id="1242">1242</a>
+<a href="#1243" id="1243">1243</a>
+<a href="#1244" id="1244">1244</a>
+<a href="#1245" id="1245">1245</a>
+<a href="#1246" id="1246">1246</a>
+<a href="#1247" id="1247">1247</a>
+<a href="#1248" id="1248">1248</a>
+<a href="#1249" id="1249">1249</a>
+<a href="#1250" id="1250">1250</a>
+<a href="#1251" id="1251">1251</a>
+<a href="#1252" id="1252">1252</a>
+<a href="#1253" id="1253">1253</a>
+<a href="#1254" id="1254">1254</a>
+<a href="#1255" id="1255">1255</a>
+<a href="#1256" id="1256">1256</a>
+<a href="#1257" id="1257">1257</a>
+<a href="#1258" id="1258">1258</a>
+<a href="#1259" id="1259">1259</a>
+<a href="#1260" id="1260">1260</a>
+<a href="#1261" id="1261">1261</a>
+<a href="#1262" id="1262">1262</a>
+<a href="#1263" id="1263">1263</a>
+<a href="#1264" id="1264">1264</a>
+<a href="#1265" id="1265">1265</a>
+<a href="#1266" id="1266">1266</a>
+<a href="#1267" id="1267">1267</a>
+<a href="#1268" id="1268">1268</a>
+<a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
+<a href="#1272" id="1272">1272</a>
+<a href="#1273" id="1273">1273</a>
+<a href="#1274" id="1274">1274</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1421,6 +1474,12 @@
                     start_time,
                     client,
                     retention,
+                    item,
+                )<span class="question-mark">?</span>,
+                ItemType::Span =&gt; <span class="self">self</span>.produce_span(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    start_time,
                     item,
                 )<span class="question-mark">?</span>,
                 <span class="kw">_ </span>=&gt; {}
@@ -1953,6 +2012,40 @@
 
         <span class="prelude-val">Ok</span>(())
     }
+
+    <span class="kw">fn </span>produce_span(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        organization_id: u64,
+        project_id: ProjectId,
+        start_time: Instant,
+        item: <span class="kw-2">&amp;</span>Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
+        <span class="comment">// Bit unfortunate that we need to parse again here, but it&#39;s the same for sessions.
+        </span><span class="kw">let </span>span: serde_json::Value = <span class="kw">match </span>serde_json::from_slice(<span class="kw-2">&amp;</span>item.payload()) {
+            <span class="prelude-val">Ok</span>(span) =&gt; span,
+            <span class="prelude-val">Err</span>(error) =&gt; {
+                <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                    <span class="string">&quot;failed to parse span&quot;
+                </span>);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+        };
+        <span class="kw">let </span>message = KafkaMessage::Span(SpanKafkaMessage {
+            project_id,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            span,
+        });
+
+        <span class="self">self</span>.produce(KafkaTopic::Spans, organization_id, message)<span class="question-mark">?</span>;
+
+        <span class="macro">metric!</span>(
+            counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
+            event_type = <span class="string">&quot;span&quot;
+        </span>);
+
+        <span class="prelude-val">Ok</span>(())
+    }
 }
 
 <span class="kw">impl </span>Service <span class="kw">for </span>StoreService {
@@ -2211,6 +2304,16 @@
     </span>retention_days: u16,
 }
 
+<span class="attr">#[derive(Debug, Serialize)]
+</span><span class="kw">struct </span>SpanKafkaMessage {
+    <span class="doccomment">/// Raw span data.
+    </span>span: serde_json::Value,
+    <span class="doccomment">/// Time at which the span was received by Relay.
+    </span>start_time: u64,
+    <span class="doccomment">/// The project id for the current span.
+    </span>project_id: ProjectId,
+}
+
 <span class="doccomment">/// An enum over all possible ingest messages.
 </span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>, rename_all = <span class="string">&quot;snake_case&quot;</span>)]
@@ -2231,6 +2334,7 @@
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
+    Span(SpanKafkaMessage),
 }
 
 <span class="kw">impl </span>Message <span class="kw">for </span>KafkaMessage {
@@ -2246,6 +2350,7 @@
             KafkaMessage::ReplayEvent(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_event&quot;</span>,
             KafkaMessage::ReplayRecordingNotChunked(<span class="kw">_</span>) =&gt; <span class="string">&quot;replay_recording_not_chunked&quot;</span>,
             KafkaMessage::CheckIn(<span class="kw">_</span>) =&gt; <span class="string">&quot;check_in&quot;</span>,
+            KafkaMessage::Span(<span class="kw">_</span>) =&gt; <span class="string">&quot;span&quot;</span>,
         }
     }
 
@@ -2262,7 +2367,8 @@
             <span class="self">Self</span>::ReplayEvent(message) =&gt; message.replay_id.<span class="number">0</span>,
             <span class="self">Self</span>::ReplayRecordingNotChunked(_message) =&gt; Uuid::nil(), <span class="comment">// Ensure random partitioning.
             </span><span class="self">Self</span>::CheckIn(_message) =&gt; Uuid::nil(),
-        };
+            <span class="self">Self</span>::Span(<span class="kw">_</span>) =&gt; Uuid::nil(), <span class="comment">// random partitioning
+        </span>};
 
         <span class="kw">if </span>uuid.is_nil() {
             uuid = Uuid::new_v4();

@@ -73,6 +73,9 @@
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -94,6 +97,10 @@
     <span class="doccomment">/// Enables metric extraction from spans.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction&quot;</span>)]
     </span>SpanMetricsExtraction,
+    <span class="doccomment">/// Extract spans from transactions and convert them to standalone spans.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:extract-standalone-spans&quot;</span>)]
+    </span>ExtractStandaloneSpans,
+
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]
     </span>Deprecated1,
@@ -103,7 +110,6 @@
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
     </span>Deprecated3,
-
     <span class="doccomment">/// Forward compatibility.
     </span><span class="attr">#[serde(other)]
     </span>Unknown,
