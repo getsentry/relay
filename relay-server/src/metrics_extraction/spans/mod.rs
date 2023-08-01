@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 use relay_common::DataCategory;
 use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use relay_general::protocol::Event;
+use relay_general::store::LazyGlob;
 use relay_metrics::Metric;
 
 use crate::metrics_extraction::generic::extract_metrics_from;
@@ -38,8 +39,8 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
         ],
         tags: vec![TagMapping {
             metrics: vec![
-                "d:spans/exclusive_time@millisecond".into(),
-                "d:spans/exclusive_time_light@millisecond".into(),
+                LazyGlob::new("d:spans/exclusive_time@millisecond".into()),
+                LazyGlob::new("d:spans/exclusive_time_light@millisecond".into()),
             ],
             tags: [
                 "environment",

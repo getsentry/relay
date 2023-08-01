@@ -85,9 +85,9 @@ where
             .tags
             .iter()
             .filter_map(|t| {
-                // TODO: support wildcards as the docs suggest.
                 t.metrics
-                    .contains(&metric_spec.mri)
+                    .iter()
+                    .any(|m| m.compiled().is_match(&metric_spec.mri))
                     .then_some(t.tags.iter())
             })
             .flatten()

@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use relay_common::DataCategory;
+use relay_general::store::LazyGlob;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -212,7 +213,7 @@ pub struct TagMapping {
     ///
     /// Entries in this list can contain wildcards to match metrics with dynamic MRIs.
     #[serde(default)]
-    pub metrics: Vec<String>,
+    pub metrics: Vec<LazyGlob>,
 
     /// A list of tags to add to the metric.
     ///
@@ -305,5 +306,12 @@ mod tests {
         let json = r#"{"key":"foo","somethingNew":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();
         assert_eq!(spec.source(), TagSource::Unknown);
+    }
+
+    #[test]
+    fn parse_tag_mapping() {
+        let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
+        let mapping: TagMapping = serde_json::from_str(json).unwrap();
+        assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 }
