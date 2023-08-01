@@ -355,10 +355,10 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
         let result = is_trace_fully_sampled(true, Some(&project_state), Some(&dsc));
-        matches!(result, None);
+        assert!(result.is_none());
 
         // We test with missing dsc and project config.
         let result = is_trace_fully_sampled(true, None, None);
-        matches!(result, None);
+        assert!(result.is_none())
     }
 }

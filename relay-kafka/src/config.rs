@@ -312,7 +312,7 @@ mod tests {
 
     #[test]
     fn test_kafka_config() {
-        let yaml = r###"
+        let yaml = r#"
 events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
@@ -329,7 +329,7 @@ metrics:
       45000:
           name: "ingest-metrics-3"
           config: "metrics_3"
-"###;
+"#;
 
         let def_config = vec![KafkaConfigParam {
             name: "test".to_string(),

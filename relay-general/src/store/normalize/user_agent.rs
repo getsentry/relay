@@ -150,7 +150,7 @@ mod tests {
 
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_snapshot!(event.contexts, @r###"
+        assert_annotated_snapshot!(event.contexts, @r#"
         {
           "browser": {
             "name": "Chrome Mobile",
@@ -158,7 +158,7 @@ mod tests {
             "type": "browser"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -167,7 +167,7 @@ mod tests {
 
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_snapshot!(event.contexts, @r###"
+        assert_annotated_snapshot!(event.contexts, @r#"
         {
           "client_os": {
             "name": "Windows",
@@ -175,7 +175,7 @@ mod tests {
             "type": "os"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -183,7 +183,7 @@ mod tests {
         let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)";
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_snapshot!(event.contexts, @r###"
+        assert_annotated_snapshot!(event.contexts, @r#"
         {
           "browser": {
             "name": "Mobile Safari UI/WKWebView",
@@ -201,7 +201,7 @@ mod tests {
             "type": "device"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -209,7 +209,7 @@ mod tests {
         let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)";
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_snapshot!(event.contexts, @r###"
+        assert_annotated_snapshot!(event.contexts, @r#"
         {
           "client_os": {
             "name": "Mac OS X",
@@ -223,7 +223,7 @@ mod tests {
             "type": "device"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -232,7 +232,7 @@ mod tests {
 
         let mut event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(&mut event);
-        assert_annotated_snapshot!(event.contexts, @r###"
+        assert_annotated_snapshot!(event.contexts, @r#"
         {
           "device": {
             "family": "Samsung Galaxy Nexus",
@@ -241,14 +241,14 @@ mod tests {
             "type": "device"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
     fn test_all_contexts() {
         let mut event = testutils::get_event_with_user_agent(GOOD_UA);
         normalize_user_agent(&mut event);
-        assert_annotated_snapshot!(event.contexts, @r###"
+        assert_annotated_snapshot!(event.contexts, @r#"
         {
           "browser": {
             "name": "Chrome Mobile",
@@ -267,7 +267,7 @@ mod tests {
             "type": "device"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -294,7 +294,7 @@ mod tests {
         event.contexts = Annotated::new(contexts);
 
         normalize_user_agent(&mut event);
-        assert_annotated_snapshot!(event.contexts, @r###"
+        assert_annotated_snapshot!(event.contexts, @r#"
         {
           "browser": {
             "name": "BR_FAMILY",
@@ -318,6 +318,6 @@ mod tests {
             "type": "os"
           }
         }
-        "###);
+        "#);
     }
 }

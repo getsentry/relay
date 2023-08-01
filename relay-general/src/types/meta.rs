@@ -592,8 +592,8 @@ impl Meta {
         if let Some(other_inner) = other.0 {
             let other_inner = *other_inner;
             let inner = self.upsert();
-            inner.remarks.extend(other_inner.remarks.into_iter());
-            inner.errors.extend(other_inner.errors.into_iter());
+            inner.remarks.extend(other_inner.remarks);
+            inner.errors.extend(other_inner.errors);
             if inner.original_length.is_none() {
                 inner.original_length = other_inner.original_length;
             }

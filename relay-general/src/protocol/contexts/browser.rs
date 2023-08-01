@@ -170,13 +170,13 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        assert_debug_snapshot!(browser, @r###"
+        assert_debug_snapshot!(browser, @r#"
         BrowserContext {
             name: "Google Chrome",
             version: "109",
             other: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -222,13 +222,13 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        assert_debug_snapshot!(browser, @r###"
+        assert_debug_snapshot!(browser, @r#"
         BrowserContext {
             name: "weird browser",
             version: "109",
             other: {},
         }
-        "###);
+        "#);
     }
 
     #[test]

@@ -2041,9 +2041,6 @@ cache:
 
     #[test]
     fn test_emit_outcomes_invalid() {
-        assert!(matches!(
-            serde_json::from_str::<EmitOutcomes>("asdf"),
-            Err(_)
-        ));
+        assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
     }
 }

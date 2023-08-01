@@ -533,7 +533,7 @@ mod tests {
             retry_after: RetryAfter::from_secs(10),
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -547,7 +547,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -569,7 +569,7 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -583,7 +583,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -613,7 +613,7 @@ mod tests {
             retry_after: RetryAfter::from_secs(1),
         });
 
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -642,7 +642,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -665,7 +665,7 @@ mod tests {
         });
 
         let rate_limit = rate_limits.longest().unwrap();
-        insta::assert_ron_snapshot!(rate_limit, @r###"
+        insta::assert_ron_snapshot!(rate_limit, @r#"
         RateLimit(
           categories: [
             transaction,
@@ -674,7 +674,7 @@ mod tests {
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -703,7 +703,7 @@ mod tests {
         rate_limits.clean_expired();
 
         // Check that the expired limit has been removed
-        insta::assert_ron_snapshot!(rate_limits, @r###"
+        insta::assert_ron_snapshot!(rate_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -716,7 +716,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -750,7 +750,7 @@ mod tests {
         });
 
         // Check that the error limit is applied
-        insta::assert_ron_snapshot!(applied_limits, @r###"
+        insta::assert_ron_snapshot!(applied_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -763,7 +763,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -808,7 +808,7 @@ mod tests {
 
         let applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 
-        insta::assert_ron_snapshot!(applied_limits, @r###"
+        insta::assert_ron_snapshot!(applied_limits, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -821,7 +821,7 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -852,7 +852,7 @@ mod tests {
 
         rate_limits1.merge(rate_limits2);
 
-        insta::assert_ron_snapshot!(rate_limits1, @r###"
+        insta::assert_ron_snapshot!(rate_limits1, @r#"
         RateLimits(
           limits: [
             RateLimit(
@@ -873,6 +873,6 @@ mod tests {
             ),
           ],
         )
-        "###);
+        "#);
     }
 }
