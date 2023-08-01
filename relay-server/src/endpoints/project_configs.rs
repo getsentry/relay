@@ -131,7 +131,7 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
-    let global = if inner.global_config {
+    let global_config = if inner.global_config {
         global_config_service
             .send(GetGlobalConfig)
             .await
@@ -171,7 +171,7 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global_config: global,
+        global_config,
     }))
 }
 
