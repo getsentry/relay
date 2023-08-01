@@ -107,7 +107,7 @@ async fn inner(
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
     let project_cache = &state.project_cache().clone();
-    let global_config_service = &state.global_config().clone();
+    let global_config_service = &state.global_configuration().clone();
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
