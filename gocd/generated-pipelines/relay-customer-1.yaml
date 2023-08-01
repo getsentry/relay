@@ -67,17 +67,6 @@ pipelines:
                         --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                         --container-name="relay"
               timeout: 1200
-      - progress-to-pops:
-          approval:
-            allow_only_on_success: true
-            type: manual
-          jobs:
-            progress-to-pops:
-              elastic_profile_id: relay
-              tasks:
-                - exec:
-                    command: true
-              timeout: 1200
       - deploy-pops:
           fetch_materials: true
           jobs:
