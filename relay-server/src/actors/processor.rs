@@ -2351,9 +2351,19 @@ impl EnvelopeProcessorService {
             SamplingResult::Drop(rule_ids)
                 if state.event_type() == Some(EventType::Transaction) =>
             {
-                state
-                    .managed_envelope
-                    .reject(Outcome::FilteredSampling(rule_ids.clone()));
+                let feature_enabled = false;
+                let outcome = Outcome::FilteredSampling(rule_ids.clone());
+                state.managed_envelope.retain_items(|item| {
+                    if feature_enabled && item.ty() == &ItemType::Profile {
+                        ItemAction::Keep
+                    } else {
+                        ItemAction::Drop(outcome.clone())
+                    }
+                });
+                if state.managed_envelope.envelope().is_empty() {
+                    // Just for bookkeeping.
+                    state.managed_envelope.reject(outcome);
+                }
 
                 Err(ProcessingError::Sampled(rule_ids))
             }
