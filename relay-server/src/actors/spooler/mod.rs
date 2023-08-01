@@ -1,3 +1,30 @@
+//! This module contains the [`BufferService`], which responsible for spooling of the incoming
+//! envelopes, either in memory or on persistent storage.
+//!
+//! The main entry point for the [`BufferService`] is the [`Buffer`] interface. Which currently
+//! supports:
+//! - [`Enqueue`] - enqueueing message into the backend storage
+//! - [`DequeueMany`] - dequeueing all the requested [`QueueKey`] keys
+//! - [`RemoveMany`] - Removing and dropping the requested [`QueueKey`] keys.
+//! - [`Health`] - checking the health of the [`BufferService`]
+//!
+//! To make sure the [`BufferService`] is fast the responsive, especially in the normal working
+//! conditions, it keeps the internal [`BufferState`] state, which defines where the spooling will
+//! be happening.
+//!
+//! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
+//! [`crate::project::ProjectState`] it continue to use the memory as temporary spool.
+//!
+//! In case of an incident when the in-memory spool gets full (see, `spool.envelopes.max_memory_size` config option)
+//! or if the processing pipeline gets too many messages in-flight, the internal state will be
+//! switched to [`OnDisk`] and we will continue spooling all the incoming envelopes onto the disk.
+//! This will happen also only when the disk spool is configured.
+//!
+//! The state can be changed to [`InMemory`] again only if all the on-disk spoolled envelopes are
+//! read out again and disk is empty.
+//!
+//! Current on-disk spool implementation uses Sqlite as a storage.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::path::PathBuf;
