@@ -627,6 +627,10 @@ impl StoreService {
             project_id,
             key_id,
             received: UnixTimestamp::from_instant(start_time).as_secs(),
+            sampled: item
+                .get_header("sampled")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
             payload: item.payload(),
         };
         self.produce(
@@ -1013,6 +1017,7 @@ struct ProfileKafkaMessage {
     project_id: ProjectId,
     key_id: Option<u64>,
     received: u64,
+    sampled: bool,
     payload: Bytes,
 }
 

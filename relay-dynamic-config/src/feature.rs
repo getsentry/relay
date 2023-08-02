@@ -22,6 +22,11 @@ pub enum Feature {
     /// Extract spans from transactions and convert them to standalone spans.
     #[serde(rename = "projects:extract-standalone-spans")]
     ExtractStandaloneSpans,
+    /// Enable processing and extracting data from non dinamycally sampled profiles.
+    /// Only some data for slowest function aggregation will be used. The profile
+    /// itself won't be stored on GCS.
+    #[serde(rename = "organizations:profiling-ingest-unsampled-profiles")]
+    IngestUnsampledProfiles,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

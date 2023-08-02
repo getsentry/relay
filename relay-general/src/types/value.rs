@@ -79,6 +79,14 @@ impl Value {
         }
     }
 
+    /// Returns the bool if this value is a bool, otherwise `None`.
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Value::Bool(bool) => Some(*bool),
+            _ => None,
+        }
+    }
+
     /// Constructs a `Value` from a `serde_json::Value` object.
     fn from_json(value: serde_json::Value) -> Option<Self> {
         Some(match value {
