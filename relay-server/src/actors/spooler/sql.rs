@@ -1,5 +1,5 @@
-//! This module contains the helper functions wrapping pthe SQL queris which will be run against
-//! the on-disk spool (currently backed by Sqlite).
+//! This module contains the helper functions wrapping the SQL queries which will be run against
+//! the on-disk spool (currently backed by SQLite).
 
 use futures::stream::{Stream, StreamExt};
 use sqlx::query::Query;
