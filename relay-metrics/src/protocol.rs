@@ -682,7 +682,7 @@ mod tests {
         let s = "transactions/foo:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Metric {
             name: "c:transactions/foo@none",
             value: Counter(
@@ -691,7 +691,7 @@ mod tests {
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -699,7 +699,7 @@ mod tests {
         let s = "transactions/foo:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Metric {
             name: "d:transactions/foo@none",
             value: Distribution(
@@ -708,7 +708,7 @@ mod tests {
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -724,7 +724,7 @@ mod tests {
         let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Metric {
             name: "s:transactions/foo@none",
             value: Set(
@@ -733,7 +733,7 @@ mod tests {
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -741,7 +741,7 @@ mod tests {
         let s = "transactions/foo:42|g";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Metric {
             name: "g:transactions/foo@none",
             value: Gauge(
@@ -750,7 +750,7 @@ mod tests {
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -776,12 +776,12 @@ mod tests {
         let s = "transactions/foo:17.5|d|#foo,bar:baz";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric.tags, @r###"
+        insta::assert_debug_snapshot!(metric.tags, @r#"
         {
             "bar": "baz",
             "foo": "",
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -822,7 +822,7 @@ mod tests {
 }"#;
 
         let metric = serde_json::from_str::<Metric>(json).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Metric {
             name: "foo",
             value: Counter(
@@ -834,7 +834,7 @@ mod tests {
                 "full": "value",
             },
         }
-        "###);
+        "#);
 
         let string = serde_json::to_string_pretty(&metric).unwrap();
         assert_eq!(string, json);
@@ -851,7 +851,7 @@ mod tests {
         }"#;
 
         let metric = serde_json::from_str::<Metric>(json).unwrap();
-        insta::assert_debug_snapshot!(metric, @r###"
+        insta::assert_debug_snapshot!(metric, @r#"
         Metric {
             name: "foo",
             value: Counter(
@@ -860,7 +860,7 @@ mod tests {
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        "###);
+        "#);
     }
 
     #[test]

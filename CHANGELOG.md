@@ -6,6 +6,11 @@
 
 - Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
 
+**Internal**:
+
+- Feature-flagged extraction & publishing of spans from transactions. ([#2350](https://github.com/getsentry/relay/pull/2350))
+
+
 ## 23.7.1
 
 **Bug Fixes**:

@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_rule_format() {
-        let json = r###"
+        let json = r#"
         {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
@@ -227,7 +227,7 @@ mod tests {
             "substitution": ":id"
           }
         }
-        "###;
+        "#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
 
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_rule_format_defaults() {
-        let json = r###"
+        let json = r#"
         {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
@@ -253,7 +253,7 @@ mod tests {
             "method": "replace"
           }
         }
-        "###;
+        "#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
 
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_rule_format_unsupported_reduction() {
-        let json = r###"
+        let json = r#"
         {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
@@ -279,7 +279,7 @@ mod tests {
             "method": "update"
           }
         }
-        "###;
+        "#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         let result = rule.apply("/auth/login/test/");
@@ -289,14 +289,14 @@ mod tests {
 
     #[test]
     fn test_rule_format_roundtrip() {
-        let json = r###"{
+        let json = r#"{
   "pattern": "/auth/login/*/**",
   "expiry": "2022-11-30T00:00:00Z",
   "redaction": {
     "method": "replace",
     "substitution": ":id"
   }
-}"###;
+}"#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         let rule_json = serde_json::to_string_pretty(&rule).unwrap();

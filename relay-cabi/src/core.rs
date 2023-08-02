@@ -173,7 +173,7 @@ pub struct RelayBuf {
 impl RelayBuf {
     pub(crate) unsafe fn free(&mut self) {
         if self.owned {
-            Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
+            Vec::from_raw_parts(self.data, self.len, self.len);
             self.data = ptr::null_mut();
             self.len = 0;
             self.owned = false;

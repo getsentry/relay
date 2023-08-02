@@ -8,6 +8,7 @@ use relay_metrics::Metric;
 use crate::metrics_extraction::generic::extract_metrics_from;
 
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::statsd::RelayTimers;
 
 /// Configuration for extracting metrics from spans.
 ///
@@ -70,7 +71,12 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
 
 /// Extracts metrics from the spans of the given transaction.
 pub(crate) fn extract_span_metrics(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {
-    // TODO(iker): measure the performance of this whole method
+    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        extract_span_metrics_inner(event)
+    })
+}
+
+fn extract_span_metrics_inner(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {
     let mut metrics = Vec::new();
     let Some(spans) = event.spans.value() else { return Ok(metrics) };
 

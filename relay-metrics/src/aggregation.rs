@@ -2271,7 +2271,7 @@ mod tests {
         ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
-        insta::assert_debug_snapshot!(buckets, @r###"
+        insta::assert_debug_snapshot!(buckets, @r#"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
@@ -2290,7 +2290,7 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -2306,7 +2306,7 @@ mod tests {
         ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
-        insta::assert_debug_snapshot!(buckets, @r###"
+        insta::assert_debug_snapshot!(buckets, @r#"
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
@@ -2318,7 +2318,7 @@ mod tests {
                 tags: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -2538,7 +2538,7 @@ mod tests {
             .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
             .collect();
 
-        insta::assert_debug_snapshot!(buckets, @r###"
+        insta::assert_debug_snapshot!(buckets, @r#"
         [
             (
                 BucketKey {
@@ -2552,7 +2552,7 @@ mod tests {
                 ),
             ),
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -2583,7 +2583,7 @@ mod tests {
             .collect();
 
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
-        insta::assert_debug_snapshot!(buckets, @r###"
+        insta::assert_debug_snapshot!(buckets, @r#"
         [
             (
                 BucketKey {
@@ -2608,7 +2608,7 @@ mod tests {
                 ),
             ),
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -2638,23 +2638,23 @@ mod tests {
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
         let mut cost_tracker = CostTracker::default();
-        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
         }
-        "###);
+        "#);
         cost_tracker.add_cost(project_key1, 100);
-        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 100,
             cost_per_project_key: {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
             },
         }
-        "###);
+        "#);
         cost_tracker.add_cost(project_key2, 200);
-        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 300,
             cost_per_project_key: {
@@ -2662,10 +2662,10 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
         }
-        "###);
+        "#);
         // Unknown project: Will log error, but not crash
         cost_tracker.subtract_cost(project_key3, 666);
-        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 300,
             cost_per_project_key: {
@@ -2673,33 +2673,33 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
         }
-        "###);
+        "#);
         // Subtract too much: Will log error, but not crash
         cost_tracker.subtract_cost(project_key1, 666);
-        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 200,
             cost_per_project_key: {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
         }
-        "###);
+        "#);
         cost_tracker.subtract_cost(project_key2, 20);
-        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 180,
             cost_per_project_key: {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
             },
         }
-        "###);
+        "#);
         cost_tracker.subtract_cost(project_key2, 180);
-        insta::assert_debug_snapshot!(cost_tracker, @r###"
+        insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -3199,12 +3199,12 @@ mod tests {
     #[test]
     fn test_bucket_partitioning_dummy() {
         let output = run_test_bucket_partitioning(None);
-        insta::assert_debug_snapshot!(output, @r###"
+        insta::assert_debug_snapshot!(output, @r#"
         [
             "metrics.buckets.per_batch:2|h|#aggregator:default",
             "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -3213,21 +3213,21 @@ mod tests {
         // Because buckets are stored in a HashMap, we do not know in what order the buckets will
         // be processed, so we need to convert them to a set:
         let (partition_keys, tail) = output.split_at(2);
-        insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r###"
+        insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r#"
         {
             "metrics.buckets.partition_keys:59|h|#aggregator:default",
             "metrics.buckets.partition_keys:62|h|#aggregator:default",
         }
-        "###);
+        "#);
 
-        insta::assert_debug_snapshot!(tail, @r###"
+        insta::assert_debug_snapshot!(tail, @r#"
         [
             "metrics.buckets.per_batch:1|h|#aggregator:default",
             "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
             "metrics.buckets.per_batch:1|h|#aggregator:default",
             "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
         ]
-        "###);
+        "#);
     }
 
     fn test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {

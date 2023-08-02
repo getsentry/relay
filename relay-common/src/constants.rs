@@ -692,9 +692,6 @@ mod tests {
             "0123456789abcde",
             CustomUnit::parse("0123456789abcde").unwrap().as_str()
         );
-        assert!(matches!(
-            CustomUnit::parse("this_is_a_unit_that_is_too_long"),
-            Err(_)
-        ));
+        assert!(CustomUnit::parse("this_is_a_unit_that_is_too_long").is_err());
     }
 }

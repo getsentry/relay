@@ -61,10 +61,10 @@ mod tests {
 
     #[test]
     fn test_redis_single_opts() {
-        let yaml = r###"
+        let yaml = r#"
 server: "redis://127.0.0.1:6379"
 max_connections: 42
-"###;
+"#;
 
         let config: RedisConfig = serde_yaml::from_str(yaml)
             .expect("Parsed processing redis config: single with options");
@@ -80,9 +80,9 @@ max_connections: 42
 
     #[test]
     fn test_redis_single_opts_default() {
-        let yaml = r###"
+        let yaml = r#"
 server: "redis://127.0.0.1:6379"
-"###;
+"#;
 
         let config: RedisConfig = serde_yaml::from_str(yaml)
             .expect("Parsed processing redis config: single with options");
@@ -100,9 +100,9 @@ server: "redis://127.0.0.1:6379"
     // when the single `redis://...` address is provided.
     #[test]
     fn test_redis_single() {
-        let yaml = r###"
+        let yaml = r#"
 "redis://127.0.0.1:6379"
-"###;
+"#;
 
         let config: RedisConfig = serde_yaml::from_str(yaml)
             .expect("Parsed processing redis config: single with options");

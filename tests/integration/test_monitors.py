@@ -31,7 +31,7 @@ def test_monitors_with_processing(
     }
 
 
-def test_crons_endpoint_get_with_processing(
+def test_monitor_endpoint_get_with_processing(
     mini_sentry, relay_with_processing, monitors_consumer
 ):
     project_id = 42
@@ -59,7 +59,7 @@ def test_crons_endpoint_get_with_processing(
     }
 
 
-def test_crons_endpoint_post_auth_basic_with_processing(
+def test_monitor_endpoint_post_auth_basic_with_processing(
     mini_sentry, relay_with_processing, monitors_consumer
 ):
     project_id = 42
@@ -89,7 +89,7 @@ def test_crons_endpoint_post_auth_basic_with_processing(
     }
 
 
-def test_crons_endpoint_embedded_auth_with_processing(
+def test_monitor_endpoint_embedded_auth_with_processing(
     mini_sentry, relay_with_processing, monitors_consumer
 ):
     project_id = 42

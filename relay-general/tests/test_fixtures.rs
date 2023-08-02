@@ -10,7 +10,7 @@ use relay_general::types::{Annotated, SerializableAnnotated};
 
 fn pii_config() -> PiiConfig {
     PiiConfig::from_json(
-        r##"{
+        r#"{
           "rules": {
             "removeOkDetectToken": {
               "type": "pattern",
@@ -50,7 +50,7 @@ fn pii_config() -> PiiConfig {
             "exception.values.*.stacktrace.frames.*.abs_path": ["@userpath:replace"],
             "breadcrumbs.values.*.message": ["@userpath:replace"]
           }
-        }"##,
+        }"#,
     )
     .unwrap()
 }

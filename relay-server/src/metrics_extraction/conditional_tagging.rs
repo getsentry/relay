@@ -102,7 +102,7 @@ mod tests {
 
         run_conditional_tagging(event.value().unwrap(), &tagging_config, &mut metrics);
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
                 name: "d:transactions/measurements.lcp@millisecond",
@@ -123,7 +123,7 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
