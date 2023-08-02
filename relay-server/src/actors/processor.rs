@@ -2361,9 +2361,6 @@ impl EnvelopeProcessorService {
             SamplingResult::Drop(rule_ids)
                 if state.event_type() == Some(EventType::Transaction) =>
             {
-                /* state
-                .managed_envelope
-                .reject(Outcome::FilteredSampling(rule_ids.clone())); */
                 let unsampled_profiles_enabled =
                     project_state.has_feature(Feature::IngestUnsampledProfiles);
 
