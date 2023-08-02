@@ -2356,6 +2356,7 @@ impl EnvelopeProcessorService {
 
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        let project_state = &state.project_state;
         match std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
             SamplingResult::Drop(rule_ids)
