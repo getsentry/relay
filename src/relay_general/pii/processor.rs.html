@@ -2030,7 +2030,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_basic_stripping() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;rules&quot;: {
                     &quot;remove_bad_headers&quot;: {
@@ -2043,7 +2043,7 @@
                     &quot;$object.**&quot;: [&quot;remove_bad_headers&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2094,13 +2094,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_redact_containers() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$object&quot;: [&quot;@anything&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2124,7 +2124,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_redact_custom_pattern() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$string&quot;: [&quot;myrule&quot;]
@@ -2140,7 +2140,7 @@
                     }
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2164,13 +2164,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_no_field_upsert() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;**&quot;: [&quot;@anything:remove&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2194,13 +2194,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_anything_hash_on_string() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$string&quot;: [&quot;@anything:hash&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2224,13 +2224,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_anything_hash_on_container() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$object&quot;: [&quot;@anything:hash&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2254,14 +2254,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_remove_debugmeta_path() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:remove&quot;],
                     &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:remove&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2303,14 +2303,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_replace_debugmeta_path() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:replace&quot;],
                     &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:replace&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2352,14 +2352,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hash_debugmeta_path() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;debug_meta.images.*.code_file&quot;: [&quot;@anything:hash&quot;],
                     &quot;debug_meta.images.*.debug_file&quot;: [&quot;@anything:hash&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2401,7 +2401,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_debugmeta_path_not_addressible_with_wildcard_selector() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$string&quot;: [&quot;@anything:remove&quot;],
@@ -2410,7 +2410,7 @@
                     &quot;(debug_meta.images.**.code_file &amp; $string)&quot;: [&quot;@anything:remove&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2452,13 +2452,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_quoted_keys() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;extra.&#39;special ,./&lt;&gt;?!@#$%^&amp;*())&#39;&#39;gärbage&#39;&#39;&#39;&quot;: [&quot;@anything:remove&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2530,13 +2530,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_address_hashing() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$user.ip_address&quot;: [&quot;@ip:hash&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -2564,13 +2564,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ip_address_hashing_does_not_overwrite_id() {
         <span class="kw">let </span>config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
                 &quot;applications&quot;: {
                     &quot;$user.ip_address&quot;: [&quot;@ip:hash&quot;]
                 }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 

@@ -474,7 +474,7 @@
 
         update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;x&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;z&quot;</span>], <span class="string">&quot;xx&quot;</span>);
 
-        <span class="macro">insta::assert_json_snapshot!</span>(val, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(val, @<span class="string">r#&quot;
        ⋮{
        ⋮  &quot;x&quot;: {
        ⋮    &quot;y&quot;: {
@@ -482,12 +482,12 @@
        ⋮    }
        ⋮  }
        ⋮}
-        &quot;###</span>);
+        &quot;#</span>);
 
         update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;x&quot;</span>, <span class="string">&quot;y&quot;</span>, <span class="string">&quot;k&quot;</span>], <span class="string">&quot;kk&quot;</span>);
         update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;w&quot;</span>, <span class="string">&quot;&quot;</span>], <span class="string">&quot;w&quot;</span>);
         update_nested_value(<span class="kw-2">&amp;mut </span>val, <span class="kw-2">&amp;</span>[<span class="string">&quot;z1&quot;</span>], <span class="string">&quot;val1&quot;</span>);
-        <span class="macro">insta::assert_json_snapshot!</span>(val, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(val, @<span class="string">r#&quot;
        ⋮{
        ⋮  &quot;w&quot;: {
        ⋮    &quot;&quot;: &quot;w&quot;
@@ -500,7 +500,7 @@
        ⋮  },
        ⋮  &quot;z1&quot;: &quot;val1&quot;
        ⋮}
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -524,7 +524,7 @@
         </span>});
 
         merge_values(<span class="kw-2">&amp;mut </span>original, modified);
-        <span class="macro">insta::assert_json_snapshot!</span>(original, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(original, @<span class="string">r#&quot;
        ⋮{
        ⋮  &quot;k1&quot;: &quot;v1&quot;,
        ⋮  &quot;k2&quot;: {
@@ -539,7 +539,7 @@
        ⋮  ],
        ⋮  &quot;k6&quot;: &quot;v6&quot;
        ⋮}
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

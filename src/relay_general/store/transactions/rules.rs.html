@@ -523,7 +523,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rule_format() {
-        <span class="kw">let </span>json = <span class="string">r###&quot;
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
           &quot;pattern&quot;: &quot;/auth/login/*/**&quot;,
           &quot;expiry&quot;: &quot;2022-11-30T00:00:00.000000Z&quot;,
@@ -535,7 +535,7 @@
             &quot;substitution&quot;: &quot;:id&quot;
           }
         }
-        &quot;###</span>;
+        &quot;#</span>;
 
         <span class="kw">let </span>rule: TransactionNameRule = serde_json::from_str(json).unwrap();
 
@@ -553,7 +553,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rule_format_defaults() {
-        <span class="kw">let </span>json = <span class="string">r###&quot;
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
           &quot;pattern&quot;: &quot;/auth/login/*/**&quot;,
           &quot;expiry&quot;: &quot;2022-11-30T00:00:00.000000Z&quot;,
@@ -561,7 +561,7 @@
             &quot;method&quot;: &quot;replace&quot;
           }
         }
-        &quot;###</span>;
+        &quot;#</span>;
 
         <span class="kw">let </span>rule: TransactionNameRule = serde_json::from_str(json).unwrap();
 
@@ -579,7 +579,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rule_format_unsupported_reduction() {
-        <span class="kw">let </span>json = <span class="string">r###&quot;
+        <span class="kw">let </span>json = <span class="string">r#&quot;
         {
           &quot;pattern&quot;: &quot;/auth/login/*/**&quot;,
           &quot;expiry&quot;: &quot;2022-11-30T00:00:00.000000Z&quot;,
@@ -587,7 +587,7 @@
             &quot;method&quot;: &quot;update&quot;
           }
         }
-        &quot;###</span>;
+        &quot;#</span>;
 
         <span class="kw">let </span>rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>result = rule.apply(<span class="string">&quot;/auth/login/test/&quot;</span>);
@@ -597,14 +597,14 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_rule_format_roundtrip() {
-        <span class="kw">let </span>json = <span class="string">r###&quot;{
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;pattern&quot;: &quot;/auth/login/*/**&quot;,
   &quot;expiry&quot;: &quot;2022-11-30T00:00:00Z&quot;,
   &quot;redaction&quot;: {
     &quot;method&quot;: &quot;replace&quot;,
     &quot;substitution&quot;: &quot;:id&quot;
   }
-}&quot;###</span>;
+}&quot;#</span>;
 
         <span class="kw">let </span>rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>rule_json = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>rule).unwrap();

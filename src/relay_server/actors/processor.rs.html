@@ -3999,18 +3999,6 @@
 <a href="#3999" id="3999">3999</a>
 <a href="#4000" id="4000">4000</a>
 <a href="#4001" id="4001">4001</a>
-<a href="#4002" id="4002">4002</a>
-<a href="#4003" id="4003">4003</a>
-<a href="#4004" id="4004">4004</a>
-<a href="#4005" id="4005">4005</a>
-<a href="#4006" id="4006">4006</a>
-<a href="#4007" id="4007">4007</a>
-<a href="#4008" id="4008">4008</a>
-<a href="#4009" id="4009">4009</a>
-<a href="#4010" id="4010">4010</a>
-<a href="#4011" id="4011">4011</a>
-<a href="#4012" id="4012">4012</a>
-<a href="#4013" id="4013">4013</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -7251,7 +7239,7 @@
 
         envelope.add_item({
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::UserReport);
-            item.set_payload(ContentType::Json, <span class="string">r###&quot;{&quot;foo&quot;: &quot;bar&quot;}&quot;###</span>);
+            item.set_payload(ContentType::Json, <span class="string">r#&quot;{&quot;foo&quot;: &quot;bar&quot;}&quot;#</span>);
             item
         });
 
@@ -7462,7 +7450,7 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Event);
                 item.set_payload(
                     ContentType::Json,
-                    <span class="string">r###&quot;
+                    <span class="string">r#&quot;
                     {
                         &quot;request&quot;: {
                             &quot;headers&quot;: [
@@ -7470,7 +7458,7 @@
                             ]
                         }
                     }
-                &quot;###</span>,
+                &quot;#</span>,
                 );
                 item
             });
@@ -7483,13 +7471,13 @@
 
         <span class="comment">// Make sure to mask any IP-like looking data
         </span><span class="kw">let </span>pii_config = PiiConfig::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
                 {
                     &quot;applications&quot;: {
                         &quot;**&quot;: [&quot;@ip:mask&quot;]
                     }
                 }
-                &quot;##</span>,
+                &quot;#</span>,
         )
         .unwrap();
 
@@ -7560,13 +7548,13 @@
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ClientReport);
             item.set_payload(
                 ContentType::Json,
-                <span class="string">r###&quot;
+                <span class="string">r#&quot;
                     {
                         &quot;discarded_events&quot;: [
                             [&quot;queue_full&quot;, &quot;error&quot;, 42]
                         ]
                     }
-                &quot;###</span>,
+                &quot;#</span>,
             );
             item
         });
@@ -7608,13 +7596,13 @@
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ClientReport);
             item.set_payload(
                 ContentType::Json,
-                <span class="string">r###&quot;
+                <span class="string">r#&quot;
                     {
                         &quot;discarded_events&quot;: [
                             [&quot;queue_full&quot;, &quot;error&quot;, 42]
                         ]
                     }
-                &quot;###</span>,
+                &quot;#</span>,
             );
             item
         });
@@ -7664,13 +7652,13 @@
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::ClientReport);
             item.set_payload(
                 ContentType::Json,
-                <span class="string">r###&quot;
+                <span class="string">r#&quot;
                     {
                         &quot;discarded_events&quot;: [
                             [&quot;queue_full&quot;, &quot;error&quot;, 42]
                         ]
                     }
-                &quot;###</span>,
+                &quot;#</span>,
             );
             item
         });
@@ -7721,20 +7709,11 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_from_outcome_type_sampled() {
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;adsf&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
-        ));
+        <span class="macro">assert!</span>(outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;adsf&quot;</span>).is_err());
 
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
-        ));
+        <span class="macro">assert!</span>(outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:&quot;</span>).is_err());
 
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:foo&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
-        ));
+        <span class="macro">assert!</span>(outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:foo&quot;</span>).is_err());
 
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             outcome_from_parts(ClientReportField::FilteredSampling, <span class="string">&quot;Sampled:&quot;</span>),
@@ -7771,10 +7750,7 @@
             outcome_from_parts(ClientReportField::Filtered, <span class="string">&quot;error-message&quot;</span>),
             <span class="prelude-val">Ok</span>(Outcome::Filtered(FilterStatKey::ErrorMessage))
         ));
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            outcome_from_parts(ClientReportField::Filtered, <span class="string">&quot;adsf&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
-        ));
+        <span class="macro">assert!</span>(outcome_from_parts(ClientReportField::Filtered, <span class="string">&quot;adsf&quot;</span>).is_err());
     }
 
     <span class="attr">#[test]
@@ -7799,7 +7775,7 @@
 
     <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r###&quot;
+            <span class="string">r#&quot;
             {
                 &quot;type&quot;: &quot;transaction&quot;,
                 &quot;transaction&quot;: &quot;/foo/&quot;,
@@ -7817,7 +7793,7 @@
                     &quot;source&quot;: &quot;url&quot;
                 }
             }
-            &quot;###</span>,
+            &quot;#</span>,
         )
         .unwrap();
         <span class="kw">let </span>e = event.value_mut().as_mut().unwrap();
@@ -7853,51 +7829,51 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_none() {
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/nothing&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_rule() {
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/denver&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_pattern() {
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/something/12345&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_both() {
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/12345&quot;</span>, TransactionSource::Url);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_log_transaction_metrics_no_match() {
         <span class="kw">let </span>captures = capture_test_event(<span class="string">&quot;/foo/john/12345&quot;</span>, TransactionSource::Route);
-        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
         [
             &quot;event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="doccomment">/// This is a stand-in test to assert panicking behavior for spawn_blocking.
@@ -7969,7 +7945,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_geo_in_light_normalize() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r###&quot;
+            <span class="string">r#&quot;
             {
                 &quot;type&quot;: &quot;transaction&quot;,
                 &quot;transaction&quot;: &quot;/foo/&quot;,
@@ -7990,7 +7966,7 @@
                     &quot;ip_address&quot;: &quot;2.125.160.216&quot;
                 }
             }
-            &quot;###</span>,
+            &quot;#</span>,
         )
         .unwrap();
 

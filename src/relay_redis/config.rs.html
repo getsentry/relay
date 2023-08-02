@@ -178,10 +178,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_redis_single_opts() {
-        <span class="kw">let </span>yaml = <span class="string">r###&quot;
+        <span class="kw">let </span>yaml = <span class="string">r#&quot;
 server: &quot;redis://127.0.0.1:6379&quot;
 max_connections: 42
-&quot;###</span>;
+&quot;#</span>;
 
         <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
             .expect(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
@@ -197,9 +197,9 @@ max_connections: 42
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_redis_single_opts_default() {
-        <span class="kw">let </span>yaml = <span class="string">r###&quot;
+        <span class="kw">let </span>yaml = <span class="string">r#&quot;
 server: &quot;redis://127.0.0.1:6379&quot;
-&quot;###</span>;
+&quot;#</span>;
 
         <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
             .expect(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);
@@ -217,9 +217,9 @@ server: &quot;redis://127.0.0.1:6379&quot;
     // when the single `redis://...` address is provided.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_redis_single() {
-        <span class="kw">let </span>yaml = <span class="string">r###&quot;
+        <span class="kw">let </span>yaml = <span class="string">r#&quot;
 &quot;redis://127.0.0.1:6379&quot;
-&quot;###</span>;
+&quot;#</span>;
 
         <span class="kw">let </span>config: RedisConfig = serde_yaml::from_str(yaml)
             .expect(<span class="string">&quot;Parsed processing redis config: single with options&quot;</span>);

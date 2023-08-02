@@ -721,7 +721,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_kafka_config() {
-        <span class="kw">let </span>yaml = <span class="string">r###&quot;
+        <span class="kw">let </span>yaml = <span class="string">r#&quot;
 events: &quot;ingest-events-kafka-topic&quot;
 profiles:
     name: &quot;ingest-profiles&quot;
@@ -738,7 +738,7 @@ metrics:
       45000:
           name: &quot;ingest-metrics-3&quot;
           config: &quot;metrics_3&quot;
-&quot;###</span>;
+&quot;#</span>;
 
         <span class="kw">let </span>def_config = <span class="macro">vec!</span>[KafkaConfigParam {
             name: <span class="string">&quot;test&quot;</span>.to_string(),

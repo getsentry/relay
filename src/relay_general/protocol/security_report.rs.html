@@ -3127,7 +3127,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
         {
           &quot;culprit&quot;: &quot;style-src cdn.example.com&quot;,
           &quot;logentry&quot;: {
@@ -3153,7 +3153,7 @@
             &quot;violated_directive&quot;: &quot;style-src cdn.example.com&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3168,7 +3168,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
         {
           &quot;culprit&quot;: &quot;&quot;,
           &quot;logentry&quot;: {
@@ -3194,7 +3194,7 @@
             &quot;violated_directive&quot;: &quot;&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3212,7 +3212,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
         {
           &quot;culprit&quot;: &quot;default-src self&quot;,
           &quot;logentry&quot;: {
@@ -3246,7 +3246,7 @@
             &quot;violated_directive&quot;: &quot;default-src self&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3271,7 +3271,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
         {
           &quot;culprit&quot;: &quot;script-src&quot;,
           &quot;logentry&quot;: {
@@ -3311,7 +3311,7 @@
             &quot;disposition&quot;: &quot;enforce&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3326,7 +3326,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r###&quot;&quot;style-src http://cdn.example.com&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src http://cdn.example.com&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3341,7 +3341,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r###&quot;&quot;style-src cdn.example.com&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src cdn.example.com&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3356,7 +3356,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r###&quot;&quot;style-src cdn.example.com&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src cdn.example.com&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3371,7 +3371,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r###&quot;&quot;style-src https://cdn.example.com&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src https://cdn.example.com&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3386,7 +3386,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r###&quot;&quot;style-src &#39;self&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src &#39;self&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3401,7 +3401,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r###&quot;&quot;style-src http://example2.com &#39;self&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src http://example2.com &#39;self&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3416,7 +3416,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r###&quot;&quot;style-src example2.com&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.culprit, @<span class="string">r#&quot;&quot;style-src example2.com&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3434,7 +3434,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.tags, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -3449,7 +3449,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3465,7 +3465,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked &#39;image&#39; from &#39;google.com&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;image&#39; from &#39;google.com&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3481,7 +3481,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked inline &#39;style&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked inline &#39;style&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3498,7 +3498,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked unsafe inline &#39;script&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked unsafe inline &#39;script&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3515,7 +3515,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked unsafe eval() &#39;script&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked unsafe eval() &#39;script&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3532,7 +3532,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked unsafe (eval() or inline) &#39;script&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked unsafe (eval() or inline) &#39;script&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3548,7 +3548,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked &#39;script&#39; from &#39;data:&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;script&#39; from &#39;data:&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3564,7 +3564,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked &#39;script&#39; from &#39;data:&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;script&#39; from &#39;data:&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3580,7 +3580,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked &#39;style&#39; from &#39;fonts.google.com&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;style&#39; from &#39;fonts.google.com&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3596,7 +3596,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked &#39;script&#39; from &#39;cdn.ajaxapis.com&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;script&#39; from &#39;cdn.ajaxapis.com&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3612,7 +3612,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Csp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
         <span class="kw">let </span>message = <span class="kw-2">&amp;</span>event.logentry.value().unwrap().formatted;
-        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r###&quot;&quot;Blocked &#39;style&#39; from &#39;notlocalhost:8000&#39;&quot;&quot;###</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(message.as_str().unwrap(), @<span class="string">r#&quot;&quot;Blocked &#39;style&#39; from &#39;notlocalhost:8000&#39;&quot;&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3641,7 +3641,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         ExpectCt::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
         {
           &quot;culprit&quot;: &quot;www.example.com&quot;,
           &quot;logentry&quot;: {
@@ -3684,7 +3684,7 @@
             &quot;test_report&quot;: false
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3716,7 +3716,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         ExpectStaple::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
         {
           &quot;culprit&quot;: &quot;www.example.com&quot;,
           &quot;logentry&quot;: {
@@ -3758,7 +3758,7 @@
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3776,7 +3776,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
         Hpkp::apply_to_event(json.as_bytes(), <span class="kw-2">&amp;mut </span>event).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(Annotated::new(event), @<span class="string">r#&quot;
         {
           &quot;logentry&quot;: {
             &quot;formatted&quot;: &quot;Public key pinning validation failed for &#39;example.com&#39;&quot;
@@ -3815,7 +3815,7 @@
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

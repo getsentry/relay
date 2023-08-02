@@ -514,7 +514,7 @@
 
         <span class="kw">let </span>os = OsContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r#&quot;
 OsContext {
     name: &quot;macOS&quot;,
     version: &quot;13.1.0&quot;,
@@ -524,7 +524,7 @@ OsContext {
     raw_description: ~,
     other: {},
 }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -585,7 +585,7 @@ OsContext {
 
         <span class="kw">let </span>os = OsContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r#&quot;
 OsContext {
     name: &quot;Mac OS X&quot;,
     version: &quot;10.15.6&quot;,
@@ -595,7 +595,7 @@ OsContext {
     raw_description: ~,
     other: {},
 }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

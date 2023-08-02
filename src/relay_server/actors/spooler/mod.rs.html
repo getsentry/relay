@@ -2416,7 +2416,7 @@
             .filter(|name| name.contains(<span class="string">&quot;buffer.&quot;</span>))
             .collect();
 
-        <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r#&quot;
         [
             &quot;buffer.envelopes_mem:2000|h&quot;,
             &quot;buffer.envelopes_mem_count:1|g&quot;,
@@ -2437,7 +2437,7 @@
             &quot;buffer.dequeue_attempts:1|h&quot;,
             &quot;buffer.reads:1|c&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

@@ -424,7 +424,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_full() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r##&quot;
+            <span class="string">r#&quot;
             {
               &quot;message&quot;: &quot;hi&quot;,
               &quot;exception&quot;: {
@@ -468,12 +468,12 @@
                 }
               }
             }
-            &quot;##</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
         <span class="kw">let </span>selectors = selector_suggestions_from_value(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">insta::assert_yaml_snapshot!</span>(selectors, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_yaml_snapshot!</span>(selectors, @<span class="string">r#&quot;
         ---
         - path: $string
           value: &quot;123&quot;
@@ -511,7 +511,7 @@
           value: ~
         - path: &quot;extra.&#39;My Custom Value&#39;&quot;
           value: &quot;123&quot;
-        &quot;###</span>);
+        &quot;#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

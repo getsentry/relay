@@ -1130,7 +1130,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: None,
           categories: [],
@@ -1138,7 +1138,7 @@
           limit: Some(0),
           reasonCode: Some(ReasonCode(&quot;not_yet&quot;)),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1151,7 +1151,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: None,
           categories: [
@@ -1161,7 +1161,7 @@
           limit: Some(0),
           reasonCode: Some(ReasonCode(&quot;not_yet&quot;)),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1175,7 +1175,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: Some(&quot;o&quot;),
           categories: [],
@@ -1184,7 +1184,7 @@
           window: Some(42),
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1200,7 +1200,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: Some(&quot;p&quot;),
           categories: [],
@@ -1210,7 +1210,7 @@
           window: Some(42),
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1226,7 +1226,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: Some(&quot;p&quot;),
           categories: [],
@@ -1236,7 +1236,7 @@
           window: Some(42),
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1252,7 +1252,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: Some(&quot;k&quot;),
           categories: [],
@@ -1262,7 +1262,7 @@
           window: Some(42),
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1279,7 +1279,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: Some(&quot;f&quot;),
           categories: [
@@ -1291,7 +1291,7 @@
           window: Some(42),
           reasonCode: Some(ReasonCode(&quot;not_so_fast&quot;)),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1303,7 +1303,7 @@
 
         <span class="kw">let </span>quota = serde_json::from_str::&lt;Quota&gt;(json).expect(<span class="string">&quot;parse quota&quot;</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(quota, @<span class="string">r#&quot;
         Quota(
           id: Some(&quot;o&quot;),
           categories: [],
@@ -1311,7 +1311,7 @@
           limit: None,
           window: Some(42),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

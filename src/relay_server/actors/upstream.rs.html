@@ -1612,7 +1612,7 @@
     </span><span class="kw">fn </span>is_network_error(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::SendFailed(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
-            <span class="self">Self</span>::ResponseError(code, <span class="kw">_</span>) =&gt; <span class="macro">matches!</span>(code.as_u16(), <span class="number">502 </span>| <span class="number">503 </span>| <span class="number">504</span>),
+            <span class="self">Self</span>::ResponseError(code, <span class="kw">_</span>) =&gt; <span class="macro">matches!</span>(code.as_u16(), <span class="number">502</span>..=<span class="number">504</span>),
             <span class="self">Self</span>::Http(http) =&gt; http.is_network_error(),
             <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
         }

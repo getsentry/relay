@@ -272,7 +272,7 @@
         );
 
         <span class="kw">let </span>metadata = extract_transaction_metadata(<span class="kw-2">&amp;</span>event.<span class="number">0</span>.unwrap());
-        <span class="macro">insta::assert_debug_snapshot!</span>(metadata, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metadata, @<span class="string">r#&quot;
         {
             &quot;app.identifier&quot;: &quot;io.sentry.myexample&quot;,
             &quot;dist&quot;: &quot;mydist&quot;,
@@ -285,7 +285,7 @@
             &quot;transaction.start&quot;: &quot;2011-05-02T17:40:36.000000000+00:00&quot;,
             &quot;transaction.status&quot;: &quot;ok&quot;,
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

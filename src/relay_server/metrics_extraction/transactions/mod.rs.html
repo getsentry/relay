@@ -2097,7 +2097,7 @@
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans, @<span class="string">r#&quot;
         [
             Span {
                 timestamp: Timestamp(
@@ -2125,9 +2125,9 @@
                 other: {},
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.foo@none&quot;,
@@ -2236,7 +2236,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -2278,7 +2278,7 @@
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.fcp@millisecond&quot;,
@@ -2330,7 +2330,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -2369,7 +2369,7 @@
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.fcp@second&quot;,
@@ -2410,7 +2410,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -2514,7 +2514,7 @@
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.a_custom1@none&quot;,
@@ -2566,7 +2566,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -2797,7 +2797,7 @@
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.sampling_metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(extracted.sampling_metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;c:transactions/count_per_root_project@none&quot;,
@@ -2811,7 +2811,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3064,7 +3064,7 @@
             .map(|m| m.name)
             .collect();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics_names, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics_names, @<span class="string">r#&quot;
         [
             &quot;d:transactions/measurements.frames_frozen@none&quot;,
             &quot;d:transactions/measurements.frames_frozen_rate@ratio&quot;,
@@ -3075,7 +3075,7 @@
             &quot;d:transactions/measurements.stall_total_time@millisecond&quot;,
             &quot;d:transactions/duration@millisecond&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

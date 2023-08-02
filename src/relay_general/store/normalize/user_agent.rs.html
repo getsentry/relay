@@ -473,7 +473,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r#&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;Chrome Mobile&quot;,
@@ -481,7 +481,7 @@
             &quot;type&quot;: &quot;browser&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -490,7 +490,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r#&quot;
         {
           &quot;client_os&quot;: {
             &quot;name&quot;: &quot;Windows&quot;,
@@ -498,7 +498,7 @@
             &quot;type&quot;: &quot;os&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -506,7 +506,7 @@
         <span class="kw">let </span>ua = <span class="string">&quot;Mozilla/5.0 (iPhone; CPU iPhone OS 12_1 like Mac OS X) - (-)&quot;</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r#&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;Mobile Safari UI/WKWebView&quot;,
@@ -524,7 +524,7 @@
             &quot;type&quot;: &quot;device&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -532,7 +532,7 @@
         <span class="kw">let </span>ua = <span class="string">&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) - (-)&quot;</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r#&quot;
         {
           &quot;client_os&quot;: {
             &quot;name&quot;: &quot;Mac OS X&quot;,
@@ -546,7 +546,7 @@
             &quot;type&quot;: &quot;device&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -555,7 +555,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(ua);
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r#&quot;
         {
           &quot;device&quot;: {
             &quot;family&quot;: &quot;Samsung Galaxy Nexus&quot;,
@@ -564,14 +564,14 @@
             &quot;type&quot;: &quot;device&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_all_contexts() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = testutils::get_event_with_user_agent(GOOD_UA);
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r#&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;Chrome Mobile&quot;,
@@ -590,7 +590,7 @@
             &quot;type&quot;: &quot;device&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -617,7 +617,7 @@
         event.contexts = Annotated::new(contexts);
 
         normalize_user_agent(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event.contexts, @<span class="string">r#&quot;
         {
           &quot;browser&quot;: {
             &quot;name&quot;: &quot;BR_FAMILY&quot;,
@@ -641,7 +641,7 @@
             &quot;type&quot;: &quot;os&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

@@ -286,7 +286,7 @@
 
         run_conditional_tagging(event.value().unwrap(), <span class="kw-2">&amp;</span>tagging_config, <span class="kw-2">&amp;mut </span>metrics);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;d:transactions/measurements.lcp@millisecond&quot;,
@@ -307,7 +307,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

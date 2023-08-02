@@ -1231,8 +1231,8 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(other_inner) = other.<span class="number">0 </span>{
             <span class="kw">let </span>other_inner = <span class="kw-2">*</span>other_inner;
             <span class="kw">let </span>inner = <span class="self">self</span>.upsert();
-            inner.remarks.extend(other_inner.remarks.into_iter());
-            inner.errors.extend(other_inner.errors.into_iter());
+            inner.remarks.extend(other_inner.remarks);
+            inner.errors.extend(other_inner.errors);
             <span class="kw">if </span>inner.original_length.is_none() {
                 inner.original_length = other_inner.original_length;
             }

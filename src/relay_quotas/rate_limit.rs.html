@@ -1411,7 +1411,7 @@
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
         });
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#&quot;
         RateLimits(
           limits: [
             RateLimit(
@@ -1425,7 +1425,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1447,7 +1447,7 @@
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
         });
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#&quot;
         RateLimits(
           limits: [
             RateLimit(
@@ -1461,7 +1461,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1491,7 +1491,7 @@
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
         });
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#&quot;
         RateLimits(
           limits: [
             RateLimit(
@@ -1520,7 +1520,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1543,7 +1543,7 @@
         });
 
         <span class="kw">let </span>rate_limit = rate_limits.longest().unwrap();
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limit, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limit, @<span class="string">r#&quot;
         RateLimit(
           categories: [
             transaction,
@@ -1552,7 +1552,7 @@
           reason_code: Some(ReasonCode(&quot;second&quot;)),
           retry_after: RetryAfter(10),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1581,7 +1581,7 @@
         rate_limits.clean_expired();
 
         <span class="comment">// Check that the expired limit has been removed
-        </span><span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###&quot;
+        </span><span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r#&quot;
         RateLimits(
           limits: [
             RateLimit(
@@ -1594,7 +1594,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1628,7 +1628,7 @@
         });
 
         <span class="comment">// Check that the error limit is applied
-        </span><span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###&quot;
+        </span><span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r#&quot;
         RateLimits(
           limits: [
             RateLimit(
@@ -1641,7 +1641,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1686,7 +1686,7 @@
 
         <span class="kw">let </span>applied_limits = rate_limits.check_with_quotas(quotas, item_scoping);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(applied_limits, @<span class="string">r#&quot;
         RateLimits(
           limits: [
             RateLimit(
@@ -1699,7 +1699,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1730,7 +1730,7 @@
 
         rate_limits1.merge(rate_limits2);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits1, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(rate_limits1, @<span class="string">r#&quot;
         RateLimits(
           limits: [
             RateLimit(
@@ -1751,7 +1751,7 @@
             ),
           ],
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

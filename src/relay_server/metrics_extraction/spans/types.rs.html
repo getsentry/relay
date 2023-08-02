@@ -168,7 +168,7 @@
         };
         <span class="kw">let </span>converted = metric.into_metric(timestamp);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(converted, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(converted, @<span class="string">r#&quot;
         Metric {
             name: &quot;d:spans/exclusive_time@millisecond&quot;,
             value: Distribution(
@@ -179,7 +179,7 @@
                 &quot;release&quot;: &quot;1.2.3&quot;,
             },
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

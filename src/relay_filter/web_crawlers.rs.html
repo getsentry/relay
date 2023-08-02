@@ -162,7 +162,7 @@
 
 <span class="kw">static </span>WEB_CRAWLERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?ix)
+        <span class="string">r&quot;(?ix)
         Mediapartners-Google|
         AdsBot-Google|
         Googlebot|
@@ -184,16 +184,16 @@
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
         HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
-    &quot;#
+    &quot;
     </span>)
     .expect(<span class="string">&quot;Invalid web crawlers filter Regex&quot;</span>)
 });
 
 <span class="kw">static </span>ALLOWED_WEB_CRAWLERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?ix)
+        <span class="string">r&quot;(?ix)
         Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
-    &quot;#</span>,
+    &quot;</span>,
     )
     .expect(<span class="string">&quot;Invalid allowed web crawlers filter Regex&quot;</span>)
 });

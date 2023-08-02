@@ -1806,7 +1806,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_convert_default_pii_config() {
-        <span class="macro">insta::assert_json_snapshot!</span>(simple_enabled_pii_config(), @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(simple_enabled_pii_config(), @<span class="string">r#&quot;
         {
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
@@ -1821,7 +1821,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1831,7 +1831,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
         {
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
@@ -1846,7 +1846,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1856,7 +1856,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
         {
           &quot;rules&quot;: {
             &quot;strip-fields&quot;: {
@@ -1882,7 +1882,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1892,7 +1892,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
         {
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) &amp;&amp; !foobar&quot;: [
@@ -1907,7 +1907,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1919,7 +1919,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..Default::default()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
         {
           &quot;applications&quot;: {
             &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
@@ -1930,7 +1930,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -2358,13 +2358,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span>pii_config = simple_enabled_pii_config();
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
         {
           &quot;extra&quot;: {
             &quot;foo&quot;: &quot;1453843029218310&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="macro">macro_rules! </span>sanitize_url_test {
@@ -2489,13 +2489,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
         {
           &quot;extra&quot;: {
             &quot;foo&quot;: 1
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -2656,13 +2656,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
         {
           &quot;extra&quot;: {
             &quot;foobar&quot;: &quot;123-45-6789&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -2684,13 +2684,13 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(<span class="kw-2">&amp;mut </span>data, <span class="kw-2">&amp;mut </span>pii_processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(data, @<span class="string">r#&quot;
         {
           &quot;extra&quot;: {
             &quot;foobar&quot;: &quot;xxx&quot;
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="macro">macro_rules! </span>should_have_mysql_pwd_as_a_default_test {
@@ -2817,7 +2817,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
         {
           &quot;rules&quot;: {
             &quot;strip-fields&quot;: {
@@ -2843,7 +2843,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
 
         <span class="kw">let </span>pii_config = pii_config.unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());

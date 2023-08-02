@@ -396,7 +396,7 @@
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_event_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;c:transactions/counter@none&quot;,
@@ -407,7 +407,7 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -432,7 +432,7 @@
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_event_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;d:transactions/duration@none&quot;,
@@ -443,7 +443,7 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -470,7 +470,7 @@
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_event_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;s:transactions/users@none&quot;,
@@ -481,7 +481,7 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -520,7 +520,7 @@
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
         <span class="kw">let </span>metrics = extract_event_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
                 name: &quot;c:transactions/counter@none&quot;,
@@ -535,7 +535,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 }
 </code></pre></div></section></main></body></html>

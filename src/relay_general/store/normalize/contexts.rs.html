@@ -695,36 +695,36 @@
 
 <span class="doccomment">/// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
 </span><span class="kw">static </span>OS_WINDOWS_REGEX1: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>)
+    Regex::new(<span class="string">r&quot;^(Microsoft )?Windows (NT )?(?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;</span>)
         .unwrap()
 });
 <span class="kw">static </span>OS_WINDOWS_REGEX2: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r&quot;^Windows\s+\d+\s+\((?P&lt;version&gt;\d+\.\d+\.(?P&lt;build_number&gt;\d+)).*$&quot;</span>).unwrap()
 });
 
 <span class="kw">static </span>OS_ANDROID_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r&quot;^Android (OS )?(?P&lt;version&gt;\d+(\.\d+){0,2}) / API-(?P&lt;api&gt;(\d+))&quot;</span>).unwrap()
 });
 
 <span class="doccomment">/// Format sent by Unreal Engine on macOS
 </span><span class="kw">static </span>OS_MACOS_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r&quot;^Mac OS X (?P&lt;version&gt;\d+\.\d+\.\d+)( \((?P&lt;build&gt;[a-fA-F0-9]+)\))?$&quot;</span>).unwrap()
 });
 
 <span class="doccomment">/// Specific regex to parse Linux distros
 </span><span class="kw">static </span>OS_LINUX_DISTRO_UNAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;^Linux (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+(\.\d+){0,2})&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r&quot;^Linux (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P&lt;name&gt;[a-zA-Z]+) (?P&lt;version&gt;\d+(\.\d+){0,2})&quot;</span>).unwrap()
 });
 
 <span class="doccomment">/// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on
 /// macOS, iOS, Linux, etc.
 </span><span class="kw">static </span>OS_UNAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?)&quot;#</span>).unwrap()
+    Regex::new(<span class="string">r&quot;^(?P&lt;name&gt;[a-zA-Z]+) (?P&lt;kernel_version&gt;\d+\.\d+(\.\d+(\.[1-9]+)?)?)&quot;</span>).unwrap()
 });
 
 <span class="doccomment">/// Mono 5.4, .NET Core 2.0
 </span><span class="kw">static </span>RUNTIME_DOTNET_REGEX: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r#&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;#</span>).unwrap());
+    Lazy::new(|| Regex::new(<span class="string">r&quot;^(?P&lt;name&gt;.*) (?P&lt;version&gt;\d+\.\d+(\.\d+){0,2}).*$&quot;</span>).unwrap());
 
 <span class="kw">fn </span>normalize_runtime_context(runtime: <span class="kw-2">&amp;mut </span>RuntimeContext) {
     <span class="kw">if </span>runtime.name.value().is_empty() &amp;&amp; runtime.version.value().is_empty() {

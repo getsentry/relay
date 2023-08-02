@@ -5556,7 +5556,7 @@
         ]&quot;#</span>;
 
         <span class="kw">let </span>buckets = Bucket::parse_all(json.as_bytes()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#&quot;
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
@@ -5575,7 +5575,7 @@
                 },
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5591,7 +5591,7 @@
         ]&quot;#</span>;
 
         <span class="kw">let </span>buckets = Bucket::parse_all(json.as_bytes()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#&quot;
         [
             Bucket {
                 timestamp: UnixTimestamp(1615889440),
@@ -5603,7 +5603,7 @@
                 tags: {},
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5823,7 +5823,7 @@
             .map(|(k, e)| (k, <span class="kw-2">&amp;</span>e.value)) <span class="comment">// skip flush times, they are different every time
             </span>.collect();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#&quot;
         [
             (
                 BucketKey {
@@ -5837,7 +5837,7 @@
                 ),
             ),
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5868,7 +5868,7 @@
             </span>.collect();
 
         buckets.sort_by(|a, b| a.<span class="number">0</span>.timestamp.cmp(<span class="kw-2">&amp;</span>b.<span class="number">0</span>.timestamp));
-        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r#&quot;
         [
             (
                 BucketKey {
@@ -5893,7 +5893,7 @@
                 ),
             ),
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5923,23 +5923,23 @@
         <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap();
         <span class="kw">let </span>project_key3 = ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fef&quot;</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>cost_tracker = CostTracker::default();
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
         cost_tracker.add_cost(project_key1, <span class="number">100</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
         CostTracker {
             total_cost: 100,
             cost_per_project_key: {
                 ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fed&quot;): 100,
             },
         }
-        &quot;###</span>);
+        &quot;#</span>);
         cost_tracker.add_cost(project_key2, <span class="number">200</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
         CostTracker {
             total_cost: 300,
             cost_per_project_key: {
@@ -5947,10 +5947,10 @@
                 ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 200,
             },
         }
-        &quot;###</span>);
+        &quot;#</span>);
         <span class="comment">// Unknown project: Will log error, but not crash
         </span>cost_tracker.subtract_cost(project_key3, <span class="number">666</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
         CostTracker {
             total_cost: 300,
             cost_per_project_key: {
@@ -5958,33 +5958,33 @@
                 ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 200,
             },
         }
-        &quot;###</span>);
+        &quot;#</span>);
         <span class="comment">// Subtract too much: Will log error, but not crash
         </span>cost_tracker.subtract_cost(project_key1, <span class="number">666</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
         CostTracker {
             total_cost: 200,
             cost_per_project_key: {
                 ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 200,
             },
         }
-        &quot;###</span>);
+        &quot;#</span>);
         cost_tracker.subtract_cost(project_key2, <span class="number">20</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
         CostTracker {
             total_cost: 180,
             cost_per_project_key: {
                 ProjectKey(&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;): 180,
             },
         }
-        &quot;###</span>);
+        &quot;#</span>);
         cost_tracker.subtract_cost(project_key2, <span class="number">180</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#&quot;
         CostTracker {
             total_cost: 0,
             cost_per_project_key: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6484,12 +6484,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bucket_partitioning_dummy() {
         <span class="kw">let </span>output = run_test_bucket_partitioning(<span class="prelude-val">None</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(output, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(output, @<span class="string">r#&quot;
         [
             &quot;metrics.buckets.per_batch:2|h|#aggregator:default&quot;,
             &quot;metrics.buckets.batches_per_partition:1|h|#aggregator:default&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6498,21 +6498,21 @@
         <span class="comment">// Because buckets are stored in a HashMap, we do not know in what order the buckets will
         // be processed, so we need to convert them to a set:
         </span><span class="kw">let </span>(partition_keys, tail) = output.split_at(<span class="number">2</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(BTreeSet::from_iter(partition_keys), @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(BTreeSet::from_iter(partition_keys), @<span class="string">r#&quot;
         {
             &quot;metrics.buckets.partition_keys:59|h|#aggregator:default&quot;,
             &quot;metrics.buckets.partition_keys:62|h|#aggregator:default&quot;,
         }
-        &quot;###</span>);
+        &quot;#</span>);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(tail, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(tail, @<span class="string">r#&quot;
         [
             &quot;metrics.buckets.per_batch:1|h|#aggregator:default&quot;,
             &quot;metrics.buckets.batches_per_partition:1|h|#aggregator:default&quot;,
             &quot;metrics.buckets.per_batch:1|h|#aggregator:default&quot;,
             &quot;metrics.buckets.batches_per_partition:1|h|#aggregator:default&quot;,
         ]
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="kw">fn </span>test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {

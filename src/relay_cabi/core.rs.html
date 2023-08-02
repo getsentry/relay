@@ -381,7 +381,7 @@
 <span class="kw">impl </span>RelayBuf {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe fn </span>free(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">if </span><span class="self">self</span>.owned {
-            Vec::from_raw_parts(<span class="self">self</span>.data <span class="kw">as </span><span class="kw-2">*mut </span>u8, <span class="self">self</span>.len, <span class="self">self</span>.len);
+            Vec::from_raw_parts(<span class="self">self</span>.data, <span class="self">self</span>.len, <span class="self">self</span>.len);
             <span class="self">self</span>.data = ptr::null_mut();
             <span class="self">self</span>.len = <span class="number">0</span>;
             <span class="self">self</span>.owned = <span class="bool-val">false</span>;

@@ -850,7 +850,6 @@
 <a href="#850" id="850">850</a>
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -907,9 +906,9 @@
 /// This can be used as a second pass after [`SQL_NORMALIZER_REGEX`].
 </span><span class="kw">static </span>SQL_COLLAPSE_PLACEHOLDERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?xi)
+        <span class="string">r&quot;(?xi)
         (?P&lt;pre&gt;(?:VALUES|IN) \s+\() (?P&lt;values&gt; ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P&lt;post&gt;\s*\)?)
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
@@ -920,7 +919,7 @@
 ///   SELECT &quot;a.b&quot; AS a__b, &quot;a.c&quot; AS a__c FROM x -&gt; SELECT .. FROM x
 </span><span class="kw">static </span>SQL_COLLAPSE_SELECT: Lazy&lt;Regex&gt; = Lazy::new(|| {
     <span class="kw">let </span>col = <span class="string">r&quot;\w+( AS \w+)?&quot;</span>;
-    Regex::new(<span class="macro">format!</span>(<span class="string">r#&quot;(?i)(?P&lt;select&gt;SELECT(\s+(DISTINCT|ALL))?)\s+(?P&lt;columns&gt;({col}(?:\s*,\s*{col})+))\s+(?&lt;from&gt;FROM|$)&quot;#</span>).as_str())
+    Regex::new(<span class="macro">format!</span>(<span class="string">r&quot;(?i)(?P&lt;select&gt;SELECT(\s+(DISTINCT|ALL))?)\s+(?P&lt;columns&gt;({col}(?:\s*,\s*{col})+))\s+(?&lt;from&gt;FROM|$)&quot;</span>).as_str())
         .unwrap()
 });
 
@@ -928,8 +927,7 @@
 ///
 /// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
 /// Python, Ruby on Rails and PHP platforms.
-</span><span class="kw">static </span>SQL_ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r#&quot;/\?|\$1|%s&quot;#</span>).unwrap());
+</span><span class="kw">static </span>SQL_ALREADY_NORMALIZED_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;/\?|\$1|%s&quot;</span>).unwrap());
 
 <span class="doccomment">/// Attempts to replace identifiers in the span description with placeholders.
 ///
@@ -1388,14 +1386,14 @@
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_single_quoted_string_finished,
-        <span class="string">r#&quot;SELECT * FROM table WHERE quote = &#39;it\\&#39;s a string&#39;&quot;#</span>,
+        <span class="string">r&quot;SELECT * FROM table WHERE quote = &#39;it\\&#39;s a string&#39;&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;SELECT * FROM table WHERE quote = %s&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_single_quoted_string_unfinished,
-        <span class="string">r#&quot;SELECT * FROM table WHERE quote = &#39;it\\&#39;s a string&quot;#</span>,
+        <span class="string">r&quot;SELECT * FROM table WHERE quote = &#39;it\\&#39;s a string&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
         <span class="string">&quot;SELECT * FROM table WHERE quote = %s&quot;
     </span>);

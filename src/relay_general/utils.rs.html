@@ -432,7 +432,7 @@
         pattern.push(<span class="string">&#39;^&#39;</span>);
 
         <span class="kw">static </span>GLOB_RE: OnceCell&lt;Regex&gt; = OnceCell::new();
-        <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r#&quot;\\\?|\\\*\\\*|\\\*|\?|\*\*|\*&quot;#</span>).unwrap());
+        <span class="kw">let </span>regex = GLOB_RE.get_or_init(|| Regex::new(<span class="string">r&quot;\\\?|\\\*\\\*|\\\*|\?|\*\*|\*&quot;</span>).unwrap());
 
         <span class="kw">for </span>m <span class="kw">in </span>regex.find_iter(<span class="self">self</span>.value) {
             pattern.push_str(<span class="kw-2">&amp;</span>regex::escape(<span class="kw-2">&amp;</span><span class="self">self</span>.value[last..m.start()]));

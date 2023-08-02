@@ -2052,9 +2052,6 @@
 <a href="#2052" id="2052">2052</a>
 <a href="#2053" id="2053">2053</a>
 <a href="#2054" id="2054">2054</a>
-<a href="#2055" id="2055">2055</a>
-<a href="#2056" id="2056">2056</a>
-<a href="#2057" id="2057">2057</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -4106,10 +4103,7 @@ cache:
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_emit_outcomes_invalid() {
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            serde_json::from_str::&lt;EmitOutcomes&gt;(<span class="string">&quot;asdf&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>)
-        ));
+        <span class="macro">assert!</span>(serde_json::from_str::&lt;EmitOutcomes&gt;(<span class="string">&quot;asdf&quot;</span>).is_err());
     }
 }
 </code></pre></div></section></main></body></html>

@@ -434,6 +434,7 @@
 <a href="#434" id="434">434</a>
 <a href="#435" id="435">435</a>
 <a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -646,6 +647,7 @@
 <span class="doccomment">/// A test function that always panics.
 </span><span class="attr">#[no_mangle]
 #[relay_ffi::catch_unwind]
+#[allow(clippy::diverging_sub_expression)]
 </span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>relay_test_panic() -&gt; () {
     <span class="macro">panic!</span>(<span class="string">&quot;this is a test panic&quot;</span>)
 }

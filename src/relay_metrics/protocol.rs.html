@@ -1587,7 +1587,7 @@
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|c&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
         Metric {
             name: &quot;c:transactions/foo@none&quot;,
             value: Counter(
@@ -1596,7 +1596,7 @@
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1604,7 +1604,7 @@
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|d&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
         Metric {
             name: &quot;d:transactions/foo@none&quot;,
             value: Distribution(
@@ -1613,7 +1613,7 @@
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1629,7 +1629,7 @@
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
         Metric {
             name: &quot;s:transactions/foo@none&quot;,
             value: Set(
@@ -1638,7 +1638,7 @@
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1646,7 +1646,7 @@
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:42|g&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
         Metric {
             name: &quot;g:transactions/foo@none&quot;,
             value: Gauge(
@@ -1655,7 +1655,7 @@
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1681,12 +1681,12 @@
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|d|#foo,bar:baz&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric.tags, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric.tags, @<span class="string">r#&quot;
         {
             &quot;bar&quot;: &quot;baz&quot;,
             &quot;foo&quot;: &quot;&quot;,
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -1727,7 +1727,7 @@
 }&quot;#</span>;
 
         <span class="kw">let </span>metric = serde_json::from_str::&lt;Metric&gt;(json).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
         Metric {
             name: &quot;foo&quot;,
             value: Counter(
@@ -1739,7 +1739,7 @@
                 &quot;full&quot;: &quot;value&quot;,
             },
         }
-        &quot;###</span>);
+        &quot;#</span>);
 
         <span class="kw">let </span>string = serde_json::to_string_pretty(<span class="kw-2">&amp;</span>metric).unwrap();
         <span class="macro">assert_eq!</span>(string, json);
@@ -1756,7 +1756,7 @@
         }&quot;#</span>;
 
         <span class="kw">let </span>metric = serde_json::from_str::&lt;Metric&gt;(json).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
         Metric {
             name: &quot;foo&quot;,
             value: Counter(
@@ -1765,7 +1765,7 @@
             timestamp: UnixTimestamp(4711),
             tags: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

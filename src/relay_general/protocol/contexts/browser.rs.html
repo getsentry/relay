@@ -429,13 +429,13 @@
         <span class="kw">let </span>browser =
             BrowserContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">assert_debug_snapshot!</span>(browser, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(browser, @<span class="string">r#&quot;
         BrowserContext {
             name: &quot;Google Chrome&quot;,
             version: &quot;109&quot;,
             other: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -481,13 +481,13 @@
         <span class="kw">let </span>browser =
             BrowserContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">assert_debug_snapshot!</span>(browser, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(browser, @<span class="string">r#&quot;
         BrowserContext {
             name: &quot;weird browser&quot;,
             version: &quot;109&quot;,
             other: {},
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

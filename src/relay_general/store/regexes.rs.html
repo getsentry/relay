@@ -91,7 +91,7 @@
 /// &lt;https://github.com/getsentry/sentry/blob/6ba59023a78bfe033e48ea4e035b64710a905c6b/src/sentry/grouping/strategies/message.py#L16-L97&gt;
 </span><span class="kw">pub static </span>TRANSACTION_NAME_NORMALIZER_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?x)
+        <span class="string">r&quot;(?x)
     (?P&lt;uuid&gt;[^/\\]*
         \b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b
     [^/\\]*) |
@@ -130,14 +130,14 @@
     (?:^|[/\\])
     (?P&lt;int&gt;
         (:?[^%/\\]|%[0-9a-fA-F]{2})*\d{2,}
-    [^/\\]*)&quot;#</span>,
+    [^/\\]*)&quot;</span>,
     )
     .unwrap()
 });
 
 <span class="doccomment">/// Captures initial all-caps words as redis command, the rest as arguments.
 </span><span class="kw">pub static </span>REDIS_COMMAND_REGEX: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r#&quot;\s*(?P&lt;command&gt;[A-Z]+(\s+[A-Z]+)*\b)(?P&lt;args&gt;.+)?&quot;#</span>).unwrap());
+    Lazy::new(|| Regex::new(<span class="string">r&quot;\s*(?P&lt;command&gt;[A-Z]+(\s+[A-Z]+)*\b)(?P&lt;args&gt;.+)?&quot;</span>).unwrap());
 
 <span class="doccomment">/// Regex with multiple capture groups for resource tokens we should scrub.
 ///
@@ -149,7 +149,7 @@
 /// &lt;https://github.com/getsentry/sentry/blob/de5949a9a313d7ef0bf0685f84fe6e981ac38558/src/sentry/utils/performance_issues/base.py#L292-L306&gt;
 </span><span class="kw">pub static </span>RESOURCE_NORMALIZER_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?xi)
+        <span class="string">r&quot;(?xi)
         # UUIDs.
         (?P&lt;uuid&gt;[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
         # Chunks and chunk numbers.
@@ -162,7 +162,7 @@
         (?P&lt;large_hash&gt;[a-f0-9]{16,64}) |
         # Only numbers (for file names that are just numbers).
         (?P&lt;only_numbers&gt;/[0-9]+(\.[a-z0-9]{2,6})$)
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });

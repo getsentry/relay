@@ -339,7 +339,7 @@
 
 <span class="kw">static </span>EXTENSION_EXC_SOURCES: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?ix)
+        <span class="string">r&quot;(?ix)
         graph\.facebook\.com|                           # Facebook flakiness
         connect\.facebook\.net|                         # Facebook blocked
         eatdifferent\.com\.woopra-ns\.com|              # Woopra flakiness
@@ -351,7 +351,7 @@
         webappstoolbarba\.texthelp\.com/|               # Other
         metrics\.itunes\.apple\.com\.edgesuite\.net/|
         kaspersky-labs\.com                             # Kaspersky Protection browser extension
-    &quot;#</span>,
+    &quot;</span>,
     )
     .expect(<span class="string">&quot;Invalid browser extensions filter (Exec Sources) Regex&quot;</span>)
 });

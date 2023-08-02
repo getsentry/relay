@@ -4137,7 +4137,7 @@
     ) -&gt; ProcessingResult {
         <span class="kw">if </span>!user.other.is_empty() {
             <span class="kw">let </span>data = user.data.value_mut().get_or_insert_with(Object::new);
-            data.extend(std::mem::take(<span class="kw-2">&amp;mut </span>user.other).into_iter());
+            data.extend(std::mem::take(<span class="kw-2">&amp;mut </span>user.other));
         }
 
         user.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
@@ -5284,7 +5284,7 @@
             <span class="string">&quot;.event_id&quot; </span>=&gt; <span class="string">&quot;[event-id]&quot;</span>,
             <span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>,
             <span class="string">&quot;.timestamp&quot; </span>=&gt; <span class="string">&quot;[timestamp]&quot;
-        </span>}, @<span class="string">r###&quot;
+        </span>}, @<span class="string">r#&quot;
         {
           &quot;event_id&quot;: &quot;[event-id]&quot;,
           &quot;level&quot;: &quot;error&quot;,
@@ -5300,12 +5300,12 @@
             &quot;id&quot;: &quot;legacy:1234-12-12&quot;,
           },
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_logentry_error() {
-        <span class="kw">let </span>json = <span class="string">r###&quot;
+        <span class="kw">let </span>json = <span class="string">r#&quot;
 {
     &quot;event_id&quot;: &quot;74ad1301f4df489ead37d757295442b1&quot;,
     &quot;timestamp&quot;: 1668148328.308933,
@@ -5319,7 +5319,7 @@
         &quot;formatted&quot;: 42
     }
 }
-&quot;###</span>;
+&quot;#</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>processor = NormalizeProcessor::default();
@@ -5327,7 +5327,7 @@
         light_normalize_event(<span class="kw-2">&amp;mut </span>event, config).unwrap();
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {<span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {<span class="string">&quot;.received&quot; </span>=&gt; <span class="string">&quot;[received]&quot;</span>}, @<span class="string">r#&quot;
         {
           &quot;event_id&quot;: &quot;74ad1301f4df489ead37d757295442b1&quot;,
           &quot;level&quot;: &quot;error&quot;,
@@ -5358,7 +5358,7 @@
               }
             }
           }
-        }&quot;###</span>)
+        }&quot;#</span>)
     }
 
     <span class="attr">#[test]
@@ -5392,7 +5392,7 @@
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
         <span class="string">&quot;.event_id&quot; </span>=&gt; <span class="string">&quot;[event-id]&quot;</span>,
-    }, @<span class="string">r###&quot;
+    }, @<span class="string">r#&quot;
     {
       &quot;event_id&quot;: &quot;[event-id]&quot;,
       &quot;level&quot;: &quot;error&quot;,
@@ -5417,7 +5417,7 @@
         },
       },
     }
-    &quot;###</span>);
+    &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5451,7 +5451,7 @@
 
         <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>event), {
         <span class="string">&quot;.event_id&quot; </span>=&gt; <span class="string">&quot;[event-id]&quot;</span>,
-    }, @<span class="string">r###&quot;
+    }, @<span class="string">r#&quot;
     {
       &quot;event_id&quot;: &quot;[event-id]&quot;,
       &quot;level&quot;: &quot;error&quot;,
@@ -5476,7 +5476,7 @@
         },
       },
     }
-    &quot;###</span>);
+    &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5657,7 +5657,7 @@
 
         normalize_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
-        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;timestamp&quot;: 1619420405.0,
@@ -5693,7 +5693,7 @@
             },
           },
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5727,7 +5727,7 @@
         normalize_measurements(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>config), <span class="prelude-val">None</span>);
 
         <span class="comment">// Only two custom measurements are retained, in alphabetic order (1 and 2)
-        </span><span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r###&quot;
+        </span><span class="macro">insta::assert_ron_snapshot!</span>(SerializableAnnotated(<span class="kw-2">&amp;</span>Annotated::new(event)), {}, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;timestamp&quot;: 1619420405.0,
@@ -5767,7 +5767,7 @@
             },
           },
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -5839,16 +5839,16 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalize_units() {
         <span class="kw">let </span><span class="kw-2">mut </span>measurements = Annotated::&lt;Measurements&gt;::from_json(
-            <span class="string">r###&quot;{
+            <span class="string">r#&quot;{
                 &quot;fcp&quot;: {&quot;value&quot;: 1.1},
                 &quot;stall_count&quot;: {&quot;value&quot;: 3.3},
                 &quot;foo&quot;: {&quot;value&quot;: 8.8}
-            }&quot;###</span>,
+            }&quot;#</span>,
         )
         .unwrap()
         .into_value()
         .unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#&quot;
         Measurements(
             {
                 &quot;fcp&quot;: Measurement {
@@ -5865,9 +5865,9 @@
                 },
             },
         )
-        &quot;###</span>);
+        &quot;#</span>);
         normalize_units(<span class="kw-2">&amp;mut </span>measurements);
-        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(measurements, @<span class="string">r#&quot;
         Measurements(
             {
                 &quot;fcp&quot;: Measurement {
@@ -5886,13 +5886,13 @@
                 },
             },
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_light_normalize_validates_spans() {
         <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r###&quot;
+            <span class="string">r#&quot;
             {
                 &quot;type&quot;: &quot;transaction&quot;,
                 &quot;transaction&quot;: &quot;/&quot;,
@@ -5908,7 +5908,7 @@
                 },
                 &quot;spans&quot;: []
             }
-            &quot;###</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -5952,12 +5952,12 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_light_normalization_respects_is_renormalize() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r###&quot;
+            <span class="string">r#&quot;
             {
                 &quot;type&quot;: &quot;default&quot;,
                 &quot;tags&quot;: [[&quot;environment&quot;, &quot;some_environment&quot;]]
             }
-            &quot;###</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -5971,7 +5971,7 @@
 
         <span class="macro">assert!</span>(result.is_ok());
 
-        <span class="macro">assert_debug_snapshot!</span>(event.value().unwrap().tags, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.value().unwrap().tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -5982,7 +5982,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6064,7 +6064,7 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -6075,7 +6075,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6093,7 +6093,7 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -6104,7 +6104,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6122,7 +6122,7 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -6133,7 +6133,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6153,7 +6153,7 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -6164,7 +6164,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6184,7 +6184,7 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -6195,7 +6195,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -6215,7 +6215,7 @@
             ..Default::default()
         };
         normalize_device_class(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r###&quot;
+        <span class="macro">assert_debug_snapshot!</span>(event.tags, @<span class="string">r#&quot;
         Tags(
             PairList(
                 [
@@ -6226,7 +6226,7 @@
                 ],
             ),
         )
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

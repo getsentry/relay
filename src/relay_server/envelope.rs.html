@@ -3343,8 +3343,8 @@
         envelope.serialize(<span class="kw-2">&amp;mut </span>buffer).unwrap();
 
         <span class="kw">let </span>stringified = String::from_utf8_lossy(<span class="kw-2">&amp;</span>buffer);
-        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r###&quot;{&quot;event_id&quot;:&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;,&quot;dsn&quot;:&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;,&quot;client&quot;:&quot;sentry/client&quot;,&quot;version&quot;:7,&quot;origin&quot;:&quot;http://origin/&quot;,&quot;remote_addr&quot;:&quot;192.168.0.1&quot;,&quot;user_agent&quot;:&quot;sentry/agent&quot;}
-&quot;###</span>);
+        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r#&quot;{&quot;event_id&quot;:&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;,&quot;dsn&quot;:&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;,&quot;client&quot;:&quot;sentry/client&quot;,&quot;version&quot;:7,&quot;origin&quot;:&quot;http://origin/&quot;,&quot;remote_addr&quot;:&quot;192.168.0.1&quot;,&quot;user_agent&quot;:&quot;sentry/agent&quot;}
+&quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3368,14 +3368,14 @@
         envelope.serialize(<span class="kw-2">&amp;mut </span>buffer).unwrap();
 
         <span class="kw">let </span>stringified = String::from_utf8_lossy(<span class="kw-2">&amp;</span>buffer);
-        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_snapshot!</span>(stringified, @<span class="string">r#&quot;
         {&quot;event_id&quot;:&quot;9ec79c33ec9942ab8353589fcb2e04dc&quot;,&quot;dsn&quot;:&quot;https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42&quot;,&quot;client&quot;:&quot;sentry/client&quot;,&quot;version&quot;:7,&quot;origin&quot;:&quot;http://origin/&quot;,&quot;remote_addr&quot;:&quot;192.168.0.1&quot;,&quot;user_agent&quot;:&quot;sentry/agent&quot;}
         {&quot;type&quot;:&quot;event&quot;,&quot;length&quot;:41,&quot;content_type&quot;:&quot;application/json&quot;}
         {&quot;message&quot;:&quot;hello world&quot;,&quot;level&quot;:&quot;error&quot;}
         {&quot;type&quot;:&quot;attachment&quot;,&quot;length&quot;:7,&quot;content_type&quot;:&quot;text/plain&quot;,&quot;filename&quot;:&quot;application.log&quot;}
         Hello
 
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]

@@ -401,30 +401,30 @@
 
 <span class="kw">static </span>IMEI_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?x)
+        <span class="string">r&quot;(?x)
             \b
                 (\d{2}-?
                  \d{6}-?
                  \d{6}-?
                  \d{1,2})
             \b
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
 
 <span class="kw">static </span>MAC_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?x)
+        <span class="string">r&quot;(?x)
             \b([[:xdigit:]]{2}[:-]){5}[[:xdigit:]]{2}\b
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
 
 <span class="kw">static </span>UUID_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?ix)
+        <span class="string">r&quot;(?ix)
             \b
             [a-z0-9]{8}-?
             [a-z0-9]{4}-?
@@ -432,31 +432,31 @@
             [a-z0-9]{4}-?
             [a-z0-9]{12}
             \b
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
 
 <span class="kw">static </span>EMAIL_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?x)
+        <span class="string">r&quot;(?x)
             \b
                 [a-zA-Z0-9.!\#$%&amp;&#39;*+/=?^_`{|}~-]+
                 @
                 [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
             \b
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
 
 <span class="kw">static </span>IBAN_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?x)
+        <span class="string">r&quot;(?x)
             \b
             (AT|AD|AE|AL|AZ|BA|BE|BG|BH|BR|BY|CH|CR|CY|CZ|DE|DK|DO|EE|EG|ES|FI|FO|FR|GB|GE|GI|GL|GR|GT|HR|HU|IE|IL|IQ|IS|IT|JO|KW|KZ|LB|LC|LI|LT|LU|LV|LY|MC|MD|ME|MK|MR|MT|MU|NL|NO|PK|PL|PS|PT|QA|RO|RU|RS|SA|SC|SE|SI|SK|SM|ST|SV|TL|TN|TR|UA|VA|VG|XK|DZ|AO|BJ|BF|BI|CV|CM|CF|TD|KM|CG|CI|DJ|GQ|GA|GW|HN|IR|MG|ML|MA|MZ|NI|NE|SN|TG)\d{2}[a-zA-Z0-9]{11,29}
             \b
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
@@ -512,7 +512,7 @@
 
 <span class="kw">static </span>PATH_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?ix)
+        <span class="string">r&quot;(?ix)
             (?:
                 (?:
                     \b(?:[a-zA-Z]:[\\/])?
@@ -524,14 +524,14 @@
             (
                 [^/\\]+
             )
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
 
 <span class="kw">static </span>PEM_KEY_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?sx)
+        <span class="string">r&quot;(?sx)
             (?:
                 -----
                 BEGIN[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
@@ -545,32 +545,32 @@
                 END[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
                 -----
             )
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
 
 <span class="kw">static </span>URL_AUTH_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?x)
+        <span class="string">r&quot;(?x)
             \b(?:
                 (?:[a-z0-9+-]+:)?//
                 ([a-zA-Z0-9%_.-]+(?::[a-zA-Z0-9%_.-]+)?)
             )@
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });
 
 <span class="kw">static </span>US_SSN_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
-        <span class="string">r#&quot;(?x)
+        <span class="string">r&quot;(?x)
             \b(
                 [0-9]{3}-
                 [0-9]{2}-
                 [0-9]{4}
             )\b
-        &quot;#</span>,
+        &quot;</span>,
     )
     .unwrap()
 });

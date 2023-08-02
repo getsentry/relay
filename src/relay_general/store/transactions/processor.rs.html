@@ -2458,7 +2458,6 @@
 <a href="#2458" id="2458">2458</a>
 <a href="#2459" id="2459">2459</a>
 <a href="#2460" id="2460">2460</a>
-<a href="#2461" id="2461">2461</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -2573,8 +2572,7 @@
         <span class="macro">matches!</span>(
             source,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>TransactionSource::Url | <span class="kw-2">&amp;</span>TransactionSource::Sanitized)
-        ) || (<span class="macro">matches!</span>(source, <span class="prelude-val">None</span>)
-            &amp;&amp; event.transaction.value().map_or(<span class="bool-val">false</span>, |t| t.contains(<span class="string">&#39;/&#39;</span>)))
+        ) || (source.is_none() &amp;&amp; event.transaction.value().map_or(<span class="bool-val">false</span>, |t| t.contains(<span class="string">&#39;/&#39;</span>)))
     }
 
     <span class="kw">fn </span>normalize_transaction_name(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
@@ -3238,7 +3236,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -3257,7 +3255,7 @@
           },
           &quot;spans&quot;: []
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3339,7 +3337,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -3358,7 +3356,7 @@
           },
           &quot;spans&quot;: []
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3561,7 +3559,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -3588,13 +3586,13 @@
             }
           ]
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_default_transaction_source_unknown() {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
-            <span class="string">r###&quot;
+            <span class="string">r#&quot;
             {
                 &quot;type&quot;: &quot;transaction&quot;,
                 &quot;transaction&quot;: &quot;/&quot;,
@@ -3613,7 +3611,7 @@
                 },
                 &quot;spans&quot;: []
             }
-            &quot;###</span>,
+            &quot;#</span>,
         )
         .unwrap();
 
@@ -3646,7 +3644,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/&quot;,
@@ -3673,7 +3671,7 @@
             }
           ]
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3694,7 +3692,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
@@ -3721,7 +3719,7 @@
             }
           ]
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3742,7 +3740,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
@@ -3769,7 +3767,7 @@
             }
           ]
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -3854,7 +3852,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/*/user/*/0&quot;,
@@ -3901,7 +3899,7 @@
             }
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="doccomment">/// When no identifiers are scrubbed, we should not set an original value in _meta.
@@ -3972,7 +3970,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/*/user/*/0&quot;,
@@ -4013,7 +4011,7 @@
             }
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -4048,7 +4046,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/bar/user/john/0&quot;,
@@ -4068,7 +4066,7 @@
           },
           &quot;spans&quot;: []
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -4130,7 +4128,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
          {
            &quot;type&quot;: &quot;transaction&quot;,
            &quot;transaction&quot;: &quot;/foo/*/user/*/0/&quot;,
@@ -4175,7 +4173,7 @@
              }
            }
          }
-         &quot;###</span>);
+         &quot;#</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
 
@@ -4196,7 +4194,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/*/user/*/0/&quot;,
@@ -4241,7 +4239,7 @@
             }
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -4284,7 +4282,7 @@
         );
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/*/user/*/0/&quot;,
@@ -4322,13 +4320,13 @@
             }
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
 
         <span class="comment">// Process again:
         </span>process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
         <span class="comment">// _meta entry is unchanged, because only updated when &quot;transaction&quot; changed:
-        </span><span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        </span><span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/*/user/*/0/&quot;,
@@ -4366,7 +4364,7 @@
             }
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -4419,7 +4417,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0&quot;,
@@ -4439,7 +4437,7 @@
           },
           &quot;spans&quot;: []
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="kw">fn </span>run_with_unknown_source(sdk: <span class="kw-2">&amp;</span>str) -&gt; Annotated&lt;Event&gt; {
@@ -4494,7 +4492,7 @@
     </span><span class="kw">fn </span>test_normalize_legacy_javascript() {
         <span class="comment">// Javascript without source annotation gets sanitized.
         </span><span class="kw">let </span>event = run_with_unknown_source(<span class="string">&quot;sentry.javascript.browser&quot;</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/user/*/blog/&quot;,
@@ -4530,7 +4528,7 @@
             }
           }
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -4538,7 +4536,7 @@
         <span class="comment">// Python without source annotation does not get sanitized, because we assume it to be
         // low cardinality.
         </span><span class="kw">let </span>event = run_with_unknown_source(<span class="string">&quot;sentry.python&quot;</span>);
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
         {
           &quot;type&quot;: &quot;transaction&quot;,
           &quot;transaction&quot;: &quot;/user/jane/blog/&quot;,
@@ -4561,7 +4559,7 @@
           },
           &quot;spans&quot;: []
         }
-        &quot;###</span>);
+        &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -4609,7 +4607,7 @@
         )
         .unwrap();
 
-        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r###&quot;
+        <span class="macro">assert_annotated_snapshot!</span>(event, @<span class="string">r#&quot;
          {
            &quot;type&quot;: &quot;transaction&quot;,
            &quot;transaction&quot;: &quot;/foo/*/user&quot;,
@@ -4648,7 +4646,7 @@
              }
            }
          }
-         &quot;###</span>);
+         &quot;#</span>);
     }
 
     <span class="attr">#[test]
@@ -4786,8 +4784,8 @@
     </span>);
     <span class="macro">transaction_name_test!</span>(
         test_transaction_name_normalize_windows_path,
-        <span class="string">r#&quot;C:\\\\Program Files\\1234\\Files&quot;#</span>,
-        <span class="string">r#&quot;C:\\Program Files\*\Files&quot;#
+        <span class="string">r&quot;C:\\\\Program Files\\1234\\Files&quot;</span>,
+        <span class="string">r&quot;C:\\Program Files\*\Files&quot;
     </span>);
     <span class="macro">transaction_name_test!</span>(test_transaction_name_skip_replace_all, <span class="string">&quot;12345&quot;</span>, <span class="string">&quot;12345&quot;</span>);
     <span class="macro">transaction_name_test!</span>(

@@ -630,7 +630,7 @@
         &quot;#</span>;
 
         <span class="kw">let </span>metrics = parse_metrics(source)<span class="question-mark">?</span>;
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
                 ty: Set,
@@ -647,7 +647,7 @@
                 features: [],
             },
         ]
-        &quot;###</span>);
+        &quot;#</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
