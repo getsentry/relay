@@ -400,7 +400,23 @@
 <a href="#400" id="400">400</a>
 <a href="#401" id="401">401</a>
 <a href="#402" id="402">402</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
+//!
+//! The configuration can be either;
+//! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
+//! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic,
+//! - [`TopicAssignment::Sharded`] - if we want to configure multiple kafka clusters,
+//! we can create a mapping of the range of logical shards to the kafka configuration.
+
+</span><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>thiserror::Error;
@@ -652,7 +668,7 @@
     <span class="doccomment">/// Get the kafka config for the current topic assignment.
     ///
     /// # Errors
-    /// Returns [`ConfigError`] if the configuration for the current topic assignement is invalid.
+    /// Returns [`ConfigError`] if the configuration for the current topic assignment is invalid.
     </span><span class="kw">pub fn </span>kafka_config&lt;<span class="lifetime">&#39;a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>,
         default_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Vec&lt;KafkaConfigParam&gt;,

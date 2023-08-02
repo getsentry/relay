@@ -374,7 +374,23 @@
 <a href="#374" id="374">374</a>
 <a href="#375" id="375">375</a>
 <a href="#376" id="376">376</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(debug_assertions)]
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the kafka producer related code.
+//!
+//! There are two different producers that are supported in Relay right now:
+//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
+//! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
+//! the shard number the different messages will be sent to different topics using the configured
+//! producer for the this exact shard.
+
+</span><span class="attr">#[cfg(debug_assertions)]
 </span><span class="kw">use </span>std::cell::RefCell;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::fmt;
@@ -572,7 +588,7 @@
     }
 }
 
-<span class="doccomment">/// Helper structure responsable for building the actual [`KafkaClient`].
+<span class="doccomment">/// Helper structure responsible for building the actual [`KafkaClient`].
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>KafkaClientBuilder {
     reused_producers: BTreeMap&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, Arc&lt;ThreadedProducer&gt;&gt;,
@@ -694,7 +710,7 @@
     }
 }
 
-<span class="doccomment">/// This object containes the Kafka producer variants for single and sharded configurations.
+<span class="doccomment">/// This object contains the Kafka producer variants for single and sharded configurations.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>Producer {
     <span class="doccomment">/// Configuration variant for the single kafka producer.
