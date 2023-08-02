@@ -1188,7 +1188,69 @@
 <a href="#1188" id="1188">1188</a>
 <a href="#1189" id="1189">1189</a>
 <a href="#1190" id="1190">1190</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<a href="#1191" id="1191">1191</a>
+<a href="#1192" id="1192">1192</a>
+<a href="#1193" id="1193">1193</a>
+<a href="#1194" id="1194">1194</a>
+<a href="#1195" id="1195">1195</a>
+<a href="#1196" id="1196">1196</a>
+<a href="#1197" id="1197">1197</a>
+<a href="#1198" id="1198">1198</a>
+<a href="#1199" id="1199">1199</a>
+<a href="#1200" id="1200">1200</a>
+<a href="#1201" id="1201">1201</a>
+<a href="#1202" id="1202">1202</a>
+<a href="#1203" id="1203">1203</a>
+<a href="#1204" id="1204">1204</a>
+<a href="#1205" id="1205">1205</a>
+<a href="#1206" id="1206">1206</a>
+<a href="#1207" id="1207">1207</a>
+<a href="#1208" id="1208">1208</a>
+<a href="#1209" id="1209">1209</a>
+<a href="#1210" id="1210">1210</a>
+<a href="#1211" id="1211">1211</a>
+<a href="#1212" id="1212">1212</a>
+<a href="#1213" id="1213">1213</a>
+<a href="#1214" id="1214">1214</a>
+<a href="#1215" id="1215">1215</a>
+<a href="#1216" id="1216">1216</a>
+<a href="#1217" id="1217">1217</a>
+<a href="#1218" id="1218">1218</a>
+<a href="#1219" id="1219">1219</a>
+<a href="#1220" id="1220">1220</a>
+<a href="#1221" id="1221">1221</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
+//! envelopes, either to in-memory or to persistent storage.
+//!
+//! The main entry point for the [`BufferService`] is the [`Buffer`] interface, which currently
+//! supports:
+//! - [`Enqueue`] - enqueueing a message into the backend storage
+//! - [`DequeueMany`] - dequeueing all the requested [`QueueKey`] keys
+//! - [`RemoveMany`] - removing and dropping the requested [`QueueKey`] keys.
+//! - [`Health`] - checking the health of the [`BufferService`]
+//!
+//! To make sure the [`BufferService`] is fast the responsive, especially in the normal working
+//! conditions, it keeps the internal [`BufferState`] state, which defines where the spooling will
+//! be happening.
+//!
+//! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
+//! [`crate::actors::project::ProjectState`] it continues to use the memory as temporary spool.
+//!
+//! Keeping the envelopes in memory as long as we can, we ensure the fast unspool operations and
+//! fast processing times.
+//!
+//! In case of an incident when the in-memory spool gets full (see, `spool.envelopes.max_memory_size` config option)
+//! or if the processing pipeline gets too many messages in-flight, configured by
+//! `cache.envelope_buffer_size` and once it reaches 80% of the defined amount, the internal state will be
+//! switched to [`OnDisk`] and service will continue spooling all the incoming envelopes onto the disk.
+//! This will happen also only when the disk spool is configured.
+//!
+//! The state can be changed to [`InMemory`] again only if all the on-disk spooled envelopes are
+//! read out again and the disk is empty.
+//!
+//! Current on-disk spool implementation uses SQLite as a storage.
+
+</span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::pin::Pin;

@@ -124,7 +124,13 @@
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>futures::stream::{Stream, StreamExt};
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the helper functions wrapping the SQL queries which will be run against
+//! the on-disk spool (currently backed by SQLite).
+
+</span><span class="kw">use </span>futures::stream::{Stream, StreamExt};
 <span class="kw">use </span>sqlx::query::Query;
 <span class="kw">use </span>sqlx::sqlite::SqliteArguments;
 <span class="kw">use </span>sqlx::{Pool, QueryBuilder, Sqlite};
