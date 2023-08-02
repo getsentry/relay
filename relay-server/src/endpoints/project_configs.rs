@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::extract::Query;
 use axum::handler::Handler;
@@ -81,7 +82,7 @@ struct GetProjectStatesResponseWrapper {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    global: Option<GlobalConfig>,
+    global: Option<Arc<GlobalConfig>>,
 }
 
 /// Request payload of the project config endpoint.
@@ -131,20 +132,9 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
-    let global_config = if inner.global_config {
-        match global_configuration_service.send(GetGlobalConfig).await {
-            Ok(global_config) => Some(global_config),
-            Err(e) => {
-                relay_log::error!(
-                    "Failed to fetch globalconfig from GlobalConfiguration service: {}",
-                    e
-                );
-                None
-            }
-        }
-        .map(|gc| (*gc).clone())
-    } else {
-        None
+    let global_config = match inner.global_config {
+        true => Some(global_configuration_service.send(GetGlobalConfig).await?),
+        false => None,
     };
 
     for (project_key, state_result) in future::join_all(futures).await {

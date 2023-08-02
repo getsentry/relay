@@ -1,0 +1,15 @@
+Metadata-Version: 2.1
+Name: sentry-relay
+Version: 0.8.15
+Summary: A python library to access sentry relay functionality.
+Home-page: UNKNOWN
+Author: Sentry
+Author-email: hello@sentry.io
+License: BSL-1.1
+Platform: any
+Requires-Dist: milksnake (>=0.1.2)
+Requires-Dist: enum34 (<1.2.0,>=1.1.6) ; python_version < "3.4"
+
+UNKNOWN
+
+

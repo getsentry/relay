@@ -306,8 +306,13 @@ def mini_sentry(request):  # noqa
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
 
+        response = {}
         configs = {}
         pending = []
+
+        if flask_request.args.get("global"):
+            response["global"] = {"measurements": {}, "metricsConditionalTagging": {}}
+
         version = flask_request.args.get("version")
         if version in [None, "1"]:
             for project_id in flask_request.json.get("projects", []):
@@ -315,7 +320,7 @@ def mini_sentry(request):  # noqa
                 if is_trusted(relay_id, project_config):
                     configs[project_id] = project_config
 
-        elif version in ["2", "3"]:
+        elif version in ["2", "3", "4"]:
             for public_key in flask_request.json.get("publicKeys", []):
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
@@ -339,7 +344,10 @@ def mini_sentry(request):  # noqa
 
         else:
             abort(500, "unsupported version")
-        return jsonify({"configs": configs, "pending": pending, "global": {"measurements": {}, "metricsConditionalTagging": {}}})
+        response["configs"] = configs
+        response["pending"] = pending
+
+        return jsonify(response)
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():

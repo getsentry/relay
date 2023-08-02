@@ -189,8 +189,12 @@ impl ServiceState {
         .spawn_handler(project_cache_rx);
         drop(guard);
 
-        let global_configuration =
-            GlobalConfigurationService::new(processor.clone(), upstream_relay.clone()).start();
+        let global_configuration = GlobalConfigurationService::new(
+            config.credentials().is_some(),
+            processor.clone(),
+            upstream_relay.clone(),
+        )
+        .start();
 
         let health_check = HealthCheckService::new(
             config.clone(),

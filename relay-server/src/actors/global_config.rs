@@ -15,6 +15,7 @@ use crate::actors::upstream::{SendQuery, UpstreamRelay};
 /// forwarding it to the services that require it, and for serving downstream relays.
 #[derive(Debug)]
 pub struct GlobalConfigurationService {
+    enabled: bool,
     global_config: Arc<GlobalConfig>,
     envelope_processor: Addr<EnvelopeProcessor>,
     upstream: Addr<UpstreamRelay>,
@@ -22,6 +23,7 @@ pub struct GlobalConfigurationService {
 
 /// Service interface for the [`GetGlobalConfig`] message.
 pub enum GlobalConfiguration {
+    /// Used to receive the most recently fetched global config.
     GetGlobalConfig(Sender<Arc<GlobalConfig>>),
 }
 
@@ -40,9 +42,14 @@ impl FromMessage<GetGlobalConfig> for GlobalConfiguration {
 
 impl GlobalConfigurationService {
     /// Creates a new [`GlobalConfigurationService`].
-    pub fn new(envelope_processor: Addr<EnvelopeProcessor>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        enabled: bool,
+        envelope_processor: Addr<EnvelopeProcessor>,
+        upstream: Addr<UpstreamRelay>,
+    ) -> Self {
         let global_config = Arc::new(GlobalConfig::default());
         Self {
+            enabled,
             global_config,
             envelope_processor,
             upstream,
@@ -67,7 +74,7 @@ impl GlobalConfigurationService {
                 public_keys: vec![],
                 full_config: false,
                 no_cache: false,
-                global_config: true,
+                global: true,
             };
 
             match upstream_relay.send(SendQuery(query)).await {
@@ -76,19 +83,19 @@ impl GlobalConfigurationService {
                         let global_config = Arc::new(global_config);
                         if let Err(e) = global_tx.send(global_config.clone()) {
                             relay_log::error!(
-                                "Failed to send global config to GlobalConfigurationService: {}",
+                                "failed to send global config to GlobalConfigurationService: {}",
                                 e
                             );
                         };
                         envelope_processor.send::<Arc<GlobalConfig>>(global_config);
                     }
-                    None => relay_log::error!("Global config is missing in upstream response"),
+                    None => relay_log::error!("global config is missing in upstream response"),
                 },
-                Err(e) => {
-                    relay_log::error!("failed to send global config request: {}", e);
-                }
                 Ok(Err(e)) => {
                     relay_log::error!("failed to fetch global config request: {}", e);
+                }
+                Err(e) => {
+                    relay_log::error!("failed to send global config request: {}", e);
                 }
             };
         });
@@ -99,6 +106,13 @@ impl Service for GlobalConfigurationService {
     type Interface = GlobalConfiguration;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        if !self.enabled {
+            relay_log::info!(
+                "global configuration service not starting due to missing credentials"
+            );
+            return;
+        }
+
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(Duration::from_secs(10));
             relay_log::info!("global configuration service started");
