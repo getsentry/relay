@@ -112,8 +112,7 @@ impl<'r> TransactionsProcessor<'r> {
         matches!(
             source,
             Some(&TransactionSource::Url | &TransactionSource::Sanitized)
-        ) || (matches!(source, None)
-            && event.transaction.value().map_or(false, |t| t.contains('/')))
+        ) || (source.is_none() && event.transaction.value().map_or(false, |t| t.contains('/')))
     }
 
     fn normalize_transaction_name(&self, event: &mut Event) -> ProcessingResult {
@@ -777,7 +776,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/",
@@ -796,7 +795,7 @@ mod tests {
           },
           "spans": []
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -878,7 +877,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/",
@@ -897,7 +896,7 @@ mod tests {
           },
           "spans": []
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1100,7 +1099,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/",
@@ -1127,13 +1126,13 @@ mod tests {
             }
           ]
         }
-        "###);
+        "#);
     }
 
     #[test]
     fn test_default_transaction_source_unknown() {
         let mut event = Annotated::<Event>::from_json(
-            r###"
+            r#"
             {
                 "type": "transaction",
                 "transaction": "/",
@@ -1152,7 +1151,7 @@ mod tests {
                 },
                 "spans": []
             }
-            "###,
+            "#,
         )
         .unwrap();
 
@@ -1185,7 +1184,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/",
@@ -1212,7 +1211,7 @@ mod tests {
             }
           ]
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1233,7 +1232,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "<unlabeled transaction>",
@@ -1260,7 +1259,7 @@ mod tests {
             }
           ]
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1281,7 +1280,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "<unlabeled transaction>",
@@ -1308,7 +1307,7 @@ mod tests {
             }
           ]
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1393,7 +1392,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/foo/*/user/*/0",
@@ -1440,7 +1439,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     /// When no identifiers are scrubbed, we should not set an original value in _meta.
@@ -1511,7 +1510,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/foo/*/user/*/0",
@@ -1552,7 +1551,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1587,7 +1586,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/foo/bar/user/john/0",
@@ -1607,7 +1606,7 @@ mod tests {
           },
           "spans": []
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1669,7 +1668,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
          {
            "type": "transaction",
            "transaction": "/foo/*/user/*/0/",
@@ -1714,7 +1713,7 @@ mod tests {
              }
            }
          }
-         "###);
+         "#);
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
@@ -1735,7 +1734,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/foo/*/user/*/0/",
@@ -1780,7 +1779,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1823,7 +1822,7 @@ mod tests {
         );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/foo/*/user/*/0/",
@@ -1861,13 +1860,13 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
 
         // Process again:
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         // _meta entry is unchanged, because only updated when "transaction" changed:
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/foo/*/user/*/0/",
@@ -1905,7 +1904,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1958,7 +1957,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/foo/2fd4e1c67a2d28fced849ee1bb76e7391b93eb12/user/123/0",
@@ -1978,7 +1977,7 @@ mod tests {
           },
           "spans": []
         }
-        "###);
+        "#);
     }
 
     fn run_with_unknown_source(sdk: &str) -> Annotated<Event> {
@@ -2033,7 +2032,7 @@ mod tests {
     fn test_normalize_legacy_javascript() {
         // Javascript without source annotation gets sanitized.
         let event = run_with_unknown_source("sentry.javascript.browser");
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/user/*/blog/",
@@ -2069,7 +2068,7 @@ mod tests {
             }
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2077,7 +2076,7 @@ mod tests {
         // Python without source annotation does not get sanitized, because we assume it to be
         // low cardinality.
         let event = run_with_unknown_source("sentry.python");
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
         {
           "type": "transaction",
           "transaction": "/user/jane/blog/",
@@ -2100,7 +2099,7 @@ mod tests {
           },
           "spans": []
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2148,7 +2147,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_annotated_snapshot!(event, @r###"
+        assert_annotated_snapshot!(event, @r#"
          {
            "type": "transaction",
            "transaction": "/foo/*/user",
@@ -2187,7 +2186,7 @@ mod tests {
              }
            }
          }
-         "###);
+         "#);
     }
 
     #[test]
@@ -2325,8 +2324,8 @@ mod tests {
     );
     transaction_name_test!(
         test_transaction_name_normalize_windows_path,
-        r#"C:\\\\Program Files\\1234\\Files"#,
-        r#"C:\\Program Files\*\Files"#
+        r"C:\\\\Program Files\\1234\\Files",
+        r"C:\\Program Files\*\Files"
     );
     transaction_name_test!(test_transaction_name_skip_replace_all, "12345", "12345");
     transaction_name_test!(

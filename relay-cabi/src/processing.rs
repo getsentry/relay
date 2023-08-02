@@ -210,6 +210,7 @@ pub unsafe extern "C" fn relay_pii_selector_suggestions_from_event(
 /// A test function that always panics.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
+#[allow(clippy::diverging_sub_expression)]
 pub unsafe extern "C" fn relay_test_panic() -> () {
     panic!("this is a test panic")
 }

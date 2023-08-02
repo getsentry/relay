@@ -6,36 +6,36 @@ use crate::types::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
 static OS_WINDOWS_REGEX1: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$"#)
+    Regex::new(r"^(Microsoft )?Windows (NT )?(?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$")
         .unwrap()
 });
 static OS_WINDOWS_REGEX2: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^Windows\s+\d+\s+\((?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$"#).unwrap()
+    Regex::new(r"^Windows\s+\d+\s+\((?P<version>\d+\.\d+\.(?P<build_number>\d+)).*$").unwrap()
 });
 
 static OS_ANDROID_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^Android (OS )?(?P<version>\d+(\.\d+){0,2}) / API-(?P<api>(\d+))"#).unwrap()
+    Regex::new(r"^Android (OS )?(?P<version>\d+(\.\d+){0,2}) / API-(?P<api>(\d+))").unwrap()
 });
 
 /// Format sent by Unreal Engine on macOS
 static OS_MACOS_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$"#).unwrap()
+    Regex::new(r"^Mac OS X (?P<version>\d+\.\d+\.\d+)( \((?P<build>[a-fA-F0-9]+)\))?$").unwrap()
 });
 
 /// Specific regex to parse Linux distros
 static OS_LINUX_DISTRO_UNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^Linux (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P<name>[a-zA-Z]+) (?P<version>\d+(\.\d+){0,2})"#).unwrap()
+    Regex::new(r"^Linux (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?) (?P<name>[a-zA-Z]+) (?P<version>\d+(\.\d+){0,2})").unwrap()
 });
 
 /// Environment.OSVersion or RuntimeInformation.OSDescription (uname) on Mono and CoreCLR on
 /// macOS, iOS, Linux, etc.
 static OS_UNAME_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^(?P<name>[a-zA-Z]+) (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?)"#).unwrap()
+    Regex::new(r"^(?P<name>[a-zA-Z]+) (?P<kernel_version>\d+\.\d+(\.\d+(\.[1-9]+)?)?)").unwrap()
 });
 
 /// Mono 5.4, .NET Core 2.0
 static RUNTIME_DOTNET_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$"#).unwrap());
+    Lazy::new(|| Regex::new(r"^(?P<name>.*) (?P<version>\d+\.\d+(\.\d+){0,2}).*$").unwrap());
 
 fn normalize_runtime_context(runtime: &mut RuntimeContext) {
     if runtime.name.value().is_empty() && runtime.version.value().is_empty() {

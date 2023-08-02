@@ -51,7 +51,7 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
 
 static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?ix)
+        r"(?ix)
         graph\.facebook\.com|                           # Facebook flakiness
         connect\.facebook\.net|                         # Facebook blocked
         eatdifferent\.com\.woopra-ns\.com|              # Woopra flakiness
@@ -63,7 +63,7 @@ static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
         webappstoolbarba\.texthelp\.com/|               # Other
         metrics\.itunes\.apple\.com\.edgesuite\.net/|
         kaspersky-labs\.com                             # Kaspersky Protection browser extension
-    "#,
+    ",
     )
     .expect("Invalid browser extensions filter (Exec Sources) Regex")
 });

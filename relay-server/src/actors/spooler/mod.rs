@@ -1195,7 +1195,7 @@ mod tests {
             .filter(|name| name.contains("buffer."))
             .collect();
 
-        assert_debug_snapshot!(captures, @r###"
+        assert_debug_snapshot!(captures, @r#"
         [
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
@@ -1216,6 +1216,6 @@ mod tests {
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
         ]
-        "###);
+        "#);
     }
 }

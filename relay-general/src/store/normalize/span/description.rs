@@ -54,9 +54,9 @@ static SQL_COLLAPSE_ENTITIES: Lazy<Regex> =
 /// This can be used as a second pass after [`SQL_NORMALIZER_REGEX`].
 static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?xi)
+        r"(?xi)
         (?P<pre>(?:VALUES|IN) \s+\() (?P<values> ( %s ( \)\s*,\s*\(\s*%s | \s*,\s*%s )* )) (?P<post>\s*\)?)
-        "#,
+        ",
     )
     .unwrap()
 });
@@ -67,7 +67,7 @@ static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 ///   SELECT "a.b" AS a__b, "a.c" AS a__c FROM x -> SELECT .. FROM x
 static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
     let col = r"\w+( AS \w+)?";
-    Regex::new(format!(r#"(?i)(?P<select>SELECT(\s+(DISTINCT|ALL))?)\s+(?P<columns>({col}(?:\s*,\s*{col})+))\s+(?<from>FROM|$)"#).as_str())
+    Regex::new(format!(r"(?i)(?P<select>SELECT(\s+(DISTINCT|ALL))?)\s+(?P<columns>({col}(?:\s*,\s*{col})+))\s+(?<from>FROM|$)").as_str())
         .unwrap()
 });
 
@@ -75,8 +75,7 @@ static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
 ///
 /// Looks for `?`, `$1` or `%s` identifiers, commonly used identifiers in
 /// Python, Ruby on Rails and PHP platforms.
-static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"/\?|\$1|%s"#).unwrap());
+static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
@@ -535,14 +534,14 @@ mod tests {
 
     span_description_test!(
         span_description_scrub_single_quoted_string_finished,
-        r#"SELECT * FROM table WHERE quote = 'it\\'s a string'"#,
+        r"SELECT * FROM table WHERE quote = 'it\\'s a string'",
         "db.sql.query",
         "SELECT * FROM table WHERE quote = %s"
     );
 
     span_description_test!(
         span_description_scrub_single_quoted_string_unfinished,
-        r#"SELECT * FROM table WHERE quote = 'it\\'s a string"#,
+        r"SELECT * FROM table WHERE quote = 'it\\'s a string",
         "db.sql.query",
         "SELECT * FROM table WHERE quote = %s"
     );

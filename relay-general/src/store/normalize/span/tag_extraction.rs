@@ -93,7 +93,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             shared_tags
                 .clone()
                 .into_iter()
-                .chain(tags.into_iter())
+                .chain(tags)
                 .map(|(k, v)| (k.to_string(), Annotated::new(v.into()))),
         );
     }
@@ -332,7 +332,7 @@ fn sql_table_from_query(query: &str) -> Option<&str> {
 
 /// Regex with a capture group to extract the HTTP method from a string.
 pub static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b"#)
+    Regex::new(r"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b")
         .unwrap()
 });
 
