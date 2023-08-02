@@ -1,2 +1,0 @@
-[pytest11]
-sentry = pytest_sentry
