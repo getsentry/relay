@@ -1,9 +1,9 @@
 //! This module contains the kafka producer related code.
 //!
-//! There are two different producers are supported in Relay right now:
-//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`]
+//! There are two different producers that are supported in Relay right now:
+//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
 //! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
-//! the shard number the different message will be sent to different topic using the configured
+//! the shard number the different messages will be sent to different topics using the configured
 //! producer for the this exact shard.
 
 #[cfg(debug_assertions)]
