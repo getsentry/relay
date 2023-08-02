@@ -1,12 +1,28 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+fn gen_bindings() {
+    let bindings = bindgen::Builder::default()
+        .header("sentry-native/include/sentry.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .generate()
+        .expect("Unable to generate bindings");
+
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_dir.join("bindings.rs"))
+        .expect("Couldn't write bindings");
+}
+
 fn main() {
     // sentry-native dependencies
     match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
         "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
         "linux" => println!("cargo:rustc-link-lib=dylib=stdc++"),
-        _ => return, // allow building with --all-features, fail during runtime
+        _ => {
+            gen_bindings();
+            return; // allow building with --all-features, fail during runtime
+        }
     }
 
     if !Path::new("sentry-native/.git").exists() {
@@ -39,14 +55,5 @@ fn main() {
     println!("cargo:rustc-link-lib=static=breakpad_client");
     println!("cargo:rustc-link-lib=static=sentry");
 
-    let bindings = bindgen::Builder::default()
-        .header("sentry-native/include/sentry.h")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-        .generate()
-        .expect("Unable to generate bindings");
-
-    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    bindings
-        .write_to_file(out_dir.join("bindings.rs"))
-        .expect("Couldn't write bindings");
+    gen_bindings();
 }
