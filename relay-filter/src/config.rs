@@ -329,7 +329,7 @@ mod tests {
             },
         };
 
-        insta::assert_json_snapshot!(filters_config, @r###"
+        insta::assert_json_snapshot!(filters_config, @r#"
         {
           "browserExtensions": {
             "isEnabled": true
@@ -373,7 +373,7 @@ mod tests {
             "isEnabled": true
           }
         }
-        "###);
+        "#);
     }
 
     #[test]

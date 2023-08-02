@@ -2330,7 +2330,7 @@ mod tests {
         let rules: Result<Vec<RuleCondition>, _> = serde_json::from_str(serialized_rules);
         assert!(rules.is_ok());
         let rules = rules.unwrap();
-        insta::assert_ron_snapshot!(rules, @r###"
+        insta::assert_ron_snapshot!(rules, @r#"
             [
               EqCondition(
                 op: "eq",
@@ -2393,7 +2393,7 @@ mod tests {
                   ),
                 ],
               ),
-            ]"###);
+            ]"#);
     }
 
     #[test]
@@ -2736,13 +2736,13 @@ mod tests {
             Ok(MatchedRuleIds(vec![RuleId(123)]))
         );
 
-        assert!(matches!(MatchedRuleIds::from_string(""), Err(_)));
+        assert!(MatchedRuleIds::from_string("").is_err());
 
-        assert!(matches!(MatchedRuleIds::from_string(","), Err(_)));
+        assert!(MatchedRuleIds::from_string(",").is_err());
 
-        assert!(matches!(MatchedRuleIds::from_string("123.456"), Err(_)));
+        assert!(MatchedRuleIds::from_string("123.456").is_err());
 
-        assert!(matches!(MatchedRuleIds::from_string("a,b"), Err(_)));
+        assert!(MatchedRuleIds::from_string("a,b").is_err());
     }
 
     #[test]
@@ -3149,7 +3149,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r###"
+        insta::assert_ron_snapshot!(dsc, @r#"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -3159,7 +3159,7 @@ mod tests {
           "user_id": "hello",
           "replay_id": None,
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -3173,7 +3173,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r###"
+        insta::assert_ron_snapshot!(dsc, @r#"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -3184,7 +3184,7 @@ mod tests {
           "user_id": "hello",
           "replay_id": None,
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -3198,7 +3198,7 @@ mod tests {
         }
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
-        insta::assert_ron_snapshot!(dsc, @r###"
+        insta::assert_ron_snapshot!(dsc, @r#"
         {
           "trace_id": "00000000-0000-0000-0000-000000000000",
           "public_key": "abd0f232775f45feab79864e580d160b",
@@ -3209,7 +3209,7 @@ mod tests {
           "user_id": "hello",
           "replay_id": None,
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -3263,7 +3263,7 @@ mod tests {
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
-        let expected_json = r###"{
+        let expected_json = r#"{
   "trace_id": "00000000-0000-0000-0000-000000000000",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
@@ -3272,7 +3272,7 @@ mod tests {
   "user_id": "hello",
   "replay_id": null,
   "sampled": true
-}"###;
+}"#;
 
         assert_eq!(dsc_as_json, expected_json);
     }
@@ -3289,7 +3289,7 @@ mod tests {
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
-        let expected_json = r###"{
+        let expected_json = r#"{
   "trace_id": "00000000-0000-0000-0000-000000000000",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
@@ -3298,7 +3298,7 @@ mod tests {
   "user_id": "hello",
   "replay_id": null,
   "sampled": false
-}"###;
+}"#;
 
         assert_eq!(dsc_as_json, expected_json);
     }
@@ -3315,7 +3315,7 @@ mod tests {
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
-        let expected_json = r###"{
+        let expected_json = r#"{
   "trace_id": "00000000-0000-0000-0000-000000000000",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
@@ -3323,7 +3323,7 @@ mod tests {
   "transaction": null,
   "user_id": "hello",
   "replay_id": null
-}"###;
+}"#;
 
         assert_eq!(dsc_as_json, expected_json);
     }
@@ -3340,7 +3340,7 @@ mod tests {
         "#;
         let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         let dsc_as_json = serde_json::to_string_pretty(&dsc).unwrap();
-        let expected_json = r###"{
+        let expected_json = r#"{
   "trace_id": "00000000-0000-0000-0000-000000000000",
   "public_key": "abd0f232775f45feab79864e580d160b",
   "release": null,
@@ -3348,7 +3348,7 @@ mod tests {
   "transaction": null,
   "user_id": "hello",
   "replay_id": null
-}"###;
+}"#;
 
         assert_eq!(dsc_as_json, expected_json);
     }

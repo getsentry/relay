@@ -179,7 +179,7 @@ mod tests {
 
         let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(os, @r###"
+        insta::assert_debug_snapshot!(os, @r#"
 OsContext {
     name: "macOS",
     version: "13.1.0",
@@ -189,7 +189,7 @@ OsContext {
     raw_description: ~,
     other: {},
 }
-        "###);
+        "#);
     }
 
     #[test]
@@ -250,7 +250,7 @@ OsContext {
 
         let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(os, @r###"
+        insta::assert_debug_snapshot!(os, @r#"
 OsContext {
     name: "Mac OS X",
     version: "10.15.6",
@@ -260,7 +260,7 @@ OsContext {
     raw_description: ~,
     other: {},
 }
-        "###);
+        "#);
     }
 
     #[test]

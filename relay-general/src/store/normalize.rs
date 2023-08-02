@@ -991,7 +991,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ProcessingResult {
         if !user.other.is_empty() {
             let data = user.data.value_mut().get_or_insert_with(Object::new);
-            data.extend(std::mem::take(&mut user.other).into_iter());
+            data.extend(std::mem::take(&mut user.other));
         }
 
         user.process_child_values(self, state)?;
@@ -2138,7 +2138,7 @@ mod tests {
             ".event_id" => "[event-id]",
             ".received" => "[received]",
             ".timestamp" => "[timestamp]"
-        }, @r###"
+        }, @r#"
         {
           "event_id": "[event-id]",
           "level": "error",
@@ -2154,12 +2154,12 @@ mod tests {
             "id": "legacy:1234-12-12",
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
     fn test_logentry_error() {
-        let json = r###"
+        let json = r#"
 {
     "event_id": "74ad1301f4df489ead37d757295442b1",
     "timestamp": 1668148328.308933,
@@ -2173,7 +2173,7 @@ mod tests {
         "formatted": 42
     }
 }
-"###;
+"#;
         let mut event = Annotated::from_json(json).unwrap();
 
         let mut processor = NormalizeProcessor::default();
@@ -2181,7 +2181,7 @@ mod tests {
         light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
         {
           "event_id": "74ad1301f4df489ead37d757295442b1",
           "level": "error",
@@ -2212,7 +2212,7 @@ mod tests {
               }
             }
           }
-        }"###)
+        }"#)
     }
 
     #[test]
@@ -2246,7 +2246,7 @@ mod tests {
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
-    }, @r###"
+    }, @r#"
     {
       "event_id": "[event-id]",
       "level": "error",
@@ -2271,7 +2271,7 @@ mod tests {
         },
       },
     }
-    "###);
+    "#);
     }
 
     #[test]
@@ -2305,7 +2305,7 @@ mod tests {
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
-    }, @r###"
+    }, @r#"
     {
       "event_id": "[event-id]",
       "level": "error",
@@ -2330,7 +2330,7 @@ mod tests {
         },
       },
     }
-    "###);
+    "#);
     }
 
     #[test]
@@ -2511,7 +2511,7 @@ mod tests {
 
         normalize_measurements(&mut event, None, None);
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -2547,7 +2547,7 @@ mod tests {
             },
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2581,7 +2581,7 @@ mod tests {
         normalize_measurements(&mut event, Some(&config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -2621,7 +2621,7 @@ mod tests {
             },
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2693,16 +2693,16 @@ mod tests {
     #[test]
     fn test_normalize_units() {
         let mut measurements = Annotated::<Measurements>::from_json(
-            r###"{
+            r#"{
                 "fcp": {"value": 1.1},
                 "stall_count": {"value": 3.3},
                 "foo": {"value": 8.8}
-            }"###,
+            }"#,
         )
         .unwrap()
         .into_value()
         .unwrap();
-        insta::assert_debug_snapshot!(measurements, @r###"
+        insta::assert_debug_snapshot!(measurements, @r#"
         Measurements(
             {
                 "fcp": Measurement {
@@ -2719,9 +2719,9 @@ mod tests {
                 },
             },
         )
-        "###);
+        "#);
         normalize_units(&mut measurements);
-        insta::assert_debug_snapshot!(measurements, @r###"
+        insta::assert_debug_snapshot!(measurements, @r#"
         Measurements(
             {
                 "fcp": Measurement {
@@ -2740,13 +2740,13 @@ mod tests {
                 },
             },
         )
-        "###);
+        "#);
     }
 
     #[test]
     fn test_light_normalize_validates_spans() {
         let event = Annotated::<Event>::from_json(
-            r###"
+            r#"
             {
                 "type": "transaction",
                 "transaction": "/",
@@ -2762,7 +2762,7 @@ mod tests {
                 },
                 "spans": []
             }
-            "###,
+            "#,
         )
         .unwrap();
 
@@ -2806,12 +2806,12 @@ mod tests {
     #[test]
     fn test_light_normalization_respects_is_renormalize() {
         let mut event = Annotated::<Event>::from_json(
-            r###"
+            r#"
             {
                 "type": "default",
                 "tags": [["environment", "some_environment"]]
             }
-            "###,
+            "#,
         )
         .unwrap();
 
@@ -2825,7 +2825,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        assert_debug_snapshot!(event.value().unwrap().tags, @r###"
+        assert_debug_snapshot!(event.value().unwrap().tags, @r#"
         Tags(
             PairList(
                 [
@@ -2836,7 +2836,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -2918,7 +2918,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -2929,7 +2929,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -2947,7 +2947,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -2958,7 +2958,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -2976,7 +2976,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -2987,7 +2987,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -3007,7 +3007,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -3018,7 +3018,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -3038,7 +3038,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -3049,7 +3049,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -3069,7 +3069,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -3080,7 +3080,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]

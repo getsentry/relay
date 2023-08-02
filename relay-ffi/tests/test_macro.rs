@@ -14,6 +14,7 @@ unsafe fn returns_error() -> i32 {
 }
 
 #[relay_ffi::catch_unwind]
+#[allow(clippy::diverging_sub_expression)]
 unsafe fn panics() {
     panic!("this is fine");
 }

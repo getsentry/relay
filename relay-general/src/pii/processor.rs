@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn test_basic_stripping() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "rules": {
                     "remove_bad_headers": {
@@ -546,7 +546,7 @@ mod tests {
                     "$object.**": ["remove_bad_headers"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -597,13 +597,13 @@ mod tests {
     #[test]
     fn test_redact_containers() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "$object": ["@anything"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -627,7 +627,7 @@ mod tests {
     #[test]
     fn test_redact_custom_pattern() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "$string": ["myrule"]
@@ -643,7 +643,7 @@ mod tests {
                     }
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -667,13 +667,13 @@ mod tests {
     #[test]
     fn test_no_field_upsert() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "**": ["@anything:remove"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -697,13 +697,13 @@ mod tests {
     #[test]
     fn test_anything_hash_on_string() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "$string": ["@anything:hash"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -727,13 +727,13 @@ mod tests {
     #[test]
     fn test_anything_hash_on_container() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "$object": ["@anything:hash"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -757,14 +757,14 @@ mod tests {
     #[test]
     fn test_remove_debugmeta_path() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "debug_meta.images.*.code_file": ["@anything:remove"],
                     "debug_meta.images.*.debug_file": ["@anything:remove"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -806,14 +806,14 @@ mod tests {
     #[test]
     fn test_replace_debugmeta_path() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "debug_meta.images.*.code_file": ["@anything:replace"],
                     "debug_meta.images.*.debug_file": ["@anything:replace"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -855,14 +855,14 @@ mod tests {
     #[test]
     fn test_hash_debugmeta_path() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "debug_meta.images.*.code_file": ["@anything:hash"],
                     "debug_meta.images.*.debug_file": ["@anything:hash"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -904,7 +904,7 @@ mod tests {
     #[test]
     fn test_debugmeta_path_not_addressible_with_wildcard_selector() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "$string": ["@anything:remove"],
@@ -913,7 +913,7 @@ mod tests {
                     "(debug_meta.images.**.code_file & $string)": ["@anything:remove"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -955,13 +955,13 @@ mod tests {
     #[test]
     fn test_quoted_keys() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "extra.'special ,./<>?!@#$%^&*())''gärbage'''": ["@anything:remove"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -1033,13 +1033,13 @@ mod tests {
     #[test]
     fn test_ip_address_hashing() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "$user.ip_address": ["@ip:hash"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
@@ -1067,13 +1067,13 @@ mod tests {
     #[test]
     fn test_ip_address_hashing_does_not_overwrite_id() {
         let config = PiiConfig::from_json(
-            r##"
+            r#"
             {
                 "applications": {
                     "$user.ip_address": ["@ip:hash"]
                 }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
