@@ -81,7 +81,7 @@ struct GetProjectStatesResponseWrapper {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    global_config: Option<GlobalConfig>,
+    global: Option<GlobalConfig>,
 }
 
 /// Request payload of the project config endpoint.
@@ -177,7 +177,7 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
-        global_config,
+        global: global_config,
     }))
 }
 
