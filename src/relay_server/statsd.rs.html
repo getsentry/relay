@@ -639,6 +639,11 @@
 <a href="#639" id="639">639</a>
 <a href="#640" id="640">640</a>
 <a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -848,6 +853,8 @@
     </span>EventProcessingPii,
     <span class="doccomment">/// Time spent converting the event from its in-memory reprsentation into a JSON string.
     </span>EventProcessingSerialization,
+    <span class="doccomment">/// Time used to extract span metrics from an event.
+    </span>EventProcessingSpanMetricsExtraction,
     <span class="doccomment">/// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -970,6 +977,9 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>RelayTimers::EventProcessingRateLimiting =&gt; <span class="string">&quot;event_processing.rate_limiting&quot;</span>,
             RelayTimers::EventProcessingPii =&gt; <span class="string">&quot;event_processing.pii&quot;</span>,
+            RelayTimers::EventProcessingSpanMetricsExtraction =&gt; {
+                <span class="string">&quot;event_processing.span_metrics_extraction&quot;
+            </span>}
             RelayTimers::EventProcessingSerialization =&gt; <span class="string">&quot;event_processing.serialization&quot;</span>,
             RelayTimers::EnvelopeWaitTime =&gt; <span class="string">&quot;event.wait_time&quot;</span>,
             RelayTimers::EnvelopeProcessingTime =&gt; <span class="string">&quot;event.processing_time&quot;</span>,

@@ -475,6 +475,15 @@
 <a href="#475" id="475">475</a>
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -488,6 +497,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 
 <span class="kw">mod </span>types;
 
@@ -498,8 +508,16 @@
     aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
     event: <span class="kw-2">&amp;</span>Event,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;, ExtractMetricsError&gt; {
-    <span class="comment">// TODO(iker): measure the performance of this whole method
-    </span><span class="kw">let </span><span class="kw-2">mut </span>metrics = Vec::new();
+    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        extract_span_metrics_inner(aggregator_config, event)
+    })
+}
+
+<span class="kw">fn </span>extract_span_metrics_inner(
+    aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
+    event: <span class="kw-2">&amp;</span>Event,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;, ExtractMetricsError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>metrics = Vec::new();
 
     <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(metrics);
