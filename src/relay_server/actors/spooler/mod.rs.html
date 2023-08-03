@@ -1219,6 +1219,8 @@
 <a href="#1219" id="1219">1219</a>
 <a href="#1220" id="1220">1220</a>
 <a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1623,10 +1625,12 @@
         <span class="prelude-val">Ok</span>(managed_envelope)
     }
 
-    <span class="doccomment">/// Tries to delete the envelops from persistent buffer in batches, extract and convert them to
-    /// managed envelopes and send to back into processing pipeline.
+    <span class="doccomment">/// Tries to delete the envelopes from the persistent buffer in batches,
+    /// extract and convert them to managed envelopes and send back into
+    /// processing pipeline.
     ///
-    /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
+    /// If the error happens in the deletion/fetching phase, a key is returned
+    /// to allow retrying later.
     ///
     /// Returns the amount of envelopes deleted from disk.
     </span><span class="kw">async fn </span>delete_and_fetch(
