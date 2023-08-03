@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Normalize old React Native SDK app start time measurements and spans. ([#2358](https://github.com/getsentry/relay/pull/2358))
+
 **Bug Fixes**:
 
 - Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
