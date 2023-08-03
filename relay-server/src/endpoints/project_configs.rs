@@ -98,7 +98,7 @@ pub struct GetProjectStatesRequest {
     #[serde(default)]
     no_cache: bool,
     #[serde(default)]
-    global_config: bool,
+    global: bool,
 }
 
 async fn inner(
@@ -132,7 +132,7 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
-    let global_config = match inner.global_config {
+    let global_config = match inner.global {
         true => Some(global_configuration_service.send(GetGlobalConfig).await?),
         false => None,
     };
