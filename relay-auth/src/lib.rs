@@ -16,6 +16,7 @@
 //! let (private_key, public_key) = relay_auth::generate_key_pair();
 //! ```
 
+#![warn(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
@@ -94,6 +95,7 @@ impl fmt::Display for RelayVersion {
     }
 }
 
+/// Raised if the Relay cannot parse the provided version.
 #[derive(Clone, Copy, Debug, Default, thiserror::Error)]
 #[error("invalid relay version string")]
 pub struct ParseRelayVersionError;
@@ -197,7 +199,7 @@ impl SecretKey {
         self.sign_with_header(data, &SignatureHeader::default())
     }
 
-    /// Signs some data with the seret key and a specific header and
+    /// Signs some data with the secret key and a specific header and
     /// then returns the signature.
     ///
     /// The default behavior is to attach the timestamp in the header to the
@@ -668,7 +670,7 @@ impl RegisterResponse {
         Ok((response, state))
     }
 
-    /// Returns the relay ID of the registering relay.
+    /// Returns the relay ID of the registering Relay.
     pub fn relay_id(&self) -> RelayId {
         self.relay_id
     }
@@ -678,6 +680,7 @@ impl RegisterResponse {
         self.token.as_str()
     }
 
+    /// Returns the version of the registering Relay.
     pub fn version(&self) -> RelayVersion {
         self.version
     }
