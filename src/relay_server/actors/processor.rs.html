@@ -3996,9 +3996,6 @@
 <a href="#3996" id="3996">3996</a>
 <a href="#3997" id="3997">3997</a>
 <a href="#3998" id="3998">3998</a>
-<a href="#3999" id="3999">3999</a>
-<a href="#4000" id="4000">4000</a>
-<a href="#4001" id="4001">4001</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6076,7 +6073,7 @@
             <span class="kw">match </span>state.project_state.config.metric_extraction {
                 ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; {
                     <span class="kw">let </span>metrics =
-                        <span class="kw">crate</span>::metrics_extraction::event::extract_event_metrics(event, config);
+                        <span class="kw">crate</span>::metrics_extraction::generic::extract_metrics_from(event, config);
                     state.event_metrics_extracted |= !metrics.is_empty();
                     state.extracted_metrics.project_metrics.extend(metrics);
                 }
@@ -6119,10 +6116,7 @@
                 .project_state
                 .has_feature(Feature::SpanMetricsExtraction)
             {
-                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::spans::extract_span_metrics(
-                    <span class="self">self</span>.inner.config.aggregator_config(),
-                    event,
-                )<span class="question-mark">?</span>;
+                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::spans::extract_span_metrics(event)<span class="question-mark">?</span>;
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
 

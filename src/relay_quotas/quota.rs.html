@@ -800,6 +800,8 @@
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
 <a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -910,9 +912,11 @@
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
+            | DataCategory::Span
             | DataCategory::Monitor =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
             DataCategory::Attachment =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Bytes),
             DataCategory::Session =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Batched),
+
             DataCategory::Unknown =&gt; <span class="prelude-val">None</span>,
         }
     }

@@ -464,125 +464,94 @@
 <a href="#464" id="464">464</a>
 <a href="#465" id="465">465</a>
 <a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
-<span class="kw">use </span>std::str::FromStr;
-
-<span class="kw">use </span>relay_common::{EventType, UnixTimestamp};
+</pre></div><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>relay_common::DataCategory;
+<span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 <span class="kw">use </span>relay_general::protocol::Event;
-<span class="kw">use </span>relay_general::store::span::tag_extraction::SpanTagKey;
-<span class="kw">use </span>relay_general::types::{Annotated, Value};
-<span class="kw">use </span>relay_metrics::{AggregatorConfig, Metric};
+<span class="kw">use </span>relay_general::store::LazyGlob;
+<span class="kw">use </span>relay_metrics::Metric;
 
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::types::SpanMetric;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics_from;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 
-<span class="kw">mod </span>types;
+<span class="doccomment">/// Configuration for extracting metrics from spans.
+///
+/// This configuration is temporarily hard-coded here. It will later be moved to project config
+/// and be provided by the upstream.
+</span><span class="kw">static </span>SPAN_EXTRACTION_CONFIG: Lazy&lt;MetricExtractionConfig&gt; = Lazy::new(|| {
+    MetricExtractionConfig::new(
+        <span class="comment">// Metrics
+        </span><span class="macro">vec!</span>[
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: <span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>.into(),
+                field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.exclusive_time&quot;</span>.into()),
+                condition: <span class="prelude-val">None</span>,
+                tags: <span class="macro">vec!</span>[TagSpec {
+                    key: <span class="string">&quot;transaction&quot;</span>.into(),
+                    field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.data.transaction&quot;</span>.into()),
+                    value: <span class="prelude-val">None</span>,
+                    condition: <span class="prelude-val">None</span>,
+                }],
+            },
+            MetricSpec {
+                category: DataCategory::Span,
+                mri: <span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>.into(),
+                field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.exclusive_time&quot;</span>.into()),
+                condition: <span class="prelude-val">None</span>,
+                tags: Default::default(),
+            },
+        ],
+        <span class="comment">// Tags
+        </span><span class="macro">vec!</span>[TagMapping {
+            metrics: <span class="macro">vec!</span>[
+                LazyGlob::new(<span class="string">&quot;d:spans/exclusive_time@millisecond&quot;</span>.into()),
+                LazyGlob::new(<span class="string">&quot;d:spans/exclusive_time_light@millisecond&quot;</span>.into()),
+            ],
+            tags: [
+                <span class="string">&quot;environment&quot;</span>,
+                <span class="string">&quot;http.status_code&quot;</span>,
+                <span class="string">&quot;span.action&quot;</span>,
+                <span class="string">&quot;span.category&quot;</span>,
+                <span class="string">&quot;span.description&quot;</span>,
+                <span class="string">&quot;span.domain&quot;</span>,
+                <span class="string">&quot;span.group&quot;</span>,
+                <span class="string">&quot;span.module&quot;</span>,
+                <span class="string">&quot;span.op&quot;</span>,
+                <span class="string">&quot;span.status_code&quot;</span>,
+                <span class="string">&quot;span.status&quot;</span>,
+                <span class="string">&quot;span.system&quot;</span>,
+                <span class="string">&quot;transaction.method&quot;</span>,
+                <span class="string">&quot;transaction.op&quot;</span>,
+            ]
+            .map(|key| TagSpec {
+                key: key.into(),
+                field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.data.{}&quot;</span>, key.replace(<span class="string">&#39;.&#39;</span>, <span class="string">&quot;\\.&quot;</span>))),
+                value: <span class="prelude-val">None</span>,
+                condition: <span class="prelude-val">None</span>,
+            })
+            .into(),
+        }],
+    )
+});
 
-<span class="doccomment">/// Extracts metrics from the spans of the given transaction, and sets common
-/// tags for all the metrics and spans. If a span already contains a tag
-/// extracted for a metric, the tag value is overwritten.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_span_metrics(
-    aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
-    event: <span class="kw-2">&amp;</span>Event,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;, ExtractMetricsError&gt; {
+<span class="doccomment">/// Extracts metrics from the spans of the given transaction.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_span_metrics(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;, ExtractMetricsError&gt; {
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        extract_span_metrics_inner(aggregator_config, event)
+        extract_span_metrics_inner(event)
     })
 }
 
-<span class="kw">fn </span>extract_span_metrics_inner(
-    aggregator_config: <span class="kw-2">&amp;</span>AggregatorConfig,
-    event: <span class="kw-2">&amp;</span>Event,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;, ExtractMetricsError&gt; {
+<span class="kw">fn </span>extract_span_metrics_inner(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Metric&gt;, ExtractMetricsError&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = Vec::new();
-
-    <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-        <span class="kw">return </span><span class="prelude-val">Ok</span>(metrics);
-    }
-    <span class="kw">let </span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>_start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) = (event.start_timestamp.value(), event.timestamp.value()) <span class="kw">else </span>{
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;failed to extract the start and the end timestamps from the event&quot;</span>);
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::MissingTimestamp);
-    };
-
-    <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;event timestamp is not a valid unix timestamp&quot;</span>);
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
-    };
-
-    <span class="comment">// Validate the transaction event against the metrics timestamp limits. If the metric is too
-    // old or too new, we cannot extract the metric and also need to drop the transaction event
-    // for consistency between metrics and events.
-    </span><span class="kw">if </span>!aggregator_config.timestamp_range().contains(<span class="kw-2">&amp;</span>timestamp) {
-        <span class="macro">relay_log::debug!</span>(<span class="string">&quot;event timestamp is out of the valid range for metrics&quot;</span>);
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
-    }
-
     <span class="kw">let </span><span class="prelude-val">Some</span>(spans) = event.spans.value() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(metrics) };
 
     <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
         <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() <span class="kw">else </span>{ <span class="kw">continue </span>};
-
-        <span class="comment">// Get parts of `span.data` that are designated as metrics
-        </span><span class="kw">let </span>span_tags: BTreeMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = span
-            .data
-            .value()
-            .iter()
-            .flat_map(|x| x.iter())
-            .filter_map(
-                |(key, value)| <span class="kw">match </span>(SpanTagKey::from_str(key.as_str()), value) {
-                    (<span class="prelude-val">Ok</span>(key), Annotated(<span class="prelude-val">Some</span>(Value::String(s)), <span class="kw">_</span>)) <span class="kw">if </span>key.is_metric_tag() =&gt; {
-                        <span class="prelude-val">Some</span>((key, s.clone()))
-                    }
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-                },
-            )
-            .collect();
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(exclusive_time) = span.exclusive_time.value() {
-            <span class="comment">// NOTE(iker): this exclusive time doesn&#39;t consider all cases,
-            // such as sub-transactions. We accept these limitations for
-            // now.
-            </span>metrics.push(
-                SpanMetric::ExclusiveTime {
-                    value: <span class="kw-2">*</span>exclusive_time,
-                    tags: span_tags.clone(),
-                }
-                .into_metric(timestamp),
-            );
-
-            <span class="kw">let </span><span class="kw-2">mut </span>reduced_tags = span_tags.clone();
-            reduced_tags.remove(<span class="kw-2">&amp;</span>SpanTagKey::Transaction);
-            metrics.push(
-                SpanMetric::ExclusiveTimeLight {
-                    value: <span class="kw-2">*</span>exclusive_time,
-                    tags: reduced_tags,
-                }
-                .into_metric(timestamp),
-            );
-        }
+        <span class="kw">let </span>span_metrics = extract_metrics_from(span, <span class="kw-2">&amp;</span>SPAN_EXTRACTION_CONFIG);
+        metrics.extend(span_metrics);
     }
 
     <span class="prelude-val">Ok</span>(metrics)
@@ -592,8 +561,6 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_general::store::{<span class="self">self</span>, LightNormalizationConfig};
     <span class="kw">use </span>relay_general::types::Annotated;
-
-    <span class="kw">use </span>relay_metrics::AggregatorConfig;
 
     <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::spans::extract_span_metrics;
 
@@ -957,14 +924,7 @@
         );
         <span class="macro">assert!</span>(res.is_ok());
 
-        <span class="kw">let </span>aggregator_config = AggregatorConfig {
-            max_secs_in_past: u64::MAX,
-            max_secs_in_future: u64::MAX,
-            ..Default::default()
-        };
-
-        <span class="kw">let </span>metrics =
-            extract_span_metrics(<span class="kw-2">&amp;</span>aggregator_config, event.value_mut().as_mut().unwrap()).unwrap();
+        <span class="kw">let </span>metrics = extract_span_metrics(event.value_mut().as_mut().unwrap()).unwrap();
 
         <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics);

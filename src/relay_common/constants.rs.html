@@ -690,6 +690,11 @@
 <a href="#690" id="690">690</a>
 <a href="#691" id="691">691</a>
 <a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Constants shared with the C-ABI and Sentry.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -820,6 +825,10 @@
     ///
     /// This is the category for indexed profiles that will be stored later.
     </span>ProfileIndexed = <span class="number">11</span>,
+    <span class="doccomment">/// Span
+    ///
+    /// Used for spans processed independently of transactions.
+    </span>Span = <span class="number">12</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -867,6 +876,7 @@
             <span class="self">Self</span>::TransactionProcessed =&gt; <span class="string">&quot;transaction_processed&quot;</span>,
             <span class="self">Self</span>::TransactionIndexed =&gt; <span class="string">&quot;transaction_indexed&quot;</span>,
             <span class="self">Self</span>::Monitor =&gt; <span class="string">&quot;monitor&quot;</span>,
+            <span class="self">Self</span>::Span =&gt; <span class="string">&quot;span&quot;</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }

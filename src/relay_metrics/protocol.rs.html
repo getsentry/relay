@@ -904,6 +904,7 @@
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
@@ -1113,6 +1114,7 @@
 /// (excl. timestamp and tags).
 ///
 /// For more information see [`Metric::name`].
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>MetricResourceIdentifier&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The metric type.
     </span><span class="kw">pub </span>ty: MetricType,

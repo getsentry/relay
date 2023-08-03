@@ -3889,6 +3889,93 @@
 <a href="#3889" id="3889">3889</a>
 <a href="#3890" id="3890">3890</a>
 <a href="#3891" id="3891">3891</a>
+<a href="#3892" id="3892">3892</a>
+<a href="#3893" id="3893">3893</a>
+<a href="#3894" id="3894">3894</a>
+<a href="#3895" id="3895">3895</a>
+<a href="#3896" id="3896">3896</a>
+<a href="#3897" id="3897">3897</a>
+<a href="#3898" id="3898">3898</a>
+<a href="#3899" id="3899">3899</a>
+<a href="#3900" id="3900">3900</a>
+<a href="#3901" id="3901">3901</a>
+<a href="#3902" id="3902">3902</a>
+<a href="#3903" id="3903">3903</a>
+<a href="#3904" id="3904">3904</a>
+<a href="#3905" id="3905">3905</a>
+<a href="#3906" id="3906">3906</a>
+<a href="#3907" id="3907">3907</a>
+<a href="#3908" id="3908">3908</a>
+<a href="#3909" id="3909">3909</a>
+<a href="#3910" id="3910">3910</a>
+<a href="#3911" id="3911">3911</a>
+<a href="#3912" id="3912">3912</a>
+<a href="#3913" id="3913">3913</a>
+<a href="#3914" id="3914">3914</a>
+<a href="#3915" id="3915">3915</a>
+<a href="#3916" id="3916">3916</a>
+<a href="#3917" id="3917">3917</a>
+<a href="#3918" id="3918">3918</a>
+<a href="#3919" id="3919">3919</a>
+<a href="#3920" id="3920">3920</a>
+<a href="#3921" id="3921">3921</a>
+<a href="#3922" id="3922">3922</a>
+<a href="#3923" id="3923">3923</a>
+<a href="#3924" id="3924">3924</a>
+<a href="#3925" id="3925">3925</a>
+<a href="#3926" id="3926">3926</a>
+<a href="#3927" id="3927">3927</a>
+<a href="#3928" id="3928">3928</a>
+<a href="#3929" id="3929">3929</a>
+<a href="#3930" id="3930">3930</a>
+<a href="#3931" id="3931">3931</a>
+<a href="#3932" id="3932">3932</a>
+<a href="#3933" id="3933">3933</a>
+<a href="#3934" id="3934">3934</a>
+<a href="#3935" id="3935">3935</a>
+<a href="#3936" id="3936">3936</a>
+<a href="#3937" id="3937">3937</a>
+<a href="#3938" id="3938">3938</a>
+<a href="#3939" id="3939">3939</a>
+<a href="#3940" id="3940">3940</a>
+<a href="#3941" id="3941">3941</a>
+<a href="#3942" id="3942">3942</a>
+<a href="#3943" id="3943">3943</a>
+<a href="#3944" id="3944">3944</a>
+<a href="#3945" id="3945">3945</a>
+<a href="#3946" id="3946">3946</a>
+<a href="#3947" id="3947">3947</a>
+<a href="#3948" id="3948">3948</a>
+<a href="#3949" id="3949">3949</a>
+<a href="#3950" id="3950">3950</a>
+<a href="#3951" id="3951">3951</a>
+<a href="#3952" id="3952">3952</a>
+<a href="#3953" id="3953">3953</a>
+<a href="#3954" id="3954">3954</a>
+<a href="#3955" id="3955">3955</a>
+<a href="#3956" id="3956">3956</a>
+<a href="#3957" id="3957">3957</a>
+<a href="#3958" id="3958">3958</a>
+<a href="#3959" id="3959">3959</a>
+<a href="#3960" id="3960">3960</a>
+<a href="#3961" id="3961">3961</a>
+<a href="#3962" id="3962">3962</a>
+<a href="#3963" id="3963">3963</a>
+<a href="#3964" id="3964">3964</a>
+<a href="#3965" id="3965">3965</a>
+<a href="#3966" id="3966">3966</a>
+<a href="#3967" id="3967">3967</a>
+<a href="#3968" id="3968">3968</a>
+<a href="#3969" id="3969">3969</a>
+<a href="#3970" id="3970">3970</a>
+<a href="#3971" id="3971">3971</a>
+<a href="#3972" id="3972">3972</a>
+<a href="#3973" id="3973">3973</a>
+<a href="#3974" id="3974">3974</a>
+<a href="#3975" id="3975">3975</a>
+<a href="#3976" id="3976">3976</a>
+<a href="#3977" id="3977">3977</a>
+<a href="#3978" id="3978">3978</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -3969,6 +4056,7 @@
 <span class="kw">use </span>rand::distributions::Uniform;
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>rand_pcg::Pcg32;
+<span class="kw">use </span>relay_general::types::{<span class="self">self</span>, Annotated};
 <span class="kw">use </span>serde::de::Visitor;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 <span class="kw">use </span>serde_json::{Number, Value};
@@ -3976,7 +4064,7 @@
 <span class="kw">use </span>relay_common::{EventType, ProjectKey, Uuid};
 <span class="kw">use </span>relay_filter::GlobPatterns;
 <span class="kw">use </span>relay_general::protocol::{
-    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
+    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, Span, TraceContext,
 };
 <span class="kw">use </span>relay_general::store;
 
@@ -4474,6 +4562,7 @@
 <span class="doccomment">/// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
+</span><span class="comment">// TODO: This trait is used for more than dynamic sampling now. Move it to relay-general.
 </span><span class="kw">pub trait </span>FieldValueProvider {
     <span class="doccomment">/// gets the value of a field
     </span><span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; Value;
@@ -4703,6 +4792,66 @@
                 <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>s) =&gt; Value::String(s.to_string()),
             },
             <span class="kw">_ </span>=&gt; Value::Null,
+        }
+    }
+}
+
+<span class="kw">impl </span>FieldValueProvider <span class="kw">for </span>Span {
+    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; Value {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(path) = path.strip_prefix(<span class="string">&quot;span.&quot;</span>) <span class="kw">else </span>{
+            <span class="kw">return </span>Value::Null
+        };
+
+        <span class="kw">match </span>path {
+            <span class="string">&quot;exclusive_time&quot; </span>=&gt; <span class="self">self
+                </span>.exclusive_time
+                .value()
+                .map_or(Value::Null, |<span class="kw-2">&amp;</span>v| v.into()),
+            <span class="string">&quot;description&quot; </span>=&gt; <span class="self">self</span>.description.as_str().map_or(Value::Null, Value::from),
+            <span class="string">&quot;op&quot; </span>=&gt; <span class="self">self</span>.op.as_str().map_or(Value::Null, Value::from),
+            <span class="string">&quot;span_id&quot; </span>=&gt; <span class="self">self
+                </span>.span_id
+                .value()
+                .map_or(Value::Null, |s| s.<span class="number">0</span>.as_str().into()),
+            <span class="string">&quot;parent_span_id&quot; </span>=&gt; <span class="self">self
+                </span>.parent_span_id
+                .value()
+                .map_or(Value::Null, |s| s.<span class="number">0</span>.as_str().into()),
+            <span class="string">&quot;trace_id&quot; </span>=&gt; <span class="self">self
+                </span>.trace_id
+                .value()
+                .map_or(Value::Null, |s| s.<span class="number">0</span>.as_str().into()),
+            <span class="string">&quot;status&quot; </span>=&gt; <span class="self">self
+                </span>.status
+                .value()
+                .map_or(Value::Null, |s| s.as_str().into()),
+            <span class="string">&quot;origin&quot; </span>=&gt; <span class="self">self</span>.origin.as_str().map_or(Value::Null, Value::from),
+            <span class="kw">_ </span>=&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">&quot;tags.&quot;</span>) {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = <span class="self">self
+                        </span>.tags
+                        .value()
+                        .and_then(|tags| tags.get(key))
+                        .and_then(Annotated::value)
+                    {
+                        <span class="kw">return </span>Value::from(v.as_str());
+                    }
+                }
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">&quot;data.&quot;</span>) {
+                    <span class="kw">let </span>escaped = key.replace(<span class="string">&quot;\\.&quot;</span>, <span class="string">&quot;\0&quot;</span>);
+                    <span class="kw">let </span><span class="kw-2">mut </span>path = escaped.split(<span class="string">&#39;.&#39;</span>).map(|s| s.replace(<span class="string">&#39;\0&#39;</span>, <span class="string">&quot;.&quot;</span>));
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(root) = path.next() <span class="kw">else </span>{ <span class="kw">return </span>Value::Null };
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>val) = <span class="self">self</span>.data.value().and_then(|data| data.get(<span class="kw-2">&amp;</span>root)).and_then(Annotated::value) <span class="kw">else </span>{ <span class="kw">return </span>Value::Null };
+                    <span class="kw">for </span>part <span class="kw">in </span>path {
+                        <span class="comment">// While there is path segments left, `val` has to be an Object.
+                        </span><span class="kw">let </span>types::Value::Object(map) = val <span class="kw">else </span>{ <span class="kw">return </span>Value::Null };
+                        <span class="kw">let </span><span class="prelude-val">Some</span>(child) = map.get(<span class="kw-2">&amp;</span>part).and_then(Annotated::value) <span class="kw">else </span>{ <span class="kw">return </span>Value::Null };
+                        val = child;
+                    }
+                    <span class="kw">return </span>Value::from(val.clone());
+                }
+                Value::Null
+            }
         }
     }
 }
@@ -5264,6 +5413,7 @@
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use </span>chrono::{Duration <span class="kw">as </span>DateDuration, TimeZone, Utc};
+    <span class="kw">use </span>serde_json::json;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use </span>relay_general::protocol::{
@@ -5775,6 +5925,30 @@
         };
         <span class="macro">assert_eq!</span>(Value::Null, dsc.get_value(<span class="string">&quot;trace.user.id&quot;</span>));
         <span class="macro">assert_eq!</span>(Value::Null, dsc.get_value(<span class="string">&quot;trace.user.segment&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_field_value_provider_span_data() {
+        <span class="kw">let </span>span = Annotated::&lt;Span&gt;::from_json(
+            <span class="string">r#&quot; {
+            &quot;data&quot;: {
+                &quot;foo&quot;: {
+                    &quot;bar&quot;: 1
+                },
+                &quot;foo.bar&quot;: 2
+            }
+        }&quot;#</span>,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.foo.bar&quot;</span>), <span class="macro">json!</span>(<span class="number">1</span>));
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">r&quot;span.data.foo\.bar&quot;</span>), <span class="macro">json!</span>(<span class="number">2</span>));
+
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data&quot;</span>), Value::Null);
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.&quot;</span>), Value::Null);
+        <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.x&quot;</span>), Value::Null);
     }
 
     <span class="attr">#[test]
