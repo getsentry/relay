@@ -11,6 +11,7 @@ use crate::metrics_extraction::spans::types::SpanMetric;
 
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::IntoMetric;
+use crate::statsd::RelayTimers;
 
 mod types;
 
@@ -21,7 +22,15 @@ pub(crate) fn extract_span_metrics(
     aggregator_config: &AggregatorConfig,
     event: &Event,
 ) -> Result<Vec<Metric>, ExtractMetricsError> {
-    // TODO(iker): measure the performance of this whole method
+    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        extract_span_metrics_inner(aggregator_config, event)
+    })
+}
+
+fn extract_span_metrics_inner(
+    aggregator_config: &AggregatorConfig,
+    event: &Event,
+) -> Result<Vec<Metric>, ExtractMetricsError> {
     let mut metrics = Vec::new();
 
     if event.ty.value() != Some(&EventType::Transaction) {

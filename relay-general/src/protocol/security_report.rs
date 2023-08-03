@@ -1150,7 +1150,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(Annotated::new(event), @r#"
         {
           "culprit": "style-src cdn.example.com",
           "logentry": {
@@ -1176,7 +1176,7 @@ mod tests {
             "violated_directive": "style-src cdn.example.com"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1191,7 +1191,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(Annotated::new(event), @r#"
         {
           "culprit": "",
           "logentry": {
@@ -1217,7 +1217,7 @@ mod tests {
             "violated_directive": ""
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1235,7 +1235,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(Annotated::new(event), @r#"
         {
           "culprit": "default-src self",
           "logentry": {
@@ -1269,7 +1269,7 @@ mod tests {
             "violated_directive": "default-src self"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1294,7 +1294,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(Annotated::new(event), @r#"
         {
           "culprit": "script-src",
           "logentry": {
@@ -1334,7 +1334,7 @@ mod tests {
             "disposition": "enforce"
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1349,7 +1349,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://cdn.example.com""###);
+        insta::assert_debug_snapshot!(event.culprit, @r#""style-src http://cdn.example.com""#);
     }
 
     #[test]
@@ -1364,7 +1364,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src cdn.example.com""###);
+        insta::assert_debug_snapshot!(event.culprit, @r#""style-src cdn.example.com""#);
     }
 
     #[test]
@@ -1379,7 +1379,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src cdn.example.com""###);
+        insta::assert_debug_snapshot!(event.culprit, @r#""style-src cdn.example.com""#);
     }
 
     #[test]
@@ -1394,7 +1394,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src https://cdn.example.com""###);
+        insta::assert_debug_snapshot!(event.culprit, @r#""style-src https://cdn.example.com""#);
     }
 
     #[test]
@@ -1409,7 +1409,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src 'self'""###);
+        insta::assert_debug_snapshot!(event.culprit, @r#""style-src 'self'""#);
     }
 
     #[test]
@@ -1424,7 +1424,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src http://example2.com 'self'""###);
+        insta::assert_debug_snapshot!(event.culprit, @r#""style-src http://example2.com 'self'""#);
     }
 
     #[test]
@@ -1439,7 +1439,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.culprit, @r###""style-src example2.com""###);
+        insta::assert_debug_snapshot!(event.culprit, @r#""style-src example2.com""#);
     }
 
     #[test]
@@ -1457,7 +1457,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.tags, @r###"
+        insta::assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -1472,7 +1472,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -1488,7 +1488,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'image' from 'google.com'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked 'image' from 'google.com'""#);
     }
 
     #[test]
@@ -1504,7 +1504,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked inline 'style'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked inline 'style'""#);
     }
 
     #[test]
@@ -1521,7 +1521,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe inline 'script'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked unsafe inline 'script'""#);
     }
 
     #[test]
@@ -1538,7 +1538,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe eval() 'script'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked unsafe eval() 'script'""#);
     }
 
     #[test]
@@ -1555,7 +1555,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked unsafe (eval() or inline) 'script'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked unsafe (eval() or inline) 'script'""#);
     }
 
     #[test]
@@ -1571,7 +1571,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'script' from 'data:'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked 'script' from 'data:'""#);
     }
 
     #[test]
@@ -1587,7 +1587,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'script' from 'data:'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked 'script' from 'data:'""#);
     }
 
     #[test]
@@ -1603,7 +1603,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'style' from 'fonts.google.com'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked 'style' from 'fonts.google.com'""#);
     }
 
     #[test]
@@ -1619,7 +1619,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'script' from 'cdn.ajaxapis.com'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked 'script' from 'cdn.ajaxapis.com'""#);
     }
 
     #[test]
@@ -1635,7 +1635,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
         let message = &event.logentry.value().unwrap().formatted;
-        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r###""Blocked 'style' from 'notlocalhost:8000'""###);
+        insta::assert_debug_snapshot!(message.as_str().unwrap(), @r#""Blocked 'style' from 'notlocalhost:8000'""#);
     }
 
     #[test]
@@ -1664,7 +1664,7 @@ mod tests {
 
         let mut event = Event::default();
         ExpectCt::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(Annotated::new(event), @r#"
         {
           "culprit": "www.example.com",
           "logentry": {
@@ -1707,7 +1707,7 @@ mod tests {
             "test_report": false
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1739,7 +1739,7 @@ mod tests {
 
         let mut event = Event::default();
         ExpectStaple::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(Annotated::new(event), @r#"
         {
           "culprit": "www.example.com",
           "logentry": {
@@ -1781,7 +1781,7 @@ mod tests {
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -1799,7 +1799,7 @@ mod tests {
 
         let mut event = Event::default();
         Hpkp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(Annotated::new(event), @r#"
         {
           "logentry": {
             "formatted": "Public key pinning validation failed for 'example.com'"
@@ -1838,7 +1838,7 @@ mod tests {
             ]
           }
         }
-        "###);
+        "#);
     }
 
     #[test]

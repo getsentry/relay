@@ -473,7 +473,7 @@ mod tests {
             );
         }
 
-        insta::assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
                 name: "c:sessions/session@none",
@@ -567,6 +567,6 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 }

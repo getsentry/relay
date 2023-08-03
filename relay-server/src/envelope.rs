@@ -1631,8 +1631,8 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-"###);
+        insta::assert_snapshot!(stringified, @r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
+"#);
     }
 
     #[test]
@@ -1656,14 +1656,14 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"
+        insta::assert_snapshot!(stringified, @r#"
         {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
 
-        "###);
+        "#);
     }
 
     #[test]

@@ -3270,7 +3270,7 @@ mod tests {
 
         envelope.add_item({
             let mut item = Item::new(ItemType::UserReport);
-            item.set_payload(ContentType::Json, r###"{"foo": "bar"}"###);
+            item.set_payload(ContentType::Json, r#"{"foo": "bar"}"#);
             item
         });
 
@@ -3481,7 +3481,7 @@ mod tests {
                 let mut item = Item::new(ItemType::Event);
                 item.set_payload(
                     ContentType::Json,
-                    r###"
+                    r#"
                     {
                         "request": {
                             "headers": [
@@ -3489,7 +3489,7 @@ mod tests {
                             ]
                         }
                     }
-                "###,
+                "#,
                 );
                 item
             });
@@ -3502,13 +3502,13 @@ mod tests {
 
         // Make sure to mask any IP-like looking data
         let pii_config = PiiConfig::from_json(
-            r##"
+            r#"
                 {
                     "applications": {
                         "**": ["@ip:mask"]
                     }
                 }
-                "##,
+                "#,
         )
         .unwrap();
 
@@ -3579,13 +3579,13 @@ mod tests {
             let mut item = Item::new(ItemType::ClientReport);
             item.set_payload(
                 ContentType::Json,
-                r###"
+                r#"
                     {
                         "discarded_events": [
                             ["queue_full", "error", 42]
                         ]
                     }
-                "###,
+                "#,
             );
             item
         });
@@ -3627,13 +3627,13 @@ mod tests {
             let mut item = Item::new(ItemType::ClientReport);
             item.set_payload(
                 ContentType::Json,
-                r###"
+                r#"
                     {
                         "discarded_events": [
                             ["queue_full", "error", 42]
                         ]
                     }
-                "###,
+                "#,
             );
             item
         });
@@ -3683,13 +3683,13 @@ mod tests {
             let mut item = Item::new(ItemType::ClientReport);
             item.set_payload(
                 ContentType::Json,
-                r###"
+                r#"
                     {
                         "discarded_events": [
                             ["queue_full", "error", 42]
                         ]
                     }
-                "###,
+                "#,
             );
             item
         });
@@ -3740,20 +3740,11 @@ mod tests {
 
     #[test]
     fn test_from_outcome_type_sampled() {
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "adsf"),
-            Err(_)
-        ));
+        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "adsf").is_err());
 
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
-            Err(_)
-        ));
+        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:").is_err());
 
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo"),
-            Err(_)
-        ));
+        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo").is_err());
 
         assert!(matches!(
             outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
@@ -3790,10 +3781,7 @@ mod tests {
             outcome_from_parts(ClientReportField::Filtered, "error-message"),
             Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
         ));
-        assert!(matches!(
-            outcome_from_parts(ClientReportField::Filtered, "adsf"),
-            Err(_)
-        ));
+        assert!(outcome_from_parts(ClientReportField::Filtered, "adsf").is_err());
     }
 
     #[test]
@@ -3818,7 +3806,7 @@ mod tests {
 
     fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
         let mut event = Annotated::<Event>::from_json(
-            r###"
+            r#"
             {
                 "type": "transaction",
                 "transaction": "/foo/",
@@ -3836,7 +3824,7 @@ mod tests {
                     "source": "url"
                 }
             }
-            "###,
+            "#,
         )
         .unwrap();
         let e = event.value_mut().as_mut().unwrap();
@@ -3872,51 +3860,51 @@ mod tests {
     #[test]
     fn test_log_transaction_metrics_none() {
         let captures = capture_test_event("/nothing", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r###"
+        insta::assert_debug_snapshot!(captures, @r#"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
         ]
-        "###);
+        "#);
     }
 
     #[test]
     fn test_log_transaction_metrics_rule() {
         let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r###"
+        insta::assert_debug_snapshot!(captures, @r#"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
         ]
-        "###);
+        "#);
     }
 
     #[test]
     fn test_log_transaction_metrics_pattern() {
         let captures = capture_test_event("/something/12345", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r###"
+        insta::assert_debug_snapshot!(captures, @r#"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
         ]
-        "###);
+        "#);
     }
 
     #[test]
     fn test_log_transaction_metrics_both() {
         let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
-        insta::assert_debug_snapshot!(captures, @r###"
+        insta::assert_debug_snapshot!(captures, @r#"
         [
             "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
         ]
-        "###);
+        "#);
     }
 
     #[test]
     fn test_log_transaction_metrics_no_match() {
         let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
-        insta::assert_debug_snapshot!(captures, @r###"
+        insta::assert_debug_snapshot!(captures, @r#"
         [
             "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
         ]
-        "###);
+        "#);
     }
 
     /// This is a stand-in test to assert panicking behavior for spawn_blocking.
@@ -3988,7 +3976,7 @@ mod tests {
     #[test]
     fn test_geo_in_light_normalize() {
         let mut event = Annotated::<Event>::from_json(
-            r###"
+            r#"
             {
                 "type": "transaction",
                 "transaction": "/foo/",
@@ -4009,7 +3997,7 @@ mod tests {
                     "ip_address": "2.125.160.216"
                 }
             }
-            "###,
+            "#,
         )
         .unwrap();
 

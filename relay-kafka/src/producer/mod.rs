@@ -1,3 +1,11 @@
+//! This module contains the kafka producer related code.
+//!
+//! There are two different producers that are supported in Relay right now:
+//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
+//! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
+//! the shard number the different messages will be sent to different topics using the configured
+//! producer for the this exact shard.
+
 #[cfg(debug_assertions)]
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -196,7 +204,7 @@ impl KafkaClient {
     }
 }
 
-/// Helper structure responsable for building the actual [`KafkaClient`].
+/// Helper structure responsible for building the actual [`KafkaClient`].
 #[derive(Default)]
 pub struct KafkaClientBuilder {
     reused_producers: BTreeMap<Option<String>, Arc<ThreadedProducer>>,
@@ -318,7 +326,7 @@ impl fmt::Debug for KafkaClientBuilder {
     }
 }
 
-/// This object containes the Kafka producer variants for single and sharded configurations.
+/// This object contains the Kafka producer variants for single and sharded configurations.
 #[derive(Debug)]
 enum Producer {
     /// Configuration variant for the single kafka producer.

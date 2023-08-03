@@ -126,7 +126,7 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_event_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
                 name: "c:transactions/counter@none",
@@ -137,7 +137,7 @@ mod tests {
                 tags: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -162,7 +162,7 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_event_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
                 name: "d:transactions/duration@none",
@@ -173,7 +173,7 @@ mod tests {
                 tags: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -200,7 +200,7 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_event_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
                 name: "s:transactions/users@none",
@@ -211,7 +211,7 @@ mod tests {
                 tags: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -250,7 +250,7 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_event_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r###"
+        insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
                 name: "c:transactions/counter@none",
@@ -265,6 +265,6 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 }

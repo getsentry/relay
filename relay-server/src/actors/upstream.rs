@@ -139,7 +139,7 @@ impl UpstreamRequestError {
     fn is_network_error(&self) -> bool {
         match self {
             Self::SendFailed(_) => true,
-            Self::ResponseError(code, _) => matches!(code.as_u16(), 502 | 503 | 504),
+            Self::ResponseError(code, _) => matches!(code.as_u16(), 502..=504),
             Self::Http(http) => http.is_network_error(),
             _ => false,
         }

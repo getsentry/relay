@@ -76,7 +76,7 @@ mod tests {
         };
         let converted = metric.into_metric(timestamp);
 
-        insta::assert_debug_snapshot!(converted, @r###"
+        insta::assert_debug_snapshot!(converted, @r#"
         Metric {
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
@@ -87,6 +87,6 @@ mod tests {
                 "release": "1.2.3",
             },
         }
-        "###);
+        "#);
     }
 }

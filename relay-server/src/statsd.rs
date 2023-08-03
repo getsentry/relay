@@ -207,6 +207,8 @@ pub enum RelayTimers {
     EventProcessingPii,
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
+    /// Time used to extract span metrics from an event.
+    EventProcessingSpanMetricsExtraction,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -329,6 +331,9 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
+            RelayTimers::EventProcessingSpanMetricsExtraction => {
+                "event_processing.span_metrics_extraction"
+            }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
