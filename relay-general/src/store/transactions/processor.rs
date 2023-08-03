@@ -9,7 +9,6 @@ use crate::processor::{ProcessValue, ProcessingState, Processor};
 use crate::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
 use crate::store::normalize::span::description::scrub_span_description;
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::store::span::tag_extraction::{self, extract_span_tags};
 use crate::store::SpanDescriptionRule;
 use crate::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
@@ -26,7 +25,6 @@ pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
     span_desc_rules: Vec<SpanDescriptionRule>,
     enrich_spans: bool,
-    max_tag_value_size: usize,
 }
 
 impl<'r> TransactionsProcessor<'r> {
@@ -34,7 +32,6 @@ impl<'r> TransactionsProcessor<'r> {
         name_config: TransactionNameConfig<'r>,
         enrich_spans: bool,
         span_description_rules: Option<&Vec<SpanDescriptionRule>>,
-        max_tag_value_size: usize,
     ) -> Self {
         let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
             span_desc_rules.clone()
@@ -50,7 +47,6 @@ impl<'r> TransactionsProcessor<'r> {
             name_config,
             span_desc_rules,
             enrich_spans,
-            max_tag_value_size,
         }
     }
 
@@ -414,16 +410,6 @@ impl Processor for TransactionsProcessor<'_> {
         end_all_spans(event)?;
 
         event.process_child_values(self, state)?;
-
-        // After processing spans, add span tags:
-        if self.enrich_spans {
-            extract_span_tags(
-                event,
-                &tag_extraction::Config {
-                    max_tag_value_size: self.max_tag_value_size,
-                },
-            );
-        }
 
         Ok(())
     }
@@ -1662,7 +1648,6 @@ mod tests {
                 },
                 false,
                 None,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -1728,7 +1713,6 @@ mod tests {
                 },
                 false,
                 None,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -1818,7 +1802,6 @@ mod tests {
             },
             false,
             None,
-            usize::MAX,
         );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
@@ -1951,7 +1934,6 @@ mod tests {
                 },
                 false,
                 None,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2020,7 +2002,6 @@ mod tests {
                 },
                 false,
                 None,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2137,12 +2118,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig { rules: &[rule] },
-                false,
-                None,
-                usize::MAX,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2371,7 +2347,6 @@ mod tests {
                 },
                 false,
                 None,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -2418,7 +2393,6 @@ mod tests {
                 },
                 false,
                 None,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )

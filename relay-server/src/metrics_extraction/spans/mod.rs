@@ -4,6 +4,8 @@ use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSp
 use relay_general::protocol::Event;
 use relay_general::store::LazyGlob;
 use relay_metrics::Metric;
+use relay_sampling::{EqCondition, RuleCondition};
+use serde_json::Value;
 
 use crate::metrics_extraction::generic::extract_metrics_from;
 
@@ -39,35 +41,49 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
             },
         ],
         // Tags
-        vec![TagMapping {
-            metrics: vec![
-                LazyGlob::new("d:spans/exclusive_time@millisecond".into()),
-                LazyGlob::new("d:spans/exclusive_time_light@millisecond".into()),
-            ],
-            tags: [
-                "environment",
-                "http.status_code",
-                "span.action",
-                "span.category",
-                "span.description",
-                "span.domain",
-                "span.group",
-                "span.module",
-                "span.op",
-                "span.status_code",
-                "span.status",
-                "span.system",
-                "transaction.method",
-                "transaction.op",
-            ]
-            .map(|key| TagSpec {
-                key: key.into(),
-                field: Some(format!("span.data.{}", key.replace('.', "\\."))),
-                value: None,
-                condition: None,
-            })
-            .into(),
-        }],
+        vec![
+            TagMapping {
+                metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
+                tags: [
+                    "environment",
+                    "http.status_code",
+                    "span.action",
+                    "span.category",
+                    "span.description",
+                    "span.domain",
+                    "span.group",
+                    "span.module",
+                    "span.op",
+                    "span.status_code",
+                    "span.status",
+                    "span.system",
+                    "transaction.method",
+                    "transaction.op",
+                ]
+                .map(|key| TagSpec {
+                    key: key.into(),
+                    field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+                    value: None,
+                    condition: None,
+                })
+                .into(),
+            },
+            TagMapping {
+                metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
+                tags: ["release", "device.class"] // TODO: sentry PR for static strings
+                    .map(|key| TagSpec {
+                        key: key.into(),
+                        field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+                        value: None,
+                        condition: Some(RuleCondition::Eq(EqCondition {
+                            name: "span.data.mobile".into(),
+                            value: Value::Bool(true),
+                            options: Default::default(),
+                        })),
+                    })
+                    .into(),
+            },
+        ],
     )
 });
 
@@ -462,5 +478,56 @@ mod tests {
 
         insta::assert_debug_snapshot!(event.value().unwrap().spans);
         insta::assert_debug_snapshot!(metrics);
+    }
+
+    #[test]
+    fn test_extract_span_metrics_mobile() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "sdk": {"name": "sentry.cocoa"},
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "release": "1.2.3",
+            "transaction": "gEt /api/:version/users/",
+            "transaction_info": {"source": "custom"},
+            "contexts": {
+                "trace": {
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "span_id": "bd429c44b67a3eb4"
+                },
+                "device": {
+                    "family": "iOS",
+                    "model": "iPhone1,1"
+                }
+            },
+            "spans": [
+                {
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                }
+            ]
+        }
+        "#;
+
+        let mut event = Annotated::from_json(json).unwrap();
+
+        // Normalize first, to make sure that all things are correct as in the real pipeline:
+        let res = store::light_normalize_event(
+            &mut event,
+            LightNormalizationConfig {
+                enrich_spans: true,
+                light_normalize_spans: true,
+                device_class_synthesis_config: true,
+                ..Default::default()
+            },
+        );
+        assert!(res.is_ok());
+
+        let metrics = extract_span_metrics(event.value_mut().as_mut().unwrap()).unwrap();
+
+        insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 }
