@@ -44,7 +44,7 @@ const LATEST_VERSION: RelayVersion = RelayVersion::new(VERSION_MAJOR, VERSION_MI
 /// The oldest downstream Relay version still supported by this Relay.
 const OLDEST_VERSION: RelayVersion = RelayVersion::new(0, 0, 0); // support all
 
-/// Alias for relay IDs (UUIDs).
+/// Alias for Relay IDs (UUIDs).
 pub type RelayId = Uuid;
 
 /// The version of a Relay.
