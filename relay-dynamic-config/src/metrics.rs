@@ -2,7 +2,9 @@
 
 use std::collections::BTreeSet;
 
+use once_cell::sync::OnceCell;
 use relay_common::DataCategory;
+use relay_general::store::LazyGlob;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -137,22 +139,57 @@ pub struct MetricExtractionConfig {
 
     /// A list of metric specifications to extract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub metrics: Vec<MetricSpec>,
+    metrics: Vec<MetricSpec>,
 
     /// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<TagMapping>,
+    tags: Vec<TagMapping>,
+
+    /// Contains the metric specs with tags from `tags` transferred to
+    /// the individual metric specs.
+    ///
+    /// Initialized only once.
+    #[serde(skip)]
+    compiled_metrics: OnceCell<Vec<MetricSpec>>,
 }
 
 impl MetricExtractionConfig {
+    /// Creates a new config programmatically.
+    pub fn new(metrics: Vec<MetricSpec>, tags: Vec<TagMapping>) -> Self {
+        Self {
+            version: METRIC_EXTRACTION_VERSION,
+            metrics,
+            tags,
+            compiled_metrics: Default::default(),
+        }
+    }
+
     /// Returns `true` if metric extraction is configured.
     pub fn is_enabled(&self) -> bool {
         self.version > 0
             && self.version <= METRIC_EXTRACTION_VERSION
             && !(self.metrics.is_empty() && self.tags.is_empty())
+    }
+
+    /// Transfers matching tags from `tags` to `metrics`.
+    pub fn metrics(&self) -> &Vec<MetricSpec> {
+        self.compiled_metrics.get_or_init(|| {
+            let mut metric_specs = Vec::new();
+            for metric_spec in &self.metrics {
+                let mut metric_spec = metric_spec.clone();
+                for tag_mapping in &self.tags {
+                    let mut patterns = tag_mapping.metrics.iter();
+                    if patterns.any(|p| p.compiled().is_match(&metric_spec.mri)) {
+                        metric_spec.tags.extend(tag_mapping.tags.clone());
+                    }
+                }
+                metric_specs.push(metric_spec)
+            }
+            metric_specs
+        })
     }
 }
 
@@ -212,7 +249,7 @@ pub struct TagMapping {
     ///
     /// Entries in this list can contain wildcards to match metrics with dynamic MRIs.
     #[serde(default)]
-    pub metrics: Vec<String>,
+    pub metrics: Vec<LazyGlob>,
 
     /// A list of tags to add to the metric.
     ///
@@ -305,5 +342,12 @@ mod tests {
         let json = r#"{"key":"foo","somethingNew":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();
         assert_eq!(spec.source(), TagSource::Unknown);
+    }
+
+    #[test]
+    fn parse_tag_mapping() {
+        let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
+        let mapping: TagMapping = serde_json::from_str(json).unwrap();
+        assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 }

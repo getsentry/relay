@@ -78,6 +78,7 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
+use relay_general::types::{self, Annotated};
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
@@ -85,7 +86,7 @@ use serde_json::{Number, Value};
 use relay_common::{EventType, ProjectKey, Uuid};
 use relay_filter::GlobPatterns;
 use relay_general::protocol::{
-    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, TraceContext,
+    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, Span, TraceContext,
 };
 use relay_general::store;
 
@@ -583,6 +584,7 @@ fn get_measurement(event: &Event, name: &str) -> Option<f64> {
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
+// TODO: This trait is used for more than dynamic sampling now. Move it to relay-general.
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
@@ -812,6 +814,66 @@ impl FieldValueProvider for DynamicSamplingContext {
                 Some(ref s) => Value::String(s.to_string()),
             },
             _ => Value::Null,
+        }
+    }
+}
+
+impl FieldValueProvider for Span {
+    fn get_value(&self, path: &str) -> Value {
+        let Some(path) = path.strip_prefix("span.") else {
+            return Value::Null
+        };
+
+        match path {
+            "exclusive_time" => self
+                .exclusive_time
+                .value()
+                .map_or(Value::Null, |&v| v.into()),
+            "description" => self.description.as_str().map_or(Value::Null, Value::from),
+            "op" => self.op.as_str().map_or(Value::Null, Value::from),
+            "span_id" => self
+                .span_id
+                .value()
+                .map_or(Value::Null, |s| s.0.as_str().into()),
+            "parent_span_id" => self
+                .parent_span_id
+                .value()
+                .map_or(Value::Null, |s| s.0.as_str().into()),
+            "trace_id" => self
+                .trace_id
+                .value()
+                .map_or(Value::Null, |s| s.0.as_str().into()),
+            "status" => self
+                .status
+                .value()
+                .map_or(Value::Null, |s| s.as_str().into()),
+            "origin" => self.origin.as_str().map_or(Value::Null, Value::from),
+            _ => {
+                if let Some(key) = path.strip_prefix("tags.") {
+                    if let Some(v) = self
+                        .tags
+                        .value()
+                        .and_then(|tags| tags.get(key))
+                        .and_then(Annotated::value)
+                    {
+                        return Value::from(v.as_str());
+                    }
+                }
+                if let Some(key) = path.strip_prefix("data.") {
+                    let escaped = key.replace("\\.", "\0");
+                    let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
+                    let Some(root) = path.next() else { return Value::Null };
+                    let Some(mut val) = self.data.value().and_then(|data| data.get(&root)).and_then(Annotated::value) else { return Value::Null };
+                    for part in path {
+                        // While there is path segments left, `val` has to be an Object.
+                        let types::Value::Object(map) = val else { return Value::Null };
+                        let Some(child) = map.get(&part).and_then(Annotated::value) else { return Value::Null };
+                        val = child;
+                    }
+                    return Value::from(val.clone());
+                }
+                Value::Null
+            }
         }
     }
 }
@@ -1373,6 +1435,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{Duration as DateDuration, TimeZone, Utc};
+    use serde_json::json;
     use similar_asserts::assert_eq;
 
     use relay_general::protocol::{
@@ -1884,6 +1947,30 @@ mod tests {
         };
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
+    }
+
+    #[test]
+    fn test_field_value_provider_span_data() {
+        let span = Annotated::<Span>::from_json(
+            r#" {
+            "data": {
+                "foo": {
+                    "bar": 1
+                },
+                "foo.bar": 2
+            }
+        }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_eq!(span.get_value("span.data.foo.bar"), json!(1));
+        assert_eq!(span.get_value(r"span.data.foo\.bar"), json!(2));
+
+        assert_eq!(span.get_value("span.data"), Value::Null);
+        assert_eq!(span.get_value("span.data."), Value::Null);
+        assert_eq!(span.get_value("span.data.x"), Value::Null);
     }
 
     #[test]
