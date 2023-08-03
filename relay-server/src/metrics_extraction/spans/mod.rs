@@ -57,8 +57,8 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
                 "span.status_code",
                 "span.status",
                 "span.system",
-                r"transaction.method",
-                r"transaction.op",
+                "transaction.method",
+                "transaction.op",
             ]
             .map(|key| TagSpec {
                 key: key.into(),

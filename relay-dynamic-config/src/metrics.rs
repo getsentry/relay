@@ -150,6 +150,7 @@ pub struct MetricExtractionConfig {
 
     /// Contains the metric specs with tags from `tags` transferred to
     /// the individual metric specs.
+    ///
     /// Initialized only once.
     #[serde(skip)]
     compiled_metrics: OnceCell<Vec<MetricSpec>>,
@@ -173,7 +174,7 @@ impl MetricExtractionConfig {
             && !(self.metrics.is_empty() && self.tags.is_empty())
     }
 
-    /// Register tags from [`Self::tags`] to the metrics themselves
+    /// Transfers matching tags from `tags` to `metrics`.
     pub fn metrics(&self) -> &Vec<MetricSpec> {
         self.compiled_metrics.get_or_init(|| {
             let mut metric_specs = Vec::new();
