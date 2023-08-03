@@ -58,6 +58,7 @@ pub enum ItemAction {
 #[derive(Debug)]
 struct EnvelopeContext {
     summary: EnvelopeSummary,
+    event_meta: Option<(DataCategory, bool)>,
     scoping: Scoping,
     slot: Option<SemaphorePermit>,
     done: bool,
@@ -95,7 +96,7 @@ impl ManagedEnvelope {
         test_store: Addr<TestStore>,
     ) -> Self {
         let meta = &envelope.meta();
-        let summary = EnvelopeSummary::compute(envelope.as_ref());
+        let summary = EnvelopeSummary::compute(envelope.as_ref(), None);
         let scoping = meta.get_partial_scoping();
         Self {
             envelope,
@@ -104,6 +105,7 @@ impl ManagedEnvelope {
                 scoping,
                 slot,
                 done: false,
+                event_meta: None,
             },
             outcome_aggregator,
             test_store,
@@ -176,8 +178,9 @@ impl ManagedEnvelope {
     /// Update the context with envelope information.
     ///
     /// This updates the item summary as well as the event id.
+    /// // TODO: remove update completely
     pub fn update(&mut self) -> &mut Self {
-        self.context.summary = EnvelopeSummary::compute(self.envelope());
+        self.context.summary = EnvelopeSummary::compute(self.envelope(), self.context.event_meta);
         self
     }
 
@@ -301,7 +304,7 @@ impl ManagedEnvelope {
                     tags.has_checkins = summary.checkin_quantity > 0,
                     tags.event_category = ?summary.event_category,
                     cached_summary = ?summary,
-                    recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
+                    recomputed_summary = ?EnvelopeSummary::compute(self.envelope(), self.context.event_meta),
                     "dropped envelope: {outcome}"
                 );
             }

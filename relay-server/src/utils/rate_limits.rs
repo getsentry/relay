@@ -155,7 +155,10 @@ impl EnvelopeSummary {
     }
 
     /// Creates an envelope summary and aggregates the given envelope.
-    pub fn compute(envelope: &Envelope) -> Self {
+    ///
+    /// If `event_meta` is given, the fields `event_category` and `event_metrics_extracted`
+    /// are overwritten regardless of the envelope's contents.
+    pub fn compute(envelope: &Envelope, event_meta: Option<(DataCategory, bool)>) -> Self {
         let mut summary = Self::empty();
 
         for item in envelope.items() {
@@ -178,6 +181,11 @@ impl EnvelopeSummary {
 
             summary.payload_size += item.len();
             summary.set_quantity(item);
+        }
+
+        if let Some((event_category, metrics_extracted)) = event_meta {
+            summary.event_category = Some(event_category);
+            summary.event_metrics_extracted = metrics_extracted;
         }
 
         summary
@@ -433,11 +441,7 @@ where
         envelope: &mut Envelope,
         scoping: &Scoping,
     ) -> Result<(Enforcement, RateLimits), E> {
-        let mut summary = EnvelopeSummary::compute(envelope);
-        if let Some((event_category, metrics_extracted)) = self.event_category {
-            summary.event_category = Some(event_category);
-            summary.event_metrics_extracted = metrics_extracted;
-        }
+        let summary = EnvelopeSummary::compute(envelope, self.event_category);
 
         let (enforcement, rate_limits) = self.execute(&summary, scoping)?;
         envelope.retain_items(|item| self.retain_item(item, &enforcement));
