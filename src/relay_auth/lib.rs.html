@@ -903,6 +903,9 @@
 <a href="#903" id="903">903</a>
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Authentication and crypto for Relay.
 //!
 //! This library contains the [`PublicKey`] and [`SecretKey`] types, which can be used to validate
@@ -921,7 +924,8 @@
 //! let (private_key, public_key) = relay_auth::generate_key_pair();
 //! ```
 
-</span><span class="attr">#![doc(
+</span><span class="attr">#![warn(missing_docs)]
+#![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
 </span>)]
@@ -948,7 +952,7 @@
 <span class="doccomment">/// The oldest downstream Relay version still supported by this Relay.
 </span><span class="kw">const </span>OLDEST_VERSION: RelayVersion = RelayVersion::new(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>); <span class="comment">// support all
 
-</span><span class="doccomment">/// Alias for relay IDs (UUIDs).
+</span><span class="doccomment">/// Alias for Relay IDs (UUIDs).
 </span><span class="kw">pub type </span>RelayId = Uuid;
 
 <span class="doccomment">/// The version of a Relay.
@@ -999,7 +1003,8 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Copy, Debug, Default, thiserror::Error)]
+<span class="doccomment">/// Raised if Relay cannot parse the provided version.
+</span><span class="attr">#[derive(Clone, Copy, Debug, Default, thiserror::Error)]
 #[error(<span class="string">&quot;invalid relay version string&quot;</span>)]
 </span><span class="kw">pub struct </span>ParseRelayVersionError;
 
@@ -1078,7 +1083,7 @@
     }
 }
 
-<span class="doccomment">/// Represents the secret key of an relay.
+<span class="doccomment">/// Represents the secret key of an Relay.
 ///
 /// Secret keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
@@ -1102,7 +1107,7 @@
         <span class="self">self</span>.sign_with_header(data, <span class="kw-2">&amp;</span>SignatureHeader::default())
     }
 
-    <span class="doccomment">/// Signs some data with the seret key and a specific header and
+    <span class="doccomment">/// Signs some data with the secret key and a specific header and
     /// then returns the signature.
     ///
     /// The default behavior is to attach the timestamp in the header to the
@@ -1191,7 +1196,7 @@
 
 <span class="macro">relay_common::impl_str_serde!</span>(SecretKey, <span class="string">&quot;a secret key&quot;</span>);
 
-<span class="doccomment">/// Represents the public key of a relay.
+<span class="doccomment">/// Represents the public key of a Relay.
 ///
 /// Public keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
@@ -1304,7 +1309,7 @@
 
 <span class="macro">relay_common::impl_str_serde!</span>(PublicKey, <span class="string">&quot;a public key&quot;</span>);
 
-<span class="doccomment">/// Generates an relay ID.
+<span class="doccomment">/// Generates an Relay ID.
 </span><span class="kw">pub fn </span>generate_relay_id() -&gt; RelayId {
     Uuid::new_v4()
 }
@@ -1411,7 +1416,7 @@
 
 <span class="doccomment">/// A state structure containing relevant information from `RegisterRequest`.
 ///
-/// This struct is used to carry over information between the downstream register request and
+/// This structure is used to carry over information between the downstream register request and
 /// register response. In addition to identifying information, it contains a random bit to avoid
 /// replay attacks.
 </span><span class="attr">#[derive(Clone, Deserialize, Serialize)]
@@ -1449,7 +1454,7 @@
 
 <span class="doccomment">/// Represents a request for registration with the upstream.
 ///
-/// This is created if the relay signs in for the first time.  The server needs
+/// This is created if the Relay signs in for the first time.  The server needs
 /// to respond to this request with a unique token that is then used to sign
 /// the response.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
@@ -1461,7 +1466,7 @@
 }
 
 <span class="kw">impl </span>RegisterRequest {
-    <span class="doccomment">/// Creates a new request to register an relay upstream.
+    <span class="doccomment">/// Creates a new request to register an Relay upstream.
     </span><span class="kw">pub fn </span>new(relay_id: <span class="kw-2">&amp;</span>RelayId, public_key: <span class="kw-2">&amp;</span>PublicKey) -&gt; RegisterRequest {
         RegisterRequest {
             relay_id: <span class="kw-2">*</span>relay_id,
@@ -1485,12 +1490,12 @@
         pk.unpack(data, signature, max_age)
     }
 
-    <span class="doccomment">/// Returns the relay ID of the registering relay.
+    <span class="doccomment">/// Returns the Relay ID of the registering Relay.
     </span><span class="kw">pub fn </span>relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayId {
         <span class="self">self</span>.relay_id
     }
 
-    <span class="doccomment">/// Returns the new public key of registering relay.
+    <span class="doccomment">/// Returns the new public key of registering Relay.
     </span><span class="kw">pub fn </span>public_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PublicKey {
         <span class="kw-2">&amp;</span><span class="self">self</span>.public_key
     }
@@ -1519,7 +1524,7 @@
 }
 
 <span class="kw">impl </span>RegisterChallenge {
-    <span class="doccomment">/// Returns the relay ID of the registering relay.
+    <span class="doccomment">/// Returns the Relay ID of the registering Relay.
     </span><span class="kw">pub fn </span>relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RelayId {
         <span class="kw-2">&amp;</span><span class="self">self</span>.relay_id
     }
@@ -1573,7 +1578,7 @@
         <span class="prelude-val">Ok</span>((response, state))
     }
 
-    <span class="doccomment">/// Returns the relay ID of the registering relay.
+    <span class="doccomment">/// Returns the Relay ID of the registering Relay.
     </span><span class="kw">pub fn </span>relay_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayId {
         <span class="self">self</span>.relay_id
     }
@@ -1583,7 +1588,8 @@
         <span class="self">self</span>.token.as_str()
     }
 
-    <span class="kw">pub fn </span>version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayVersion {
+    <span class="doccomment">/// Returns the version of the registering Relay.
+    </span><span class="kw">pub fn </span>version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RelayVersion {
         <span class="self">self</span>.version
     }
 }
