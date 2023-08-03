@@ -1,3 +1,5 @@
+//! Helper function to deal with the glob pattern matching.
+
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
@@ -7,9 +9,11 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use regex::bytes::{Regex, RegexBuilder};
 
+/// LRU cache for [`Regex`]s in relation to [`GlobOptions`] and the provided string pattern.
 static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
+/// LRU cache for [`Regex`]s in relation to provided string pattern.
 static CODEOWNERS_CACHE: Lazy<Mutex<LruCache<String, Regex>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 

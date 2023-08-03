@@ -1,3 +1,11 @@
+//! This module contains [`ProjectKey`] and [`ProjectId`] types and necessary traits
+//! implementations.
+//!
+//! - [`ProjectId`] is just a wrapper over `u64` and should be considered as implementations details,
+//! as it can change in the future,
+//! - [`ProjectKey`] is a byte array (`[u8; 32]`) and represents a DSN to identify and authenticate
+//! for a project at Sentry.
+
 use std::fmt;
 use std::str::FromStr;
 
