@@ -56,12 +56,12 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
                 "span.status_code",
                 "span.status",
                 "span.system",
-                "transaction.method",
-                "transaction.op",
+                r"transaction.method",
+                r"transaction.op",
             ]
             .map(|key| TagSpec {
                 key: key.into(),
-                field: Some(format!("span.data.{key}")),
+                field: Some(format!("span.data.{}", key.replace('.', "\\."))),
                 value: None,
                 condition: None,
             })

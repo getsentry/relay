@@ -78,7 +78,7 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
-use relay_general::types::Annotated;
+use relay_general::types::{self, Annotated};
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
@@ -584,6 +584,7 @@ fn get_measurement(event: &Event, name: &str) -> Option<f64> {
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
+// TODO: This trait is used for more than dynamic sampling now. Move it to relay-general.
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
@@ -859,14 +860,17 @@ impl FieldValueProvider for Span {
                     }
                 }
                 if let Some(key) = path.strip_prefix("data.") {
-                    if let Some(v) = self
-                        .data
-                        .value()
-                        .and_then(|data| data.get(key))
-                        .and_then(Annotated::value)
-                    {
-                        return Value::from(v.clone());
+                    let escaped = key.replace("\\.", "\0");
+                    let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
+                    let Some(root) = path.next() else { return Value::Null };
+                    let Some(mut val) = self.data.value().and_then(|data| data.get(&root)).and_then(Annotated::value) else { return Value::Null };
+                    for part in path {
+                        // While there is path segments left, `val` has to be an Object.
+                        let types::Value::Object(map) = val else { return Value::Null };
+                        let Some(child) = map.get(&part).and_then(Annotated::value) else { return Value::Null };
+                        val = child;
                     }
+                    return Value::from(val.clone());
                 }
                 Value::Null
             }
@@ -1431,6 +1435,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{Duration as DateDuration, TimeZone, Utc};
+    use serde_json::json;
     use similar_asserts::assert_eq;
 
     use relay_general::protocol::{
@@ -1942,6 +1947,30 @@ mod tests {
         };
         assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
         assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
+    }
+
+    #[test]
+    fn test_field_value_provider_span_data() {
+        let span = Annotated::<Span>::from_json(
+            r#" {
+            "data": {
+                "foo": {
+                    "bar": 1
+                },
+                "foo.bar": 2
+            }
+        }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_eq!(span.get_value("span.data.foo.bar"), json!(1));
+        assert_eq!(span.get_value(r"span.data.foo\.bar"), json!(2));
+
+        assert_eq!(span.get_value("span.data"), Value::Null);
+        assert_eq!(span.get_value("span.data."), Value::Null);
+        assert_eq!(span.get_value("span.data.x"), Value::Null);
     }
 
     #[test]
