@@ -403,7 +403,7 @@ impl OnDisk {
     }
 
     /// Tries to delete the envelopes from the persistent buffer in batches,
-    /// extract and convert them to managed envelopes and send to back into
+    /// extract and convert them to managed envelopes and send back into
     /// processing pipeline.
     ///
     /// If the error happens in the deletion/fetching phase, a key is returned
