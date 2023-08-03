@@ -1182,7 +1182,9 @@ def test_span_metrics(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = timestamp.isoformat()
+    transaction["timestamp"] = transaction["spans"][0][
+        "timestamp"
+    ] = timestamp.isoformat()
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
@@ -1295,7 +1297,12 @@ def test_span_metrics_secondary_aggregator(
     }
     # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
     timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = timestamp.isoformat()
+    transaction["timestamp"] = transaction["spans"][0][
+        "timestamp"
+    ] = timestamp.isoformat()
+    transaction["spans"][0]["start_timestamp"] = (
+        timestamp - timedelta(milliseconds=123)
+    ).isoformat()
 
     metrics_consumer = metrics_consumer()
     processing = relay_with_processing(
@@ -1349,7 +1356,7 @@ def test_span_metrics_secondary_aggregator(
                 },
                 "timestamp": int(timestamp.timestamp()),
                 "type": "d",
-                "value": [9.910106],
+                "value": [123],
             },
             [("namespace", b"spans")],
         ),

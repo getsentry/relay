@@ -1,3 +1,11 @@
+//! Configuration primitives to configure the kafka producer and properly set up the connection.
+//!
+//! The configuration can be either;
+//! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
+//! - [`TopicAssignment::Secondary`] - used to configure any additional kafka topic,
+//! - [`TopicAssignment::Sharded`] - if we want to configure multiple kafka clusters,
+//! we can create a mapping of the range of logical shards to the kafka configuration.
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -41,6 +49,8 @@ pub enum KafkaTopic {
     ReplayRecordings,
     /// Monitor check-ins.
     Monitors,
+    /// Standalone spans without a transaction.
+    Spans,
 }
 
 impl KafkaTopic {
@@ -48,7 +58,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 12] = [
+        static TOPICS: [KafkaTopic; 13] = [
             Events,
             Attachments,
             Transactions,
@@ -61,6 +71,7 @@ impl KafkaTopic {
             ReplayEvents,
             ReplayRecordings,
             Monitors,
+            Spans,
         ];
         TOPICS.iter()
     }
@@ -98,6 +109,8 @@ pub struct TopicAssignments {
     pub replay_recordings: TopicAssignment,
     /// Monitor check-ins.
     pub monitors: TopicAssignment,
+    /// Standalone spans without a transaction.
+    pub spans: TopicAssignment,
 }
 
 impl TopicAssignments {
@@ -117,6 +130,7 @@ impl TopicAssignments {
             KafkaTopic::ReplayEvents => &self.replay_events,
             KafkaTopic::ReplayRecordings => &self.replay_recordings,
             KafkaTopic::Monitors => &self.monitors,
+            KafkaTopic::Spans => &self.spans,
         }
     }
 }
@@ -137,6 +151,7 @@ impl Default for TopicAssignments {
             replay_events: "ingest-replay-events".to_owned().into(),
             replay_recordings: "ingest-replay-recordings".to_owned().into(),
             monitors: "ingest-monitors".to_owned().into(),
+            spans: "ingest-spans".to_owned().into(),
         }
     }
 }
@@ -243,7 +258,7 @@ impl TopicAssignment {
     /// Get the kafka config for the current topic assignment.
     ///
     /// # Errors
-    /// Returns [`ConfigError`] if the configuration for the current topic assignement is invalid.
+    /// Returns [`ConfigError`] if the configuration for the current topic assignment is invalid.
     pub fn kafka_config<'a>(
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
@@ -312,7 +327,7 @@ mod tests {
 
     #[test]
     fn test_kafka_config() {
-        let yaml = r###"
+        let yaml = r#"
 events: "ingest-events-kafka-topic"
 profiles:
     name: "ingest-profiles"
@@ -329,7 +344,7 @@ metrics:
       45000:
           name: "ingest-metrics-3"
           config: "metrics_3"
-"###;
+"#;
 
         let def_config = vec![KafkaConfigParam {
             name: "test".to_string(),

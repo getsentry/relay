@@ -108,9 +108,11 @@ impl CategoryUnit {
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
+            | DataCategory::Span
             | DataCategory::Monitor => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+
             DataCategory::Unknown => None,
         }
     }
@@ -328,7 +330,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [],
@@ -336,7 +338,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -349,7 +351,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [
@@ -359,7 +361,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -373,7 +375,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -382,7 +384,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -398,7 +400,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("p"),
           categories: [],
@@ -408,7 +410,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -424,7 +426,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("p"),
           categories: [],
@@ -434,7 +436,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -450,7 +452,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("k"),
           categories: [],
@@ -460,7 +462,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -477,7 +479,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("f"),
           categories: [
@@ -489,7 +491,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -501,7 +503,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -509,7 +511,7 @@ mod tests {
           limit: None,
           window: Some(42),
         )
-        "###);
+        "#);
     }
 
     #[test]

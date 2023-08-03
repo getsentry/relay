@@ -46,12 +46,13 @@ impl Serialize for LazyGlob {
     }
 }
 
-/// Helper function to deserialize the string patter into the [`LazyGlob`].
-fn deserialize_glob_pattern<'de, D>(deserializer: D) -> Result<LazyGlob, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    String::deserialize(deserializer).map(LazyGlob::new)
+impl<'de> Deserialize<'de> for LazyGlob {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).map(LazyGlob::new)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
@@ -89,7 +90,6 @@ impl Default for RedactionRule {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpanDescriptionRule {
     /// The pattern which will be applied to the span description.
-    #[serde(deserialize_with = "deserialize_glob_pattern")]
     pub pattern: LazyGlob,
     /// Date time when the rule expires and it should not be applied anymore.
     pub expiry: DateTime<Utc>,
@@ -157,7 +157,6 @@ impl SpanDescriptionRule {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TransactionNameRule {
     /// The pattern which will be applied to transaction name.
-    #[serde(deserialize_with = "deserialize_glob_pattern")]
     pub pattern: LazyGlob,
     /// Date time when the rule expires and it should not be applied anymore.
     pub expiry: DateTime<Utc>,
@@ -216,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_rule_format() {
-        let json = r###"
+        let json = r#"
         {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
@@ -228,7 +227,7 @@ mod tests {
             "substitution": ":id"
           }
         }
-        "###;
+        "#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
 
@@ -246,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_rule_format_defaults() {
-        let json = r###"
+        let json = r#"
         {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
@@ -254,7 +253,7 @@ mod tests {
             "method": "replace"
           }
         }
-        "###;
+        "#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
 
@@ -272,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_rule_format_unsupported_reduction() {
-        let json = r###"
+        let json = r#"
         {
           "pattern": "/auth/login/*/**",
           "expiry": "2022-11-30T00:00:00.000000Z",
@@ -280,7 +279,7 @@ mod tests {
             "method": "update"
           }
         }
-        "###;
+        "#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         let result = rule.apply("/auth/login/test/");
@@ -290,14 +289,14 @@ mod tests {
 
     #[test]
     fn test_rule_format_roundtrip() {
-        let json = r###"{
+        let json = r#"{
   "pattern": "/auth/login/*/**",
   "expiry": "2022-11-30T00:00:00Z",
   "redaction": {
     "method": "replace",
     "substitution": ":id"
   }
-}"###;
+}"#;
 
         let rule: TransactionNameRule = serde_json::from_str(json).unwrap();
         let rule_json = serde_json::to_string_pretty(&rule).unwrap();

@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn test_full() {
         let mut event = Annotated::<Event>::from_json(
-            r##"
+            r#"
             {
               "message": "hi",
               "exception": {
@@ -210,12 +210,12 @@ mod tests {
                 }
               }
             }
-            "##,
+            "#,
         )
         .unwrap();
 
         let selectors = selector_suggestions_from_value(&mut event);
-        insta::assert_yaml_snapshot!(selectors, @r###"
+        insta::assert_yaml_snapshot!(selectors, @r#"
         ---
         - path: $string
           value: "123"
@@ -253,6 +253,6 @@ mod tests {
           value: ~
         - path: "extra.'My Custom Value'"
           value: "123"
-        "###);
+        "#);
     }
 }

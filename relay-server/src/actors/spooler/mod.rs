@@ -1,3 +1,34 @@
+//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
+//! envelopes, either to in-memory or to persistent storage.
+//!
+//! The main entry point for the [`BufferService`] is the [`Buffer`] interface, which currently
+//! supports:
+//! - [`Enqueue`] - enqueueing a message into the backend storage
+//! - [`DequeueMany`] - dequeueing all the requested [`QueueKey`] keys
+//! - [`RemoveMany`] - removing and dropping the requested [`QueueKey`] keys.
+//! - [`Health`] - checking the health of the [`BufferService`]
+//!
+//! To make sure the [`BufferService`] is fast the responsive, especially in the normal working
+//! conditions, it keeps the internal [`BufferState`] state, which defines where the spooling will
+//! be happening.
+//!
+//! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
+//! [`crate::actors::project::ProjectState`] it continues to use the memory as temporary spool.
+//!
+//! Keeping the envelopes in memory as long as we can, we ensure the fast unspool operations and
+//! fast processing times.
+//!
+//! In case of an incident when the in-memory spool gets full (see, `spool.envelopes.max_memory_size` config option)
+//! or if the processing pipeline gets too many messages in-flight, configured by
+//! `cache.envelope_buffer_size` and once it reaches 80% of the defined amount, the internal state will be
+//! switched to [`OnDisk`] and service will continue spooling all the incoming envelopes onto the disk.
+//! This will happen also only when the disk spool is configured.
+//!
+//! The state can be changed to [`InMemory`] again only if all the on-disk spooled envelopes are
+//! read out again and the disk is empty.
+//!
+//! Current on-disk spool implementation uses SQLite as a storage.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::path::PathBuf;
@@ -371,10 +402,12 @@ impl OnDisk {
         Ok(managed_envelope)
     }
 
-    /// Tries to delete the envelops from persistent buffer in batches, extract and convert them to
-    /// managed envelopes and send to back into processing pipeline.
+    /// Tries to delete the envelopes from the persistent buffer in batches,
+    /// extract and convert them to managed envelopes and send back into
+    /// processing pipeline.
     ///
-    /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
+    /// If the error happens in the deletion/fetching phase, a key is returned
+    /// to allow retrying later.
     ///
     /// Returns the amount of envelopes deleted from disk.
     async fn delete_and_fetch(
@@ -1164,7 +1197,7 @@ mod tests {
             .filter(|name| name.contains("buffer."))
             .collect();
 
-        assert_debug_snapshot!(captures, @r###"
+        assert_debug_snapshot!(captures, @r#"
         [
             "buffer.envelopes_mem:2000|h",
             "buffer.envelopes_mem_count:1|g",
@@ -1185,6 +1218,6 @@ mod tests {
             "buffer.dequeue_attempts:1|h",
             "buffer.reads:1|c",
         ]
-        "###);
+        "#);
     }
 }

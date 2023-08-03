@@ -7,7 +7,7 @@ use regex::Regex;
 /// <https://github.com/getsentry/sentry/blob/6ba59023a78bfe033e48ea4e035b64710a905c6b/src/sentry/grouping/strategies/message.py#L16-L97>
 pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?x)
+        r"(?x)
     (?P<uuid>[^/\\]*
         \b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b
     [^/\\]*) |
@@ -46,14 +46,14 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     (?:^|[/\\])
     (?P<int>
         (:?[^%/\\]|%[0-9a-fA-F]{2})*\d{2,}
-    [^/\\]*)"#,
+    [^/\\]*)",
     )
     .unwrap()
 });
 
 /// Captures initial all-caps words as redis command, the rest as arguments.
 pub static REDIS_COMMAND_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"\s*(?P<command>[A-Z]+(\s+[A-Z]+)*\b)(?P<args>.+)?"#).unwrap());
+    Lazy::new(|| Regex::new(r"\s*(?P<command>[A-Z]+(\s+[A-Z]+)*\b)(?P<args>.+)?").unwrap());
 
 /// Regex with multiple capture groups for resource tokens we should scrub.
 ///
@@ -65,7 +65,7 @@ pub static REDIS_COMMAND_REGEX: Lazy<Regex> =
 /// <https://github.com/getsentry/sentry/blob/de5949a9a313d7ef0bf0685f84fe6e981ac38558/src/sentry/utils/performance_issues/base.py#L292-L306>
 pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?xi)
+        r"(?xi)
         # UUIDs.
         (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
         # Chunks and chunk numbers.
@@ -78,7 +78,7 @@ pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         (?P<large_hash>[a-f0-9]{16,64}) |
         # Only numbers (for file names that are just numbers).
         (?P<only_numbers>/[0-9]+(\.[a-z0-9]{2,6})$)
-        "#,
+        ",
     )
     .unwrap()
 });
