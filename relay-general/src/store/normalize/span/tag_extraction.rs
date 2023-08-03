@@ -31,7 +31,7 @@ pub enum SpanTagKey {
     TransactionMethod,
     TransactionOp,
     HttpStatusCode,
-    /// `true` if the transaction was sent by a mobile SDK.
+    // `true` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
 
