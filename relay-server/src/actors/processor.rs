@@ -1720,6 +1720,10 @@ impl EnvelopeProcessorService {
         };
 
         state.event = event;
+        if let Some(category) = state.event_category() {
+            state.managed_envelope.assume_event(category);
+        }
+
         state.sample_rates = sample_rates;
         state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
@@ -2505,10 +2509,6 @@ impl EnvelopeProcessorService {
             || {
                 match self.process_state(&mut state) {
                     Ok(()) => {
-                        // The envelope could be modified or even emptied during processing, which
-                        // requires recomputation of the context.
-                        state.managed_envelope.update();
-
                         let has_metrics = !state.extracted_metrics.project_metrics.is_empty();
 
                         state.extracted_metrics.send_metrics(

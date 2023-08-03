@@ -57,8 +57,8 @@ pub enum ItemAction {
 
 #[derive(Debug)]
 struct EnvelopeContext {
-    summary: EnvelopeSummary,
-    event_meta: Option<(DataCategory, bool)>,
+    event_category: Option<DataCategory>,
+    event_metrics_extracted: bool,
     scoping: Scoping,
     slot: Option<SemaphorePermit>,
     done: bool,
@@ -96,16 +96,15 @@ impl ManagedEnvelope {
         test_store: Addr<TestStore>,
     ) -> Self {
         let meta = &envelope.meta();
-        let summary = EnvelopeSummary::compute(envelope.as_ref(), None);
         let scoping = meta.get_partial_scoping();
         Self {
             envelope,
             context: EnvelopeContext {
-                summary,
                 scoping,
                 slot,
                 done: false,
-                event_meta: None,
+                event_category: None,
+                event_metrics_extracted: false,
             },
             outcome_aggregator,
             test_store,
@@ -175,15 +174,6 @@ impl ManagedEnvelope {
         Box::new(self.envelope.take_items())
     }
 
-    /// Update the context with envelope information.
-    ///
-    /// This updates the item summary as well as the event id.
-    /// // TODO: remove update completely
-    pub fn update(&mut self) -> &mut Self {
-        self.context.summary = EnvelopeSummary::compute(self.envelope(), self.context.event_meta);
-        self
-    }
-
     /// Retains or drops items based on the [`ItemAction`].
     ///
     ///
@@ -208,7 +198,13 @@ impl ManagedEnvelope {
         for (outcome, category, quantity) in outcomes {
             self.track_outcome(outcome, category, quantity);
         }
-        // TODO: once `update` is private, it should be called here.
+    }
+
+    /// Assume that the envelope contains an event of the given data type.
+    ///
+    /// This is useful when the actual event item has already been removed for processing.
+    pub fn assume_event(&mut self, category: DataCategory) {
+        self.context.event_category = Some(category);
     }
 
     /// Record that event metrics have been extracted.
@@ -217,7 +213,7 @@ impl ManagedEnvelope {
     /// if the context needs to be updated in-flight without recomputing the entire summary, this
     /// method can record that metric extraction for the event item has occurred.
     pub fn set_event_metrics_extracted(&mut self) -> &mut Self {
-        self.context.summary.event_metrics_extracted = true;
+        self.context.event_metrics_extracted = true;
         self
     }
 
@@ -264,7 +260,7 @@ impl ManagedEnvelope {
     /// (for example, [Transaction](`DataCategory::Transaction`) for processed transactions)
     /// will be handled by the metrics aggregator.
     fn use_index_category(&self) -> bool {
-        self.context.summary.event_metrics_extracted
+        self.context.event_metrics_extracted
     }
 
     /// Returns the data category of the event item in the envelope.
@@ -272,7 +268,7 @@ impl ManagedEnvelope {
     /// If metrics have been extracted from the event item, this will return the indexing category.
     /// Outcomes for metrics (the base data category) will be logged by the metrics aggregator.
     fn event_category(&self) -> Option<DataCategory> {
-        let category = self.context.summary.event_category?;
+        let category = self.context.event_category?;
 
         match category.index_category() {
             Some(index_category) if self.use_index_category() => Some(index_category),
@@ -288,14 +284,14 @@ impl ManagedEnvelope {
             return;
         }
 
+        let summary = self.compute_summary();
+
         // Errors are only logged for what we consider failed request handling. In other cases, we
         // "expect" errors and log them as debug level.
         let handling = Handling::from_outcome(&outcome);
         match handling {
             Handling::Success => relay_log::debug!("dropped envelope: {outcome}"),
             Handling::Failure => {
-                let summary = &self.context.summary;
-
                 relay_log::error!(
                     tags.has_attachments = summary.attachment_quantity > 0,
                     tags.has_sessions = summary.session_quantity > 0,
@@ -303,8 +299,7 @@ impl ManagedEnvelope {
                     tags.has_replays = summary.replay_quantity > 0,
                     tags.has_checkins = summary.checkin_quantity > 0,
                     tags.event_category = ?summary.event_category,
-                    cached_summary = ?summary,
-                    recomputed_summary = ?EnvelopeSummary::compute(self.envelope(), self.context.event_meta),
+                    summary = ?summary,
                     "dropped envelope: {outcome}"
                 );
             }
@@ -318,15 +313,15 @@ impl ManagedEnvelope {
             self.track_outcome(outcome.clone(), category, 1);
         }
 
-        if self.context.summary.attachment_quantity > 0 {
+        if summary.attachment_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
                 DataCategory::Attachment,
-                self.context.summary.attachment_quantity,
+                summary.attachment_quantity,
             );
         }
 
-        if self.context.summary.profile_quantity > 0 {
+        if summary.profile_quantity > 0 {
             self.track_outcome(
                 outcome,
                 if self.use_index_category() {
@@ -334,7 +329,7 @@ impl ManagedEnvelope {
                 } else {
                     DataCategory::Profile
                 },
-                self.context.summary.profile_quantity,
+                summary.profile_quantity,
             );
         }
 
@@ -359,10 +354,11 @@ impl ManagedEnvelope {
     /// allocated parts of [`Envelope`] and [`ManagedEnvelope`]. All the heap allocated fields
     /// within early mentioned types are skipped.
     pub fn estimated_size(&self) -> usize {
+        let summary = self.compute_summary(); // TODO: expensive?
+
         // Always round it up to next 1KB.
         (f64::ceil(
-            (self.context.summary.payload_size + size_of::<Self>() + size_of::<Envelope>()) as f64
-                / 1000.,
+            (summary.payload_size + size_of::<Self>() + size_of::<Envelope>()) as f64 / 1000.,
         ) * 1000.) as usize
     }
 
@@ -388,6 +384,14 @@ impl ManagedEnvelope {
         relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.start_time().elapsed());
 
         self.context.done = true;
+    }
+
+    fn compute_summary(&self) -> EnvelopeSummary {
+        let event_meta = self
+            .context
+            .event_category
+            .map(|cat| (cat, self.context.event_metrics_extracted));
+        EnvelopeSummary::compute(self.envelope(), event_meta)
     }
 }
 
