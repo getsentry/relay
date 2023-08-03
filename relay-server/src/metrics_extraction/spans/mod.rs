@@ -14,10 +14,10 @@ use crate::statsd::RelayTimers;
 ///
 /// This configuration is temporarily hard-coded here. It will later be moved to project config
 /// and be provided by the upstream.
-static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
-    Lazy::new(|| MetricExtractionConfig {
-        version: 1,
-        metrics: vec![
+static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
+    MetricExtractionConfig::new(
+        // Metrics
+        vec![
             MetricSpec {
                 category: DataCategory::Span,
                 mri: "d:spans/exclusive_time@millisecond".into(),
@@ -38,7 +38,8 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
                 tags: Default::default(),
             },
         ],
-        tags: vec![TagMapping {
+        // Tags
+        vec![TagMapping {
             metrics: vec![
                 LazyGlob::new("d:spans/exclusive_time@millisecond".into()),
                 LazyGlob::new("d:spans/exclusive_time_light@millisecond".into()),
@@ -67,7 +68,8 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> =
             })
             .into(),
         }],
-    });
+    )
+});
 
 /// Extracts metrics from the spans of the given transaction.
 pub(crate) fn extract_span_metrics(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {

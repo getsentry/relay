@@ -57,7 +57,7 @@ where
         return metrics
     };
 
-    for metric_spec in &config.metrics {
+    for metric_spec in config.metrics() {
         if metric_spec.category != instance.category() {
             continue;
         }
@@ -79,34 +79,20 @@ where
             continue;
         };
 
-        // Combine global tag mapping with metric's own tags.
-        // Global tags are overwritten by metric-specific tags.
-        let tags = config
-            .tags
-            .iter()
-            .filter_map(|t| {
-                t.metrics
-                    .iter()
-                    .any(|m| m.compiled().is_match(&metric_spec.mri))
-                    .then_some(t.tags.iter())
-            })
-            .flatten()
-            .chain(metric_spec.tags.iter());
-
         metrics.push(Metric {
             name: mri.to_string(),
             value,
             timestamp,
-            tags: extract_tags(instance, tags),
+            tags: extract_tags(instance, &metric_spec.tags),
         });
     }
 
     metrics
 }
 
-fn extract_tags<'a>(
+fn extract_tags(
     instance: &impl FieldValueProvider,
-    tags: impl Iterator<Item = &'a TagSpec>,
+    tags: &Vec<TagSpec>,
 ) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
 
