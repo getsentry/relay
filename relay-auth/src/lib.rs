@@ -95,7 +95,7 @@ impl fmt::Display for RelayVersion {
     }
 }
 
-/// Raised if the Relay cannot parse the provided version.
+/// Raised if Relay cannot parse the provided version.
 #[derive(Clone, Copy, Debug, Default, thiserror::Error)]
 #[error("invalid relay version string")]
 pub struct ParseRelayVersionError;
@@ -175,7 +175,7 @@ impl Default for SignatureHeader {
     }
 }
 
-/// Represents the secret key of an relay.
+/// Represents the secret key of an Relay.
 ///
 /// Secret keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
@@ -288,7 +288,7 @@ impl fmt::Debug for SecretKey {
 
 relay_common::impl_str_serde!(SecretKey, "a secret key");
 
-/// Represents the public key of a relay.
+/// Represents the public key of a Relay.
 ///
 /// Public keys are based on ed25519 but this should be considered an
 /// implementation detail for now.  We only ever represent public keys
@@ -401,7 +401,7 @@ impl fmt::Debug for PublicKey {
 
 relay_common::impl_str_serde!(PublicKey, "a public key");
 
-/// Generates an relay ID.
+/// Generates an Relay ID.
 pub fn generate_relay_id() -> RelayId {
     Uuid::new_v4()
 }
@@ -508,7 +508,7 @@ impl fmt::Display for SignedRegisterState {
 
 /// A state structure containing relevant information from `RegisterRequest`.
 ///
-/// This struct is used to carry over information between the downstream register request and
+/// This structure is used to carry over information between the downstream register request and
 /// register response. In addition to identifying information, it contains a random bit to avoid
 /// replay attacks.
 #[derive(Clone, Deserialize, Serialize)]
@@ -546,7 +546,7 @@ fn nonce() -> String {
 
 /// Represents a request for registration with the upstream.
 ///
-/// This is created if the relay signs in for the first time.  The server needs
+/// This is created if the Relay signs in for the first time.  The server needs
 /// to respond to this request with a unique token that is then used to sign
 /// the response.
 #[derive(Serialize, Deserialize, Debug)]
@@ -558,7 +558,7 @@ pub struct RegisterRequest {
 }
 
 impl RegisterRequest {
-    /// Creates a new request to register an relay upstream.
+    /// Creates a new request to register an Relay upstream.
     pub fn new(relay_id: &RelayId, public_key: &PublicKey) -> RegisterRequest {
         RegisterRequest {
             relay_id: *relay_id,
@@ -582,12 +582,12 @@ impl RegisterRequest {
         pk.unpack(data, signature, max_age)
     }
 
-    /// Returns the relay ID of the registering relay.
+    /// Returns the Relay ID of the registering Relay.
     pub fn relay_id(&self) -> RelayId {
         self.relay_id
     }
 
-    /// Returns the new public key of registering relay.
+    /// Returns the new public key of registering Relay.
     pub fn public_key(&self) -> &PublicKey {
         &self.public_key
     }
@@ -616,7 +616,7 @@ pub struct RegisterChallenge {
 }
 
 impl RegisterChallenge {
-    /// Returns the relay ID of the registering relay.
+    /// Returns the Relay ID of the registering Relay.
     pub fn relay_id(&self) -> &RelayId {
         &self.relay_id
     }
@@ -670,7 +670,7 @@ impl RegisterResponse {
         Ok((response, state))
     }
 
-    /// Returns the relay ID of the registering Relay.
+    /// Returns the Relay ID of the registering Relay.
     pub fn relay_id(&self) -> RelayId {
         self.relay_id
     }
