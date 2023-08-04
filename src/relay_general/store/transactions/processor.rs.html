@@ -2432,32 +2432,6 @@
 <a href="#2432" id="2432">2432</a>
 <a href="#2433" id="2433">2433</a>
 <a href="#2434" id="2434">2434</a>
-<a href="#2435" id="2435">2435</a>
-<a href="#2436" id="2436">2436</a>
-<a href="#2437" id="2437">2437</a>
-<a href="#2438" id="2438">2438</a>
-<a href="#2439" id="2439">2439</a>
-<a href="#2440" id="2440">2440</a>
-<a href="#2441" id="2441">2441</a>
-<a href="#2442" id="2442">2442</a>
-<a href="#2443" id="2443">2443</a>
-<a href="#2444" id="2444">2444</a>
-<a href="#2445" id="2445">2445</a>
-<a href="#2446" id="2446">2446</a>
-<a href="#2447" id="2447">2447</a>
-<a href="#2448" id="2448">2448</a>
-<a href="#2449" id="2449">2449</a>
-<a href="#2450" id="2450">2450</a>
-<a href="#2451" id="2451">2451</a>
-<a href="#2452" id="2452">2452</a>
-<a href="#2453" id="2453">2453</a>
-<a href="#2454" id="2454">2454</a>
-<a href="#2455" id="2455">2455</a>
-<a href="#2456" id="2456">2456</a>
-<a href="#2457" id="2457">2457</a>
-<a href="#2458" id="2458">2458</a>
-<a href="#2459" id="2459">2459</a>
-<a href="#2460" id="2460">2460</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -2469,7 +2443,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
 <span class="kw">use </span><span class="kw">crate</span>::store::normalize::span::description::scrub_span_description;
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-<span class="kw">use </span><span class="kw">crate</span>::store::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
 <span class="kw">use </span><span class="kw">crate</span>::store::SpanDescriptionRule;
 <span class="kw">use </span><span class="kw">crate</span>::types::{Annotated, Meta, ProcessingAction, ProcessingResult, Remark, RemarkType};
 
@@ -2486,7 +2459,6 @@
     name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
     span_desc_rules: Vec&lt;SpanDescriptionRule&gt;,
     enrich_spans: bool,
-    max_tag_value_size: usize,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;r</span>&gt; TransactionsProcessor&lt;<span class="lifetime">&#39;r</span>&gt; {
@@ -2494,7 +2466,6 @@
         name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
         enrich_spans: bool,
         span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Vec&lt;SpanDescriptionRule&gt;&gt;,
-        max_tag_value_size: usize,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>span_desc_rules = <span class="kw">if let </span><span class="prelude-val">Some</span>(span_desc_rules) = span_description_rules {
             span_desc_rules.clone()
@@ -2510,7 +2481,6 @@
             name_config,
             span_desc_rules,
             enrich_spans,
-            max_tag_value_size,
         }
     }
 
@@ -2874,16 +2844,6 @@
         end_all_spans(event)<span class="question-mark">?</span>;
 
         event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
-
-        <span class="comment">// After processing spans, add span tags:
-        </span><span class="kw">if </span><span class="self">self</span>.enrich_spans {
-            extract_span_tags(
-                event,
-                <span class="kw-2">&amp;</span>tag_extraction::Config {
-                    max_tag_value_size: <span class="self">self</span>.max_tag_value_size,
-                },
-            );
-        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -4122,7 +4082,6 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4188,7 +4147,6 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4278,7 +4236,6 @@
             },
             <span class="bool-val">false</span>,
             <span class="prelude-val">None</span>,
-            usize::MAX,
         );
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
 
@@ -4411,7 +4368,6 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4480,7 +4436,6 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4597,12 +4552,7 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
-                TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] },
-                <span class="bool-val">false</span>,
-                <span class="prelude-val">None</span>,
-                usize::MAX,
-            ),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] }, <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4831,7 +4781,6 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )
@@ -4878,7 +4827,6 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
-                usize::MAX,
             ),
             ProcessingState::root(),
         )

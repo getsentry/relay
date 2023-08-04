@@ -3385,6 +3385,15 @@
 <a href="#3385" id="3385">3385</a>
 <a href="#3386" id="3386">3386</a>
 <a href="#3387" id="3387">3387</a>
+<a href="#3388" id="3388">3388</a>
+<a href="#3389" id="3389">3389</a>
+<a href="#3390" id="3390">3390</a>
+<a href="#3391" id="3391">3391</a>
+<a href="#3392" id="3392">3392</a>
+<a href="#3393" id="3393">3393</a>
+<a href="#3394" id="3394">3394</a>
+<a href="#3395" id="3395">3395</a>
+<a href="#3396" id="3396">3396</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3407,6 +3416,7 @@
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
+<span class="kw">use </span><span class="kw">crate</span>::store::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
 <span class="kw">use </span><span class="kw">crate</span>::store::{
     trimming, ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig,
     TransactionNameConfig,
@@ -4231,7 +4241,6 @@
             config.transaction_name_config,
             config.enrich_spans,
             config.span_description_rules,
-            config.max_tag_value_length,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
@@ -4309,6 +4318,15 @@
             span::attributes::normalize_spans(
                 event,
                 <span class="kw-2">&amp;</span>BTreeSet::from([SpanAttribute::ExclusiveTime]),
+            );
+        }
+
+        <span class="kw">if </span>config.enrich_spans {
+            extract_span_tags(
+                event,
+                <span class="kw-2">&amp;</span>tag_extraction::Config {
+                    max_tag_value_size: config.max_tag_value_length,
+                },
             );
         }
 
