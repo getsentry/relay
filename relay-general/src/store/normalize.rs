@@ -20,6 +20,7 @@ use crate::protocol::{
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
+use crate::store::span::tag_extraction::{self, extract_span_tags};
 use crate::store::{
     trimming, ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig,
     TransactionNameConfig,
@@ -844,7 +845,6 @@ pub fn light_normalize_event(
             config.transaction_name_config,
             config.enrich_spans,
             config.span_description_rules,
-            config.max_tag_value_length,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
@@ -922,6 +922,15 @@ pub fn light_normalize_event(
             span::attributes::normalize_spans(
                 event,
                 &BTreeSet::from([SpanAttribute::ExclusiveTime]),
+            );
+        }
+
+        if config.enrich_spans {
+            extract_span_tags(
+                event,
+                &tag_extraction::Config {
+                    max_tag_value_size: config.max_tag_value_length,
+                },
             );
         }
 
