@@ -203,8 +203,8 @@ impl ManagedEnvelope {
     /// Assume that the envelope contains an event of the given data type.
     ///
     /// This is useful when the actual event item has already been removed for processing.
-    pub fn assume_event(&mut self, category: DataCategory) {
-        self.context.event_category = Some(category);
+    pub fn assume_event(&mut self, category: Option<DataCategory>) {
+        self.context.event_category = category;
     }
 
     /// Record that event metrics have been extracted.
@@ -224,9 +224,6 @@ impl ManagedEnvelope {
     }
 
     /// Records an outcome scoped to this envelope's context.
-    ///
-    /// This managed envelope should be updated using [`update`](Self::update) soon after this
-    /// operation to ensure that subsequent outcomes are consistent.
     fn track_outcome(&self, outcome: Outcome, category: DataCategory, quantity: usize) {
         self.outcome_aggregator.send(TrackOutcome {
             timestamp: self.received_at(),
@@ -284,7 +281,7 @@ impl ManagedEnvelope {
             return;
         }
 
-        let summary = self.compute_summary();
+        let summary = dbg!(self.compute_summary());
 
         // Errors are only logged for what we consider failed request handling. In other cases, we
         // "expect" errors and log them as debug level.

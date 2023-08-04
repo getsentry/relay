@@ -354,6 +354,7 @@ impl ProcessEnvelopeState {
     #[cfg(feature = "processing")]
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
+        self.managed_envelope.assume_event(None);
     }
 }
 
@@ -1720,9 +1721,7 @@ impl EnvelopeProcessorService {
         };
 
         state.event = event;
-        if let Some(category) = state.event_category() {
-            state.managed_envelope.assume_event(category);
-        }
+        state.managed_envelope.assume_event(state.event_category());
 
         state.sample_rates = sample_rates;
         state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
