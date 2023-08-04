@@ -408,6 +408,8 @@
 <a href="#408" id="408">408</a>
 <a href="#409" id="409">409</a>
 <a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
@@ -600,21 +602,23 @@
 }
 
 <span class="doccomment">/// Configuration for logical shards -&gt; kafka configuration mapping.
+///
 /// The configuration for this should look like:
-///     ```
-///     metrics:
-///        shards: 65000
-///        mapping:
-///          0:
-///              name: &quot;ingest-metrics-1&quot;
-///              config: &quot;metrics_1&quot;
-///          25000:
-///              name: &quot;ingest-metrics-2&quot;
-///              config: &quot;metrics_2&quot;
-///          45000:
-///              name: &quot;ingest-metrics-3&quot;
-///              config: &quot;metrics_3&quot;
-///     ```
+///
+/// ```ignore
+/// metrics:
+///    shards: 65000
+///    mapping:
+///      0:
+///          name: &quot;ingest-metrics-1&quot;
+///          config: &quot;metrics_1&quot;
+///      25000:
+///          name: &quot;ingest-metrics-2&quot;
+///          config: &quot;metrics_2&quot;
+///      45000:
+///          name: &quot;ingest-metrics-3&quot;
+///          config: &quot;metrics_3&quot;
+/// ```
 ///
 /// where the `shards` defines how many logical shards must be created, and `mapping`
 /// describes the per-shard configuration. Index in the `mapping` is the initial inclusive
