@@ -2364,8 +2364,10 @@ impl EnvelopeProcessorService {
                         ItemAction::Drop(outcome.clone())
                     }
                 });
+                state.managed_envelope.update_freeze_event();
                 if state.managed_envelope.envelope().is_empty() {
-                    // Just for bookkeeping.
+                    // Call reject to make sure that outcomes are generated for the transaction event,
+                    // which has already been removed from the envelope for processing.
                     state.managed_envelope.reject(outcome);
                 }
 
