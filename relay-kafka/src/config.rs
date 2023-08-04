@@ -190,21 +190,23 @@ pub struct KafkaTopicConfig {
 }
 
 /// Configuration for logical shards -> kafka configuration mapping.
+///
 /// The configuration for this should look like:
-///     ```
-///     metrics:
-///        shards: 65000
-///        mapping:
-///          0:
-///              name: "ingest-metrics-1"
-///              config: "metrics_1"
-///          25000:
-///              name: "ingest-metrics-2"
-///              config: "metrics_2"
-///          45000:
-///              name: "ingest-metrics-3"
-///              config: "metrics_3"
-///     ```
+///
+/// ```ignore
+/// metrics:
+///    shards: 65000
+///    mapping:
+///      0:
+///          name: "ingest-metrics-1"
+///          config: "metrics_1"
+///      25000:
+///          name: "ingest-metrics-2"
+///          config: "metrics_2"
+///      45000:
+///          name: "ingest-metrics-3"
+///          config: "metrics_3"
+/// ```
 ///
 /// where the `shards` defines how many logical shards must be created, and `mapping`
 /// describes the per-shard configuration. Index in the `mapping` is the initial inclusive
