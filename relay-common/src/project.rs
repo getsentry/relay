@@ -1,10 +1,10 @@
 //! This module contains [`ProjectKey`] and [`ProjectId`] types and necessary traits
 //! implementations.
 //!
-//! - [`ProjectId`] is just a wrapper over `u64` and should be considered as implementations details,
-//! as it can change in the future,
+//! - [`ProjectId`] is the unique identifier of a Sentryproject. Currentluy it is just a wrapper over `u64`
+//! and should be considered as implementations details, as it can change in the future.
 //! - [`ProjectKey`] is a byte array (`[u8; 32]`) and represents a DSN to identify and authenticate
-//! for a project at Sentry.
+//! a project at Sentry.
 
 use std::fmt;
 use std::str::FromStr;
@@ -76,7 +76,7 @@ impl fmt::Display for ParseProjectKeyError {
 
 impl std::error::Error for ParseProjectKeyError {}
 
-/// The public key used in a DSN to identify and authenticate for a project at Sentry.
+/// The public key used in a DSN to identify and authenticate a project at Sentry.
 ///
 /// Project keys are always 32-character hexadecimal strings.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]

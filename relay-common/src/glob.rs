@@ -13,7 +13,7 @@ use regex::bytes::{Regex, RegexBuilder};
 static GLOB_CACHE: Lazy<Mutex<LruCache<(GlobOptions, String), Regex>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
-/// LRU cache for [`Regex`]s in relation to provided string pattern.
+/// LRU cache for [`Regex`]s in relation to the provided string pattern.
 static CODEOWNERS_CACHE: Lazy<Mutex<LruCache<String, Regex>>> =
     Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(500).unwrap())));
 
