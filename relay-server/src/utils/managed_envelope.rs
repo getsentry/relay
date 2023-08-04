@@ -96,6 +96,7 @@ impl ManagedEnvelope {
         test_store: Addr<TestStore>,
     ) -> Self {
         let meta = &envelope.meta();
+        let summary = EnvelopeSummary::compute(envelope.as_ref(), None);
         let scoping = meta.get_partial_scoping();
         Self {
             envelope,
@@ -103,8 +104,8 @@ impl ManagedEnvelope {
                 scoping,
                 slot,
                 done: false,
-                event_category: None,
-                event_metrics_extracted: false,
+                event_category: summary.event_category,
+                event_metrics_extracted: summary.event_metrics_extracted,
             },
             outcome_aggregator,
             test_store,
@@ -285,7 +286,7 @@ impl ManagedEnvelope {
             return;
         }
 
-        let summary = dbg!(self.compute_summary());
+        let summary = self.compute_summary();
 
         // Errors are only logged for what we consider failed request handling. In other cases, we
         // "expect" errors and log them as debug level.
