@@ -1066,18 +1066,8 @@ impl EnvelopeProcessorService {
             .count();
         let mut found_profile = false;
         state.managed_envelope.retain_items(|item| match item.ty() {
-            // Drop profile without a transaction in the same envelope if sampled==true.
-            // If sampled != true, then the transaction was removed due to DS (unsampled),
-            // but we still want to keep the profile for aggregations (slowest functions, etc.)
-            ItemType::Profile
-                if (transaction_count == 0)
-                    && item
-                        .get_header("sampled")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(true) =>
-            {
-                ItemAction::DropSilently
-            }
+            // Drop profile without a transaction in the same envelope.
+            ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             ItemType::Profile => {
                 if !found_profile {
                     match relay_profiling::parse_metadata(&item.payload()) {
