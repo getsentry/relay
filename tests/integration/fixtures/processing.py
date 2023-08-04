@@ -237,7 +237,7 @@ class OutcomesConsumer(ConsumerBase):
     def get_outcome(self):
         outcomes = self.get_outcomes()
         assert len(outcomes) > 0, "No outcomes were consumed"
-        assert len(outcomes) == 1, "More than one outcome was consumed"
+        assert len(outcomes) == 1, outcomes
         return outcomes[0]
 
     def assert_rate_limited(self, reason, key_id=None, categories=None, quantity=None):
