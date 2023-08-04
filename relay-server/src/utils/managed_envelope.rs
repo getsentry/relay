@@ -181,6 +181,21 @@ impl ManagedEnvelope {
         self
     }
 
+    /// Update the context with envelope information, leaving event information untouched.
+    ///
+    /// This is useful when the event has already been removed from the envelope for processing,
+    /// but we still want outcomes to be generated for the event.
+    pub fn update_freeze_event(&mut self) -> &mut Self {
+        let event_category = self.context.summary.event_category;
+        let event_metrics_extracted = self.context.summary.event_metrics_extracted;
+
+        self.context.summary = EnvelopeSummary::compute(self.envelope());
+
+        self.context.summary.event_category = event_category;
+        self.context.summary.event_metrics_extracted = event_metrics_extracted;
+        self
+    }
+
     /// Retains or drops items based on the [`ItemAction`].
     ///
     ///
