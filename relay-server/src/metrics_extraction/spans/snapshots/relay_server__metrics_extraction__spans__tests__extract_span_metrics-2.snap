@@ -772,6 +772,7 @@ expression: metrics
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
+            "span.action": "SAVEPOINT",
             "span.category": "db",
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
@@ -793,6 +794,7 @@ expression: metrics
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
+            "span.action": "SAVEPOINT",
             "span.category": "db",
             "span.description": "SAVEPOINT %s",
             "span.group": "3f955cbde39e04b9",
