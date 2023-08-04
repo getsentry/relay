@@ -17,7 +17,9 @@ from . import SentryLike
 
 _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
-    CURRENT_VERSION = _version_re.search(f.read()).group(1)
+    match = _version_re.search(f.read())
+    assert match is not None
+    CURRENT_VERSION = match[1]
 
 
 def _parse_version(version):

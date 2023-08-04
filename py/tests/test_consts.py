@@ -1,4 +1,4 @@
-from sentry_relay import DataCategory, SPAN_STATUS_CODE_TO_NAME
+from sentry_relay.consts import DataCategory, SPAN_STATUS_CODE_TO_NAME
 
 
 def test_parse_data_category():

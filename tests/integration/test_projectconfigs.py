@@ -9,7 +9,7 @@ from collections import namedtuple
 import tempfile
 import os
 
-from sentry_relay import PublicKey, SecretKey, generate_key_pair
+from sentry_relay.auth import PublicKey, SecretKey, generate_key_pair
 
 RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal"])
 

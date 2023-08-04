@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleated
+
+- add rudimentary mypy setup. ([#2384](https://github.com/getsentry/relay/pull/2384))
+
 ## 0.8.28
 
 This release requires Python 3.8 or later.
