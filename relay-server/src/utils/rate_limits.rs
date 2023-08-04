@@ -287,7 +287,6 @@ pub struct Enforcement {
 
 impl Enforcement {
     /// Returns `true` if the event should be rate limited.
-    #[cfg(feature = "processing")]
     pub fn event_active(&self) -> bool {
         self.event.is_active()
     }
