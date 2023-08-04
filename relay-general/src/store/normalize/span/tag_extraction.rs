@@ -332,7 +332,7 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 }
 
 const ALLOWED_SQL_ACTION: &str =
-    "SELECT|INSERT|DELETE|UPDATE|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT";
+    "SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT";
 
 /// Regex with a capture group to extract the database action from a query.
 ///
@@ -585,16 +585,14 @@ mod tests {
                 r#"DELETE FROM "sentry_groupinbox" WHERE "sentry_groupinbox"."id" IN (%s)"#,
                 "DELETE",
             ),
+            (r#"SET search_path TO my_schema, public"#, "SET"),
             (r#"SAVEPOINT %s"#, "SAVEPOINT"),
             (r#"RELEASE SAVEPOINT %s"#, "RELEASE SAVEPOINT"),
             (r#"ROLLBACK TO SAVEPOINT %s"#, "ROLLBACK TO SAVEPOINT"),
         ];
 
-        for (query, expected) in test_cases.iter() {
-            assert_eq!(
-                sql_action_from_query(query.to_owned()).unwrap(),
-                expected.to_owned()
-            )
+        for (query, expected) in test_cases.into_iter() {
+            assert_eq!(sql_action_from_query(query).unwrap(), expected)
         }
     }
 }
