@@ -128,7 +128,23 @@
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
 <a href="#130" id="130">130</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! This module contains [`ProjectKey`] and [`ProjectId`] types and necessary traits
+//! implementations.
+//!
+//! - [`ProjectId`] is the unique identifier of a Sentryproject. Currentluy it is just a wrapper over `u64`
+//! and should be considered as implementations details, as it can change in the future.
+//! - [`ProjectKey`] is a byte array (`[u8; 32]`) and represents a DSN to identify and authenticate
+//! a project at Sentry.
+
+</span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -198,7 +214,7 @@
 
 <span class="kw">impl </span>std::error::Error <span class="kw">for </span>ParseProjectKeyError {}
 
-<span class="doccomment">/// The public key used in a DSN to identify and authenticate for a project at Sentry.
+<span class="doccomment">/// The public key used in a DSN to identify and authenticate a project at Sentry.
 ///
 /// Project keys are always 32-character hexadecimal strings.
 </span><span class="attr">#[derive(Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
