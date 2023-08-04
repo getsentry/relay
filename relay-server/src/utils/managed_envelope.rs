@@ -207,13 +207,17 @@ impl ManagedEnvelope {
         self.context.event_category = category;
     }
 
+    /// Gets the value of the `event_metrics_extracted` flag.
+    pub fn event_metrics_extracted(&self) -> bool {
+        self.context.event_metrics_extracted
+    }
+
     /// Record that event metrics have been extracted.
     ///
-    /// This is usually done automatically as part of `EnvelopeContext::new` or `update`. However,
-    /// if the context needs to be updated in-flight without recomputing the entire summary, this
-    /// method can record that metric extraction for the event item has occurred.
-    pub fn set_event_metrics_extracted(&mut self) -> &mut Self {
-        self.context.event_metrics_extracted = true;
+    /// This needs to be represented separately of the event's item header because during
+    /// processing, the event item is removed from the envelope (see `assume_event`).
+    pub fn set_event_metrics_extracted(&mut self, value: bool) -> &mut Self {
+        self.context.event_metrics_extracted = value;
         self
     }
 
