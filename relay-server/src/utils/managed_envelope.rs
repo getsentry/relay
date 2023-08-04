@@ -402,3 +402,40 @@ impl Drop for ManagedEnvelope {
         self.reject(Outcome::Invalid(DiscardReason::Internal));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use relay_system::Addr;
+
+    use crate::actors::outcome::Outcome;
+    use crate::envelope::Envelope;
+    use crate::utils::{ItemAction, ManagedEnvelope};
+
+    #[test]
+    fn reject_respects_changes() {
+        let (outcome_aggregator, mut outcomes) = Addr::custom();
+        let (test_store, _) = Addr::custom();
+        let bytes = Bytes::from(
+            "\
+             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
+             {\"type\":\"attachment\"}\n\
+             helloworld\
+             ",
+        );
+
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        let mut managed_envelope =
+            ManagedEnvelope::new_internal(envelope, None, outcome_aggregator, test_store);
+        assert_eq!(managed_envelope.envelope().len(), 1);
+
+        // Drop everything in the envelope:
+        managed_envelope.retain_items(|_| ItemAction::DropSilently);
+        assert_eq!(managed_envelope.envelope().len(), 0);
+
+        // Reject should do nothing, because there's nothing in the envelope anymore:
+        managed_envelope.reject(Outcome::Abuse);
+        outcomes.close();
+        assert!(outcomes.blocking_recv().is_none());
+    }
+}
