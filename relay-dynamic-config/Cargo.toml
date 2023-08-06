@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Dynamic configuration passed down from sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.7.1"
+version = "23.7.2"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -15,6 +15,7 @@ default = []
 [dependencies]
 anyhow = "1.0.66"
 assert-json-diff = "2.0.2"
+once_cell = "1.13.1"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-filter = { path = "../relay-filter" }

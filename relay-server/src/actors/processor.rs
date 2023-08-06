@@ -2094,7 +2094,7 @@ impl EnvelopeProcessorService {
             match state.project_state.config.metric_extraction {
                 ErrorBoundary::Ok(ref config) if config.is_enabled() => {
                     let metrics =
-                        crate::metrics_extraction::event::extract_event_metrics(event, config);
+                        crate::metrics_extraction::generic::extract_metrics_from(event, config);
                     state.event_metrics_extracted |= !metrics.is_empty();
                     state.extracted_metrics.project_metrics.extend(metrics);
                 }
@@ -2137,10 +2137,7 @@ impl EnvelopeProcessorService {
                 .project_state
                 .has_feature(Feature::SpanMetricsExtraction)
             {
-                let metrics = crate::metrics_extraction::spans::extract_span_metrics(
-                    self.inner.config.aggregator_config(),
-                    event,
-                )?;
+                let metrics = crate::metrics_extraction::spans::extract_span_metrics(event)?;
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
 

@@ -402,10 +402,12 @@ impl OnDisk {
         Ok(managed_envelope)
     }
 
-    /// Tries to delete the envelops from persistent buffer in batches, extract and convert them to
-    /// managed envelopes and send to back into processing pipeline.
+    /// Tries to delete the envelopes from the persistent buffer in batches,
+    /// extract and convert them to managed envelopes and send back into
+    /// processing pipeline.
     ///
-    /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
+    /// If the error happens in the deletion/fetching phase, a key is returned
+    /// to allow retrying later.
     ///
     /// Returns the amount of envelopes deleted from disk.
     async fn delete_and_fetch(

@@ -2,38 +2,68 @@ use std::collections::BTreeMap;
 
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::{MetricExtractionConfig, TagSource, TagSpec};
-use relay_general::protocol::Event;
+use relay_general::protocol::{Event, Span, Timestamp};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
 
-/// Extract metrics from an [`Event`].
+/// Item from which metrics can be extracted.
+pub trait Extractable {
+    /// Data category for the metric spec to match on.
+    fn category(&self) -> DataCategory;
+
+    /// The timestamp to associate with the extracted metrics.
+    fn timestamp(&self) -> Option<Timestamp>;
+}
+
+impl Extractable for Event {
+    fn category(&self) -> DataCategory {
+        // Obtain the event's data category, but treat default events as error events for the purpose of
+        // metric tagging.
+        match DataCategory::from(self.ty.value().copied().unwrap_or_default()) {
+            DataCategory::Default => DataCategory::Error,
+            category => category,
+        }
+    }
+
+    fn timestamp(&self) -> Option<Timestamp> {
+        self.timestamp.value().copied()
+    }
+}
+
+impl Extractable for Span {
+    fn category(&self) -> DataCategory {
+        DataCategory::Span
+    }
+
+    fn timestamp(&self) -> Option<Timestamp> {
+        self.timestamp.value().copied()
+    }
+}
+
+/// Extract metrics from any type that implements both [`Extractable`] and [`FieldValueProvider`].
 ///
-/// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
+/// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
+pub fn extract_metrics_from<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
+where
+    T: Extractable + FieldValueProvider,
+{
     let mut metrics = Vec::new();
 
-    let event_ts = event.timestamp.value();
-    let Some(timestamp) = event_ts.and_then(|d| UnixTimestamp::from_datetime(d.0)) else {
-        relay_log::error!(timestamp = ?event_ts, "invalid event timestamp for metric extraction");
+    let ts = instance.timestamp();
+    let Some(timestamp) = ts.and_then(|d| UnixTimestamp::from_datetime(d.0)) else {
+        relay_log::error!(timestamp = ?ts, "invalid event timestamp for metric extraction");
         return metrics
     };
 
-    // Obtain the event's data category, but treat default events as error events for the purpose of
-    // metric tagging.
-    let category = match DataCategory::from(event.ty.value().copied().unwrap_or_default()) {
-        DataCategory::Default => DataCategory::Error,
-        category => category,
-    };
-
-    for metric_spec in &config.metrics {
-        if metric_spec.category != category {
+    for metric_spec in config.metrics() {
+        if metric_spec.category != instance.category() {
             continue;
         }
 
-        if let Some(ref condition) = metric_spec.condition {
-            if !condition.matches(event) {
+        if let Some(ref condition) = &metric_spec.condition {
+            if !condition.matches(instance) {
                 continue;
             }
         }
@@ -45,7 +75,7 @@ pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> 
             continue;
         };
 
-        let Some(value) = read_metric_value(event, metric_spec.field.as_deref(), mri.ty) else {
+        let Some(value) = read_metric_value(instance, metric_spec.field.as_deref(), mri.ty) else {
             continue;
         };
 
@@ -53,26 +83,29 @@ pub fn extract_event_metrics(event: &Event, config: &MetricExtractionConfig) -> 
             name: mri.to_string(),
             value,
             timestamp,
-            tags: extract_event_tags(event, &metric_spec.tags),
+            tags: extract_tags(instance, &metric_spec.tags),
         });
     }
 
     metrics
 }
 
-fn extract_event_tags(event: &Event, tags: &[TagSpec]) -> BTreeMap<String, String> {
+fn extract_tags(
+    instance: &impl FieldValueProvider,
+    tags: &Vec<TagSpec>,
+) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
 
     for tag_spec in tags {
         if let Some(ref condition) = tag_spec.condition {
-            if !condition.matches(event) {
+            if !condition.matches(instance) {
                 continue;
             }
         }
 
         let value_opt = match tag_spec.source() {
             TagSource::Literal(value) => Some(value.to_owned()),
-            TagSource::Field(field) => event.get_value(field).as_str().map(str::to_owned),
+            TagSource::Field(field) => instance.get_value(field).as_str().map(str::to_owned),
             TagSource::Unknown => None,
         };
 
@@ -87,15 +120,19 @@ fn extract_event_tags(event: &Event, tags: &[TagSpec]) -> BTreeMap<String, Strin
     map
 }
 
-fn read_metric_value(event: &Event, field: Option<&str>, ty: MetricType) -> Option<MetricValue> {
+fn read_metric_value(
+    instance: &impl FieldValueProvider,
+    field: Option<&str>,
+    ty: MetricType,
+) -> Option<MetricValue> {
     Some(match ty {
         MetricType::Counter => MetricValue::Counter(match field {
-            Some(field) => event.get_value(field).as_f64()?,
+            Some(field) => instance.get_value(field).as_f64()?,
             None => 1.0,
         }),
-        MetricType::Distribution => MetricValue::Distribution(event.get_value(field?).as_f64()?),
-        MetricType::Set => MetricValue::set_from_str(event.get_value(field?).as_str()?),
-        MetricType::Gauge => MetricValue::Gauge(event.get_value(field?).as_f64()?),
+        MetricType::Distribution => MetricValue::Distribution(instance.get_value(field?).as_f64()?),
+        MetricType::Set => MetricValue::set_from_str(instance.get_value(field?).as_str()?),
+        MetricType::Gauge => MetricValue::Gauge(instance.get_value(field?).as_f64()?),
     })
 }
 
@@ -125,7 +162,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -161,7 +198,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -199,7 +236,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -249,7 +286,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_event_metrics(event.value().unwrap(), &config);
+        let metrics = extract_metrics_from(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {

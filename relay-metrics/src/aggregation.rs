@@ -1144,7 +1144,7 @@ impl Default for AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 30,
             debounce_delay: 10,
-            max_flush_bytes: 50_000_000, // 50 MB
+            max_flush_bytes: 5_000_000, // 5 MB
             flush_partitions: None,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
