@@ -83,23 +83,12 @@ class SentryLike:
         )
 
     def _wait(self, path):
-        # import ipdb
-
         backoff = 0.1
-        print(path)
         while True:
-            # ipdb.set_trace()
-
             try:
-                print("lets try")
-                x = self.get(path)
-                print(x.json())
-                x.raise_for_status()
-                print("@@@@@@@@")
-
+                self.get(path).raise_for_status()
                 break
             except Exception:
-                print("EXCEPTION")
                 time.sleep(backoff)
                 if backoff > 10:
                     raise
