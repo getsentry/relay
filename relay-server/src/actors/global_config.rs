@@ -115,8 +115,7 @@ impl Service for GlobalConfigurationService {
         }
 
         tokio::spawn(async move {
-            //let duration = Duration::from_secs(10);
-            std::thread::sleep(Duration::from_secs(2));
+            std::thread::sleep(Duration::from_secs(10));
             let mut ticker = tokio::time::interval(Duration::from_secs(10));
             relay_log::info!("global configuration service started");
 
