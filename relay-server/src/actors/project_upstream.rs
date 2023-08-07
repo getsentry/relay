@@ -257,6 +257,10 @@ impl UpstreamProjectSourceService {
         let nocache_batches = channels.nocache_channels.into_iter().chunks(batch_size);
 
         let mut requests = vec![];
+        // The `nocache_batches.into_iter()` still must be called here, since compiler produces the
+        // error: `that nocache_batches is not an iterator`.
+        // Since `IntoChunks` is not an iterator itself but only implements `IntoIterator` trait.
+        #[allow(clippy::useless_conversion)]
         for channels_batch in cache_batches.into_iter().chain(nocache_batches.into_iter()) {
             let mut channels_batch: ProjectStateChannels = channels_batch.collect();
             for channel in channels_batch.values_mut() {

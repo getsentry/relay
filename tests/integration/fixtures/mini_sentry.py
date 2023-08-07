@@ -1,5 +1,4 @@
 import gzip
-import json
 import os
 import re
 import uuid
@@ -18,7 +17,9 @@ from . import SentryLike
 
 _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
-    CURRENT_VERSION = _version_re.search(f.read()).group(1)
+    match = _version_re.search(f.read())
+    assert match is not None
+    CURRENT_VERSION = match[1]
 
 
 def _parse_version(version):
@@ -92,7 +93,11 @@ class Sentry(SentryLike):
 
         return key_entry
 
-    def basic_project_config(self, project_id, dsn_public_key=None):
+    def basic_project_config(
+        self,
+        project_id,
+        dsn_public_key=None,
+    ):
         if dsn_public_key is None:
             dsn_public_key = {
                 "publicKey": uuid.uuid4().hex,
@@ -182,7 +187,7 @@ def _get_project_id(public_key, project_configs):
 
 
 @pytest.fixture
-def mini_sentry(request):
+def mini_sentry(request):  # noqa
     app = Flask(__name__)
     app.debug = True
     sentry = None
@@ -230,7 +235,6 @@ def mini_sentry(request):
 
         relay_info = sentry.known_relays[relay_id]
 
-        public_key = flask_request.json["public_key"]
         version = flask_request.json.get("version")
         registered_version = relay_info["version"]
 

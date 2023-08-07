@@ -66,7 +66,7 @@ impl<'g> GlobBuilder<'g> {
         pattern.push('^');
 
         static GLOB_RE: OnceCell<Regex> = OnceCell::new();
-        let regex = GLOB_RE.get_or_init(|| Regex::new(r#"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*"#).unwrap());
+        let regex = GLOB_RE.get_or_init(|| Regex::new(r"\\\?|\\\*\\\*|\\\*|\?|\*\*|\*").unwrap());
 
         for m in regex.find_iter(self.value) {
             pattern.push_str(&regex::escape(&self.value[last..m.start()]));

@@ -102,7 +102,6 @@ impl<'a> Processor for StoreProcessor<'a> {
     ) -> ProcessingResult {
         let is_renormalize = self.config.is_renormalize.unwrap_or(false);
         let remove_other = self.config.remove_other.unwrap_or(!is_renormalize);
-        let enable_trimming = self.config.enable_trimming.unwrap_or(true);
 
         // Convert legacy data structures to current format
         legacy::LegacyProcessor.process_event(event, meta, state)?;
@@ -120,11 +119,6 @@ impl<'a> Processor for StoreProcessor<'a> {
         if !is_renormalize {
             // Add event errors for top-level keys
             event_error::EmitEventErrors::new().process_event(event, meta, state)?;
-        }
-
-        if enable_trimming {
-            // Trim large strings and databags down
-            trimming::TrimmingProcessor::new().process_event(event, meta, state)?;
         }
 
         Ok(())

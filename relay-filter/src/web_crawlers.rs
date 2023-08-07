@@ -9,7 +9,7 @@ use crate::{FilterConfig, FilterStatKey};
 
 static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?ix)
+        r"(?ix)
         Mediapartners-Google|
         AdsBot-Google|
         Googlebot|
@@ -31,16 +31,16 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
         HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
-    "#
+    "
     )
     .expect("Invalid web crawlers filter Regex")
 });
 
 static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?ix)
+        r"(?ix)
         Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
-    "#,
+    ",
     )
     .expect("Invalid allowed web crawlers filter Regex")
 });

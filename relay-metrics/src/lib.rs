@@ -102,7 +102,9 @@
 
 mod aggregation;
 mod protocol;
+mod router;
 mod statsd;
 
 pub use aggregation::*;
 pub use protocol::*;
+pub use router::*;

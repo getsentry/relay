@@ -4,8 +4,8 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Kafka related functionality for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.7.0"
-edition = "2018"
+version = "23.7.2"
+edition = "2021"
 license-file = "../LICENSE"
 publish = false
 

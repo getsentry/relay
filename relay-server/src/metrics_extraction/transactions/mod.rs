@@ -110,7 +110,7 @@ fn get_transaction_name(event: &Event) -> Option<String> {
         Some(original_transaction_name.clone())
     } else {
         // Pick a sentinel based on the transaction source:
-        let placeholder = match source {
+        match source {
             None | Some(TransactionSource::Other(_)) => {
                 name_used = "none";
                 None
@@ -119,15 +119,7 @@ fn get_transaction_name(event: &Event) -> Option<String> {
                 name_used = "placeholder";
                 Some("<< unparameterized >>".to_owned())
             }
-        };
-        relay_log::error!(
-            // project ID is already set by envelope processor.
-            tags.placeholder = placeholder.as_deref().unwrap_or("none"),
-            tags.source = transaction_source_tag(event),
-            original_transaction_name = original_transaction_name,
-            "Using placeholder as transaction tag"
-        );
-        placeholder
+        }
     };
 
     relay_statsd::metric!(
@@ -543,7 +535,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r###"
+        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r#"
         [
             Span {
                 timestamp: Timestamp(
@@ -571,9 +563,9 @@ mod tests {
                 other: {},
             },
         ]
-        "###);
+        "#);
 
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
         [
             Metric {
                 name: "d:transactions/measurements.foo@none",
@@ -682,7 +674,7 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -724,7 +716,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
         [
             Metric {
                 name: "d:transactions/measurements.fcp@millisecond",
@@ -776,7 +768,7 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -815,7 +807,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
         [
             Metric {
                 name: "d:transactions/measurements.fcp@second",
@@ -856,7 +848,7 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -960,7 +952,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
         [
             Metric {
                 name: "d:transactions/measurements.a_custom1@none",
@@ -1012,7 +1004,7 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -1243,7 +1235,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.sampling_metrics, @r###"
+        insta::assert_debug_snapshot!(extracted.sampling_metrics, @r#"
         [
             Metric {
                 name: "c:transactions/count_per_root_project@none",
@@ -1257,7 +1249,7 @@ mod tests {
                 },
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -1510,7 +1502,7 @@ mod tests {
             .map(|m| m.name)
             .collect();
 
-        insta::assert_debug_snapshot!(metrics_names, @r###"
+        insta::assert_debug_snapshot!(metrics_names, @r#"
         [
             "d:transactions/measurements.frames_frozen@none",
             "d:transactions/measurements.frames_frozen_rate@ratio",
@@ -1521,7 +1513,7 @@ mod tests {
             "d:transactions/measurements.stall_total_time@millisecond",
             "d:transactions/duration@millisecond",
         ]
-        "###);
+        "#);
     }
 
     #[test]

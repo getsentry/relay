@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use relay_common::DataCategory;
+use relay_general::store::LazyGlob;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +26,6 @@ pub struct TaggingRule {
 /// Current version of metrics extraction.
 const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
-const METRIC_EXTRACTION_VERSION: u16 = 1;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -148,10 +148,13 @@ pub struct MetricExtractionConfig {
 }
 
 impl MetricExtractionConfig {
+    /// The latest version for this config struct.
+    pub const VERSION: u16 = 1;
+
     /// Returns `true` if metric extraction is configured.
     pub fn is_enabled(&self) -> bool {
         self.version > 0
-            && self.version <= METRIC_EXTRACTION_VERSION
+            && self.version <= Self::VERSION
             && !(self.metrics.is_empty() && self.tags.is_empty())
     }
 }
@@ -212,7 +215,7 @@ pub struct TagMapping {
     ///
     /// Entries in this list can contain wildcards to match metrics with dynamic MRIs.
     #[serde(default)]
-    pub metrics: Vec<String>,
+    pub metrics: Vec<LazyGlob>,
 
     /// A list of tags to add to the metric.
     ///
@@ -221,6 +224,16 @@ pub struct TagMapping {
     /// condition will be applied.
     #[serde(default)]
     pub tags: Vec<TagSpec>,
+}
+
+impl TagMapping {
+    /// Returns `true` if this mapping matches the provided MRI.
+    pub fn matches(&self, mri: &str) -> bool {
+        // TODO: Use a globset, instead.
+        self.metrics
+            .iter()
+            .any(|glob| glob.compiled().is_match(mri))
+    }
 }
 
 /// Configuration for a tag to add to a metric.
@@ -305,5 +318,12 @@ mod tests {
         let json = r#"{"key":"foo","somethingNew":"bar"}"#;
         let spec: TagSpec = serde_json::from_str(json).unwrap();
         assert_eq!(spec.source(), TagSource::Unknown);
+    }
+
+    #[test]
+    fn parse_tag_mapping() {
+        let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
+        let mapping: TagMapping = serde_json::from_str(json).unwrap();
+        assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 }

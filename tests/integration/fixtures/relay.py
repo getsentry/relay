@@ -133,15 +133,16 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             default_opts["auth"] = {"static_relays": static_relays}
 
         if options is not None:
-            for key in options:
-                default_opts.setdefault(key, {}).update(options[key])
+            for key, value in options.items():
+                if isinstance(value, list):
+                    default_opts[key] = value
+                else:
+                    default_opts.setdefault(key, {}).update(value)
 
         dir = config_dir("relay")
         dir.join("config.yml").write(yaml.dump(default_opts))
 
-        output = subprocess.check_output(
-            relay_bin + ["-c", str(dir), "credentials", "generate"]
-        )
+        subprocess.check_output(relay_bin + ["-c", str(dir), "credentials", "generate"])
 
         # now that we have generated a credentials file get the details
         with open(dir.join("credentials.json")) as f:

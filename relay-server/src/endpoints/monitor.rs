@@ -1,4 +1,5 @@
 use axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter, MethodRouter};
 use relay_common::Uuid;
@@ -7,18 +8,18 @@ use relay_general::protocol::EventId;
 use relay_monitors::{CheckIn, CheckInStatus};
 use serde::Deserialize;
 
-use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
+use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::service::ServiceState;
 
 #[derive(Debug, Deserialize)]
-struct CronPath {
+struct MonitorPath {
     monitor_slug: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct CronQuery {
+struct MonitorQuery {
     status: CheckInStatus,
     check_in_id: Option<Uuid>,
     environment: Option<String>,
@@ -27,15 +28,15 @@ struct CronQuery {
 
 #[derive(Debug, FromRequest)]
 #[from_request(state(ServiceState))]
-struct CronParams {
+struct MonitorParams {
     meta: RequestMeta,
     #[from_request(via(Path))]
-    path: CronPath,
+    path: MonitorPath,
     #[from_request(via(Query))]
-    query: CronQuery,
+    query: MonitorQuery,
 }
 
-impl CronParams {
+impl MonitorParams {
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
         let Self { meta, path, query } = self;
 
@@ -63,7 +64,7 @@ impl CronParams {
 
 async fn handle(
     state: ServiceState,
-    params: CronParams,
+    params: MonitorParams,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = params.extract_envelope()?;
 
@@ -72,8 +73,9 @@ async fn handle(
         Ok(_) | Err(BadStoreRequest::RateLimited(_)) => (),
         Err(error) => return Err(error),
     };
-    // What do we want to return?
-    Ok(TextResponse(None))
+
+    // Event will be proccessed by Sentry, respond with a 202
+    Ok(StatusCode::ACCEPTED)
 }
 
 pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>

@@ -127,7 +127,7 @@ mod tests {
         );
 
         let metadata = extract_transaction_metadata(&event.0.unwrap());
-        insta::assert_debug_snapshot!(metadata, @r###"
+        insta::assert_debug_snapshot!(metadata, @r#"
         {
             "app.identifier": "io.sentry.myexample",
             "dist": "mydist",
@@ -140,6 +140,6 @@ mod tests {
             "transaction.start": "2011-05-02T17:40:36.000000000+00:00",
             "transaction.status": "ok",
         }
-        "###);
+        "#);
     }
 }

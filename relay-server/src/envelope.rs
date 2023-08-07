@@ -109,6 +109,8 @@ pub enum ItemType {
     ReplayRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
+    /// A standalone span.
+    Span,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -151,6 +153,7 @@ impl fmt::Display for ItemType {
             Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
             Self::CheckIn => write!(f, "check_in"),
+            Self::Span => write!(f, "span"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -178,6 +181,7 @@ impl std::str::FromStr for ItemType {
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
             "check_in" => Self::CheckIn,
+            "span" => Self::Span,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -559,6 +563,7 @@ impl Item {
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Unknown(_) => None,
+            ItemType::Span => None, // No outcomes, for now
         }
     }
 
@@ -722,7 +727,8 @@ impl Item {
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
             | ItemType::Profile
-            | ItemType::CheckIn => false,
+            | ItemType::CheckIn
+            | ItemType::Span => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -752,6 +758,7 @@ impl Item {
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
+            ItemType::Span => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -1624,8 +1631,8 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-"###);
+        insta::assert_snapshot!(stringified, @r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
+"#);
     }
 
     #[test]
@@ -1649,14 +1656,14 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"
+        insta::assert_snapshot!(stringified, @r#"
         {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
 
-        "###);
+        "#);
     }
 
     #[test]

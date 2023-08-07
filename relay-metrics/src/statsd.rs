@@ -12,6 +12,10 @@ pub enum MetricSets {
     ///
     /// The hashing is platform-dependent at the moment, so all your relays that send this metric
     /// should run on the same CPU architecture, otherwise this metric is not reliable.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
     UniqueBucketsCreated,
 }
 
@@ -27,22 +31,31 @@ impl SetMetric for MetricSets {
 pub enum MetricCounters {
     /// Incremented for every metric that is inserted.
     ///
-    /// Tagged by metric type and name.
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    ///  - `metric_type`: The type of the metric (e.g. `"counter"`).
     InsertMetric,
 
     /// Incremented every time two buckets or two metrics are merged.
     ///
-    /// Tagged by metric type and name.
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
     MergeHit,
 
     /// Incremented every time a bucket is created.
     ///
-    /// Tagged by metric type and name.
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
+    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
     MergeMiss,
 
     /// Incremented every time a bucket is dropped.
     ///
     /// This should only happen when a project state is invalid during graceful shutdown.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsDropped,
 }
 
@@ -64,6 +77,9 @@ pub enum MetricTimers {
     /// Relay scans metric buckets in regular intervals and flushes expired buckets. This timer
     /// shows the time it takes to perform this scan and remove the buckets from the internal cache.
     /// Sending the metric buckets to upstream is outside of this timer.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsScanDuration,
 }
 
@@ -79,6 +95,9 @@ impl TimerMetric for MetricTimers {
 #[allow(clippy::enum_variant_names)]
 pub enum MetricHistograms {
     /// The total number of metric buckets flushed in a cycle across all projects.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsFlushed,
 
     /// The number of metric buckets flushed in a cycle for each project.
@@ -86,6 +105,9 @@ pub enum MetricHistograms {
     /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
     /// is logged for each project that is being flushed. The count of the histogram values is
     /// equivalent to the number of projects being flushed.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsFlushedPerProject,
 
     /// The reporting delay at which a bucket arrives in Relay.
@@ -101,17 +123,26 @@ pub enum MetricHistograms {
     BucketsDelay,
 
     /// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BatchesPerPartition,
 
     /// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].
     ///
     /// This corresponds to the number of buckets that will end up in an envelope.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsPerBatch,
 
     /// Distribution of flush buckets over partition keys.
     ///
     /// The distribution of buckets should be even.
     /// If it is not, this metric should expose it.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     PartitionKeys,
 
     /// Distribution of invalid bucket timestamps observed, relative to the time of observation.
@@ -137,8 +168,14 @@ impl HistogramMetric for MetricHistograms {
 /// Gauge metrics for Relay Metrics.
 pub enum MetricGauges {
     /// The total number of metric buckets in Relay's metrics aggregator.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     Buckets,
     /// The total storage cost of metric buckets in Relay's metrics aggregator.
+    ///
+    /// This metric is tagged with:
+    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsCost,
     /// The average number of elements in a bucket when flushed.
     ///

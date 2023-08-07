@@ -14,7 +14,7 @@ use relay_common::{Dsn, Uuid};
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::AggregatorConfig;
+use relay_metrics::{AggregatorConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -542,6 +542,8 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
+    /// The maximum payload size for a span.
+    max_span_size: ByteSize,
     /// The maximum payload size for a compressed replay.
     max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
@@ -582,6 +584,7 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
+            max_span_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
@@ -1220,6 +1223,8 @@ struct ConfigValues {
     #[serde(default)]
     aggregator: AggregatorConfig,
     #[serde(default)]
+    secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    #[serde(default)]
     auth: AuthConfig,
     #[serde(default)]
     aws: AwsConfig,
@@ -1788,20 +1793,25 @@ impl Config {
         self.values.limits.max_attachment_size.as_bytes()
     }
 
-    /// Returns the maxmium combined size of attachments or payloads containing attachments
+    /// Returns the maximum combined size of attachments or payloads containing attachments
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
         self.values.limits.max_attachments_size.as_bytes()
     }
 
-    /// Returns the maxmium combined size of client reports in bytes.
+    /// Returns the maximum combined size of client reports in bytes.
     pub fn max_client_reports_size(&self) -> usize {
         self.values.limits.max_client_reports_size.as_bytes()
     }
 
-    /// Returns the maxmium payload size of a monitor check-in in bytes.
+    /// Returns the maximum payload size of a monitor check-in in bytes.
     pub fn max_check_in_size(&self) -> usize {
         self.values.limits.max_check_in_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of a span in bytes.
+    pub fn max_span_size(&self) -> usize {
+        self.values.limits.max_span_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.
@@ -1963,6 +1973,22 @@ impl Config {
         &self.values.aggregator
     }
 
+    /// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
+        &self.values.secondary_aggregators
+    }
+
+    /// Returns aggregator config for a given metrics namespace.
+    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorConfig {
+        for entry in &self.values.secondary_aggregators {
+            match entry.condition {
+                Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,
+                _ => (),
+            }
+        }
+        &self.values.aggregator
+    }
+
     /// Return the statically configured Relays.
     pub fn static_relays(&self) -> &HashMap<RelayId, RelayInfo> {
         &self.values.auth.static_relays
@@ -2023,9 +2049,6 @@ cache:
 
     #[test]
     fn test_emit_outcomes_invalid() {
-        assert!(matches!(
-            serde_json::from_str::<EmitOutcomes>("asdf"),
-            Err(_)
-        ));
+        assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
     }
 }

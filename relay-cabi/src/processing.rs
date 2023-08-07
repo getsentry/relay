@@ -134,9 +134,10 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         device_class_synthesis_config: false, // only supported in relay
         enrich_spans: false,
         light_normalize_spans: false,
-        max_tag_value_size: usize::MAX,
+        max_tag_value_length: usize::MAX,
         span_description_rules: None,
         geoip_lookup: None, // only supported in relay
+        enable_trimming: config.enable_trimming.unwrap_or_default(),
     };
     light_normalize_event(&mut event, light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
@@ -209,6 +210,7 @@ pub unsafe extern "C" fn relay_pii_selector_suggestions_from_event(
 /// A test function that always panics.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
+#[allow(clippy::diverging_sub_expression)]
 pub unsafe extern "C" fn relay_test_panic() -> () {
     panic!("this is a test panic")
 }

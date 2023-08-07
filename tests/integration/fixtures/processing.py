@@ -6,7 +6,6 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
-import json
 
 
 @pytest.fixture
@@ -56,6 +55,7 @@ def processing_config(get_topic_name):
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
+                "spans": get_topic_name("spans"),
             }
 
         if not processing.get("redis"):
@@ -183,6 +183,15 @@ class ConsumerBase:
         assert rv.value() == message, rv.value()
 
 
+class MsgPackConsumer(ConsumerBase):
+    def get_message(self, timeout=None):
+        message = self.poll(timeout)
+        assert message is not None
+        assert message.error() is None
+
+        return msgpack.unpackb(message.value(), raw=False, use_list=False)
+
+
 @pytest.fixture
 def outcomes_consumer(kafka_consumer):
     return lambda timeout=None, topic=None: OutcomesConsumer(
@@ -301,6 +310,13 @@ def replay_events_consumer(kafka_consumer):
 def monitors_consumer(kafka_consumer):
     return lambda timeout=None: MonitorsConsumer(
         timeout=timeout, *kafka_consumer("monitors")
+    )
+
+
+@pytest.fixture
+def spans_consumer(kafka_consumer):
+    return lambda timeout=None: MsgPackConsumer(
+        timeout=timeout, *kafka_consumer("spans")
     )
 
 

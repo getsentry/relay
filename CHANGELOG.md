@@ -1,5 +1,31 @@
 # Changelog
 
+## 23.7.2
+
+**Features**:
+
+- Normalize old React Native SDK app start time measurements and spans. ([#2358](https://github.com/getsentry/relay/pull/2358))
+
+**Bug Fixes**:
+
+- Limit environment names on check-ins to 64 chars. ([#2309](https://github.com/getsentry/relay/pull/2309))
+
+**Internal**:
+
+- Feature-flagged extraction & publishing of spans from transactions. ([#2350](https://github.com/getsentry/relay/pull/2350))
+
+## 23.7.1
+
+**Bug Fixes**:
+
+- Trim fields (e.g. `transaction`) before metrics extraction. ([#2342](https://github.com/getsentry/relay/pull/2342))
+- Interpret `aggregator.max_tag_value_length` as characters instead of bytes. ([#2343](https://github.com/getsentry/relay/pull/2343))
+
+**Internal**:
+
+- Add capability to configure metrics aggregators per use case. ([#2341](https://github.com/getsentry/relay/pull/2341))
+- Configurable flush time offsets for metrics buckets. ([#2349](https://github.com/getsentry/relay/pull/2349))
+
 ## 23.7.0
 
 **Bug Fixes**:
@@ -21,6 +47,7 @@
 
 **Bug Fixes**:
 
+- Skip dynamic sampling if relay doesn't support incoming metrics extraction version. ([#2273](https://github.com/getsentry/relay/pull/2273))
 - Keep stack frames closest to crash when quantity exceeds limit. ([#2236](https://github.com/getsentry/relay/pull/2236))
 - Drop profiles without a transaction in the same envelope. ([#2169](https://github.com/getsentry/relay/pull/2169))
 

@@ -67,7 +67,6 @@ test-rust-all: setup-git ## run tests for Rust code with all the features enable
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv ## run tests for Python code
-	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
@@ -109,7 +108,8 @@ lint-rust: setup-git ## run lint on Rust code using clippy
 .PHONY: lint-rust
 
 lint-python: setup-venv ## run lint on Python code using flake8
-	.venv/bin/flake8 py
+	.venv/bin/flake8 py tests
+	.venv/bin/mypy py tests
 .PHONY: lint-python
 
 lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
@@ -166,6 +166,7 @@ clean-target-dir:
 
 .venv/python-requirements-stamp: requirements-dev.txt
 	.venv/bin/pip install -U -r requirements-dev.txt
+	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	# Bump the mtime of an empty file.
 	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
 	touch .venv/python-requirements-stamp
@@ -183,6 +184,6 @@ gocd: ## Build GoCD pipelines
 	@ cd ./gocd/templates && jb install && jb update
 	@ find . -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -print0 | xargs -n 1 -0 jsonnetfmt -i
 	@ find . -type f \( -name '*.libsonnet' -o -name '*.jsonnet' \) -print0 | xargs -n 1 -0 jsonnet-lint -J ./gocd/templates/vendor
-	@ cd ./gocd/templates && jsonnet -J vendor -m ../generated-pipelines ./relay.jsonnet
+	@ cd ./gocd/templates && jsonnet --ext-code output-files=true -J vendor -m ../generated-pipelines ./relay.jsonnet
 	@ cd ./gocd/generated-pipelines && find . -type f \( -name '*.yaml' \) -print0 | xargs -n 1 -0 yq -p json -o yaml -i
 .PHONY: gocd

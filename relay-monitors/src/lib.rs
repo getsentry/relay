@@ -22,6 +22,9 @@ use serde::{Deserialize, Serialize};
 /// Maximum length of monitor slugs.
 const SLUG_LENGTH: usize = 50;
 
+/// Maximum length of environment names.
+const ENVIRONMENT_LENGTH: usize = 64;
+
 /// Error returned from [`process_check_in`].
 #[derive(Debug, thiserror::Error)]
 pub enum ProcessCheckInError {
@@ -32,6 +35,10 @@ pub enum ProcessCheckInError {
     /// Monitor slug was empty after slugification.
     #[error("the monitor slug is empty or invalid")]
     EmptySlug,
+
+    /// Environment name was invalid.
+    #[error("the environment is invalid")]
+    InvalidEnvironment,
 }
 
 ///
@@ -160,6 +167,14 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
         return Err(ProcessCheckInError::EmptySlug);
     }
 
+    if check_in
+        .environment
+        .as_ref()
+        .is_some_and(|e| e.chars().count() > ENVIRONMENT_LENGTH)
+    {
+        return Err(ProcessCheckInError::InvalidEnvironment);
+    }
+
     Ok(serde_json::to_vec(&check_in)?)
 }
 
@@ -284,5 +299,21 @@ mod tests {
 
         let result = process_check_in(json.as_bytes());
         assert!(matches!(result, Err(ProcessCheckInError::EmptySlug)));
+    }
+
+    #[test]
+    fn process_invalid_environment() {
+        let json = r#"{
+          "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+          "monitor_slug": "test",
+          "status": "in_progress",
+          "environment": "1234567890123456789012345678901234567890123456789012345678901234567890"
+        }"#;
+
+        let result = process_check_in(json.as_bytes());
+        assert!(matches!(
+            result,
+            Err(ProcessCheckInError::InvalidEnvironment)
+        ));
     }
 }

@@ -11,7 +11,15 @@ use crate::protocol::{Event, Span, TraceContext};
 use crate::store::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
 };
-use crate::types::Annotated;
+use crate::types::{Annotated, Value};
+
+/// Used to decide when to extract mobile-specific span tags.
+const MOBILE_SDKS: [&str; 4] = [
+    "sentry.cocoa",
+    "sentry.dart.flutter",
+    "sentry.java.android",
+    "sentry.javascript.react-native",
+];
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SpanTagKey {
@@ -23,6 +31,9 @@ pub enum SpanTagKey {
     TransactionMethod,
     TransactionOp,
     HttpStatusCode,
+    // `true` if the transaction was sent by a mobile SDK.
+    Mobile,
+    DeviceClass,
 
     // Specific to spans
     Description,
@@ -52,6 +63,8 @@ derive_fromstr_and_display!(SpanTagKey, (), {
     SpanTagKey::TransactionMethod => "transaction.method",
     SpanTagKey::TransactionOp => "transaction.op",
     SpanTagKey::HttpStatusCode => "http.status_code",
+    SpanTagKey::Mobile => "mobile",
+    SpanTagKey::DeviceClass => "device.class",
 
     SpanTagKey::Description => "span.description",
     SpanTagKey::Group => "span.group",
@@ -93,30 +106,30 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             shared_tags
                 .clone()
                 .into_iter()
-                .chain(tags.into_iter())
-                .map(|(k, v)| (k.to_string(), Annotated::new(v.into()))),
+                .chain(tags)
+                .map(|(k, v)| (k.to_string(), Annotated::new(v))),
         );
     }
 }
 
 /// Extracts tags shared by every span.
-fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
-    let mut tags = BTreeMap::new();
+fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
+    let mut tags = BTreeMap::<SpanTagKey, Value>::new();
 
     if let Some(release) = event.release.as_str() {
-        tags.insert(SpanTagKey::Release, release.to_owned());
+        tags.insert(SpanTagKey::Release, release.to_owned().into());
     }
 
     if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
-        tags.insert(SpanTagKey::User, user);
+        tags.insert(SpanTagKey::User, user.into());
     }
 
     if let Some(environment) = event.environment.as_str() {
-        tags.insert(SpanTagKey::Environment, environment.to_owned());
+        tags.insert(SpanTagKey::Environment, environment.into());
     }
 
     if let Some(transaction_name) = event.transaction.value() {
-        tags.insert(SpanTagKey::Transaction, transaction_name.to_owned());
+        tags.insert(SpanTagKey::Transaction, transaction_name.clone().into());
 
         let transaction_method_from_request = event
             .request
@@ -124,36 +137,47 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
             .and_then(|r| r.method.value())
             .map(|m| m.to_uppercase());
 
-        if let Some(transaction_method) = transaction_method_from_request
-            .or(http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase()))
-        {
-            tags.insert(SpanTagKey::TransactionMethod, transaction_method);
+        if let Some(transaction_method) = transaction_method_from_request.or_else(|| {
+            http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
+        }) {
+            tags.insert(SpanTagKey::TransactionMethod, transaction_method.into());
         }
     }
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
+            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().into());
         }
     }
 
     if let Some(transaction_http_status_code) = extract_http_status_code(event) {
-        tags.insert(SpanTagKey::HttpStatusCode, transaction_http_status_code);
+        tags.insert(
+            SpanTagKey::HttpStatusCode,
+            transaction_http_status_code.into(),
+        );
+    }
+
+    if MOBILE_SDKS.contains(&event.sdk_name()) {
+        tags.insert(SpanTagKey::Mobile, true.into());
+    }
+
+    if let Some(device_class) = event.tag_value("device.class") {
+        tags.insert(SpanTagKey::DeviceClass, device_class.into());
     }
 
     tags
 }
 
 /// Writes fields into [`Span::data`].
-pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, String> {
-    let mut span_tags = BTreeMap::new();
+pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
+    let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
+        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned().into());
 
         if let Some(category) = span_op_to_category(&span_op) {
-            span_tags.insert(SpanTagKey::Category, category.to_owned());
+            span_tags.insert(SpanTagKey::Category, category.to_owned().into());
         }
 
         let span_module = if span_op.starts_with("http") {
@@ -167,7 +191,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         };
 
         if let Some(module) = span_module {
-            span_tags.insert(SpanTagKey::Module, module.to_owned());
+            span_tags.insert(SpanTagKey::Module, module.to_owned().into());
         }
 
         let scrubbed_description = span
@@ -213,8 +237,8 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             _ => None,
         };
 
-        if let Some(act) = action.clone() {
-            span_tags.insert(SpanTagKey::Action, act);
+        if let Some(act) = action {
+            span_tags.insert(SpanTagKey::Action, act.into());
         }
 
         let domain = if span_op == "http.client" {
@@ -241,8 +265,8 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         };
 
         if !span_op.starts_with("db.redis") {
-            if let Some(dom) = domain.clone() {
-                span_tags.insert(SpanTagKey::Domain, dom);
+            if let Some(dom) = domain {
+                span_tags.insert(SpanTagKey::Domain, dom.into());
             }
         }
 
@@ -254,10 +278,10 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
             let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
             span_group.truncate(16);
-            span_tags.insert(SpanTagKey::Group, span_group);
+            span_tags.insert(SpanTagKey::Group, span_group.into());
 
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
-            span_tags.insert(SpanTagKey::Description, truncated);
+            span_tags.insert(SpanTagKey::Description, truncated.into());
         }
     }
 
@@ -267,15 +291,15 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         .and_then(|v| v.get("db.system"))
         .and_then(|system| system.as_str());
     if let Some(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase());
+        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
     }
 
     if let Some(span_status) = span.status.value() {
-        span_tags.insert(SpanTagKey::Status, span_status.to_string());
+        span_tags.insert(SpanTagKey::Status, span_status.to_string().into());
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {
-        span_tags.insert(SpanTagKey::StatusCode, status_code);
+        span_tags.insert(SpanTagKey::StatusCode, status_code.into());
     }
 
     span_tags
@@ -332,7 +356,7 @@ fn sql_table_from_query(query: &str) -> Option<&str> {
 
 /// Regex with a capture group to extract the HTTP method from a string.
 pub static HTTP_METHOD_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b"#)
+    Regex::new(r"(?i)^(?P<method>(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE|PATCH))\b")
         .unwrap()
 });
 

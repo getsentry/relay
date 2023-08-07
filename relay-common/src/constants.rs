@@ -128,6 +128,10 @@ pub enum DataCategory {
     ///
     /// This is the category for indexed profiles that will be stored later.
     ProfileIndexed = 11,
+    /// Span
+    ///
+    /// Used for spans processed independently of transactions.
+    Span = 12,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -175,6 +179,7 @@ impl DataCategory {
             Self::TransactionProcessed => "transaction_processed",
             Self::TransactionIndexed => "transaction_indexed",
             Self::Monitor => "monitor",
+            Self::Span => "span",
             Self::Unknown => "unknown",
         }
     }
@@ -687,9 +692,6 @@ mod tests {
             "0123456789abcde",
             CustomUnit::parse("0123456789abcde").unwrap().as_str()
         );
-        assert!(matches!(
-            CustomUnit::parse("this_is_a_unit_that_is_too_long"),
-            Err(_)
-        ));
+        assert!(CustomUnit::parse("this_is_a_unit_that_is_too_long").is_err());
     }
 }

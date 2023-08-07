@@ -14,3 +14,14 @@ exclude = '''
   | target
 )/
 '''
+
+[tool.mypy]
+exclude = ["^py/sentry_relay/_lowlevel__ffi.py"]
+
+[[tool.mypy.overrides]]
+module = [
+    "confluent_kafka.*",
+    "msgpack.*",
+    "pytest_localserver.*",
+]
+ignore_missing_imports = true

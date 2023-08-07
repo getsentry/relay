@@ -7,8 +7,8 @@ pipelines:
     group: relay
     lock_behavior: unlockWhenFinished
     materials:
-      deploy-relay-monitor-pipeline-complete:
-        pipeline: deploy-relay-monitor
+      deploy-relay-s4s-pipeline-complete:
+        pipeline: deploy-relay-s4s
         stage: pipeline-complete
       relay_repo:
         branch: master

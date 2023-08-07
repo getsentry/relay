@@ -20,8 +20,10 @@ use crate::protocol::{
     Measurements, ReplayContext, Request, SpanStatus, Stacktrace, Tags, TraceContext, User,
     VALID_PLATFORMS,
 };
+use crate::store::span::tag_extraction::{self, extract_span_tags};
 use crate::store::{
-    ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
+    trimming, ClockDriftProcessor, GeoIpLookup, SpanDescriptionRule, StoreConfig,
+    TransactionNameConfig,
 };
 use crate::types::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, ProcessingAction,
@@ -199,6 +201,7 @@ impl<'a> NormalizeProcessor<'a> {
 
     fn normalize_spans(&self, event: &mut Event) {
         if event.ty.value() == Some(&EventType::Transaction) {
+            normalize_app_start_spans(event);
             span::attributes::normalize_spans(event, &self.config.span_attributes);
         }
     }
@@ -249,6 +252,38 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectStaple
         } else {
             EventType::Default
+        }
+    }
+}
+
+/// Replaces snake_case app start spans op with dot.case op.
+///
+/// This is done for the affected React Native SDK versions (from 3 to 4.4).
+fn normalize_app_start_spans(event: &mut Event) {
+    if !event.sdk_name().eq("sentry.javascript.react-native")
+        || !(event.sdk_version().starts_with("4.4")
+            || event.sdk_version().starts_with("4.3")
+            || event.sdk_version().starts_with("4.2")
+            || event.sdk_version().starts_with("4.1")
+            || event.sdk_version().starts_with("4.0")
+            || event.sdk_version().starts_with('3'))
+    {
+        return;
+    }
+
+    if let Some(spans) = event.spans.value_mut() {
+        for span in spans {
+            if let Some(span) = span.value_mut() {
+                if let Some(op) = span.op.value() {
+                    if op == "app_start_cold" {
+                        span.op.set_value(Some("app.start.cold".to_string()));
+                        break;
+                    } else if op == "app_start_warm" {
+                        span.op.set_value(Some("app.start.warm".to_string()));
+                        break;
+                    }
+                }
+            }
         }
     }
 }
@@ -374,6 +409,19 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
     }
 }
 
+/// Replaces dot.case app start measurements keys with snake_case keys.
+///
+/// The dot.case app start measurements keys are treated as custom measurements.
+/// The snake_case is the key expected by the Sentry UI to aggregate and display in graphs.
+fn normalize_app_start_measurements(measurements: &mut Measurements) {
+    if let Some(app_start_cold_value) = measurements.remove("app.start.cold") {
+        measurements.insert("app_start_cold".to_string(), app_start_cold_value);
+    }
+    if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
+        measurements.insert("app_start_warm".to_string(), app_start_warm_value);
+    }
+}
+
 fn normalize_units(measurements: &mut Measurements) {
     for (name, measurement) in measurements.iter_mut() {
         let measurement = match measurement.value_mut() {
@@ -399,6 +447,7 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
+        normalize_app_start_measurements(measurements);
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
             remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
@@ -748,9 +797,10 @@ pub struct LightNormalizationConfig<'a> {
     pub device_class_synthesis_config: bool,
     pub enrich_spans: bool,
     pub light_normalize_spans: bool,
-    pub max_tag_value_size: usize, // TODO: move span related fields into separate config.
+    pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
     pub geoip_lookup: Option<&'a GeoIpLookup>,
+    pub enable_trimming: bool,
 }
 
 impl Default for LightNormalizationConfig<'_> {
@@ -770,9 +820,10 @@ impl Default for LightNormalizationConfig<'_> {
             device_class_synthesis_config: Default::default(),
             enrich_spans: Default::default(),
             light_normalize_spans: Default::default(),
-            max_tag_value_size: usize::MAX,
+            max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
             geoip_lookup: Default::default(),
+            enable_trimming: false,
         }
     }
 }
@@ -794,7 +845,6 @@ pub fn light_normalize_event(
             config.transaction_name_config,
             config.enrich_spans,
             config.span_description_rules,
-            config.max_tag_value_size,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
@@ -868,10 +918,29 @@ pub fn light_normalize_event(
             // transactions don't have many spans, but if this is no longer the
             // case and we roll this flag out for most projects, we may want to
             // reconsider this approach.
+            normalize_app_start_spans(event);
             span::attributes::normalize_spans(
                 event,
                 &BTreeSet::from([SpanAttribute::ExclusiveTime]),
             );
+        }
+
+        if config.enrich_spans {
+            extract_span_tags(
+                event,
+                &tag_extraction::Config {
+                    max_tag_value_size: config.max_tag_value_length,
+                },
+            );
+        }
+
+        if config.enable_trimming {
+            // Trim large strings and databags down
+            trimming::TrimmingProcessor::new().process_event(
+                event,
+                meta,
+                ProcessingState::root(),
+            )?;
         }
 
         Ok(())
@@ -979,7 +1048,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ProcessingResult {
         if !user.other.is_empty() {
             let data = user.data.value_mut().get_or_insert_with(Object::new);
-            data.extend(std::mem::take(&mut user.other).into_iter());
+            data.extend(std::mem::take(&mut user.other));
         }
 
         user.process_child_values(self, state)?;
@@ -2126,7 +2195,7 @@ mod tests {
             ".event_id" => "[event-id]",
             ".received" => "[received]",
             ".timestamp" => "[timestamp]"
-        }, @r###"
+        }, @r#"
         {
           "event_id": "[event-id]",
           "level": "error",
@@ -2142,12 +2211,12 @@ mod tests {
             "id": "legacy:1234-12-12",
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
     fn test_logentry_error() {
-        let json = r###"
+        let json = r#"
 {
     "event_id": "74ad1301f4df489ead37d757295442b1",
     "timestamp": 1668148328.308933,
@@ -2161,7 +2230,7 @@ mod tests {
         "formatted": 42
     }
 }
-"###;
+"#;
         let mut event = Annotated::from_json(json).unwrap();
 
         let mut processor = NormalizeProcessor::default();
@@ -2169,7 +2238,7 @@ mod tests {
         light_normalize_event(&mut event, config).unwrap();
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
-        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r###"
+        insta::assert_json_snapshot!(SerializableAnnotated(&event), {".received" => "[received]"}, @r#"
         {
           "event_id": "74ad1301f4df489ead37d757295442b1",
           "level": "error",
@@ -2200,7 +2269,7 @@ mod tests {
               }
             }
           }
-        }"###)
+        }"#)
     }
 
     #[test]
@@ -2234,7 +2303,7 @@ mod tests {
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
-    }, @r###"
+    }, @r#"
     {
       "event_id": "[event-id]",
       "level": "error",
@@ -2259,7 +2328,7 @@ mod tests {
         },
       },
     }
-    "###);
+    "#);
     }
 
     #[test]
@@ -2293,7 +2362,7 @@ mod tests {
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&event), {
         ".event_id" => "[event-id]",
-    }, @r###"
+    }, @r#"
     {
       "event_id": "[event-id]",
       "level": "error",
@@ -2318,7 +2387,7 @@ mod tests {
         },
       },
     }
-    "###);
+    "#);
     }
 
     #[test]
@@ -2499,7 +2568,7 @@ mod tests {
 
         normalize_measurements(&mut event, None, None);
 
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -2535,7 +2604,7 @@ mod tests {
             },
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2569,7 +2638,7 @@ mod tests {
         normalize_measurements(&mut event, Some(&config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
-        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
           "type": "transaction",
           "timestamp": 1619420405.0,
@@ -2609,7 +2678,7 @@ mod tests {
             },
           },
         }
-        "###);
+        "#);
     }
 
     #[test]
@@ -2681,16 +2750,16 @@ mod tests {
     #[test]
     fn test_normalize_units() {
         let mut measurements = Annotated::<Measurements>::from_json(
-            r###"{
+            r#"{
                 "fcp": {"value": 1.1},
                 "stall_count": {"value": 3.3},
                 "foo": {"value": 8.8}
-            }"###,
+            }"#,
         )
         .unwrap()
         .into_value()
         .unwrap();
-        insta::assert_debug_snapshot!(measurements, @r###"
+        insta::assert_debug_snapshot!(measurements, @r#"
         Measurements(
             {
                 "fcp": Measurement {
@@ -2707,9 +2776,9 @@ mod tests {
                 },
             },
         )
-        "###);
+        "#);
         normalize_units(&mut measurements);
-        insta::assert_debug_snapshot!(measurements, @r###"
+        insta::assert_debug_snapshot!(measurements, @r#"
         Measurements(
             {
                 "fcp": Measurement {
@@ -2728,13 +2797,13 @@ mod tests {
                 },
             },
         )
-        "###);
+        "#);
     }
 
     #[test]
     fn test_light_normalize_validates_spans() {
         let event = Annotated::<Event>::from_json(
-            r###"
+            r#"
             {
                 "type": "transaction",
                 "transaction": "/",
@@ -2750,7 +2819,7 @@ mod tests {
                 },
                 "spans": []
             }
-            "###,
+            "#,
         )
         .unwrap();
 
@@ -2794,12 +2863,12 @@ mod tests {
     #[test]
     fn test_light_normalization_respects_is_renormalize() {
         let mut event = Annotated::<Event>::from_json(
-            r###"
+            r#"
             {
                 "type": "default",
                 "tags": [["environment", "some_environment"]]
             }
-            "###,
+            "#,
         )
         .unwrap();
 
@@ -2813,7 +2882,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        assert_debug_snapshot!(event.value().unwrap().tags, @r###"
+        assert_debug_snapshot!(event.value().unwrap().tags, @r#"
         Tags(
             PairList(
                 [
@@ -2824,7 +2893,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -2906,7 +2975,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -2917,7 +2986,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -2935,7 +3004,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -2946,7 +3015,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -2964,7 +3033,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -2975,7 +3044,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -2995,7 +3064,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -3006,7 +3075,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -3026,7 +3095,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -3037,7 +3106,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -3057,7 +3126,7 @@ mod tests {
             ..Default::default()
         };
         normalize_device_class(&mut event);
-        assert_debug_snapshot!(event.tags, @r###"
+        assert_debug_snapshot!(event.tags, @r#"
         Tags(
             PairList(
                 [
@@ -3068,7 +3137,7 @@ mod tests {
                 ],
             ),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -3130,5 +3199,198 @@ mod tests {
 
         // Checks whether the measurement is dropped.
         measurements.len() == 0
+    }
+
+    #[test]
+    fn test_normalize_app_start_measurements_does_not_add_measurements() {
+        let mut measurements = Annotated::<Measurements>::from_json(r###"{}"###)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {},
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {},
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_cold_measurements() {
+        let mut measurements = Annotated::<Measurements>::from_json(
+            r###"{
+                "app.start.cold": {"value": 1.1}
+            }"###,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app.start.cold": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app_start_cold": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_warm_measurements() {
+        let mut measurements = Annotated::<Measurements>::from_json(
+            r###"{
+                "app.start.warm": {"value": 1.1}
+            }"###,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app.start.warm": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+        normalize_app_start_measurements(&mut measurements);
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Measurements(
+            {
+                "app_start_warm": Measurement {
+                    value: 1.1,
+                    unit: ~,
+                },
+            },
+        )
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_spans_only_for_react_native_3_to_4_4() {
+        let mut event = Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("app_start_cold".to_owned()),
+                ..Default::default()
+            })]),
+            client_sdk: Annotated::new(ClientSdkInfo {
+                name: Annotated::new("sentry.javascript.react-native".to_owned()),
+                version: Annotated::new("4.5.0".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r###"
+        [
+            Span {
+                timestamp: ~,
+                start_timestamp: ~,
+                exclusive_time: ~,
+                description: ~,
+                op: "app_start_cold",
+                span_id: ~,
+                parent_span_id: ~,
+                trace_id: ~,
+                status: ~,
+                tags: ~,
+                origin: ~,
+                data: ~,
+                other: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_cold_spans_for_react_native() {
+        let mut event = Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("app_start_cold".to_owned()),
+                ..Default::default()
+            })]),
+            client_sdk: Annotated::new(ClientSdkInfo {
+                name: Annotated::new("sentry.javascript.react-native".to_owned()),
+                version: Annotated::new("4.4.0".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r###"
+        [
+            Span {
+                timestamp: ~,
+                start_timestamp: ~,
+                exclusive_time: ~,
+                description: ~,
+                op: "app.start.cold",
+                span_id: ~,
+                parent_span_id: ~,
+                trace_id: ~,
+                status: ~,
+                tags: ~,
+                origin: ~,
+                data: ~,
+                other: {},
+            },
+        ]
+        "###);
+    }
+
+    #[test]
+    fn test_normalize_app_start_warm_spans_for_react_native() {
+        let mut event = Event {
+            spans: Annotated::new(vec![Annotated::new(Span {
+                op: Annotated::new("app_start_warm".to_owned()),
+                ..Default::default()
+            })]),
+            client_sdk: Annotated::new(ClientSdkInfo {
+                name: Annotated::new("sentry.javascript.react-native".to_owned()),
+                version: Annotated::new("4.4.0".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        normalize_app_start_spans(&mut event);
+        assert_debug_snapshot!(event.spans, @r###"
+        [
+            Span {
+                timestamp: ~,
+                start_timestamp: ~,
+                exclusive_time: ~,
+                description: ~,
+                op: "app.start.warm",
+                span_id: ~,
+                parent_span_id: ~,
+                trace_id: ~,
+                status: ~,
+                tags: ~,
+                origin: ~,
+                data: ~,
+                other: {},
+            },
+        ]
+        "###);
     }
 }

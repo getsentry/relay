@@ -1,0 +1,98 @@
+format_version: 10
+pipelines:
+  deploy-relay-customer-2:
+    display_order: 5
+    environment_variables:
+      SENTRY_REGION: customer-2
+    group: relay
+    lock_behavior: unlockWhenFinished
+    materials:
+      deploy-relay-customer-1-pipeline-complete:
+        pipeline: deploy-relay-customer-1
+        stage: pipeline-complete
+      relay_repo:
+        branch: master
+        destination: relay
+        git: git@github.com:getsentry/relay.git
+        shallow_clone: true
+    stages:
+      - checks:
+          fetch_materials: true
+          jobs:
+            checks:
+              elastic_profile_id: relay
+              environment_variables:
+                GITHUB_TOKEN: '{{SECRET:[devinfra-github][token]}}'
+              tasks:
+                - script: |
+                    ##!/bin/bash
+
+                    /devinfra/scripts/checks/githubactions/checkruns.py \
+                        getsentry/relay \
+                        "${GO_REVISION_RELAY_REPO}" \
+                        "Integration Tests" \
+                        "Test (macos-latest)" \
+                        "Test (windows-latest)" \
+                        "Test All Features (ubuntu-latest)" \
+                        "Push GCR Docker Image"
+              timeout: 1800
+      - deploy-production:
+          fetch_materials: true
+          jobs:
+            create_sentry_release:
+              elastic_profile_id: relay
+              environment_variables:
+                SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}'
+                SENTRY_ORG: sentry
+                SENTRY_PROJECT: relay
+                SENTRY_URL: https://sentry.my.sentry.io/
+              tasks:
+                - script: |
+                    ##!/bin/bash
+
+                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
+              timeout: 1200
+            deploy:
+              elastic_profile_id: relay
+              tasks:
+                - script: |
+                    ##!/bin/bash
+
+                    eval $(/devinfra/scripts/regions/project_env_vars.py --region="${SENTRY_REGION}")
+
+                    /devinfra/scripts/k8s/k8stunnel
+
+                    /devinfra/scripts/k8s/k8s-deploy.py \
+                        --label-selector="service=relay" \
+                        --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
+                        --container-name="relay"
+              timeout: 1200
+      - deploy-pops:
+          fetch_materials: true
+          jobs:
+            deploy-pops-customer-2:
+              elastic_profile_id: relay-pop
+              environment_variables:
+                SENTRY_REGION: customer-2
+              tasks:
+                - script: |
+                    ##!/bin/bash
+
+                    eval $(/devinfra/scripts/regions/project_env_vars.py --region="${SENTRY_REGION}")
+
+                    /devinfra/scripts/k8s/k8stunnel
+
+                    /devinfra/scripts/k8s/k8s-deploy.py \
+                        --label-selector="service=relay-pop" \
+                        --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
+                        --container-name="relay"
+              timeout: 1200
+      - pipeline-complete:
+          approval:
+            allow_only_on_success: true
+            type: success
+          jobs:
+            pipeline-complete:
+              tasks:
+                - exec:
+                    command: true

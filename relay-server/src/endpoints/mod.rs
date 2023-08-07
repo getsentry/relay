@@ -5,12 +5,12 @@
 
 mod attachments;
 mod common;
-mod cron;
 mod envelope;
 mod events;
 mod forward;
 mod health_check;
 mod minidump;
+mod monitor;
 mod outcomes;
 mod project_configs;
 mod public_keys;
@@ -54,19 +54,11 @@ where
     let store_routes = Router::new()
         // Legacy store path that is missing the project parameter.
         .route("/api/store/", store::route(config))
-        // cron level routes.  These are user facing APIs and as such avoid the project ID and
-        // they support optional trailing slashes.
-        .route("/api/cron/:monitor_slug/:sentry_key", cron::route(config))
-        .route("/api/cron/:monitor_slug/:sentry_key/", cron::route(config))
-        .route("/api/cron/:monitor_slug", cron::route(config))
-        .route("/api/cron/:monitor_slug/", cron::route(config))
-        // XXX(epurkhiser): While deciding how we want these routes to work we'll also be including
-        // the project_id version, to quickly iterate without waiting for ops to make special cases
-        // for these routes.
-        .route("/api/:project_id/cron/:monitor_slug/:sentry_key", cron::route(config))
-        .route("/api/:project_id/cron/:monitor_slug/:sentry_key/", cron::route(config))
-        .route("/api/:project_id/cron/:monitor_slug", cron::route(config))
-        .route("/api/:project_id/cron/:monitor_slug/", cron::route(config))
+        // cron monitor level routes.  These are user facing APIs and as such support trailing slashes.
+        .route("/api/:project_id/cron/:monitor_slug/:sentry_key", monitor::route(config))
+        .route("/api/:project_id/cron/:monitor_slug/:sentry_key/", monitor::route(config))
+        .route("/api/:project_id/cron/:monitor_slug", monitor::route(config))
+        .route("/api/:project_id/cron/:monitor_slug/", monitor::route(config))
 
         .route("/api/:project_id/store/", store::route(config))
         .route("/api/:project_id/envelope/", envelope::route(config))
