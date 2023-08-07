@@ -162,9 +162,11 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
+        print("@@@@")
         nonlocal request_count
         request_count += 1
         print("RETRY", request_count)
+        print("@@@@!!")
         return "no", 500
 
     RETRIES = 1

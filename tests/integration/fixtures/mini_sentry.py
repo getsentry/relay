@@ -302,6 +302,7 @@ def mini_sentry(request):  # noqa
 
     @app.route("/api/0/relays/projectconfigs/", methods=["POST"])
     def get_project_config():
+        print("PROJ ENDPOINT ###########")
         relay_id = flask_request.headers["x-sentry-relay-id"]
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
@@ -319,7 +320,9 @@ def mini_sentry(request):  # noqa
 
         if version in ["2", "3", "4"]:
             if version == "4":
+                print("version 4 confirmed@@@@@@")
                 if flask_request.args.get("global"):
+                    print("global config request@@@@@")
                     response["global"] = {
                         "measurements": {},
                         "metricsConditionalTagging": {},

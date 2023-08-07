@@ -179,8 +179,10 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             version,
         )
 
+        print("!!!")
         if wait_health_check:
             relay.wait_relay_health_check()
+        print("???")
 
         return relay
 

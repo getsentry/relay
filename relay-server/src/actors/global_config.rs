@@ -87,6 +87,7 @@ impl GlobalConfigurationService {
                                 e
                             );
                         };
+                        relay_log::info!("global config received :D");
                         envelope_processor.send::<Arc<GlobalConfig>>(global_config);
                     }
                     None => relay_log::error!("global config is missing in upstream response"),
@@ -114,6 +115,8 @@ impl Service for GlobalConfigurationService {
         }
 
         tokio::spawn(async move {
+            //let duration = Duration::from_secs(10);
+            std::thread::sleep(Duration::from_secs(2));
             let mut ticker = tokio::time::interval(Duration::from_secs(10));
             relay_log::info!("global configuration service started");
 
