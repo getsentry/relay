@@ -305,6 +305,17 @@
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DataCategory, UnixTimestamp};
@@ -364,7 +375,7 @@
         <span class="kw">return </span>metrics
     };
 
-    <span class="kw">for </span>metric_spec <span class="kw">in </span>config.metrics() {
+    <span class="kw">for </span>metric_spec <span class="kw">in </span><span class="kw-2">&amp;</span>config.metrics {
         <span class="kw">if </span>metric_spec.category != instance.category() {
             <span class="kw">continue</span>;
         }
@@ -394,13 +405,24 @@
         });
     }
 
+    <span class="kw">for </span>mapping <span class="kw">in </span><span class="kw-2">&amp;</span>config.tags {
+        <span class="kw">let </span><span class="kw-2">mut </span>lazy_tags = <span class="prelude-val">None</span>;
+
+        <span class="kw">for </span>metric <span class="kw">in </span><span class="kw-2">&amp;mut </span>metrics {
+            <span class="kw">if </span>mapping.matches(<span class="kw-2">&amp;</span>metric.name) {
+                <span class="kw">let </span>tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, <span class="kw-2">&amp;</span>mapping.tags));
+                metric.tags.extend(tags.clone());
+            }
+        }
+    }
+
     metrics
 }
 
-<span class="kw">fn </span>extract_tags(
-    instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>FieldValueProvider,
-    tags: <span class="kw-2">&amp;</span>Vec&lt;TagSpec&gt;,
-) -&gt; BTreeMap&lt;String, String&gt; {
+<span class="kw">fn </span>extract_tags&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, tags: <span class="kw-2">&amp;</span>[TagSpec]) -&gt; BTreeMap&lt;String, String&gt;
+<span class="kw">where
+    </span>T: FieldValueProvider,
+{
     <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
 
     <span class="kw">for </span>tag_spec <span class="kw">in </span>tags {

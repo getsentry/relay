@@ -327,35 +327,10 @@
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
 
-<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_common::DataCategory;
 <span class="kw">use </span>relay_general::store::LazyGlob;
 <span class="kw">use </span>relay_sampling::RuleCondition;
@@ -380,7 +355,6 @@
 <span class="doccomment">/// Current version of metrics extraction.
 </span><span class="kw">const </span>SESSION_EXTRACT_VERSION: u16 = <span class="number">3</span>;
 <span class="kw">const </span>EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = <span class="number">2</span>;
-<span class="kw">const </span>METRIC_EXTRACTION_VERSION: u16 = <span class="number">1</span>;
 
 <span class="doccomment">/// Configuration for metric extraction from sessions.
 </span><span class="attr">#[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -492,57 +466,25 @@
 
     <span class="doccomment">/// A list of metric specifications to extract.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
-    </span>metrics: Vec&lt;MetricSpec&gt;,
+    </span><span class="kw">pub </span>metrics: Vec&lt;MetricSpec&gt;,
 
     <span class="doccomment">/// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
-    </span>tags: Vec&lt;TagMapping&gt;,
-
-    <span class="doccomment">/// Contains the metric specs with tags from `tags` transferred to
-    /// the individual metric specs.
-    ///
-    /// Initialized only once.
-    </span><span class="attr">#[serde(skip)]
-    </span>compiled_metrics: OnceCell&lt;Vec&lt;MetricSpec&gt;&gt;,
+    </span><span class="kw">pub </span>tags: Vec&lt;TagMapping&gt;,
 }
 
 <span class="kw">impl </span>MetricExtractionConfig {
-    <span class="doccomment">/// Creates a new config programmatically.
-    </span><span class="kw">pub fn </span>new(metrics: Vec&lt;MetricSpec&gt;, tags: Vec&lt;TagMapping&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            version: METRIC_EXTRACTION_VERSION,
-            metrics,
-            tags,
-            compiled_metrics: Default::default(),
-        }
-    }
+    <span class="doccomment">/// The latest version for this config struct.
+    </span><span class="kw">pub const </span>VERSION: u16 = <span class="number">1</span>;
 
     <span class="doccomment">/// Returns `true` if metric extraction is configured.
     </span><span class="kw">pub fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.version &gt; <span class="number">0
-            </span>&amp;&amp; <span class="self">self</span>.version &lt;= METRIC_EXTRACTION_VERSION
+            </span>&amp;&amp; <span class="self">self</span>.version &lt;= <span class="self">Self</span>::VERSION
             &amp;&amp; !(<span class="self">self</span>.metrics.is_empty() &amp;&amp; <span class="self">self</span>.tags.is_empty())
-    }
-
-    <span class="doccomment">/// Transfers matching tags from `tags` to `metrics`.
-    </span><span class="kw">pub fn </span>metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;MetricSpec&gt; {
-        <span class="self">self</span>.compiled_metrics.get_or_init(|| {
-            <span class="kw">let </span><span class="kw-2">mut </span>metric_specs = Vec::new();
-            <span class="kw">for </span>metric_spec <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.metrics {
-                <span class="kw">let </span><span class="kw-2">mut </span>metric_spec = metric_spec.clone();
-                <span class="kw">for </span>tag_mapping <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.tags {
-                    <span class="kw">let </span><span class="kw-2">mut </span>patterns = tag_mapping.metrics.iter();
-                    <span class="kw">if </span>patterns.any(|p| p.compiled().is_match(<span class="kw-2">&amp;</span>metric_spec.mri)) {
-                        metric_spec.tags.extend(tag_mapping.tags.clone());
-                    }
-                }
-                metric_specs.push(metric_spec)
-            }
-            metric_specs
-        })
     }
 }
 
@@ -611,6 +553,16 @@
     /// condition will be applied.
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>tags: Vec&lt;TagSpec&gt;,
+}
+
+<span class="kw">impl </span>TagMapping {
+    <span class="doccomment">/// Returns `true` if this mapping matches the provided MRI.
+    </span><span class="kw">pub fn </span>matches(<span class="kw-2">&amp;</span><span class="self">self</span>, mri: <span class="kw-2">&amp;</span>str) -&gt; bool {
+        <span class="comment">// TODO: Use a globset, instead.
+        </span><span class="self">self</span>.metrics
+            .iter()
+            .any(|glob| glob.compiled().is_match(mri))
+    }
 }
 
 <span class="doccomment">/// Configuration for a tag to add to a metric.
