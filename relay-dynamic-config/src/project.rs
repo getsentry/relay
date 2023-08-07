@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::metrics::{
-    MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
+    self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
 use crate::{ErrorBoundary, FeatureSet};
 
@@ -78,6 +78,20 @@ pub struct ProjectConfig {
     /// Span description renaming rules.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+}
+
+impl ProjectConfig {
+    /// Validates fields in this project config and removes values that are partially invalid.
+    pub fn sanitize(&mut self) {
+        self.quotas.retain(Quota::is_valid);
+
+        let rules = std::mem::take(&mut self.metric_conditional_tagging);
+        if !rules.is_empty() {
+            let config = self.metric_extraction.get_or_insert_with(Default::default);
+            let tags = metrics::convert_conditional_tagging(rules);
+            config.tags.extend(tags);
+        }
+    }
 }
 
 impl Default for ProjectConfig {

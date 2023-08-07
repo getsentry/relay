@@ -327,3 +327,45 @@ mod tests {
         assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 }
+
+/// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
+/// config.
+pub fn convert_conditional_tagging(rules: Vec<TaggingRule>) -> impl Iterator<Item = TagMapping> {
+    TaggingRuleConverter {
+        rules: rules.into_iter().peekable(),
+        tags: Vec::new(),
+    }
+}
+
+struct TaggingRuleConverter {
+    rules: std::iter::Peekable<std::vec::IntoIter<TaggingRule>>,
+    tags: Vec<TagSpec>,
+}
+
+impl Iterator for TaggingRuleConverter {
+    type Item = TagMapping;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let old = self.rules.next()?;
+
+            self.tags.push(TagSpec {
+                key: old.target_tag,
+                field: None,
+                value: Some(old.tag_value),
+                condition: Some(old.condition),
+            });
+
+            // Optimization: Collect tags for consecutive tagging rules for the same set of metrics.
+            // Then, emit a single entry with all tag specs at once.
+            if self.rules.peek().map(|r| &r.target_metrics) == Some(&old.target_metrics) {
+                continue;
+            }
+
+            return Some(TagMapping {
+                metrics: old.target_metrics.into_iter().map(LazyGlob::new).collect(),
+                tags: std::mem::take(&mut self.tags),
+            });
+        }
+    }
+}
