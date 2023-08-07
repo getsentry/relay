@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleated
+## Unreleased
 
-- add rudimentary mypy setup. ([#2384](https://github.com/getsentry/relay/pull/2384))
+- Add rudimentary Mypy setup. ([#2384](https://github.com/getsentry/relay/pull/2384))
 
 ## 0.8.28
 
