@@ -86,7 +86,9 @@ class SentryLike:
         backoff = 0.1
         while True:
             try:
+                print("lets try")
                 self.get(path).raise_for_status()
+                print("ok i tried")
                 break
             except Exception:
                 time.sleep(backoff)
@@ -98,7 +100,9 @@ class SentryLike:
         if self._health_check_passed:
             return
 
+        print("hmm")
         self._wait("/api/relay/healthcheck/ready/")
+
         self._health_check_passed = True
 
     def __repr__(self):
@@ -369,4 +373,5 @@ class SentryLike:
         return self.request("options", path, **kwargs)
 
     def get(self, path, **kwargs):
+        print("bruh")
         return self.request("get", path, **kwargs)
