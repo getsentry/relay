@@ -8,7 +8,6 @@ use relay_sampling::{EqCondition, RuleCondition};
 use serde_json::Value;
 
 use crate::metrics_extraction::generic::extract_metrics_from;
-
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::statsd::RelayTimers;
 
@@ -17,9 +16,9 @@ use crate::statsd::RelayTimers;
 /// This configuration is temporarily hard-coded here. It will later be moved to project config
 /// and be provided by the upstream.
 static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
-    MetricExtractionConfig::new(
-        // Metrics
-        vec![
+    MetricExtractionConfig {
+        version: MetricExtractionConfig::VERSION,
+        metrics: vec![
             MetricSpec {
                 category: DataCategory::Span,
                 mri: "d:spans/exclusive_time@millisecond".into(),
@@ -40,8 +39,7 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
                 tags: Default::default(),
             },
         ],
-        // Tags
-        vec![
+        tags: vec![
             TagMapping {
                 metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
                 tags: [
@@ -84,7 +82,7 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
                     .into(),
             },
         ],
-    )
+    }
 });
 
 /// Extracts metrics from the spans of the given transaction.
