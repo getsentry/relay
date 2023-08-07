@@ -88,11 +88,11 @@ where
     }
 
     for mapping in &config.tags {
-        let mut tags_opt = None;
+        let mut lazy_tags = None;
 
         for metric in &mut metrics {
             if mapping.matches(&metric.name) {
-                let tags = tags_opt.get_or_insert_with(|| extract_tags(instance, &mapping.tags));
+                let tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, &mapping.tags));
                 metric.tags.extend(tags.clone());
             }
         }
