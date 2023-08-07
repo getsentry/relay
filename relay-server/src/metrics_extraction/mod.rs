@@ -1,7 +1,6 @@
 use relay_common::UnixTimestamp;
 use relay_metrics::Metric;
 
-pub mod conditional_tagging;
 pub mod generic;
 pub mod sessions;
 pub mod spans;

@@ -2098,17 +2098,7 @@ impl EnvelopeProcessorService {
                         has_profile: state.has_profile,
                     };
 
-                    let mut extracted = extractor.extract(event)?;
-
-                    // TODO: Move conditional tagging to generic metrics extraction
-                    let tagging_config = &state.project_state.config.metric_conditional_tagging;
-                    crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
-                        event,
-                        tagging_config,
-                        &mut extracted.project_metrics,
-                    );
-
-                    state.extracted_metrics.extend(extracted);
+                    state.extracted_metrics.extend(extractor.extract(event)?);
                     state.event_metrics_extracted |= true;
                 }
                 _ => (),

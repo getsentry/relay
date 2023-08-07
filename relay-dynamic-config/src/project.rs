@@ -85,6 +85,8 @@ impl ProjectConfig {
     pub fn sanitize(&mut self) {
         self.quotas.retain(Quota::is_valid);
 
+        // TODO: Do not take here, but clone. We need both.
+        // TODO: Can we avoid duplicates for outbound project states?
         let rules = std::mem::take(&mut self.metric_conditional_tagging);
         if !rules.is_empty() {
             let config = self.metric_extraction.get_or_insert_with(Default::default);
