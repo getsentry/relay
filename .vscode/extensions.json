@@ -3,7 +3,7 @@
   // for the documentation about the extensions.json format
   "recommendations": [
     // TOML language support
-    "bungcip.better-toml",
+    "tamasfe.even-better-toml",
     // Rust language server
     "rust-lang.rust-analyzer",
     // Python including Pylance
@@ -11,6 +11,8 @@
     // Crates.io dependency versions
     "serayuzgur.crates",
     // Debugger support for Rust and native
-    "vadimcn.vscode-lldb"
+    "vadimcn.vscode-lldb",
+    // Snapshot tests integration
+    "mitsuhiko.insta",
   ]
 }
