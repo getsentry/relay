@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from sentry_relay._lowlevel import lib
 
 
@@ -57,3 +59,8 @@ def _make_exceptions():
 
 
 _make_exceptions()
+
+if TYPE_CHECKING:
+    # treat unknown attribute names as exception types
+    def __getattr__(name: str) -> type[RelayError]:
+        ...

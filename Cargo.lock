@@ -3065,7 +3065,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.28"
+version = "0.8.29"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3135,7 +3135,6 @@ dependencies = [
  "anyhow",
  "assert-json-diff",
  "insta",
- "once_cell",
  "relay-auth",
  "relay-common",
  "relay-filter",

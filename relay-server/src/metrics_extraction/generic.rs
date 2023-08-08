@@ -57,7 +57,7 @@ where
         return metrics
     };
 
-    for metric_spec in config.metrics() {
+    for metric_spec in &config.metrics {
         if metric_spec.category != instance.category() {
             continue;
         }
@@ -87,13 +87,24 @@ where
         });
     }
 
+    for mapping in &config.tags {
+        let mut lazy_tags = None;
+
+        for metric in &mut metrics {
+            if mapping.matches(&metric.name) {
+                let tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, &mapping.tags));
+                metric.tags.extend(tags.clone());
+            }
+        }
+    }
+
     metrics
 }
 
-fn extract_tags(
-    instance: &impl FieldValueProvider,
-    tags: &Vec<TagSpec>,
-) -> BTreeMap<String, String> {
+fn extract_tags<T>(instance: &T, tags: &[TagSpec]) -> BTreeMap<String, String>
+where
+    T: FieldValueProvider,
+{
     let mut map = BTreeMap::new();
 
     for tag_spec in tags {
