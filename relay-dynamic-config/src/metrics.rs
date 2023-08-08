@@ -2,7 +2,6 @@
 
 use std::collections::BTreeSet;
 
-use once_cell::sync::OnceCell;
 use relay_common::DataCategory;
 use relay_general::store::LazyGlob;
 use relay_sampling::RuleCondition;
@@ -27,7 +26,6 @@ pub struct TaggingRule {
 /// Current version of metrics extraction.
 const SESSION_EXTRACT_VERSION: u16 = 3;
 const EXTRACT_ABNORMAL_MECHANISM_VERSION: u16 = 2;
-const METRIC_EXTRACTION_VERSION: u16 = 1;
 
 /// Configuration for metric extraction from sessions.
 #[derive(Debug, Clone, Copy, Default, serde::Deserialize, serde::Serialize)]
@@ -139,57 +137,25 @@ pub struct MetricExtractionConfig {
 
     /// A list of metric specifications to extract.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    metrics: Vec<MetricSpec>,
+    pub metrics: Vec<MetricSpec>,
 
     /// A list of tags to add to previously extracted metrics.
     ///
     /// These tags add further tags to a range of metrics. If some metrics already have a matching
     /// tag extracted, the existing tag is left unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    tags: Vec<TagMapping>,
-
-    /// Contains the metric specs with tags from `tags` transferred to
-    /// the individual metric specs.
-    ///
-    /// Initialized only once.
-    #[serde(skip)]
-    compiled_metrics: OnceCell<Vec<MetricSpec>>,
+    pub tags: Vec<TagMapping>,
 }
 
 impl MetricExtractionConfig {
-    /// Creates a new config programmatically.
-    pub fn new(metrics: Vec<MetricSpec>, tags: Vec<TagMapping>) -> Self {
-        Self {
-            version: METRIC_EXTRACTION_VERSION,
-            metrics,
-            tags,
-            compiled_metrics: Default::default(),
-        }
-    }
+    /// The latest version for this config struct.
+    pub const VERSION: u16 = 1;
 
     /// Returns `true` if metric extraction is configured.
     pub fn is_enabled(&self) -> bool {
         self.version > 0
-            && self.version <= METRIC_EXTRACTION_VERSION
+            && self.version <= Self::VERSION
             && !(self.metrics.is_empty() && self.tags.is_empty())
-    }
-
-    /// Transfers matching tags from `tags` to `metrics`.
-    pub fn metrics(&self) -> &Vec<MetricSpec> {
-        self.compiled_metrics.get_or_init(|| {
-            let mut metric_specs = Vec::new();
-            for metric_spec in &self.metrics {
-                let mut metric_spec = metric_spec.clone();
-                for tag_mapping in &self.tags {
-                    let mut patterns = tag_mapping.metrics.iter();
-                    if patterns.any(|p| p.compiled().is_match(&metric_spec.mri)) {
-                        metric_spec.tags.extend(tag_mapping.tags.clone());
-                    }
-                }
-                metric_specs.push(metric_spec)
-            }
-            metric_specs
-        })
     }
 }
 
@@ -258,6 +224,16 @@ pub struct TagMapping {
     /// condition will be applied.
     #[serde(default)]
     pub tags: Vec<TagSpec>,
+}
+
+impl TagMapping {
+    /// Returns `true` if this mapping matches the provided MRI.
+    pub fn matches(&self, mri: &str) -> bool {
+        // TODO: Use a globset, instead.
+        self.metrics
+            .iter()
+            .any(|glob| glob.compiled().is_match(mri))
+    }
 }
 
 /// Configuration for a tag to add to a metric.

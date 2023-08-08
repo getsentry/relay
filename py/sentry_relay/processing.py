@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 
 from sentry_relay._lowlevel import lib, ffi
@@ -31,12 +33,7 @@ __all__ = [
 ]
 
 
-VALID_PLATFORMS = frozenset()
-
-
-def _init_valid_platforms():
-    global VALID_PLATFORMS
-
+def _init_valid_platforms() -> frozenset[str]:
     size_out = ffi.new("uintptr_t *")
     strings = rustcall(lib.relay_valid_platforms, size_out)
 
@@ -44,10 +41,10 @@ def _init_valid_platforms():
     for i in range(int(size_out[0])):
         valid_platforms.append(decode_str(strings[i], free=True))
 
-    VALID_PLATFORMS = frozenset(valid_platforms)
+    return frozenset(valid_platforms)
 
 
-_init_valid_platforms()
+VALID_PLATFORMS = _init_valid_platforms()
 
 
 def split_chunks(string, remarks):
