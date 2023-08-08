@@ -30,12 +30,12 @@ pub enum GlobalConfiguration {
 impl Interface for GlobalConfiguration {}
 
 /// The message for requesting the most recent global config from [`GlobalConfigurationService`].
-pub struct GetGlobalConfig;
+pub struct Get;
 
-impl FromMessage<GetGlobalConfig> for GlobalConfiguration {
+impl FromMessage<Get> for GlobalConfiguration {
     type Response = AsyncResponse<Arc<GlobalConfig>>;
 
-    fn from_message(_: GetGlobalConfig, sender: Sender<Arc<GlobalConfig>>) -> Self {
+    fn from_message(_: Get, sender: Sender<Arc<GlobalConfig>>) -> Self {
         Self::Get(sender)
     }
 }

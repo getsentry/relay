@@ -11,7 +11,7 @@ use relay_common::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
-use crate::actors::global_config::GetGlobalConfig;
+use crate::actors::global_config;
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
@@ -138,7 +138,11 @@ async fn inner(
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
     let global_config = match inner.global {
-        true => Some(global_configuration_service.send(GetGlobalConfig).await?),
+        true => Some(
+            global_configuration_service
+                .send(global_config::Get)
+                .await?,
+        ),
         false => None,
     };
 

@@ -487,18 +487,9 @@ pub enum EnvelopeProcessor {
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
     RateLimitFlushBuckets(RateLimitFlushBuckets),
-    UpdateGlobalConfig(Arc<GlobalConfig>),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
-
-impl FromMessage<Arc<GlobalConfig>> for EnvelopeProcessor {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: Arc<GlobalConfig>, _sender: ()) -> Self {
-        Self::UpdateGlobalConfig(message)
-    }
-}
 
 impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
     type Response = relay_system::NoResponse;
@@ -2766,9 +2757,6 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::RateLimitFlushBuckets(message) => {
                 self.handle_rate_limit_flush_buckets(message);
             }
-            EnvelopeProcessor::UpdateGlobalConfig(_) => {
-                relay_log::error!("UpdateGlobalConfig should be handled in the spawn_handler of EnvelopeProcessorService")
-            }
         }
     }
 }
@@ -2811,18 +2799,6 @@ impl Service for EnvelopeProcessorService {
         });
     }
 }
-
-/*
-
-
-                       tokio::task::spawn_blocking(move || {
-                           service.handle_message(message);
-                           drop(permit);
-                       });
-
-
-
-*/
 
 #[cfg(test)]
 mod tests {
