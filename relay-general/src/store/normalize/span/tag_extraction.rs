@@ -336,7 +336,7 @@ const ALLOWED_SQL_ACTION: &str =
 
 /// Regex with a capture group to extract the database action from a query.
 ///
-/// Currently we have an explicit allow-list of database actions considered important
+/// Currently we have an explicit allow-list of database actions considered important.
 static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     let action_regex: String = format!("(?i)(?P<action>({}))", ALLOWED_SQL_ACTION);
     Regex::new(&action_regex).unwrap()
@@ -591,7 +591,7 @@ mod tests {
             (r#"ROLLBACK TO SAVEPOINT %s"#, "ROLLBACK TO SAVEPOINT"),
         ];
 
-        for (query, expected) in test_cases.into_iter() {
+        for (query, expected) in test_cases {
             assert_eq!(sql_action_from_query(query).unwrap(), expected)
         }
     }
