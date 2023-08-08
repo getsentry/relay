@@ -32,6 +32,11 @@ const ENDPOINT_V2: u16 = 2;
 /// returned, or a further poll ensues.
 const ENDPOINT_V3: u16 = 3;
 
+/// V4 version of this endpoint.
+///
+/// Same as V3, except that it also supports returning global configs.
+const ENDPOINT_V4: u16 = 4;
+
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
 struct VersionQuery {
@@ -173,7 +178,7 @@ async fn inner(
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V4
 }
 
 /// Endpoint handler for the project configs endpoint.

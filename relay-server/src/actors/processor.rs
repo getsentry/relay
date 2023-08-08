@@ -2784,7 +2784,7 @@ impl Service for EnvelopeProcessorService {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
             // TODO: get the global config during initialization
-            let config_rx = self
+            let mut config_rx = self
                 .inner
                 .global_configuration
                 .send(Subscribe)
@@ -2796,23 +2796,33 @@ impl Service for EnvelopeProcessorService {
                    biased;
 
                    _ = config_rx.changed() => self.global_config = config_rx.borrow().clone(),
-                   Ok(permit) = semaphore.clone().acquire_owned() => {
-                    let Some(message) = rx.recv().await else {continue};
-                         let service = self.clone();
 
-                         tokio::task::spawn_blocking(move || {
-                             service.handle_message(message);
-                             drop(permit);
-                         });
-                   }
+                    (Some(message), Ok(permit)) =
+                        async {tokio::join!(rx.recv(), semaphore.clone().acquire_owned())} => {
+                        let service = self.clone();
+                        tokio::task::spawn_blocking(move || {
+                            service.handle_message(message);
+                            drop(permit);
+                        });
 
-
-
+                    },
                 }
             }
         });
     }
 }
+
+/*
+
+
+                       tokio::task::spawn_blocking(move || {
+                           service.handle_message(message);
+                           drop(permit);
+                       });
+
+
+
+*/
 
 #[cfg(test)]
 mod tests {
@@ -3249,6 +3259,7 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+        let (global_configuration, _) = mock_service("global_configuration", (), |&mut (), _| {});
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3258,7 +3269,7 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
-            global_configuration: todo!(),
+            global_configuration,
         };
 
         EnvelopeProcessorService {
