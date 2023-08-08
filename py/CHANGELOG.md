@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.29
 
 - Add rudimentary Mypy setup. ([#2384](https://github.com/getsentry/relay/pull/2384))
 
