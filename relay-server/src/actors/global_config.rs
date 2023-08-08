@@ -4,6 +4,7 @@ use std::time::Duration;
 use relay_dynamic_config::GlobalConfig;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc::{self, UnboundedSender};
+use tokio::sync::watch;
 
 use crate::actors::processor::EnvelopeProcessor;
 use crate::actors::project_upstream::GetProjectStates;
@@ -16,15 +17,15 @@ use crate::actors::upstream::{SendQuery, UpstreamRelay};
 #[derive(Debug)]
 pub struct GlobalConfigurationService {
     enabled: bool,
-    global_config: Arc<GlobalConfig>,
-    envelope_processor: Addr<EnvelopeProcessor>,
+    sender: watch::Sender<Arc<GlobalConfig>>,
     upstream: Addr<UpstreamRelay>,
 }
 
 /// Service interface for the [`GetGlobalConfig`] message.
 pub enum GlobalConfiguration {
     /// Used to receive the most recently fetched global config.
-    GetGlobalConfig(Sender<Arc<GlobalConfig>>),
+    GetGlobalConfig(Sender<Arc<GlobalConfig>>), // TODO: rename to Get
+    Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
 }
 
 impl Interface for GlobalConfiguration {}
@@ -40,18 +41,23 @@ impl FromMessage<GetGlobalConfig> for GlobalConfiguration {
     }
 }
 
+pub struct Subscribe;
+
+impl FromMessage<Subscribe> for GlobalConfiguration {
+    type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
+
+    fn from_message(_: Subscribe, sender: Sender<watch::Receiver<Arc<GlobalConfig>>>) -> Self {
+        Self::Subscribe(sender)
+    }
+}
+
 impl GlobalConfigurationService {
     /// Creates a new [`GlobalConfigurationService`].
-    pub fn new(
-        enabled: bool,
-        envelope_processor: Addr<EnvelopeProcessor>,
-        upstream: Addr<UpstreamRelay>,
-    ) -> Self {
-        let global_config = Arc::new(GlobalConfig::default());
+    pub fn new(enabled: bool, upstream: Addr<UpstreamRelay>) -> Self {
+        let (sender, _) = watch::channel(Arc::new(GlobalConfig::default()));
         Self {
             enabled,
-            global_config,
-            envelope_processor,
+            sender,
             upstream,
         }
     }
@@ -59,15 +65,16 @@ impl GlobalConfigurationService {
     fn handle_message(&self, message: GlobalConfiguration) {
         match message {
             GlobalConfiguration::GetGlobalConfig(sender) => {
-                sender.send(Arc::clone(&self.global_config));
+                // sender.send(Arc::clone(&self.global_config));
+                self.sender.borrow().clone()
             }
+            Subscribe(sender) => sender.send(self.sender.subscribe()),
         }
     }
 
     /// Forwards the given global config to the services that require it.
-    fn update_global_config(&mut self, global_tx: UnboundedSender<Arc<GlobalConfig>>) {
+    fn update_global_config(&mut self) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
-        let envelope_processor = self.envelope_processor.clone();
 
         tokio::spawn(async move {
             let query = GetProjectStates {
@@ -81,14 +88,7 @@ impl GlobalConfigurationService {
                 Ok(Ok(response)) => match response.global {
                     Some(global_config) => {
                         let global_config = Arc::new(global_config);
-                        if let Err(e) = global_tx.send(global_config.clone()) {
-                            relay_log::error!(
-                                "failed to send global config to GlobalConfigurationService: {}",
-                                e
-                            );
-                        };
-                        relay_log::info!("global config received :D");
-                        envelope_processor.send::<Arc<GlobalConfig>>(global_config);
+                        self.sender.send(global_config).ok();
                     }
                     None => relay_log::error!("global config is missing in upstream response"),
                 },
@@ -116,18 +116,13 @@ impl Service for GlobalConfigurationService {
 
         tokio::spawn(async move {
             let ticker_duration = Duration::from_secs(10);
-            //std::thread::sleep(ticker_duration);
             let mut ticker = tokio::time::interval(ticker_duration);
             relay_log::info!("global configuration service started");
-
-            // Channel for async global config responses back into the GlobalConfigurationService.
-            let (global_tx, mut global_rx) = mpsc::unbounded_channel();
 
             loop {
                 tokio::select! {
                     biased;
-                    _ = ticker.tick() => self.update_global_config(global_tx.clone()),
-                    Some(global_config) = global_rx.recv() => self.global_config = global_config,
+                    _ = ticker.tick() => self.update_global_config(),
                     Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }

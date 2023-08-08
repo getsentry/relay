@@ -18,6 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::actors::global_config::Subscribe;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -2779,21 +2780,23 @@ impl Service for EnvelopeProcessorService {
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            while let (Some(message), Ok(permit)) =
-                tokio::join!(rx.recv(), semaphore.clone().acquire_owned())
-            {
-                match message {
-                    EnvelopeProcessor::UpdateGlobalConfig(global_config) => {
-                        self.global_config = global_config
-                    }
-                    message => {
-                        let service = self.clone();
+            // TODO: get the global config during initialization
+            let config_rx = global_config_service.send(Subscribe).await.unwrap(); // TODO
 
-                        tokio::task::spawn_blocking(move || {
-                            service.handle_message(message);
-                            drop(permit);
-                        });
-                    }
+            loop {
+                tokio::select! {
+                   biased;
+
+                   _ = config_tx.changed() => self.global_config = config_rx.borrow().clone(),
+                   (Some(message), Ok(permit)) =
+                       tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) => {
+                       let service = self.clone();
+
+                       tokio::task::spawn_blocking(move || {
+                           service.handle_message(message);
+                           drop(permit);
+                       });
+                   },
                 }
             }
         });
