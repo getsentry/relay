@@ -131,6 +131,10 @@ impl ServiceState {
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
+        let global_configuration =
+            GlobalConfigurationService::new(config.credentials().is_some(), upstream_relay.clone())
+                .start();
+
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
         let processor = EnvelopeProcessorService::new(
             config.clone(),
@@ -138,6 +142,7 @@ impl ServiceState {
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
+            global_configuration.clone(),
             upstream_relay.clone(),
         )
         .start();
@@ -188,13 +193,6 @@ impl ServiceState {
         )
         .spawn_handler(project_cache_rx);
         drop(guard);
-
-        let global_configuration = GlobalConfigurationService::new(
-            config.credentials().is_some(),
-            processor.clone(),
-            upstream_relay.clone(),
-        )
-        .start();
 
         let health_check = HealthCheckService::new(
             config.clone(),

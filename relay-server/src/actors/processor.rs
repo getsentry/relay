@@ -18,7 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
-use crate::actors::global_config::Subscribe;
+use crate::actors::global_config::{GlobalConfiguration, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -546,6 +546,7 @@ struct InnerProcessor {
     config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
+    global_configuration: Addr<GlobalConfiguration>,
     outcome_aggregator: Addr<TrackOutcome>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -561,6 +562,7 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
+        global_configuration: Addr<GlobalConfiguration>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
@@ -581,6 +583,7 @@ impl EnvelopeProcessorService {
             config,
             envelope_manager,
             project_cache,
+            global_configuration,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
@@ -2781,15 +2784,20 @@ impl Service for EnvelopeProcessorService {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
             // TODO: get the global config during initialization
-            let config_rx = global_config_service.send(Subscribe).await.unwrap(); // TODO
+            let config_rx = self
+                .inner
+                .global_configuration
+                .send(Subscribe)
+                .await
+                .unwrap(); // TODO
 
             loop {
                 tokio::select! {
                    biased;
 
-                   _ = config_tx.changed() => self.global_config = config_rx.borrow().clone(),
+                   _ = config_rx.changed() => self.global_config = config_rx.borrow().clone(),
                    (Some(message), Ok(permit)) =
-                       tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) => {
+                       tokio::join!(rx.recv(), semaphore.clone().acquire_owned())=> {
                        let service = self.clone();
 
                        tokio::task::spawn_blocking(move || {
