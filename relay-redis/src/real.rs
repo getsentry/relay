@@ -1,4 +1,5 @@
 use std::fmt;
+use std::time::Duration;
 
 use r2d2::{Pool, PooledConnection};
 pub use redis;
@@ -145,6 +146,9 @@ impl RedisPool {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(false)
+            .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
+            .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
+            .connection_timeout(Duration::from_secs(opts.connection_timeout))
             .build(redis::cluster::ClusterClient::new(servers).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
@@ -157,6 +161,9 @@ impl RedisPool {
         let pool = Pool::builder()
             .max_size(opts.max_connections)
             .test_on_check_out(false)
+            .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
+            .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
+            .connection_timeout(Duration::from_secs(opts.connection_timeout))
             .build(redis::Client::open(server).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 

@@ -4,6 +4,18 @@ const fn default_max_connections() -> u32 {
     24
 }
 
+const fn default_connection_timeout() -> u64 {
+    5
+}
+
+const fn default_max_lifetime() -> u64 {
+    300
+}
+
+const fn default_idle_timeout() -> u64 {
+    60
+}
+
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
@@ -11,12 +23,26 @@ pub struct RedisConfigOptions {
     /// Maximum number of connections managed by the pool.
     #[serde(default = "default_max_connections")]
     pub max_connections: u32,
+    /// Sets the connection timeout used by the pool, in seconds.
+    ///
+    /// Calls to `Pool::get` will wait this long for a connection to become available before returning an error.
+    #[serde(default = "default_connection_timeout")]
+    pub connection_timeout: u64,
+    /// Sets the maximum lifetime of connections in the pool, in seconds.
+    #[serde(default = "default_max_lifetime")]
+    pub max_lifetime: u64,
+    /// Sets the idle timeout used by the pool, in seconds.
+    #[serde(default = "default_idle_timeout")]
+    pub idle_timeout: u64,
 }
 
 impl Default for RedisConfigOptions {
     fn default() -> Self {
         Self {
             max_connections: default_max_connections(),
+            connection_timeout: default_connection_timeout(),
+            max_lifetime: default_max_lifetime(),
+            idle_timeout: default_idle_timeout(),
         }
     }
 }
@@ -64,6 +90,7 @@ mod tests {
         let yaml = r#"
 server: "redis://127.0.0.1:6379"
 max_connections: 42
+connection_timeout: 5
 "#;
 
         let config: RedisConfig = serde_yaml::from_str(yaml)
@@ -72,6 +99,7 @@ max_connections: 42
         match config {
             RedisConfig::SingleWithOpts { server, options } => {
                 assert_eq!(options.max_connections, 42);
+                assert_eq!(options.connection_timeout, 5);
                 assert_eq!(server, "redis://127.0.0.1:6379");
             }
             e => panic!("Expected RedisConfig::SingleWithOpts but got {e:?}"),
