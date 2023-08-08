@@ -331,15 +331,11 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
     string
 }
 
-const ALLOWED_SQL_ACTION: &str =
-    "SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT";
-
 /// Regex with a capture group to extract the database action from a query.
 ///
 /// Currently we have an explicit allow-list of database actions considered important.
 static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
-    let action_regex: String = format!("(?i)(?P<action>({}))", ALLOWED_SQL_ACTION);
-    Regex::new(&action_regex).unwrap()
+    Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))"#).unwrap()
 });
 
 fn sql_action_from_query(query: &str) -> Option<&str> {
