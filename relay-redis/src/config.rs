@@ -158,31 +158,31 @@ server: "redis://127.0.0.1:6379"
             e => panic!("Expected RedisConfig::Single but got {e:?}"),
         }
     }
-}
 
-#[test]
-fn test_redis_cluster_nodes_opts() {
-    let yaml = r#"
+    #[test]
+    fn test_redis_cluster_nodes_opts() {
+        let yaml = r#"
 cluster_nodes:
     - "redis://127.0.0.1:6379"
     - "redis://127.0.0.2:6379"
 read_timeout: 10
 "#;
 
-    let config: RedisConfig =
-        serde_yaml::from_str(yaml).expect("Parsed processing redis config: single with options");
+        let config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: single with options");
 
-    match config {
-        RedisConfig::Cluster {
-            cluster_nodes,
-            options,
-        } => {
-            assert_eq!(options.max_connections, 24);
-            assert_eq!(options.connection_timeout, 5);
-            assert_eq!(options.read_timeout, 10);
-            assert_eq!(options.write_timeout, 3);
-            assert!(cluster_nodes.contains(&String::from("redis://127.0.0.2:6379")));
+        match config {
+            RedisConfig::Cluster {
+                cluster_nodes,
+                options,
+            } => {
+                assert_eq!(options.max_connections, 24);
+                assert_eq!(options.connection_timeout, 5);
+                assert_eq!(options.read_timeout, 10);
+                assert_eq!(options.write_timeout, 3);
+                assert!(cluster_nodes.contains(&String::from("redis://127.0.0.2:6379")));
+            }
+            e => panic!("Expected RedisConfig::SingleWithOpts but got {e:?}"),
         }
-        e => panic!("Expected RedisConfig::SingleWithOpts but got {e:?}"),
     }
 }
