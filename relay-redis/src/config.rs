@@ -16,6 +16,14 @@ const fn default_idle_timeout() -> u64 {
     60
 }
 
+const fn default_read_timeout() -> u64 {
+    3
+}
+
+const fn default_write_timeout() -> u64 {
+    3
+}
+
 /// Additional configuration options for a redis client.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
@@ -34,6 +42,12 @@ pub struct RedisConfigOptions {
     /// Sets the idle timeout used by the pool, in seconds.
     #[serde(default = "default_idle_timeout")]
     pub idle_timeout: u64,
+    /// Sets the read timeout out on the connection, in seconds.
+    #[serde(default = "default_read_timeout")]
+    pub read_timeout: u64,
+    /// Sets the write timeout on the connection, in seconds.
+    #[serde(default = "default_write_timeout")]
+    pub write_timeout: u64,
 }
 
 impl Default for RedisConfigOptions {
@@ -43,6 +57,8 @@ impl Default for RedisConfigOptions {
             connection_timeout: default_connection_timeout(),
             max_lifetime: default_max_lifetime(),
             idle_timeout: default_idle_timeout(),
+            read_timeout: default_read_timeout(),
+            write_timeout: default_write_timeout(),
         }
     }
 }
@@ -141,5 +157,32 @@ server: "redis://127.0.0.1:6379"
             }
             e => panic!("Expected RedisConfig::Single but got {e:?}"),
         }
+    }
+}
+
+#[test]
+fn test_redis_cluster_nodes_opts() {
+    let yaml = r#"
+cluster_nodes:
+    - "redis://127.0.0.1:6379"
+    - "redis://127.0.0.2:6379"
+read_timeout: 10
+"#;
+
+    let config: RedisConfig =
+        serde_yaml::from_str(yaml).expect("Parsed processing redis config: single with options");
+
+    match config {
+        RedisConfig::Cluster {
+            cluster_nodes,
+            options,
+        } => {
+            assert_eq!(options.max_connections, 24);
+            assert_eq!(options.connection_timeout, 5);
+            assert_eq!(options.read_timeout, 10);
+            assert_eq!(options.write_timeout, 3);
+            assert!(cluster_nodes.contains(&String::from("redis://127.0.0.2:6379")));
+        }
+        e => panic!("Expected RedisConfig::SingleWithOpts but got {e:?}"),
     }
 }

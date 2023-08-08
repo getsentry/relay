@@ -59,7 +59,7 @@ impl RedisProjectSource {
         command.arg(format!("{prefix}:{key}"));
 
         let raw_response_opt: Option<Vec<u8>> = command
-            .query(&mut self.redis.client()?.connection())
+            .query(&mut self.redis.client()?.connection()?)
             .map_err(RedisError::Redis)?;
 
         let response = match raw_response_opt {
