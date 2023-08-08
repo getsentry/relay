@@ -20,10 +20,11 @@ pub struct GlobalConfigurationService {
     upstream: Addr<UpstreamRelay>,
 }
 
-/// Service interface for the [`GetGlobalConfig`] message.
+/// Global Config service interface
 pub enum GlobalConfiguration {
     /// Used to receive the most recently fetched global config.
-    Get(Sender<Arc<GlobalConfig>>), // TODO: rename to Get
+    Get(Sender<Arc<GlobalConfig>>),
+    /// Used to receive a watch that will notify about new global configs.
     Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
 }
 
@@ -40,6 +41,7 @@ impl FromMessage<Get> for GlobalConfiguration {
     }
 }
 
+/// The message for receiving a watch that subscribes to the [`GlobalConfigurationService`].
 pub struct Subscribe;
 
 impl FromMessage<Subscribe> for GlobalConfiguration {
@@ -72,7 +74,8 @@ impl GlobalConfigurationService {
         }
     }
 
-    /// Forwards the given global config to the services that require it.
+    /// Requests a new global config from upstream, sends it back to spawn handler to update the watch,
+    /// as we don't have mutable access to `self` in an async block.
     fn update_global_config(&mut self, global_tx: UnboundedSender<Arc<GlobalConfig>>) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
 
@@ -89,7 +92,7 @@ impl GlobalConfigurationService {
                     Some(global_config) => {
                         let global_config = Arc::new(global_config);
                         if let Err(e) = global_tx.send(global_config) {
-                            relay_log::error!("failed to update global config sender: {}", e);
+                            relay_log::error!("failed to send global config back to global configuration spawn handler: {}", e);
                         }
                     }
                     None => relay_log::error!("global config is missing in upstream response"),
@@ -120,13 +123,16 @@ impl Service for GlobalConfigurationService {
             let ticker_duration = Duration::from_secs(10);
             let mut ticker = tokio::time::interval(ticker_duration);
             relay_log::info!("global configuration service started");
-            // Channel for async global config responses back into the GlobalConfigurationService.
+            // Channel for sending new global configs from upstream to the spawn loop, so that we may
+            // update the tokio::watch.
             let (global_tx, mut global_rx) = mpsc::unbounded_channel();
 
             loop {
                 tokio::select! {
                     biased;
-                    Some(global_config) = global_rx.recv() => {let _ = self.sender.send(global_config);},
+                    Some(global_config) = global_rx.recv() => {if let Err(e) = self.sender.send(global_config) {
+                        relay_log::error!("failed to update global config watch: {}", e);
+                    };},
                     _ = ticker.tick() => self.update_global_config(global_tx.clone()),
                     Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
