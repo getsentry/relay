@@ -76,7 +76,7 @@ impl GlobalConfigurationService {
 
     /// Requests a new global config from upstream, sends it back to spawn handler to update the watch,
     /// as we don't have mutable access to `self` in an async block.
-    fn update_global_config(&mut self, global_tx: UnboundedSender<Arc<GlobalConfig>>) {
+    fn update_global_config(&self, global_tx: UnboundedSender<Arc<GlobalConfig>>) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
 
         tokio::spawn(async move {
@@ -111,7 +111,7 @@ impl GlobalConfigurationService {
 impl Service for GlobalConfigurationService {
     type Interface = GlobalConfiguration;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         if !self.enabled {
             relay_log::info!(
                 "global configuration service not starting due to missing credentials"
