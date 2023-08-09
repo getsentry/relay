@@ -18,6 +18,8 @@ pub struct GlobalConfigurationService {
     enabled: bool,
     sender: watch::Sender<Arc<GlobalConfig>>,
     upstream: Addr<UpstreamRelay>,
+    /// Number of seconds to wait before making another request.
+    fetch_interval: u64,
 }
 
 /// Global Config service interface
@@ -60,6 +62,7 @@ impl GlobalConfigurationService {
             enabled,
             sender,
             upstream,
+            fetch_interval: 10,
         }
     }
 
@@ -123,7 +126,7 @@ impl Service for GlobalConfigurationService {
         tokio::spawn(async move {
             relay_log::info!("global configuration service starting");
 
-            let mut ticker = tokio::time::interval(Duration::from_secs(10));
+            let mut ticker = tokio::time::interval(Duration::from_secs(self.fetch_interval));
             // Channel for sending new global configs from upstream to the spawn loop, so that we may
             // update the tokio::watch.
             let (global_tx, mut global_rx) = mpsc::unbounded_channel();
