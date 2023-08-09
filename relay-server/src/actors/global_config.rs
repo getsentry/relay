@@ -7,7 +7,7 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::watch;
 
 use crate::actors::project_upstream::GetProjectStates;
-use crate::actors::upstream::{SendQuery, UpstreamRelay};
+use crate::actors::upstream::{IsAuthenticated, SendQuery, UpstreamRelay};
 
 /// Service implementing the [`GlobalConfiguration`] interface.
 ///
@@ -15,7 +15,6 @@ use crate::actors::upstream::{SendQuery, UpstreamRelay};
 /// forwarding it to the services that require it, and for serving downstream relays.
 #[derive(Debug)]
 pub struct GlobalConfigurationService {
-    enabled: bool,
     sender: watch::Sender<Arc<GlobalConfig>>,
     upstream: Addr<UpstreamRelay>,
 }
@@ -54,13 +53,9 @@ impl FromMessage<Subscribe> for GlobalConfiguration {
 
 impl GlobalConfigurationService {
     /// Creates a new [`GlobalConfigurationService`].
-    pub fn new(enabled: bool, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
         let (sender, _) = watch::channel(Arc::new(GlobalConfig::default()));
-        Self {
-            enabled,
-            sender,
-            upstream,
-        }
+        Self { sender, upstream }
     }
 
     fn handle_message(&self, message: GlobalConfiguration) {
@@ -112,14 +107,8 @@ impl Service for GlobalConfigurationService {
     type Interface = GlobalConfiguration;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let enabled = self.enabled;
-
         tokio::spawn(async move {
-            if enabled {
-                relay_log::info!("global configuration service starting with upstream enabled");
-            } else {
-                relay_log::info!("global configuration service starting with upstream disabled");
-            }
+            relay_log::info!("global configuration service starting");
 
             let mut ticker = tokio::time::interval(Duration::from_secs(10));
             // Channel for sending new global configs from upstream to the spawn loop, so that we may
@@ -129,10 +118,16 @@ impl Service for GlobalConfigurationService {
             loop {
                 tokio::select! {
                     biased;
-                    Some(global_config) = global_rx.recv() => {if let Err(e) = self.sender.send(global_config) {
-                        relay_log::error!("failed to update global config watch: {}", e);
-                    };},
-                    _ = ticker.tick(), if enabled =>  self.update_global_config(global_tx.clone()),
+                    Some(global_config) = global_rx.recv() => {
+                        if let Err(e) = self.sender.send(global_config) {
+                            relay_log::error!("failed to update global config watch: {}", e);
+                        };
+                    },
+                    _ = ticker.tick() =>  {
+                        if self.upstream.send(IsAuthenticated).await.unwrap_or(false) {
+                            self.update_global_config(global_tx.clone());
+                        }
+                    }
                     Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
