@@ -7,7 +7,7 @@ use crate::TaggingRule;
 ///
 /// Values shared across all projects may also be included here, to keep
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct GlobalConfig {
     /// Project configuration for measurements.
@@ -17,6 +17,15 @@ pub struct GlobalConfig {
     /// the event's content.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
+}
+
+impl Default for GlobalConfig {
+    fn default() -> Self {
+        Self {
+            measurements: Some(MeasurementsConfig::default()),
+            metric_conditional_tagging: Default::default(),
+        }
+    }
 }
 
 #[cfg(test)]

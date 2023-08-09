@@ -64,7 +64,7 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
     }
 
     fn priority() -> RequestPriority {

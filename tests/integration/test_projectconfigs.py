@@ -181,7 +181,7 @@ def test_pending_projects(mini_sentry, relay):
 
     def request_config():
         return relay.post(
-            "/api/0/relays/projectconfigs/?version=3",
+            "/api/0/relays/projectconfigs/?version=4",
             data=packed,
             headers={
                 "X-Sentry-Relay-Id": relay.relay_id,
@@ -231,7 +231,7 @@ def get_response(relay, packed, signature):
         response = request_config(relay, packed, signature)
         assert response.ok
         data = response.json()
-        if data["configs"]:
+        if data["configs"] or data["global"]:
             break
     else:
         print("Relay did still not receive a project config from minisentry")
@@ -426,7 +426,6 @@ def test_cached_project_config(mini_sentry, relay):
 
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]
-    a
 
     # Wait till grace period expires as well and we should start buffering the events now.
     time.sleep(5)
@@ -438,3 +437,18 @@ def test_cached_project_config(mini_sentry, relay):
         }
     finally:
         mini_sentry.test_failures.clear()
+
+
+def test_get_global_config(mini_sentry, relay):
+    project_key = 42
+    relay_config = {
+        "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
+    }
+    relay = relay(mini_sentry, relay_config, wait_health_check=True)
+    mini_sentry.add_full_project_config(project_key)
+
+    body = {"publicKeys": [], "global": True}
+    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+    data = get_response(relay, packed, signature)
+
+    assert data["global"] == {"measurements": {"maxCustomMeasurements": 0}}
