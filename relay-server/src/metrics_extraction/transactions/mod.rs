@@ -496,32 +496,20 @@ mod tests {
         }
         "#;
 
+        let mut event = Annotated::from_json(json).unwrap();
+
         let breakdowns_config: BreakdownsConfig = serde_json::from_str(
-            r#"
-            {
+            r#"{
                 "span_ops": {
                     "type": "spanOperations",
                     "matches": ["react.mount"]
                 }
-            }
-        "#,
-        )
-        .unwrap();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-            {
-                "version": 1,
-                "extractCustomTags": ["fOO"]
-            }
-            "#,
+            }"#,
         )
         .unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
@@ -529,8 +517,16 @@ mod tests {
                 light_normalize_spans: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"{
+                "version": 1,
+                "extractCustomTags": ["fOO"]
+            }"#,
+        )
+        .unwrap();
 
         let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
@@ -706,15 +702,12 @@ mod tests {
         }
         "#;
 
+        // Normalize first, to make sure the units are correct:
+        let mut event = Annotated::from_json(json).unwrap();
+        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
+
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert_eq!(res, Ok(()));
-
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
@@ -798,15 +791,12 @@ mod tests {
             }
         }"#;
 
+        // Normalize first, to make sure the units are correct:
+        let mut event = Annotated::from_json(json).unwrap();
+        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
+
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{res:?}");
-
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
@@ -898,11 +888,7 @@ mod tests {
 
         let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        if let MetricValue::Distribution(value) = duration_metric.value {
-            assert_eq!(value, 59000.0); // millis
-        } else {
-            panic!(); // Duration must be set
-        }
+        assert_eq!(duration_metric.value, MetricValue::Distribution(59000.0));
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
@@ -943,14 +929,14 @@ mod tests {
             }
         ))
         .unwrap();
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 measurements_config: Some(&measurements_config),
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok(), "{res:?}");
+        )
+        .unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
@@ -1581,64 +1567,62 @@ mod tests {
 
     #[test]
     fn test_conditional_tagging() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let mut metrics = vec![
-            Metric {
-                name: "d:transactions/measurements.lcp@millisecond".to_owned(),
-                value: MetricValue::Distribution(41.0),
-                timestamp: UnixTimestamp::from_secs(1619420402),
-                tags: Default::default(),
-            },
-            Metric {
-                name: "d:transactions/duration@millisecond".to_owned(),
-                value: MetricValue::Distribution(2000.0),
-                timestamp: UnixTimestamp::from_secs(1619420402),
-                tags: Default::default(),
-            },
-        ];
-
-        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
-            r#"
-        [
-            {
-                "condition": {"op": "gte", "name": "event.duration", "value": 9001},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "frustrated"
-            },
-            {
-                "condition": {"op": "gte", "name": "event.duration", "value": 666},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "tolerated"
-            },
-            {
-                "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/duration@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "satisfied"
-            }
-        ]
-        "#,
+        let event = Annotated::from_json(
+            r#"{
+                "type": "transaction",
+                "platform": "javascript",
+                "transaction": "foo",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "timestamp": "2021-04-26T08:00:02+0100",
+                "measurements": {
+                    "lcp": {"value": 41, "unit": "millisecond"}
+                }
+            }"#,
         )
         .unwrap();
 
-        run_conditional_tagging(event.value().unwrap(), &tagging_config, &mut metrics);
+        let config = TransactionMetricsConfig::new();
+        let aggregator_config = aggregator_config();
+        let generic_config: MetricExtractionConfig = serde_json::from_str(
+            r#"{
+                "version": 1,
+                "tags": [
+                    {
+                        "metrics": ["d:transactions/duration@millisecond"],
+                        "tags": [
+                            {
+                                "condition": {"op": "gte", "name": "event.duration", "value": 9001},
+                                "key": "satisfaction",
+                                "value": "frustrated"
+                            },
+                            {
+                                "condition": {"op": "gte", "name": "event.duration", "value": 666},
+                                "key": "satisfaction",
+                                "value": "tolerated"
+                            },
+                            {
+                                "condition": {"op": "and", "inner": []},
+                                "key": "satisfaction",
+                                "value": "satisfied"
+                            }
+                        ]
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
 
-        insta::assert_debug_snapshot!(metrics, @r#"
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            generic_config: &generic_config,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
         [
             Metric {
                 name: "d:transactions/measurements.lcp@millisecond",
@@ -1646,7 +1630,10 @@ mod tests {
                     41.0,
                 ),
                 timestamp: UnixTimestamp(1619420402),
-                tags: {},
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "javascript",
+                },
             },
             Metric {
                 name: "d:transactions/duration@millisecond",
@@ -1655,66 +1642,11 @@ mod tests {
                 ),
                 timestamp: UnixTimestamp(1619420402),
                 tags: {
+                    "platform": "javascript",
                     "satisfaction": "tolerated",
                 },
             },
         ]
         "#);
-    }
-
-    #[test]
-    fn test_conditional_tagging_lcp() {
-        let json = r#"
-        {
-            "type": "transaction",
-            "transaction": "foo",
-            "start_timestamp": "2021-04-26T08:00:00+0100",
-            "timestamp": "2021-04-26T08:00:02+0100",
-            "measurements": {
-                "lcp": {"value": 41, "unit": "millisecond"}
-            }
-        }
-        "#;
-
-        let event = Annotated::from_json(json).unwrap();
-
-        let mut metrics = vec![Metric {
-            name: "d:transactions/measurements.lcp@millisecond".to_owned(),
-            value: MetricValue::Distribution(41.0),
-            timestamp: UnixTimestamp::from_secs(1619420402),
-            tags: Default::default(),
-        }];
-
-        let tagging_config: Vec<TaggingRule> = serde_json::from_str(
-            r#"
-        [
-            {
-                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 41},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "frustrated"
-            },
-            {
-                "condition": {"op": "gte", "name": "event.measurements.lcp.value", "value": 20},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "tolerated"
-            },
-            {
-                "condition": {"op": "and", "inner": []},
-                "targetMetrics": ["d:transactions/measurements.lcp@millisecond"],
-                "targetTag": "satisfaction",
-                "tagValue": "satisfied"
-            }
-        ]
-        "#,
-        )
-        .unwrap();
-
-        run_conditional_tagging(event.value().unwrap(), &tagging_config, &mut metrics);
-
-        let mut expected_tags = BTreeMap::new();
-        expected_tags.insert("satisfaction".to_owned(), "frustrated".to_owned());
-        assert_eq!(metrics[0].tags, expected_tags);
     }
 }
