@@ -18,7 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
-use crate::actors::global_config::{GlobalConfigMessage, Subscribe};
+use crate::actors::global_config::{GlobalConfigInterface, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -537,7 +537,7 @@ struct InnerProcessor {
     config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
-    global_config: Addr<GlobalConfigMessage>,
+    global_config: Addr<GlobalConfigInterface>,
     outcome_aggregator: Addr<TrackOutcome>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -553,7 +553,7 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
-        global_config: Addr<GlobalConfigMessage>,
+        global_config: Addr<GlobalConfigInterface>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
