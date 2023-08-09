@@ -20,11 +20,11 @@ RUN yum -y update && yum clean all \
     && ln -s /usr/bin/cmake3 /usr/bin/cmake
 
 RUN if [ ${BUILD_ARCH} == "aarch64" ]; then \
-    yum -y install curl dnf ca-certificates \
+    yum -y install git make libffi-devel curl dnf epel-release ca-certificates \
     && curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 \
     && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7 \
-    && yum -y install gcc-aarch64-linux-gnu gcc-aarch64-linux-gnueabi gcc-aarch64-linux-gnueabihf qemu-user \
-    && dnf --forcearch aarch64 --release 7 install -y glibc glibc-devel  --installroot "/usr/aarch64-linux-gnu/sys-root/" \
+    && yum -y install gcc gcc-aarch64-linux-gnu gcc-aarch64-linux-gnueabi gcc-aarch64-linux-gnueabihf qemu-user \
+    && dnf --forcearch aarch64 --release 7 install -y gcc glibc glibc-devel  --installroot "/usr/aarch64-linux-gnu/sys-root/" \
     && ln -s "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so.1" "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so" \
     # NOTE(iker): work-around to create a cmake toolchain file for arch-specific builds, since only objcopy is needed.
     && rm -rf "/usr/bin/objcopy" && ln -s "/usr/bin/aarch64-linux-gnu-objcopy" "/usr/bin/objcopy" ; \
