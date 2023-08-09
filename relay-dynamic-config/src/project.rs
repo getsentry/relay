@@ -85,10 +85,12 @@ impl ProjectConfig {
     pub fn sanitize(&mut self) {
         self.quotas.retain(Quota::is_valid);
 
-        // TODO: Do not take here, but clone. We need both.
-        // TODO: Can we avoid duplicates for outbound project states?
-        let rules = std::mem::take(&mut self.metric_conditional_tagging);
+        // NOTE: This clones the rules so that they remain in the project state for old Relays that
+        // do not support generic metrics extraction. Once the migration is complete, this can be
+        // removed with a version bump of the transaction metrics config
+        let rules = self.metric_conditional_tagging.clone();
         if !rules.is_empty() {
+            // TODO(ja): Can we avoid duplicates for outbound project states?
             let config = self.metric_extraction.get_or_insert_with(Default::default);
             let tags = metrics::convert_conditional_tagging(rules);
             config.tags.extend(tags);
