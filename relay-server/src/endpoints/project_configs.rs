@@ -34,7 +34,7 @@ const ENDPOINT_V3: u16 = 3;
 
 /// V4 version of this endpoint.
 ///
-/// Same as V3, except that it also supports returning global configs.
+/// Similar to V3, but also returning global configs.
 const ENDPOINT_V4: u16 = 4;
 
 /// Helper to deserialize the `version` query parameter.
@@ -78,8 +78,7 @@ impl ProjectStateWrapper {
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections.  This list is always empty before V3.
 ///
-/// The response may also have a [`GlobalConfig`] which should be returned if the `global_config`
-/// flag is enabled on [`GetProjectStatesRequest`]
+/// Version 4 adds a global config [`GlobalConfig`] if `global` is enabled.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
