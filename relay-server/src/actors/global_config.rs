@@ -6,8 +6,8 @@ use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service}
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::watch;
 
-use crate::actors::project_upstream::GetProjectStates;
-use crate::actors::upstream::{IsAuthenticated, SendQuery, UpstreamRelay};
+use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
+use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 
 /// Service implementing the [`GlobalConfiguration`] interface.
 ///
@@ -74,8 +74,15 @@ impl GlobalConfigurationService {
         }
     }
 
-    /// Requests a new global config from upstream, sends it back to spawn handler to update the watch,
-    /// as we don't have mutable access to `self` in an async block.
+    /// Requests a new global config from upstream.
+    ///
+    /// This function does not check any authentication since the upstream
+    /// service deals with it (including observability):
+    /// - If Relay is authenticated, requests will complete as expected.
+    /// - If Relay isn't authenticated yet, the following request to successfull
+    /// authentication will happen.
+    /// - If Relay is permanently blocked, the upstream service will error on
+    /// requests.
     fn update_global_config(&self, global_tx: UnboundedSender<Arc<GlobalConfig>>) {
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
 
@@ -88,23 +95,24 @@ impl GlobalConfigurationService {
             };
 
             match upstream_relay.send(SendQuery(query)).await {
-                Ok(Ok(response)) => match response.global {
-                    Some(global_config) => {
-                        let global_config = Arc::new(global_config);
-                        if let Err(e) = global_tx.send(global_config) {
-                            relay_log::error!("failed to send global config back to global configuration spawn handler: {}", e);
-                        }
-                    }
-                    None => relay_log::error!("global config is missing in upstream response"),
-                },
-                Ok(Err(e)) => {
-                    relay_log::error!("failed to fetch global config request: {}", e);
-                }
-                Err(e) => {
-                    relay_log::error!("failed to send global config request: {}", e);
-                }
+                Ok(res) => Self::handle_upstream_response(res, global_tx),
+                Err(_) => relay_log::error!(
+                    "GlobalConfigService failed to send request to UpstreamService"
+                ),
             };
         });
+    }
+
+    fn handle_upstream_response(
+        response: Result<GetProjectStatesResponse, UpstreamRequestError>,
+        global_tx: UnboundedSender<Arc<GlobalConfig>>,
+    ) {
+        if let Ok(config) = response {
+            match config.global {
+                Some(global_config) => global_tx.send(Arc::new(global_config)).unwrap(), // todo
+                None => relay_log::error!("Global config missing in upstream response"),
+            }
+        }
     }
 }
 
@@ -128,11 +136,7 @@ impl Service for GlobalConfigurationService {
                             relay_log::error!("failed to update global config watch: {}", e);
                         };
                     },
-                    _ = ticker.tick(), if self.enabled =>  {
-                        if self.upstream.send(IsAuthenticated).await.unwrap_or(false) {
-                            self.update_global_config(global_tx.clone());
-                        }
-                    }
+                    _ = ticker.tick() => self.update_global_config(global_tx.clone()),
                     Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
