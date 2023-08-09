@@ -16,7 +16,7 @@ use flate2::Compression;
 use once_cell::sync::OnceCell;
 use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
-use tokio::sync::Semaphore;
+use tokio::sync::{AcquireError, Semaphore};
 
 use crate::actors::global_config::{GlobalConfiguration, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
@@ -2785,16 +2785,16 @@ impl Service for EnvelopeProcessorService {
                 tokio::select! {
                    biased;
 
-                   _ = config_rx.changed() => self.global_config = config_rx.borrow().clone(),
-
-                    (Some(message), Ok(permit)) =
-                        async {tokio::join!(rx.recv(), semaphore.clone().acquire_owned())} => {
+                    _ = config_rx.changed() => self.global_config = config_rx.borrow().clone(),
+                    (Some(message), Ok(permit)) = async {tokio::join!(
+                        rx.recv(),
+                        semaphore.clone().acquire_owned()
+                    )} => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
                             service.handle_message(message);
                             drop(permit);
                         });
-
                     },
                 }
             }
