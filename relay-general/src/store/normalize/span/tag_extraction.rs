@@ -333,9 +333,10 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 
 /// Regex with a capture group to extract the database action from a query.
 ///
-/// Currently, we're only interested in `SELECT`, `INSERT`, `DELETE` and `UPDATE` statements.
-static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE))"#).unwrap());
+/// Currently we have an explicit allow-list of database actions considered important.
+static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))"#).unwrap()
+});
 
 fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
@@ -559,5 +560,35 @@ mod tests {
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a");
+    }
+
+    #[test]
+    fn extract_sql_action() {
+        let test_cases = vec![
+            (
+                r#"SELECT "sentry_organization"."id" FROM "sentry_organization" WHERE "sentry_organization"."id" = %s"#,
+                "SELECT",
+            ),
+            (
+                r#"INSERT INTO "sentry_groupseen" ("project_id", "group_id", "user_id", "last_seen") VALUES (%s, %s, %s, %s) RETURNING "sentry_groupseen"."id"#,
+                "INSERT",
+            ),
+            (
+                r#"UPDATE sentry_release SET date_released = %s WHERE id = %s"#,
+                "UPDATE",
+            ),
+            (
+                r#"DELETE FROM "sentry_groupinbox" WHERE "sentry_groupinbox"."id" IN (%s)"#,
+                "DELETE",
+            ),
+            (r#"SET search_path TO my_schema, public"#, "SET"),
+            (r#"SAVEPOINT %s"#, "SAVEPOINT"),
+            (r#"RELEASE SAVEPOINT %s"#, "RELEASE SAVEPOINT"),
+            (r#"ROLLBACK TO SAVEPOINT %s"#, "ROLLBACK TO SAVEPOINT"),
+        ];
+
+        for (query, expected) in test_cases {
+            assert_eq!(sql_action_from_query(query).unwrap(), expected)
+        }
     }
 }

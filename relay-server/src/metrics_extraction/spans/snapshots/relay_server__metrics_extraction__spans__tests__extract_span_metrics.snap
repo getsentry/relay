@@ -1417,6 +1417,9 @@ expression: event.value().unwrap().spans
             "release": String(
                 "1.2.3",
             ),
+            "span.action": String(
+                "SAVEPOINT",
+            ),
             "span.category": String(
                 "db",
             ),

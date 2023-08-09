@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import uuid
 import weakref
@@ -5,6 +7,7 @@ from sentry_relay._lowlevel import ffi, lib
 from sentry_relay.exceptions import exceptions_by_code, RelayError
 
 
+attached_refs: weakref.WeakKeyDictionary[object, bytes]
 attached_refs = weakref.WeakKeyDictionary()
 
 
