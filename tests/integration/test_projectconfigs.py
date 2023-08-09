@@ -231,7 +231,7 @@ def get_response(relay, packed, signature):
         response = request_config(relay, packed, signature)
         assert response.ok
         data = response.json()
-        if data["configs"] or data["global"]:
+        if data["configs"]:
             break
     else:
         print("Relay did still not receive a project config from minisentry")
