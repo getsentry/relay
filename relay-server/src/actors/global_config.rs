@@ -8,12 +8,12 @@ use tokio::sync::watch;
 use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
 use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 
-/// Service implementing the [`GlobalConfiguration`] interface.
+/// Service implementing the [`GlobalConfigInterface`] interface.
 ///
 /// The service is responsible for fetching the global config and
 /// forwarding it to the services that require it, and for serving downstream relays.
 #[derive(Debug)]
-pub struct GlobalConfigurationService {
+pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
     // NOTE(iker): Placing the sender behind an Arc is a workaround to be able
     // to send updates through this channel from invoked tasks where the global
@@ -38,7 +38,7 @@ pub enum GlobalConfigInterface {
 
 impl Interface for GlobalConfigInterface {}
 
-/// The message for requesting the most recent global config from [`GlobalConfigurationService`].
+/// The message for requesting the most recent global config from [`GlobalConfigService`].
 pub struct Get;
 
 impl FromMessage<Get> for GlobalConfigInterface {
@@ -49,7 +49,7 @@ impl FromMessage<Get> for GlobalConfigInterface {
     }
 }
 
-/// The message for receiving a watch that subscribes to the [`GlobalConfigurationService`].
+/// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
 pub struct Subscribe;
 
 impl FromMessage<Subscribe> for GlobalConfigInterface {
@@ -60,8 +60,8 @@ impl FromMessage<Subscribe> for GlobalConfigInterface {
     }
 }
 
-impl GlobalConfigurationService {
-    /// Creates a new [`GlobalConfigurationService`].
+impl GlobalConfigService {
+    /// Creates a new [`GlobalConfigService`].
     pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
         let (sender, _) = watch::channel(Arc::new(GlobalConfig::default()));
         Self {
@@ -125,12 +125,12 @@ impl GlobalConfigurationService {
     }
 }
 
-impl Service for GlobalConfigurationService {
+impl Service for GlobalConfigService {
     type Interface = GlobalConfigInterface;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            relay_log::info!("global configuration service starting");
+            relay_log::info!("global config service starting");
 
             let mut ticker = tokio::time::interval(Duration::from_secs(self.fetch_interval));
 
@@ -144,7 +144,7 @@ impl Service for GlobalConfigurationService {
                     else => break,
                 }
             }
-            relay_log::info!("global configuration service stopped");
+            relay_log::info!("global config service stopped");
         });
     }
 }

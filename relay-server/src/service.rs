@@ -13,7 +13,7 @@ use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
-use crate::actors::global_config::{GlobalConfigInterface, GlobalConfigurationService};
+use crate::actors::global_config::{GlobalConfigInterface, GlobalConfigService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -131,7 +131,7 @@ impl ServiceState {
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
-        let global_config = GlobalConfigurationService::new(upstream_relay.clone()).start();
+        let global_config = GlobalConfigService::new(upstream_relay.clone()).start();
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
         let processor = EnvelopeProcessorService::new(
