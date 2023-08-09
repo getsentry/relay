@@ -782,8 +782,10 @@ impl Project {
 
         let (enforcement, rate_limits) =
             envelope_limiter.enforce(envelope.envelope_mut(), &scoping)?;
+        if enforcement.event_active() {
+            envelope.assume_event(None);
+        }
         enforcement.track_outcomes(envelope.envelope(), &scoping, outcome_aggregator);
-        envelope.update();
 
         let envelope = if envelope.envelope().is_empty() {
             // Individual rate limits have already been issued above

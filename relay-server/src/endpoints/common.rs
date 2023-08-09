@@ -292,8 +292,6 @@ fn queue_envelope(
             state.test_store().clone(),
         )?;
 
-        // Update the old context after successful forking.
-        managed_envelope.update();
         state
             .project_cache()
             .send(ValidateEnvelope::new(event_context));
