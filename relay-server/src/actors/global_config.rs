@@ -22,19 +22,19 @@ pub struct GlobalConfigurationService {
 }
 
 /// Global Config service interface
-pub enum GlobalConfiguration {
+pub enum GlobalConfigMessage {
     /// Used to receive the most recently fetched global config.
     Get(Sender<Arc<GlobalConfig>>),
     /// Used to receive a watch that will notify about new global configs.
     Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
 }
 
-impl Interface for GlobalConfiguration {}
+impl Interface for GlobalConfigMessage {}
 
 /// The message for requesting the most recent global config from [`GlobalConfigurationService`].
 pub struct Get;
 
-impl FromMessage<Get> for GlobalConfiguration {
+impl FromMessage<Get> for GlobalConfigMessage {
     type Response = AsyncResponse<Arc<GlobalConfig>>;
 
     fn from_message(_: Get, sender: Sender<Arc<GlobalConfig>>) -> Self {
@@ -45,7 +45,7 @@ impl FromMessage<Get> for GlobalConfiguration {
 /// The message for receiving a watch that subscribes to the [`GlobalConfigurationService`].
 pub struct Subscribe;
 
-impl FromMessage<Subscribe> for GlobalConfiguration {
+impl FromMessage<Subscribe> for GlobalConfigMessage {
     type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
 
     fn from_message(_: Subscribe, sender: Sender<watch::Receiver<Arc<GlobalConfig>>>) -> Self {
@@ -64,12 +64,12 @@ impl GlobalConfigurationService {
         }
     }
 
-    fn handle_message(&self, message: GlobalConfiguration) {
+    fn handle_message(&self, message: GlobalConfigMessage) {
         match message {
-            GlobalConfiguration::Get(sender) => {
+            GlobalConfigMessage::Get(sender) => {
                 sender.send(self.sender.borrow().clone());
             }
-            GlobalConfiguration::Subscribe(sender) => {
+            GlobalConfigMessage::Subscribe(sender) => {
                 sender.send(self.sender.subscribe());
             }
         }
@@ -118,7 +118,7 @@ impl GlobalConfigurationService {
 }
 
 impl Service for GlobalConfigurationService {
-    type Interface = GlobalConfiguration;
+    type Interface = GlobalConfigMessage;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
@@ -132,6 +132,7 @@ impl Service for GlobalConfigurationService {
             loop {
                 tokio::select! {
                     biased;
+
                     Some(global_config) = global_rx.recv() => {
                         if let Err(e) = self.sender.send(global_config) {
                             relay_log::error!("failed to update global config watch: {}", e);
@@ -139,6 +140,7 @@ impl Service for GlobalConfigurationService {
                     },
                     _ = ticker.tick() => self.update_global_config(global_tx.clone()),
                     Some(message) = rx.recv() => self.handle_message(message),
+
                     else => break,
                 }
             }

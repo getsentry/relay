@@ -13,7 +13,7 @@ use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
-use crate::actors::global_config::{GlobalConfiguration, GlobalConfigurationService};
+use crate::actors::global_config::{GlobalConfigMessage, GlobalConfigurationService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -53,7 +53,7 @@ pub struct Registry {
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
-    pub global_configuration: Addr<GlobalConfiguration>,
+    pub global_config: Addr<GlobalConfigMessage>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
 }
@@ -131,7 +131,7 @@ impl ServiceState {
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
-        let global_configuration = GlobalConfigurationService::new(upstream_relay.clone()).start();
+        let global_config = GlobalConfigurationService::new(upstream_relay.clone()).start();
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
         let processor = EnvelopeProcessorService::new(
@@ -140,7 +140,7 @@ impl ServiceState {
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
-            global_configuration.clone(),
+            global_config.clone(),
             upstream_relay.clone(),
         )
         .start();
@@ -216,7 +216,7 @@ impl ServiceState {
             envelope_manager,
             test_store,
             relay_cache,
-            global_configuration,
+            global_config,
             project_cache,
             upstream_relay,
         };
@@ -286,8 +286,8 @@ impl ServiceState {
     }
 
     /// Returns the address of the [`GlobalConfigurationService`] service.
-    pub fn global_configuration(&self) -> &Addr<GlobalConfiguration> {
-        &self.inner.registry.global_configuration
+    pub fn global_config(&self) -> &Addr<GlobalConfigMessage> {
+        &self.inner.registry.global_config
     }
 
     /// Returns the address of the [`OutcomeProducer`] service.

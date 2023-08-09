@@ -18,7 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
-use crate::actors::global_config::{GlobalConfiguration, Subscribe};
+use crate::actors::global_config::{GlobalConfigMessage, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -537,7 +537,7 @@ struct InnerProcessor {
     config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
-    global_configuration: Addr<GlobalConfiguration>,
+    global_config: Addr<GlobalConfigMessage>,
     outcome_aggregator: Addr<TrackOutcome>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -553,7 +553,7 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
-        global_configuration: Addr<GlobalConfiguration>,
+        global_config: Addr<GlobalConfigMessage>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
@@ -574,7 +574,7 @@ impl EnvelopeProcessorService {
             config,
             envelope_manager,
             project_cache,
-            global_configuration,
+            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
@@ -2773,7 +2773,7 @@ impl Service for EnvelopeProcessorService {
 
             let mut global_config_rx = self
                 .inner
-                .global_configuration
+                .global_config
                 .send(Subscribe)
                 .await
                 .expect("EnvelopeProcessorService failed subscribing to GlobalConfigService");
@@ -3234,7 +3234,7 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        let (global_configuration, _) = mock_service("global_configuration", (), |&mut (), _| {});
+        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3244,7 +3244,7 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
-            global_configuration,
+            global_config,
         };
 
         EnvelopeProcessorService {
