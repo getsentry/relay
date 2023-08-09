@@ -426,6 +426,7 @@ def test_cached_project_config(mini_sentry, relay):
 
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]
+    a
 
     # Wait till grace period expires as well and we should start buffering the events now.
     time.sleep(5)
