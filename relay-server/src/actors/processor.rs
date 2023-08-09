@@ -2777,7 +2777,9 @@ impl Service for EnvelopeProcessorService {
                 .global_configuration
                 .send(Subscribe)
                 .await
-                .unwrap(); // TODO
+                .expect(
+                    "envelope processorservice failed to subscribe to global configurationservice",
+                );
 
             loop {
                 tokio::select! {

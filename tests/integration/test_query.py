@@ -68,7 +68,6 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
-        print("<< settin project config")
         if not flask_request.json.get("global") is True:
             fetched_project_config.set()
         return get_project_config_original()
@@ -172,7 +171,6 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
 
         nonlocal request_count
         request_count += 1
-        print("RETRY", request_count)
         return "no", 500
 
     RETRIES = 1
