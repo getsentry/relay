@@ -200,15 +200,18 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             .and_then(|data| data.get("description.scrubbed"))
             .and_then(|value| value.as_str());
 
-        // TODO(iker): we're relying on the existance of `http.method`
+        // TODO(iker): we're relying on the existance of `http.method`/`http.response.method`
         // or `db.operation`. This is not guaranteed, and we'll need to
         // parse the span description in that case.
         let action = match (span_module, span_op.as_str(), scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
-                // TODO(iker): some SDKs extract this as method
-                .and_then(|v| v.get("http.method"))
+                .and_then(|v| {
+                    v.get("http.request.method")
+                        .or(v.get("http.method"))
+                        .or(v.get("method"))
+                })
                 .and_then(|method| method.as_str())
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
