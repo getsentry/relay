@@ -15,6 +15,7 @@ use crate::actors::upstream::{IsAuthenticated, SendQuery, UpstreamRelay};
 /// forwarding it to the services that require it, and for serving downstream relays.
 #[derive(Debug)]
 pub struct GlobalConfigurationService {
+    enabled: bool,
     sender: watch::Sender<Arc<GlobalConfig>>,
     upstream: Addr<UpstreamRelay>,
 }
@@ -53,9 +54,13 @@ impl FromMessage<Subscribe> for GlobalConfiguration {
 
 impl GlobalConfigurationService {
     /// Creates a new [`GlobalConfigurationService`].
-    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(enabled: bool, upstream: Addr<UpstreamRelay>) -> Self {
         let (sender, _) = watch::channel(Arc::new(GlobalConfig::default()));
-        Self { sender, upstream }
+        Self {
+            enabled,
+            sender,
+            upstream,
+        }
     }
 
     fn handle_message(&self, message: GlobalConfiguration) {
@@ -123,7 +128,7 @@ impl Service for GlobalConfigurationService {
                             relay_log::error!("failed to update global config watch: {}", e);
                         };
                     },
-                    _ = ticker.tick() =>  {
+                    _ = ticker.tick(), if self.enabled =>  {
                         if self.upstream.send(IsAuthenticated).await.unwrap_or(false) {
                             self.update_global_config(global_tx.clone());
                         }
