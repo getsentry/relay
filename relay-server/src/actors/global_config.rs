@@ -110,9 +110,9 @@ impl GlobalConfigurationService {
     ) {
         if let Ok(config) = response {
             match config.global {
-                Some(global_config) => global_tx.send(Arc::new(global_config)).unwrap(), // todo
+                Some(global_config) => _ = global_tx.send(Arc::new(global_config)),
                 None => relay_log::error!("Global config missing in upstream response"),
-            }
+            };
         }
     }
 }
