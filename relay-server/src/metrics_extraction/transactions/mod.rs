@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
-use relay_dynamic_config::TransactionMetricsConfig;
+use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 use relay_general::store;
 use relay_metrics::{AggregatorConfig, Metric};
 
+use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
     TransactionMeasurementTags, TransactionMetric,
@@ -237,6 +238,7 @@ impl ExtractedMetrics {
 pub struct TransactionExtractor<'a> {
     pub aggregator_config: &'a AggregatorConfig,
     pub config: &'a TransactionMetricsConfig,
+    pub generic_config: &'a MetricExtractionConfig,
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
@@ -382,6 +384,11 @@ impl TransactionExtractor<'_> {
                     .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
             }
         }
+
+        // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
+        // metric extraction, after which this is done automatically.
+        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_config);
+        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_config);
 
         Ok(metrics)
     }
@@ -529,6 +536,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -710,6 +718,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -801,6 +810,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -877,6 +887,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -946,6 +957,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1024,6 +1036,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1060,6 +1073,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1124,6 +1138,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1170,6 +1185,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1192,6 +1208,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1229,6 +1246,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("root_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1489,6 +1507,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_config: &Default::default(),
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,

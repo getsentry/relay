@@ -90,8 +90,11 @@ impl ProjectConfig {
         // removed with a version bump of the transaction metrics config
         let rules = self.metric_conditional_tagging.clone();
         if !rules.is_empty() {
+            let config = self
+                .metric_extraction
+                .get_or_insert_with(MetricExtractionConfig::empty);
+
             // TODO(ja): Can we avoid duplicates for outbound project states?
-            let config = self.metric_extraction.get_or_insert_with(Default::default);
             let tags = metrics::convert_conditional_tagging(rules);
             config.tags.extend(tags);
         }

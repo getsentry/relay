@@ -7,7 +7,7 @@ use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
 
 /// Item from which metrics can be extracted.
-pub trait Extractable {
+pub trait Extractable: FieldValueProvider {
     /// Data category for the metric spec to match on.
     fn category(&self) -> DataCategory;
 
@@ -47,7 +47,7 @@ impl Extractable for Span {
 /// valid timestamps.
 pub fn extract_metrics_from<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
 where
-    T: Extractable + FieldValueProvider,
+    T: Extractable,
 {
     let mut metrics = Vec::new();
 
@@ -87,18 +87,26 @@ where
         });
     }
 
+    // TODO: Inline this again once transaction metric extraction has been moved to generic metrics.
+    tmp_apply_tags(&mut metrics, instance, config);
+
+    metrics
+}
+
+pub fn tmp_apply_tags<T>(metrics: &mut [Metric], instance: &T, config: &MetricExtractionConfig)
+where
+    T: FieldValueProvider,
+{
     for mapping in &config.tags {
         let mut lazy_tags = None;
 
-        for metric in &mut metrics {
+        for metric in &mut *metrics {
             if mapping.matches(&metric.name) {
                 let tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, &mapping.tags));
                 metric.tags.extend(tags.clone());
             }
         }
     }
-
-    metrics
 }
 
 fn extract_tags<T>(instance: &T, tags: &[TagSpec]) -> BTreeMap<String, String>

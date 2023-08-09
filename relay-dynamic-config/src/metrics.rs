@@ -151,6 +151,17 @@ impl MetricExtractionConfig {
     /// The latest version for this config struct.
     pub const VERSION: u16 = 1;
 
+    /// Returns an empty `MetricExtractionConfig` with the latest version.
+    ///
+    /// As opposed to `default()`, this will be enabled once populated with specs.
+    pub fn empty() -> Self {
+        Self {
+            version: Self::VERSION,
+            metrics: Vec::new(),
+            tags: Vec::new(),
+        }
+    }
+
     /// Returns `true` if metric extraction is configured.
     pub fn is_enabled(&self) -> bool {
         self.version > 0

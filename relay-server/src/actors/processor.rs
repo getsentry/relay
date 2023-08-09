@@ -2066,24 +2066,26 @@ impl EnvelopeProcessorService {
     ///  - This functionality is incomplete. At this point, extraction is implemented only for
     ///    transaction events.
     fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
+        // will upsert this configuration from transaction and conditional tagging fields, even if
+        // it is not present in the actual project config payload.
+        let config = match state.project_state.config.metric_extraction {
+            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
+            _ => return Ok(()),
+        };
+
         // TODO: Make span metrics extraction immutable
         if let Some(event) = state.event.value() {
             if state.event_metrics_extracted {
                 return Ok(());
             }
 
-            match state.project_state.config.metric_extraction {
-                ErrorBoundary::Ok(ref config) if config.is_enabled() => {
-                    let metrics =
-                        crate::metrics_extraction::generic::extract_metrics_from(event, config);
-                    state.event_metrics_extracted |= !metrics.is_empty();
-                    state.extracted_metrics.project_metrics.extend(metrics);
-                }
-                _ => (),
-            }
+            let metrics = crate::metrics_extraction::generic::extract_metrics_from(event, config);
+            state.event_metrics_extracted |= !metrics.is_empty();
+            state.extracted_metrics.project_metrics.extend(metrics);
 
             match state.project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => {
+                Some(ErrorBoundary::Ok(ref tx_config)) if tx_config.is_enabled() => {
                     let transaction_from_dsc = state
                         .managed_envelope
                         .envelope()
@@ -2092,7 +2094,8 @@ impl EnvelopeProcessorService {
 
                     let extractor = TransactionExtractor {
                         aggregator_config: self.inner.config.aggregator_config(),
-                        config,
+                        config: tx_config,
+                        generic_config: config,
                         transaction_from_dsc,
                         sampling_result: &state.sampling_result,
                         has_profile: state.has_profile,
