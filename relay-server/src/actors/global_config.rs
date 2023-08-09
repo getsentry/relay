@@ -112,17 +112,16 @@ impl Service for GlobalConfigurationService {
     type Interface = GlobalConfiguration;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        if !self.enabled {
-            relay_log::info!(
-                "global configuration service not starting due to missing credentials"
-            );
-            return;
-        }
+        let enabled = self.enabled;
 
         tokio::spawn(async move {
-            let ticker_duration = Duration::from_secs(10);
-            let mut ticker = tokio::time::interval(ticker_duration);
-            relay_log::info!("global configuration service started");
+            if enabled {
+                relay_log::info!("global configuration service starting with upstream enabled");
+            } else {
+                relay_log::info!("global configuration service starting with upstream disabled");
+            }
+
+            let mut ticker = tokio::time::interval(Duration::from_secs(10));
             // Channel for sending new global configs from upstream to the spawn loop, so that we may
             // update the tokio::watch.
             let (global_tx, mut global_rx) = mpsc::unbounded_channel();
@@ -133,7 +132,7 @@ impl Service for GlobalConfigurationService {
                     Some(global_config) = global_rx.recv() => {if let Err(e) = self.sender.send(global_config) {
                         relay_log::error!("failed to update global config watch: {}", e);
                     };},
-                    _ = ticker.tick() => self.update_global_config(global_tx.clone()),
+                    _ = ticker.tick(), if enabled =>  self.update_global_config(global_tx.clone()),
                     Some(message) = rx.recv() => self.handle_message(message),
                     else => break,
                 }
