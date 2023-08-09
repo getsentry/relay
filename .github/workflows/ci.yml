@@ -386,7 +386,7 @@ jobs:
 
       - run: make test-integration
         env:
-          RELAY_VERSION_CHAIN: "23.7.2,latest"
+          RELAY_VERSION_CHAIN: "20.6.0,latest"
 
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
