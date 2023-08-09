@@ -15,7 +15,6 @@ use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 /// forwarding it to the services that require it, and for serving downstream relays.
 #[derive(Debug)]
 pub struct GlobalConfigurationService {
-    enabled: bool,
     sender: watch::Sender<Arc<GlobalConfig>>,
     upstream: Addr<UpstreamRelay>,
     /// Number of seconds to wait before making another request.
@@ -56,10 +55,9 @@ impl FromMessage<Subscribe> for GlobalConfiguration {
 
 impl GlobalConfigurationService {
     /// Creates a new [`GlobalConfigurationService`].
-    pub fn new(enabled: bool, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
         let (sender, _) = watch::channel(Arc::new(GlobalConfig::default()));
         Self {
-            enabled,
             sender,
             upstream,
             fetch_interval: 10,
