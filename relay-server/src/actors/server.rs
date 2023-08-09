@@ -76,7 +76,7 @@ impl Service for HttpServer {
                 HeaderValue::from_static(constants::SERVER),
             ))
             .layer(SetResponseHeaderLayer::overriding(
-                HeaderName::from_static("Cross-Origin-Resource-Policy"),
+                HeaderName::from_static("cross-origin-resource-policy"),
                 HeaderValue::from_static("cross-origin"),
             ))
             .layer(NewSentryLayer::new_from_top())
