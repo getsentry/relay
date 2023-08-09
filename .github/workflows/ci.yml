@@ -35,15 +35,6 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Install Dependencies
-        run: pip install -U -r requirements-dev.txt
-
-      - name: Run Black
-        run: black --check py tests --exclude '\.eggs|sentry_relay/_lowlevel.*'
-
-      - name: Run Flake8
-        run: flake8 py
-
       - name: Install Rust Toolchain
         run: rustup toolchain install stable --profile minimal --component clippy rustfmt rust-docs --no-self-update
 
@@ -51,11 +42,7 @@ jobs:
         with:
           key: ${{ github.job }}
 
-      - name: Run Rustfmt
-        run: cargo fmt --all -- --check
-
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features --no-deps -- -D warnings
+      - run: make style lint
 
       - name: Check Docs
         run: cargo doc --workspace --all-features --no-deps --document-private-items
@@ -397,11 +384,7 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Install dependencies
-        run: pip install -U -r requirements-dev.txt
-
-      - name: Run tests
-        run: pytest tests -n auto -v
+      - run: make test-integration
         env:
           RELAY_VERSION_CHAIN: "20.6.0,latest"
 

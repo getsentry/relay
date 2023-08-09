@@ -67,7 +67,6 @@ test-rust-all: setup-git ## run tests for Rust code with all the features enable
 .PHONY: test-rust-all
 
 test-python: setup-git setup-venv ## run tests for Python code
-	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	.venv/bin/pytest -v py
 .PHONY: test-python
 
@@ -110,6 +109,7 @@ lint-rust: setup-git ## run lint on Rust code using clippy
 
 lint-python: setup-venv ## run lint on Python code using flake8
 	.venv/bin/flake8 py tests
+	.venv/bin/mypy py tests
 .PHONY: lint-python
 
 lint-rust-beta: setup-git ## run lint on Rust using clippy and beta toolchain
@@ -166,6 +166,7 @@ clean-target-dir:
 
 .venv/python-requirements-stamp: requirements-dev.txt
 	.venv/bin/pip install -U -r requirements-dev.txt
+	RELAY_DEBUG=1 .venv/bin/pip install -v --editable py
 	# Bump the mtime of an empty file.
 	# Make will re-run 'pip install' if the mtime on requirements-dev.txt is higher again.
 	touch .venv/python-requirements-stamp
