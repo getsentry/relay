@@ -145,6 +145,17 @@ pub struct MetricExtractionConfig {
     /// tag extracted, the existing tag is left unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagMapping>,
+
+    /// This config has been extended with fields from `conditional_tagging`.
+    ///
+    /// At the moment, Relay will parse `conditional_tagging` rules and insert them into the `tags`
+    /// mapping in this struct. If the flag is `true`, this has already happened and should not be
+    /// repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    #[serde(default)]
+    pub _conditional_tags_extended: bool,
 }
 
 impl MetricExtractionConfig {
@@ -159,6 +170,7 @@ impl MetricExtractionConfig {
             version: Self::VERSION,
             metrics: Vec::new(),
             tags: Vec::new(),
+            _conditional_tags_extended: false,
         }
     }
 

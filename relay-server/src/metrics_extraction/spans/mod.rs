@@ -82,6 +82,7 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
                     .into(),
             },
         ],
+        _conditional_tags_extended: false,
     }
 });
 

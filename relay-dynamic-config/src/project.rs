@@ -94,9 +94,10 @@ impl ProjectConfig {
                 .metric_extraction
                 .get_or_insert_with(MetricExtractionConfig::empty);
 
-            // TODO(ja): Can we avoid duplicates for outbound project states?
-            let tags = metrics::convert_conditional_tagging(rules);
-            config.tags.extend(tags);
+            if !config._conditional_tags_extended {
+                let tags = metrics::convert_conditional_tagging(rules);
+                config.tags.extend(tags);
+            }
         }
     }
 }
