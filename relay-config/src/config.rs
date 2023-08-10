@@ -1756,8 +1756,9 @@ impl Config {
         Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
-    /// Returns the interval in seconds in which fresh global configs should be fetched from  upstream
-    pub fn global_config_interval(&self) -> Duration {
+    /// Returns the interval in seconds in which fresh global configs should be
+    /// fetched from  upstream.
+    pub fn global_config_fetch_interval(&self) -> Duration {
         Duration::from_secs(self.values.cache.global_config_interval.into())
     }
 

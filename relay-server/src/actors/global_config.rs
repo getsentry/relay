@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
 use tokio::sync::watch;
@@ -58,18 +59,18 @@ pub struct GlobalConfigService {
     sender: Arc<watch::Sender<Arc<GlobalConfig>>>,
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
-    /// Number of seconds to wait before making another request.
+    /// The duration to wait before fetching global configs from upstream.
     fetch_interval: Duration,
 }
 
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
-    pub fn new(fetch_interval: Duration, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (sender, _) = watch::channel(Arc::default());
         Self {
             sender: Arc::new(sender),
             upstream,
-            fetch_interval,
+            fetch_interval: config.global_config_fetch_interval(),
         }
     }
 

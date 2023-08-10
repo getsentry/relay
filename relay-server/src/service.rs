@@ -132,8 +132,7 @@ impl ServiceState {
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
         let global_config =
-            GlobalConfigService::new(config.global_config_interval(), upstream_relay.clone())
-                .start();
+            GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
         let processor = EnvelopeProcessorService::new(
