@@ -2082,7 +2082,7 @@ impl EnvelopeProcessorService {
             }
 
             if let Some(config) = config {
-                let metrics = crate::metrics_extraction::generic::extract_metrics(event, config);
+                let metrics = crate::metrics_extraction::event::extract_metrics(event, config);
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -2108,14 +2108,6 @@ impl EnvelopeProcessorService {
                     state.event_metrics_extracted |= true;
                 }
                 _ => (),
-            }
-
-            if state
-                .project_state
-                .has_feature(Feature::SpanMetricsExtraction)
-            {
-                let metrics = crate::metrics_extraction::spans::extract_metrics(event);
-                state.extracted_metrics.project_metrics.extend(metrics);
             }
 
             if state.event_metrics_extracted {

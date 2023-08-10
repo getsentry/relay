@@ -1,13 +1,13 @@
 use once_cell::sync::Lazy;
-use relay_common::DataCategory;
+use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
-use relay_general::protocol::Event;
+use relay_general::protocol::{Event, Span};
 use relay_general::store::LazyGlob;
 use relay_metrics::Metric;
 use relay_sampling::{EqCondition, RuleCondition};
 use serde_json::Value;
 
-use crate::metrics_extraction::generic;
+use crate::metrics_extraction::generic::{self, Extractable};
 use crate::statsd::RelayTimers;
 
 /// Configuration for extracting metrics from spans.
@@ -85,21 +85,55 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
     }
 });
 
-/// Extracts metrics from the spans of the given transaction.
-pub fn extract_metrics(event: &Event) -> Vec<Metric> {
-    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        let mut metrics = Vec::new();
+impl Extractable for Event {
+    fn category(&self) -> DataCategory {
+        // Obtain the event's data category, but treat default events as error events for the
+        // purpose of metric tagging.
+        match DataCategory::from(self.ty.value().copied().unwrap_or_default()) {
+            DataCategory::Default => DataCategory::Error,
+            category => category,
+        }
+    }
 
+    fn timestamp(&self) -> Option<UnixTimestamp> {
+        self.timestamp
+            .value()
+            .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
+    }
+}
+
+impl Extractable for Span {
+    fn category(&self) -> DataCategory {
+        DataCategory::Span
+    }
+
+    fn timestamp(&self) -> Option<UnixTimestamp> {
+        self.timestamp
+            .value()
+            .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
+    }
+}
+
+/// Extract metrics from an [`Event`].
+///
+/// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
+/// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
+/// valid timestamps.
+pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
+    let mut metrics = generic::extract_metrics(event, config);
+
+    // TODO(ja): if project_state.has_feature(Feature::SpanMetricsExtraction)
+    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
-                let Some(span) = annotated_span.value() else { continue };
-                let span_metrics = generic::extract_metrics(span, &SPAN_EXTRACTION_CONFIG);
-                metrics.extend(span_metrics);
+                if let Some(span) = annotated_span.value() {
+                    metrics.extend(generic::extract_metrics(span, &SPAN_EXTRACTION_CONFIG));
+                }
             }
         }
+    });
 
-        metrics
-    })
+    metrics
 }
 
 #[cfg(test)]
@@ -493,7 +527,7 @@ mod tests {
         )
         .unwrap();
 
-        let metrics = extract_metrics(event.value_mut().as_mut().unwrap());
+        let metrics = extract_metrics(event.value().unwrap(), &Default::default());
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -543,7 +577,7 @@ mod tests {
         )
         .unwrap();
 
-        let metrics = extract_metrics(event.value_mut().as_mut().unwrap());
+        let metrics = extract_metrics(event.value().unwrap(), &Default::default());
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 }

@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_general::protocol::{Event, Span, Timestamp};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
 
@@ -12,32 +11,7 @@ pub trait Extractable: FieldValueProvider {
     fn category(&self) -> DataCategory;
 
     /// The timestamp to associate with the extracted metrics.
-    fn timestamp(&self) -> Option<Timestamp>;
-}
-
-impl Extractable for Event {
-    fn category(&self) -> DataCategory {
-        // Obtain the event's data category, but treat default events as error events for the purpose of
-        // metric tagging.
-        match DataCategory::from(self.ty.value().copied().unwrap_or_default()) {
-            DataCategory::Default => DataCategory::Error,
-            category => category,
-        }
-    }
-
-    fn timestamp(&self) -> Option<Timestamp> {
-        self.timestamp.value().copied()
-    }
-}
-
-impl Extractable for Span {
-    fn category(&self) -> DataCategory {
-        DataCategory::Span
-    }
-
-    fn timestamp(&self) -> Option<Timestamp> {
-        self.timestamp.value().copied()
-    }
+    fn timestamp(&self) -> Option<UnixTimestamp>;
 }
 
 /// Extract metrics from any type that implements both [`Extractable`] and [`FieldValueProvider`].
@@ -51,9 +25,8 @@ where
 {
     let mut metrics = Vec::new();
 
-    let ts = instance.timestamp();
-    let Some(timestamp) = ts.and_then(|d| UnixTimestamp::from_datetime(d.0)) else {
-        relay_log::error!(timestamp = ?ts, "invalid event timestamp for metric extraction");
+    let Some(timestamp) = instance.timestamp() else {
+        relay_log::error!("invalid event timestamp for metric extraction");
         return metrics
     };
 
@@ -157,6 +130,7 @@ fn read_metric_value(
 
 #[cfg(test)]
 mod tests {
+    use relay_general::protocol::Event;
     use relay_general::types::FromValue;
     use serde_json::json;
 
