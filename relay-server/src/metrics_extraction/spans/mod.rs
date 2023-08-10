@@ -170,6 +170,30 @@ mod tests {
                     }
                 },
                 {
+                    "description": "POST http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.request.method": "POST"
+                    }
+                },
+                {
+                    "description": "PUT http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "method": "PUT"
+                    }
+                },
+                {
                     "description": "GET /hi/this/is/just/the/path",
                     "op": "http.client",
                     "parent_span_id": "8f5a2b8768cafb4e",
@@ -280,7 +304,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -304,7 +328,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -318,7 +342,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -342,7 +366,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -356,7 +380,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },

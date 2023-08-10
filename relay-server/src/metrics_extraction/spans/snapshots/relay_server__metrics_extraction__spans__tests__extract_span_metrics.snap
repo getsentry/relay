@@ -138,6 +138,154 @@ expression: event.value().unwrap().spans
             2020-08-21T02:18:20Z,
         ),
         exclusive_time: 2000.0,
+        description: "POST http://domain.tld/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd429c44b67a3eb4",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: ~,
+        tags: ~,
+        origin: ~,
+        data: {
+            "description.scrubbed": String(
+                "POST http://domain.tld",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.request.method": String(
+                "POST",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "POST",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.description": String(
+                "POST http://domain.tld",
+            ),
+            "span.domain": String(
+                "domain.tld",
+            ),
+            "span.group": String(
+                "25faf23529f71d3e",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
+        description: "PUT http://domain.tld/hi",
+        op: "http.client",
+        span_id: SpanId(
+            "bd429c44b67a3eb4",
+        ),
+        parent_span_id: SpanId(
+            "8f5a2b8768cafb4e",
+        ),
+        trace_id: TraceId(
+            "ff62a8b040f340bda5d830223def1d81",
+        ),
+        status: ~,
+        tags: ~,
+        origin: ~,
+        data: {
+            "description.scrubbed": String(
+                "PUT http://domain.tld",
+            ),
+            "environment": String(
+                "fake_environment",
+            ),
+            "http.status_code": String(
+                "500",
+            ),
+            "method": String(
+                "PUT",
+            ),
+            "release": String(
+                "1.2.3",
+            ),
+            "span.action": String(
+                "PUT",
+            ),
+            "span.category": String(
+                "http",
+            ),
+            "span.description": String(
+                "PUT http://domain.tld",
+            ),
+            "span.domain": String(
+                "domain.tld",
+            ),
+            "span.group": String(
+                "488f09b46e5978be",
+            ),
+            "span.module": String(
+                "http",
+            ),
+            "span.op": String(
+                "http.client",
+            ),
+            "transaction": String(
+                "gEt /api/:version/users/",
+            ),
+            "transaction.method": String(
+                "POST",
+            ),
+            "transaction.op": String(
+                "myop",
+            ),
+            "user": String(
+                "id:user123",
+            ),
+        },
+        other: {},
+    },
+    Span {
+        timestamp: Timestamp(
+            2020-08-21T02:18:22Z,
+        ),
+        start_timestamp: Timestamp(
+            2020-08-21T02:18:20Z,
+        ),
+        exclusive_time: 2000.0,
         description: "GET /hi/this/is/just/the/path",
         op: "http.client",
         span_id: SpanId(
@@ -728,7 +876,7 @@ expression: event.value().unwrap().spans
                 "SELECT",
             ),
             "db.system": String(
-                "MyDatabase",
+                "postgresql",
             ),
             "description.scrubbed": String(
                 "SeLeCt column FROM tAbLe WHERE id IN (%s)",
@@ -767,7 +915,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "mydatabase",
+                "postgresql",
             ),
             "transaction": String(
                 "gEt /api/:version/users/",
@@ -885,7 +1033,7 @@ expression: event.value().unwrap().spans
                 "INSERT",
             ),
             "db.system": String(
-                "MyDatabase",
+                "postgresql",
             ),
             "environment": String(
                 "fake_environment",
@@ -915,7 +1063,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "mydatabase",
+                "postgresql",
             ),
             "transaction": String(
                 "gEt /api/:version/users/",
@@ -959,7 +1107,7 @@ expression: event.value().unwrap().spans
                 "INSERT",
             ),
             "db.system": String(
-                "MyDatabase",
+                "postgresql",
             ),
             "environment": String(
                 "fake_environment",
@@ -989,7 +1137,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "mydatabase",
+                "postgresql",
             ),
             "transaction": String(
                 "gEt /api/:version/users/",
@@ -1098,7 +1246,7 @@ expression: event.value().unwrap().spans
                 "SELECT",
             ),
             "db.system": String(
-                "MyDatabase",
+                "postgresql",
             ),
             "description.scrubbed": String(
                 "SELECT * FROM table WHERE id IN (val)",
@@ -1137,7 +1285,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "mydatabase",
+                "postgresql",
             ),
             "transaction": String(
                 "gEt /api/:version/users/",
@@ -1181,7 +1329,7 @@ expression: event.value().unwrap().spans
                 "SELECT",
             ),
             "db.system": String(
-                "MyDatabase",
+                "postgresql",
             ),
             "description.scrubbed": String(
                 "SELECT col FROM table WHERE col = %s",
@@ -1220,7 +1368,7 @@ expression: event.value().unwrap().spans
                 "ok",
             ),
             "span.system": String(
-                "mydatabase",
+                "postgresql",
             ),
             "transaction": String(
                 "gEt /api/:version/users/",
