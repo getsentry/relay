@@ -6108,7 +6108,7 @@
                 .project_state
                 .has_feature(Feature::SpanMetricsExtraction)
             {
-                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::spans::extract_span_metrics(event)<span class="question-mark">?</span>;
+                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::spans::extract_metrics(event);
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
 
