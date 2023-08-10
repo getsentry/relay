@@ -11,9 +11,8 @@ use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 /// Service implementing the [`GlobalConfigManager`] interface.
 ///
 /// The service offers two alternatives to fetch the [`GlobalConfig`]:
-/// responding to a [`GlobalConfigManager::Get`] message with the config for
-/// one-off requests, or subscribing to updates with
-/// [`GlobalConfigManager::Subscribe`] to keep up-to-date.
+/// responding to a [`Get`] message with the config for one-off requests, or
+/// subscribing to updates with [`Subscribe`] to keep up-to-date.
 #[derive(Debug)]
 pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
