@@ -145,11 +145,34 @@ pub struct MetricExtractionConfig {
     /// tag extracted, the existing tag is left unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagMapping>,
+
+    /// This config has been extended with fields from `conditional_tagging`.
+    ///
+    /// At the moment, Relay will parse `conditional_tagging` rules and insert them into the `tags`
+    /// mapping in this struct. If the flag is `true`, this has already happened and should not be
+    /// repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    #[serde(default)]
+    pub _conditional_tags_extended: bool,
 }
 
 impl MetricExtractionConfig {
     /// The latest version for this config struct.
     pub const VERSION: u16 = 1;
+
+    /// Returns an empty `MetricExtractionConfig` with the latest version.
+    ///
+    /// As opposed to `default()`, this will be enabled once populated with specs.
+    pub fn empty() -> Self {
+        Self {
+            version: Self::VERSION,
+            metrics: Vec::new(),
+            tags: Vec::new(),
+            _conditional_tags_extended: false,
+        }
+    }
 
     /// Returns `true` if metric extraction is configured.
     pub fn is_enabled(&self) -> bool {
@@ -325,5 +348,47 @@ mod tests {
         let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
         let mapping: TagMapping = serde_json::from_str(json).unwrap();
         assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
+    }
+}
+
+/// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
+/// config.
+pub fn convert_conditional_tagging(rules: Vec<TaggingRule>) -> impl Iterator<Item = TagMapping> {
+    TaggingRuleConverter {
+        rules: rules.into_iter().peekable(),
+        tags: Vec::new(),
+    }
+}
+
+struct TaggingRuleConverter {
+    rules: std::iter::Peekable<std::vec::IntoIter<TaggingRule>>,
+    tags: Vec<TagSpec>,
+}
+
+impl Iterator for TaggingRuleConverter {
+    type Item = TagMapping;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let old = self.rules.next()?;
+
+            self.tags.push(TagSpec {
+                key: old.target_tag,
+                field: None,
+                value: Some(old.tag_value),
+                condition: Some(old.condition),
+            });
+
+            // Optimization: Collect tags for consecutive tagging rules for the same set of metrics.
+            // Then, emit a single entry with all tag specs at once.
+            if self.rules.peek().map(|r| &r.target_metrics) == Some(&old.target_metrics) {
+                continue;
+            }
+
+            return Some(TagMapping {
+                metrics: old.target_metrics.into_iter().map(LazyGlob::new).collect(),
+                tags: std::mem::take(&mut self.tags),
+            });
+        }
     }
 }

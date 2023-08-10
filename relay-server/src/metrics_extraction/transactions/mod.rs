@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
-use relay_dynamic_config::TransactionMetricsConfig;
+use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 use relay_general::store;
 use relay_metrics::{AggregatorConfig, Metric};
 
+use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
     TransactionMeasurementTags, TransactionMetric,
@@ -237,6 +238,7 @@ impl ExtractedMetrics {
 pub struct TransactionExtractor<'a> {
     pub aggregator_config: &'a AggregatorConfig,
     pub config: &'a TransactionMetricsConfig,
+    pub generic_tags: &'a [TagMapping],
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
@@ -383,6 +385,11 @@ impl TransactionExtractor<'_> {
             }
         }
 
+        // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
+        // metric extraction, after which this is done automatically.
+        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_tags);
+        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_tags);
+
         Ok(metrics)
     }
 }
@@ -489,32 +496,20 @@ mod tests {
         }
         "#;
 
+        let mut event = Annotated::from_json(json).unwrap();
+
         let breakdowns_config: BreakdownsConfig = serde_json::from_str(
-            r#"
-            {
+            r#"{
                 "span_ops": {
                     "type": "spanOperations",
                     "matches": ["react.mount"]
                 }
-            }
-        "#,
-        )
-        .unwrap();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-            {
-                "version": 1,
-                "extractCustomTags": ["fOO"]
-            }
-            "#,
+            }"#,
         )
         .unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
@@ -522,13 +517,22 @@ mod tests {
                 light_normalize_spans: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
+
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"{
+                "version": 1,
+                "extractCustomTags": ["fOO"]
+            }"#,
+        )
+        .unwrap();
 
         let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -698,18 +702,16 @@ mod tests {
         }
         "#;
 
+        // Normalize first, to make sure the units are correct:
+        let mut event = Annotated::from_json(json).unwrap();
+        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
+
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert_eq!(res, Ok(()));
-
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -789,18 +791,16 @@ mod tests {
             }
         }"#;
 
+        // Normalize first, to make sure the units are correct:
+        let mut event = Annotated::from_json(json).unwrap();
+        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
+
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{res:?}");
-
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -877,6 +877,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -887,11 +888,7 @@ mod tests {
 
         let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        if let MetricValue::Distribution(value) = duration_metric.value {
-            assert_eq!(value, 59000.0); // millis
-        } else {
-            panic!(); // Duration must be set
-        }
+        assert_eq!(duration_metric.value, MetricValue::Distribution(59000.0));
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
@@ -932,20 +929,21 @@ mod tests {
             }
         ))
         .unwrap();
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 measurements_config: Some(&measurements_config),
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok(), "{res:?}");
+        )
+        .unwrap();
 
         let config = TransactionMetricsConfig::default();
         let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1024,6 +1022,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1060,6 +1059,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1124,6 +1124,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1170,6 +1171,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1192,6 +1194,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1229,6 +1232,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("root_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1489,6 +1493,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1558,5 +1563,87 @@ mod tests {
         let user = User::default();
 
         assert!(get_eventuser_tag(&user).is_none());
+    }
+
+    #[test]
+    fn test_conditional_tagging() {
+        let event = Annotated::from_json(
+            r#"{
+                "type": "transaction",
+                "platform": "javascript",
+                "transaction": "foo",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "timestamp": "2021-04-26T08:00:02+0100",
+                "measurements": {
+                    "lcp": {"value": 41, "unit": "millisecond"}
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let config = TransactionMetricsConfig::new();
+        let aggregator_config = aggregator_config();
+        let generic_tags: Vec<TagMapping> = serde_json::from_str(
+            r#"[
+                {
+                    "metrics": ["d:transactions/duration@millisecond"],
+                    "tags": [
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 9001},
+                            "key": "satisfaction",
+                            "value": "frustrated"
+                        },
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 666},
+                            "key": "satisfaction",
+                            "value": "tolerated"
+                        },
+                        {
+                            "condition": {"op": "and", "inner": []},
+                            "key": "satisfaction",
+                            "value": "satisfied"
+                        }
+                    ]
+                }
+            ]"#,
+        )
+        .unwrap();
+
+        let extractor = TransactionExtractor {
+            aggregator_config: &aggregator_config,
+            config: &config,
+            generic_tags: &generic_tags,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "javascript",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "javascript",
+                    "satisfaction": "tolerated",
+                },
+            },
+        ]
+        "#);
     }
 }
