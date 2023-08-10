@@ -1,13 +1,60 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::time::Duration;
 
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
+use reqwest::Method;
+use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
-use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
-use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
+use crate::actors::upstream::{
+    RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
+};
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetGlobalConfigResponse {
+    #[serde(default)]
+    global: Option<GlobalConfig>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetGlobalConfig {
+    pub global: bool,
+}
+
+impl GetGlobalConfig {
+    pub fn query() -> GetGlobalConfig {
+        GetGlobalConfig { global: true }
+    }
+}
+
+impl UpstreamQuery for GetGlobalConfig {
+    type Response = GetGlobalConfigResponse;
+
+    fn method(&self) -> reqwest::Method {
+        Method::POST
+    }
+
+    fn path(&self) -> std::borrow::Cow<'static, str> {
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
+    }
+
+    fn retry() -> bool {
+        false
+    }
+
+    fn priority() -> super::upstream::RequestPriority {
+        RequestPriority::High
+    }
+
+    fn route(&self) -> &'static str {
+        "global_config"
+    }
+}
 
 /// The message for requesting the most recent global config from [`GlobalConfigService`].
 pub struct Get;
@@ -99,22 +146,16 @@ impl GlobalConfigService {
         let sender = Arc::clone(&self.sender);
 
         tokio::spawn(async move {
-            let query = GetProjectStates {
-                public_keys: vec![],
-                full_config: false,
-                no_cache: false,
-                global: true,
-            };
-
+            let query = GetGlobalConfig::query();
             match upstream_relay.send(SendQuery(query)).await {
                 Ok(res) => Self::handle_upstream_response(res, sender),
-                Err(_) => relay_log::error!("failed to send request to UpstreamService"),
+                Err(_) => relay_log::error!("failed to send request to upstream"),
             };
         });
     }
 
     fn handle_upstream_response(
-        response: Result<GetProjectStatesResponse, UpstreamRequestError>,
+        response: Result<GetGlobalConfigResponse, UpstreamRequestError>,
         sender: Arc<watch::Sender<Arc<GlobalConfig>>>,
     ) {
         match response {
