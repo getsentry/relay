@@ -8,7 +8,7 @@ use futures::future;
 use itertools::Itertools;
 use relay_common::ProjectKey;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
+use relay_dynamic_config::ErrorBoundary;
 use relay_statsd::metric;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
@@ -32,10 +32,9 @@ use crate::utils::{RetryBackoff, SleepHandle};
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStates {
-    pub public_keys: Vec<ProjectKey>,
-    pub full_config: bool,
-    pub no_cache: bool,
-    pub global: bool,
+    public_keys: Vec<ProjectKey>,
+    full_config: bool,
+    no_cache: bool,
 }
 
 /// The response of the projects states requests.
@@ -51,9 +50,6 @@ pub struct GetProjectStatesResponse {
     /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
     pub(crate) pending: Vec<ProjectKey>,
-    /// The global config fetched from the upstream.
-    #[serde(default)]
-    pub(crate) global: Option<GlobalConfig>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -64,7 +60,7 @@ impl UpstreamQuery for GetProjectStates {
     }
 
     fn path(&self) -> Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
     }
 
     fn priority() -> RequestPriority {
@@ -152,7 +148,7 @@ struct ChannelsBatch {
 }
 
 /// Collected Upstream responses, with associated project state channels.
-pub struct UpstreamResponse {
+struct UpstreamResponse {
     channels_batch: ProjectStateChannels,
     response: Result<GetProjectStatesResponse, UpstreamRequestError>,
 }
@@ -282,7 +278,6 @@ impl UpstreamProjectSourceService {
                 public_keys: channels_batch.keys().copied().collect(),
                 full_config: config.processing_enabled(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
-                global: false,
             };
 
             // count number of http requests for project states
