@@ -8,28 +8,6 @@ use tokio::sync::watch;
 use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
 use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 
-/// Service implementing the [`GlobalConfigManager`] interface.
-///
-/// The service offers two alternatives to fetch the [`GlobalConfig`]:
-/// responding to a [`Get`] message with the config for one-off requests, or
-/// subscribing to updates with [`Subscribe`] to keep up-to-date.
-#[derive(Debug)]
-pub struct GlobalConfigService {
-    /// Sender of the [`watch`] channel for the subscribers of the service.
-    // NOTE(iker): Placing the sender behind an Arc is a workaround to be able
-    // to send updates through this channel from invoked tasks where the global
-    // config request is made from upstream, since a watch sender cannot be
-    // cloned. To keep the latest config in the channel, it's assumed responses
-    // from the upstream are resolved faster than the fetch interval of this
-    // service. An alternative is to create a channel internal to the service
-    // and handle the updates through them.
-    sender: Arc<watch::Sender<Arc<GlobalConfig>>>,
-    /// Upstream service to request global configs from.
-    upstream: Addr<UpstreamRelay>,
-    /// Number of seconds to wait before making another request.
-    fetch_interval: u64,
-}
-
 /// A way to get updates of the global config.
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
@@ -60,6 +38,28 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
     fn from_message(_: Subscribe, sender: Sender<watch::Receiver<Arc<GlobalConfig>>>) -> Self {
         Self::Subscribe(sender)
     }
+}
+
+/// Service implementing the [`GlobalConfigManager`] interface.
+///
+/// The service offers two alternatives to fetch the [`GlobalConfig`]:
+/// responding to a [`Get`] message with the config for one-off requests, or
+/// subscribing to updates with [`Subscribe`] to keep up-to-date.
+#[derive(Debug)]
+pub struct GlobalConfigService {
+    /// Sender of the [`watch`] channel for the subscribers of the service.
+    // NOTE(iker): Placing the sender behind an Arc is a workaround to be able
+    // to send updates through this channel from invoked tasks where the global
+    // config request is made from upstream, since a watch sender cannot be
+    // cloned. To keep the latest config in the channel, it's assumed responses
+    // from the upstream are resolved faster than the fetch interval of this
+    // service. An alternative is to create a channel internal to the service
+    // and handle the updates through them.
+    sender: Arc<watch::Sender<Arc<GlobalConfig>>>,
+    /// Upstream service to request global configs from.
+    upstream: Addr<UpstreamRelay>,
+    /// Number of seconds to wait before making another request.
+    fetch_interval: u64,
 }
 
 impl GlobalConfigService {
