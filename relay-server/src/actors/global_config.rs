@@ -8,12 +8,12 @@ use tokio::sync::watch;
 use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
 use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 
-/// Service implementing the [`GlobalConfigInterface`] interface.
+/// Service implementing the [`GlobalConfigManager`] interface.
 ///
 /// The service offers two alternatives to fetch the [`GlobalConfig`]:
-/// responding to a [`GlobalConfigInterface::Get`] message with the config for
+/// responding to a [`GlobalConfigManager::Get`] message with the config for
 /// one-off requests, or subscribing to updates with
-/// [`GlobalConfigInterface::Subscribe`] to keep up-to-date.
+/// [`GlobalConfigManager::Subscribe`] to keep up-to-date.
 #[derive(Debug)]
 pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
@@ -32,19 +32,19 @@ pub struct GlobalConfigService {
 }
 
 /// A way to get updates of the global config.
-pub enum GlobalConfigInterface {
+pub enum GlobalConfigManager {
     /// Returns the most recent global config.
     Get(Sender<Arc<GlobalConfig>>),
     /// Returns a [`watch::Receiver`] where global config updates will be sent to.
     Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
 }
 
-impl Interface for GlobalConfigInterface {}
+impl Interface for GlobalConfigManager {}
 
 /// The message for requesting the most recent global config from [`GlobalConfigService`].
 pub struct Get;
 
-impl FromMessage<Get> for GlobalConfigInterface {
+impl FromMessage<Get> for GlobalConfigManager {
     type Response = AsyncResponse<Arc<GlobalConfig>>;
 
     fn from_message(_: Get, sender: Sender<Arc<GlobalConfig>>) -> Self {
@@ -55,7 +55,7 @@ impl FromMessage<Get> for GlobalConfigInterface {
 /// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
 pub struct Subscribe;
 
-impl FromMessage<Subscribe> for GlobalConfigInterface {
+impl FromMessage<Subscribe> for GlobalConfigManager {
     type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
 
     fn from_message(_: Subscribe, sender: Sender<watch::Receiver<Arc<GlobalConfig>>>) -> Self {
@@ -74,12 +74,12 @@ impl GlobalConfigService {
         }
     }
 
-    fn handle_message(&self, message: GlobalConfigInterface) {
+    fn handle_message(&self, message: GlobalConfigManager) {
         match message {
-            GlobalConfigInterface::Get(sender) => {
+            GlobalConfigManager::Get(sender) => {
                 sender.send(self.sender.borrow().clone());
             }
-            GlobalConfigInterface::Subscribe(sender) => {
+            GlobalConfigManager::Subscribe(sender) => {
                 sender.send(self.sender.subscribe());
             }
         }
@@ -129,7 +129,7 @@ impl GlobalConfigService {
 }
 
 impl Service for GlobalConfigService {
-    type Interface = GlobalConfigInterface;
+    type Interface = GlobalConfigManager;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
