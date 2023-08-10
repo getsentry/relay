@@ -12,10 +12,12 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::defaults;
+use crate::error_boundary::ErrorBoundary;
+use crate::feature::FeatureSet;
 use crate::metrics::{
     self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::{ErrorBoundary, FeatureSet};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,20 +87,8 @@ impl ProjectConfig {
     pub fn sanitize(&mut self) {
         self.quotas.retain(Quota::is_valid);
 
-        // NOTE: This clones the rules so that they remain in the project state for old Relays that
-        // do not support generic metrics extraction. Once the migration is complete, this can be
-        // removed with a version bump of the transaction metrics config.
-        let rules = self.metric_conditional_tagging.clone();
-        if !rules.is_empty() {
-            let config = self
-                .metric_extraction
-                .get_or_insert_with(MetricExtractionConfig::empty);
-
-            if !config._conditional_tags_extended {
-                let tags = metrics::convert_conditional_tagging(rules);
-                config.tags.extend(tags);
-            }
-        }
+        metrics::convert_conditional_tagging(self);
+        defaults::add_span_metrics(self);
     }
 }
 
