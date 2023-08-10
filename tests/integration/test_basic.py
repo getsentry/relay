@@ -228,7 +228,7 @@ def test_corp_response_header(mini_sentry, relay, cross_origin_resource_policy):
     relay = relay(mini_sentry)
 
     response = relay.post(
-        "/api/42/store/?sentry_key=%s" % mini_sentry.get_dsn_public_key(project_id),
+        f"/api/42/store/?sentry_key={mini_sentry.get_dsn_public_key(project_id)}",
     )
 
     assert (
