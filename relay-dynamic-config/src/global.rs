@@ -19,6 +19,16 @@ pub struct GlobalConfig {
     pub metric_conditional_tagging: Vec<TaggingRule>,
 }
 
+impl GlobalConfig {
+    /// Returns whether the config is empty.
+    ///
+    /// For now, during development, the config is considered to never be empty
+    /// to not block dependent services.
+    pub fn empty(&self) -> bool {
+        false
+    }
+}
+
 impl Default for GlobalConfig {
     fn default() -> Self {
         Self {

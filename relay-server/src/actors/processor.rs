@@ -524,12 +524,25 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
     }
 }
 
+/// Defines whether the [`EnvelopeProcessorService`] is ready to process incoming messages.
+#[derive(Clone, Debug)]
+enum ProcessingAvailability {
+    /// Ready to process incoming messages.
+    Ready,
+    /// Not ready to process incoming messages.
+    ///
+    /// This happens when the service is missing something critical to process
+    /// messages; for example, the [`GlobalConfig`].
+    Blocked,
+}
+
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
     global_config: Arc<GlobalConfig>,
+    state: ProcessingAvailability,
     inner: Arc<InnerProcessor>,
 }
 
@@ -582,8 +595,22 @@ impl EnvelopeProcessorService {
 
         Self {
             global_config: Arc::new(GlobalConfig::default()),
+            state: ProcessingAvailability::Blocked,
             inner: Arc::new(inner),
         }
+    }
+
+    /// Sets the service ready to process incoming messages.
+    pub fn enable_processing(&mut self) {
+        match self.state {
+            ProcessingAvailability::Blocked => self.state = ProcessingAvailability::Ready,
+            ProcessingAvailability::Ready => (),
+        };
+    }
+
+    /// Returns whether the service is ready to process incoming messages.
+    pub fn ready(&self) -> bool {
+        matches!(self.state, ProcessingAvailability::Ready)
     }
 
     /// Returns Ok(true) if attributes were modified.
@@ -2782,11 +2809,17 @@ impl Service for EnvelopeProcessorService {
                 tokio::select! {
                    biased;
 
-                    _ = global_config_rx.changed() => self.global_config = global_config_rx.borrow().clone(),
+                    _ = global_config_rx.changed() => {
+                        let global_config = global_config_rx.borrow().clone();
+                        if !global_config.empty() {
+                            self.global_config = global_config;
+                            self.enable_processing();
+                        }
+                    },
                     (Some(message), Ok(permit)) = async {tokio::join!(
                         rx.recv(),
                         semaphore.clone().acquire_owned()
-                    )} => {
+                    )}, if self.ready() => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
                             service.handle_message(message);
