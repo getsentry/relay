@@ -315,18 +315,18 @@ def mini_sentry(request):  # noqa
 
         version = flask_request.args.get("version")
         if version in [None, "1"]:
-            for project_id in flask_request.json.get("projects", []):
+            for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
                 if is_trusted(relay_id, project_config):
                     configs[project_id] = project_config
 
-        if version in ["2", "3", "4"]:
+        elif version in ["2", "3", "4"]:
             if version == "4":
                 if flask_request.json.get("global") or True:
                     global_key["measurements"] = {"maxCustomMeasurements": 0}
                     global_key["metricsConditionalTagging"] = []
 
-            for public_key in flask_request.json.get("publicKeys", []):
+            for public_key in flask_request.json["publicKeys"]:
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
                     for key in project_config["publicKeys"]:
@@ -348,7 +348,7 @@ def mini_sentry(request):  # noqa
                                 configs[public_key]["publicKeys"] = [key]
 
         else:
-            abort(500, "unsupported version")
+            abort(500, f"unsupported version: {version}")
 
         response["configs"] = configs
         response["pending"] = pending
