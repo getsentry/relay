@@ -1,6 +1,7 @@
 minVersion: 0.23.1
 changelogPolicy: auto
 
+
 targets:
   - name: github
   - name: registry
