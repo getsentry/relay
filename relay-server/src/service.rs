@@ -285,7 +285,7 @@ impl ServiceState {
         &self.inner.registry.processor
     }
 
-    /// Returns the address of the [`GlobalConfigurationService`] service.
+    /// Returns the address of the [`GlobalConfigService`] service.
     pub fn global_config(&self) -> &Addr<GlobalConfigInterface> {
         &self.inner.registry.global_config
     }
