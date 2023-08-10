@@ -87,7 +87,7 @@ impl ProjectConfig {
 
         // NOTE: This clones the rules so that they remain in the project state for old Relays that
         // do not support generic metrics extraction. Once the migration is complete, this can be
-        // removed with a version bump of the transaction metrics config
+        // removed with a version bump of the transaction metrics config.
         let rules = self.metric_conditional_tagging.clone();
         if !rules.is_empty() {
             let config = self
