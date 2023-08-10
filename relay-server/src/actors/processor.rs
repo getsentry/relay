@@ -581,7 +581,7 @@ impl EnvelopeProcessorService {
         };
 
         Self {
-            global_config: Arc::new(GlobalConfig::default()),
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -3030,7 +3030,7 @@ mod tests {
             ProcessEnvelopeState {
                 event: Annotated::from(event),
                 metrics: Default::default(),
-                _global_config: Arc::new(GlobalConfig::default()),
+                _global_config: Arc::default(),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
@@ -3099,7 +3099,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                _global_config: Arc::new(GlobalConfig::default()),
+                _global_config: Arc::default(),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
@@ -3261,7 +3261,7 @@ mod tests {
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::new(GlobalConfig::default()),
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }

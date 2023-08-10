@@ -65,7 +65,7 @@ pub struct GlobalConfigService {
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
-        let (sender, _) = watch::channel(Arc::new(GlobalConfig::default()));
+        let (sender, _) = watch::channel(Arc::default());
         Self {
             sender: Arc::new(sender),
             upstream,
