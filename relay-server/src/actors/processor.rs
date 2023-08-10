@@ -2816,10 +2816,10 @@ impl Service for EnvelopeProcessorService {
                             self.enable_processing();
                         }
                     },
-                    (Some(message), Ok(permit)) = async {tokio::join!(
+                    (Some(message), Ok(permit)) = futures::future::join(
                         rx.recv(),
                         semaphore.clone().acquire_owned()
-                    )}, if self.ready() => {
+                    ), if self.ready() => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
                             service.handle_message(message);
