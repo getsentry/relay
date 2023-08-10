@@ -7,6 +7,8 @@ use relay_general::store::LazyGlob;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
+use crate::project::ProjectConfig;
+
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -156,6 +158,16 @@ pub struct MetricExtractionConfig {
     /// is bumped to `2`.
     #[serde(default)]
     pub _conditional_tags_extended: bool,
+
+    /// This config has been extended with default span metrics.
+    ///
+    /// Relay checks for the span extraction flag and adds built-in metrics and tags to this struct.
+    /// If the flag is `true`, this has already happened and should not be repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    #[serde(default)]
+    pub _span_metrics_extended: bool,
 }
 
 impl MetricExtractionConfig {
@@ -171,6 +183,7 @@ impl MetricExtractionConfig {
             metrics: Vec::new(),
             tags: Vec::new(),
             _conditional_tags_extended: false,
+            _span_metrics_extended: false,
         }
     }
 
@@ -353,19 +366,40 @@ mod tests {
 
 /// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
 /// config.
-pub fn convert_conditional_tagging(rules: Vec<TaggingRule>) -> impl Iterator<Item = TagMapping> {
-    TaggingRuleConverter {
-        rules: rules.into_iter().peekable(),
-        tags: Vec::new(),
+pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
+    // NOTE: This clones the rules so that they remain in the project state for old Relays that
+    // do not support generic metrics extraction. Once the migration is complete, this can be
+    // removed with a version bump of the transaction metrics config.
+    let rules = &project_config.metric_conditional_tagging;
+    if rules.is_empty() {
+        return;
     }
+
+    let config = project_config
+        .metric_extraction
+        .get_or_insert_with(MetricExtractionConfig::empty);
+
+    if config._conditional_tags_extended {
+        return;
+    }
+
+    config.tags.extend(TaggingRuleConverter {
+        rules: rules.iter().cloned().peekable(),
+        tags: Vec::new(),
+    });
+
+    config._conditional_tags_extended = true;
 }
 
-struct TaggingRuleConverter {
-    rules: std::iter::Peekable<std::vec::IntoIter<TaggingRule>>,
+struct TaggingRuleConverter<I: Iterator<Item = TaggingRule>> {
+    rules: std::iter::Peekable<I>,
     tags: Vec<TagSpec>,
 }
 
-impl Iterator for TaggingRuleConverter {
+impl<I> Iterator for TaggingRuleConverter<I>
+where
+    I: Iterator<Item = TaggingRule>,
+{
     type Item = TagMapping;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -1,89 +1,10 @@
-use once_cell::sync::Lazy;
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
+use relay_dynamic_config::MetricExtractionConfig;
 use relay_general::protocol::{Event, Span};
-use relay_general::store::LazyGlob;
 use relay_metrics::Metric;
-use relay_sampling::{EqCondition, RuleCondition};
-use serde_json::Value;
 
 use crate::metrics_extraction::generic::{self, Extractable};
 use crate::statsd::RelayTimers;
-
-/// Configuration for extracting metrics from spans.
-///
-/// This configuration is temporarily hard-coded here. It will later be moved to project config
-/// and be provided by the upstream.
-static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
-    MetricExtractionConfig {
-        version: MetricExtractionConfig::VERSION,
-        metrics: vec![
-            MetricSpec {
-                category: DataCategory::Span,
-                mri: "d:spans/exclusive_time@millisecond".into(),
-                field: Some("span.exclusive_time".into()),
-                condition: None,
-                tags: vec![TagSpec {
-                    key: "transaction".into(),
-                    field: Some("span.data.transaction".into()),
-                    value: None,
-                    condition: None,
-                }],
-            },
-            MetricSpec {
-                category: DataCategory::Span,
-                mri: "d:spans/exclusive_time_light@millisecond".into(),
-                field: Some("span.exclusive_time".into()),
-                condition: None,
-                tags: Default::default(),
-            },
-        ],
-        tags: vec![
-            TagMapping {
-                metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-                tags: [
-                    "environment",
-                    "http.status_code",
-                    "span.action",
-                    "span.category",
-                    "span.description",
-                    "span.domain",
-                    "span.group",
-                    "span.module",
-                    "span.op",
-                    "span.status_code",
-                    "span.status",
-                    "span.system",
-                    "transaction.method",
-                    "transaction.op",
-                ]
-                .map(|key| TagSpec {
-                    key: key.into(),
-                    field: Some(format!("span.data.{}", key.replace('.', "\\."))),
-                    value: None,
-                    condition: None,
-                })
-                .into(),
-            },
-            TagMapping {
-                metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-                tags: ["release", "device.class"] // TODO: sentry PR for static strings
-                    .map(|key| TagSpec {
-                        key: key.into(),
-                        field: Some(format!("span.data.{}", key.replace('.', "\\."))),
-                        value: None,
-                        condition: Some(RuleCondition::Eq(EqCondition {
-                            name: "span.data.mobile".into(),
-                            value: Value::Bool(true),
-                            options: Default::default(),
-                        })),
-                    })
-                    .into(),
-            },
-        ],
-        _conditional_tags_extended: false,
-    }
-});
 
 impl Extractable for Event {
     fn category(&self) -> DataCategory {
@@ -119,15 +40,16 @@ impl Extractable for Span {
 /// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
+///
+/// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
     let mut metrics = generic::extract_metrics(event, config);
 
-    // TODO(ja): if project_state.has_feature(Feature::SpanMetricsExtraction)
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
         if let Some(spans) = event.spans.value() {
             for annotated_span in spans {
                 if let Some(span) = annotated_span.value() {
-                    metrics.extend(generic::extract_metrics(span, &SPAN_EXTRACTION_CONFIG));
+                    metrics.extend(generic::extract_metrics(span, config));
                 }
             }
         }
@@ -138,6 +60,7 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Me
 
 #[cfg(test)]
 mod tests {
+    use relay_dynamic_config::{Feature, ProjectConfig};
     use relay_general::store::{self, LightNormalizationConfig};
     use relay_general::types::Annotated;
 
@@ -527,7 +450,15 @@ mod tests {
         )
         .unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &Default::default());
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -577,7 +508,15 @@ mod tests {
         )
         .unwrap();
 
-        let metrics = extract_metrics(event.value().unwrap(), &Default::default());
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
+
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 }
