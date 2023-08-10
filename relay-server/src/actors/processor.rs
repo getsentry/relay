@@ -2793,6 +2793,8 @@ impl Service for EnvelopeProcessorService {
                             drop(permit);
                         });
                     },
+
+                    else => break
                 }
             }
         });
