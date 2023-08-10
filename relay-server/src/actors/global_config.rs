@@ -98,18 +98,11 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 #[derive(Debug)]
 pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
-    // NOTE(iker): Placing the sender behind an Arc is a workaround to be able
-    // to send updates through this channel from invoked tasks where the global
-    // config request is made from upstream, since a watch sender cannot be
-    // cloned. To keep the latest config in the channel, it's assumed responses
-    // from the upstream are resolved faster than the fetch interval of this
-    // service. An alternative is to create a channel internal to the service
-    // and handle the updates through them.
     sender: watch::Sender<Arc<GlobalConfig>>,
     /// Sender of the internal channel to forward global configs from upstream.
-    internal_tx: UnboundedSender<Arc<GlobalConfig>>,
+    internal_tx: UnboundedSender<Result<GetGlobalConfigResponse, UpstreamRequestError>>,
     /// Receiver of the internal channel to forward global configs from upstream.
-    internal_rx: UnboundedReceiver<Arc<GlobalConfig>>,
+    internal_rx: UnboundedReceiver<Result<GetGlobalConfigResponse, UpstreamRequestError>>,
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
     /// The duration to wait before fetching global configs from upstream.
@@ -155,13 +148,8 @@ impl GlobalConfigService {
 
     /// Requests a new global config from upstream.
     ///
-    /// This function does not check any authentication since the upstream
-    /// service deals with it (including observability):
-    /// - If Relay is authenticated, requests will complete as expected.
-    /// - If Relay isn't authenticated yet, the following request to successfull
-    /// authentication will happen.
-    /// - If Relay is permanently blocked, the upstream service will error on
-    /// requests.
+    /// As the upstream service is responsible for authentication, the global
+    /// config service doesn't deal with it.
     fn update_global_config(&mut self) {
         self.fetch_handle.reset();
 
@@ -171,7 +159,14 @@ impl GlobalConfigService {
         tokio::spawn(async move {
             let query = GetGlobalConfig::query();
             match upstream_relay.send(SendQuery(query)).await {
-                Ok(res) => Self::handle_upstream_response(res, internal_tx),
+                // TODO(iker): add observability on the request.
+                Ok(res) => {
+                    if internal_tx.send(res).is_err() {
+                        relay_log::error!("failed to forward internally the upstream response");
+                    }
+                }
+                // FIXME(iker): if the request to upstream fails, we should
+                // reschedule another fetch anyway.
                 Err(_) => relay_log::error!("failed to send request to upstream"),
             };
         });
@@ -180,13 +175,13 @@ impl GlobalConfigService {
     /// Handles the global config response from upstream, forwarding the global
     /// config through the internal channel if succesfully received.
     fn handle_upstream_response(
+        &mut self,
         response: Result<GetGlobalConfigResponse, UpstreamRequestError>,
-        internal_tx: UnboundedSender<Arc<GlobalConfig>>,
     ) {
         match response {
             Ok(config) => match config.global {
                 Some(global_config) => {
-                    if internal_tx.send(Arc::new(global_config)).is_err() {
+                    if self.sender.send(Arc::new(global_config)).is_err() {
                         relay_log::error!("failed to forward the global config internally");
                     }
                 }
@@ -197,13 +192,6 @@ impl GlobalConfigService {
                 "failed to fetch global config from upstream"
             ),
         };
-    }
-
-    /// Forwards the global config to the subscribers of the service.
-    fn forward_global_config(&mut self, global_config: Arc<GlobalConfig>) {
-        if self.sender.send(global_config).is_err() {
-            relay_log::error!("failed to forward the global config to subscribers");
-        }
         self.schedule_fetch();
     }
 }
@@ -215,6 +203,9 @@ impl Service for GlobalConfigService {
         tokio::spawn(async move {
             relay_log::info!("global config service starting");
 
+            // NOTE(iker): if this first request fails it's possible the default
+            // global config is forwarded. This is not ideal, but we accept it
+            // for now.
             self.update_global_config();
 
             loop {
@@ -222,7 +213,7 @@ impl Service for GlobalConfigService {
                     biased;
 
                     () = &mut self.fetch_handle => self.update_global_config(),
-                    Some(global_config) = self.internal_rx.recv() => self.forward_global_config(global_config),
+                    Some(global_config) = self.internal_rx.recv() => self.handle_upstream_response(global_config),
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,
