@@ -2114,7 +2114,7 @@ impl EnvelopeProcessorService {
                 .project_state
                 .has_feature(Feature::SpanMetricsExtraction)
             {
-                let metrics = crate::metrics_extraction::spans::extract_span_metrics(event)?;
+                let metrics = crate::metrics_extraction::spans::extract_metrics(event);
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
 
