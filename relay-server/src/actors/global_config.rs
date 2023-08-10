@@ -8,12 +8,44 @@ use tokio::sync::watch;
 use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
 use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 
-/// Service implementing the [`GlobalConfigInterface`] interface.
+/// A way to get updates of the global config.
+pub enum GlobalConfigManager {
+    /// Returns the most recent global config.
+    Get(Sender<Arc<GlobalConfig>>),
+    /// Returns a [`watch::Receiver`] where global config updates will be sent to.
+    Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
+}
+
+impl Interface for GlobalConfigManager {}
+
+/// The message for requesting the most recent global config from [`GlobalConfigService`].
+pub struct Get;
+
+impl FromMessage<Get> for GlobalConfigManager {
+    type Response = AsyncResponse<Arc<GlobalConfig>>;
+
+    fn from_message(_: Get, sender: Sender<Arc<GlobalConfig>>) -> Self {
+        Self::Get(sender)
+    }
+}
+
+/// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
+pub struct Subscribe;
+
+impl FromMessage<Subscribe> for GlobalConfigManager {
+    type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
+
+    fn from_message(_: Subscribe, sender: Sender<watch::Receiver<Arc<GlobalConfig>>>) -> Self {
+        Self::Subscribe(sender)
+    }
+}
+
+/// Service implementing the [`GlobalConfigManager`] interface.
 ///
 /// The service offers two alternatives to fetch the [`GlobalConfig`]:
-/// responding to a [`GlobalConfigInterface::Get`] message with the config for
+/// responding to a [`GlobalConfigManager::Get`] message with the config for
 /// one-off requests, or subscribing to updates with
-/// [`GlobalConfigInterface::Subscribe`] to keep up-to-date.
+/// [`Subscribe`] to keep up-to-date.
 #[derive(Debug)]
 pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
@@ -28,58 +60,26 @@ pub struct GlobalConfigService {
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
     /// Number of seconds to wait before making another request.
-    fetch_interval: u64,
-}
-
-/// A way to get updates of the global config.
-pub enum GlobalConfigInterface {
-    /// Returns the most recent global config.
-    Get(Sender<Arc<GlobalConfig>>),
-    /// Returns a [`watch::Receiver`] where global config updates will be sent to.
-    Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
-}
-
-impl Interface for GlobalConfigInterface {}
-
-/// The message for requesting the most recent global config from [`GlobalConfigService`].
-pub struct Get;
-
-impl FromMessage<Get> for GlobalConfigInterface {
-    type Response = AsyncResponse<Arc<GlobalConfig>>;
-
-    fn from_message(_: Get, sender: Sender<Arc<GlobalConfig>>) -> Self {
-        Self::Get(sender)
-    }
-}
-
-/// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
-pub struct Subscribe;
-
-impl FromMessage<Subscribe> for GlobalConfigInterface {
-    type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
-
-    fn from_message(_: Subscribe, sender: Sender<watch::Receiver<Arc<GlobalConfig>>>) -> Self {
-        Self::Subscribe(sender)
-    }
+    fetch_interval: Duration,
 }
 
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
-    pub fn new(upstream: Addr<UpstreamRelay>) -> Self {
-        let (sender, _) = watch::channel(Arc::new(GlobalConfig::default()));
+    pub fn new(fetch_interval: Duration, upstream: Addr<UpstreamRelay>) -> Self {
+        let (sender, _) = watch::channel(Arc::default());
         Self {
             sender: Arc::new(sender),
             upstream,
-            fetch_interval: 10,
+            fetch_interval,
         }
     }
 
-    fn handle_message(&self, message: GlobalConfigInterface) {
+    fn handle_message(&self, message: GlobalConfigManager) {
         match message {
-            GlobalConfigInterface::Get(sender) => {
+            GlobalConfigManager::Get(sender) => {
                 sender.send(self.sender.borrow().clone());
             }
-            GlobalConfigInterface::Subscribe(sender) => {
+            GlobalConfigManager::Subscribe(sender) => {
                 sender.send(self.sender.subscribe());
             }
         }
@@ -108,9 +108,7 @@ impl GlobalConfigService {
 
             match upstream_relay.send(SendQuery(query)).await {
                 Ok(res) => Self::handle_upstream_response(res, sender),
-                Err(_) => relay_log::error!(
-                    "GlobalConfigService failed to send request to UpstreamService"
-                ),
+                Err(_) => relay_log::error!("failed to send request to UpstreamService"),
             };
         });
     }
@@ -122,20 +120,20 @@ impl GlobalConfigService {
         if let Ok(config) = response {
             match config.global {
                 Some(global_config) => _ = sender.send(Arc::new(global_config)),
-                None => relay_log::error!("Global config missing in upstream response"),
+                None => relay_log::error!("global config missing in upstream response"),
             };
         }
     }
 }
 
 impl Service for GlobalConfigService {
-    type Interface = GlobalConfigInterface;
+    type Interface = GlobalConfigManager;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
             relay_log::info!("global config service starting");
 
-            let mut ticker = tokio::time::interval(Duration::from_secs(self.fetch_interval));
+            let mut ticker = tokio::time::interval(self.fetch_interval);
 
             loop {
                 tokio::select! {

@@ -18,7 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
-use crate::actors::global_config::{GlobalConfigInterface, Subscribe};
+use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -537,7 +537,7 @@ struct InnerProcessor {
     config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
-    global_config: Addr<GlobalConfigInterface>,
+    global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -553,7 +553,7 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
-        global_config: Addr<GlobalConfigInterface>,
+        global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
@@ -581,7 +581,7 @@ impl EnvelopeProcessorService {
         };
 
         Self {
-            global_config: Arc::new(GlobalConfig::default()),
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -2783,10 +2783,11 @@ impl Service for EnvelopeProcessorService {
                    biased;
 
                     _ = global_config_rx.changed() => self.global_config = global_config_rx.borrow().clone(),
-                    (Some(message), Ok(permit)) = async {tokio::join!(
+                            (Some(message), Ok(permit)) =  futures::future::join(
                         rx.recv(),
                         semaphore.clone().acquire_owned()
-                    )} => {
+                    ) => {
+
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
                             service.handle_message(message);
@@ -3019,7 +3020,7 @@ mod tests {
             ProcessEnvelopeState {
                 event: Annotated::from(event),
                 metrics: Default::default(),
-                _global_config: Arc::new(GlobalConfig::default()),
+                _global_config: Arc::default(),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
@@ -3088,7 +3089,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                _global_config: Arc::new(GlobalConfig::default()),
+                _global_config: Arc::default(),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
@@ -3250,7 +3251,7 @@ mod tests {
         };
 
         EnvelopeProcessorService {
-            global_config: Arc::new(GlobalConfig::default()),
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
