@@ -10,8 +10,10 @@ use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 
 /// Service implementing the [`GlobalConfigInterface`] interface.
 ///
-/// The service is responsible for fetching the global config and
-/// forwarding it to the services that require it, and for serving downstream relays.
+/// The service offers two alternatives to fetch the [`GlobalConfig`]:
+/// responding to a [`GlobalConfigInterface::Get`] message with the config for
+/// one-off requests, or subscribing to updates with
+/// [`GlobalConfigInterface::Subscribe`] to keep up-to-date.
 #[derive(Debug)]
 pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
@@ -23,16 +25,17 @@ pub struct GlobalConfigService {
     // service. An alternative is to create a channel internal to the service
     // and handle the updates through them.
     sender: Arc<watch::Sender<Arc<GlobalConfig>>>,
+    /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
     /// Number of seconds to wait before making another request.
     fetch_interval: u64,
 }
 
-/// Global Config service interface
+/// A way to get updates of the global config.
 pub enum GlobalConfigInterface {
-    /// Used to receive the most recently fetched global config.
+    /// Returns the most recent global config.
     Get(Sender<Arc<GlobalConfig>>),
-    /// Used to receive a watch that will notify about new global configs.
+    /// Returns a [`watch::Receiver`] where global config updates will be sent to.
     Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
 }
 
