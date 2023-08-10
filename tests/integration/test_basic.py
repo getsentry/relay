@@ -214,3 +214,23 @@ def test_compression(mini_sentry, relay, content_encoding):
         data=encodings[content_encoding](b'{"message": "hello world"}'),
     )
     response.raise_for_status()
+
+
+@pytest.mark.parametrize(
+    "cross_origin_resource_policy",
+    [
+        "cross-origin",
+    ],
+)
+def test_corp_response_header(mini_sentry, relay, cross_origin_resource_policy):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+    relay = relay(mini_sentry)
+
+    response = relay.post(
+        f"/api/42/store/?sentry_key={mini_sentry.get_dsn_public_key(project_id)}",
+    )
+
+    assert (
+        response.headers["cross-origin-resource-policy"] == cross_origin_resource_policy
+    )

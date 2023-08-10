@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::http::{header, HeaderValue};
+use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
 use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 use relay_config::Config;
@@ -74,6 +74,10 @@ impl Service for HttpServer {
             .layer(SetResponseHeaderLayer::overriding(
                 header::SERVER,
                 HeaderValue::from_static(constants::SERVER),
+            ))
+            .layer(SetResponseHeaderLayer::overriding(
+                HeaderName::from_static("cross-origin-resource-policy"),
+                HeaderValue::from_static("cross-origin"),
             ))
             .layer(NewSentryLayer::new_from_top())
             .layer(SentryHttpLayer::with_transaction())

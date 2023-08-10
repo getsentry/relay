@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `Cross-Origin-Resource-Policy` HTTP header to responses. ([#2394](https://github.com/getsentry/relay/pull/2394))
+
+
 ## 23.7.2
 
 **Features**:
