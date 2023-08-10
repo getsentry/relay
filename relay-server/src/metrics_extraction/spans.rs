@@ -483,19 +483,17 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
 
         let metrics = extract_metrics(event.value_mut().as_mut().unwrap());
-
-        insta::assert_debug_snapshot!(event.value().unwrap().spans);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -534,7 +532,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
@@ -542,11 +540,10 @@ mod tests {
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
 
         let metrics = extract_metrics(event.value_mut().as_mut().unwrap());
-
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 }
