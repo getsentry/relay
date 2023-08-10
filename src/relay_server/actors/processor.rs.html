@@ -3992,10 +3992,6 @@
 <a href="#3992" id="3992">3992</a>
 <a href="#3993" id="3993">3993</a>
 <a href="#3994" id="3994">3994</a>
-<a href="#3995" id="3995">3995</a>
-<a href="#3996" id="3996">3996</a>
-<a href="#3997" id="3997">3997</a>
-<a href="#3998" id="3998">3998</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6064,24 +6060,29 @@
     ///  - This functionality is incomplete. At this point, extraction is implemented only for
     ///    transaction events.
     </span><span class="kw">fn </span>extract_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="comment">// NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
+        // will upsert this configuration from transaction and conditional tagging fields, even if
+        // it is not present in the actual project config payload. Once transaction metric
+        // extraction is moved to generic metrics, this can be converted into an early return.
+        </span><span class="kw">let </span>config = <span class="kw">match </span>state.project_state.config.metric_extraction {
+            ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        };
+
         <span class="comment">// TODO: Make span metrics extraction immutable
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value() {
             <span class="kw">if </span>state.event_metrics_extracted {
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
 
-            <span class="kw">match </span>state.project_state.config.metric_extraction {
-                ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; {
-                    <span class="kw">let </span>metrics =
-                        <span class="kw">crate</span>::metrics_extraction::generic::extract_metrics_from(event, config);
-                    state.event_metrics_extracted |= !metrics.is_empty();
-                    state.extracted_metrics.project_metrics.extend(metrics);
-                }
-                <span class="kw">_ </span>=&gt; (),
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
+                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::generic::extract_metrics(event, config);
+                state.event_metrics_extracted |= !metrics.is_empty();
+                state.extracted_metrics.project_metrics.extend(metrics);
             }
 
             <span class="kw">match </span>state.project_state.config.transaction_metrics {
-                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>config.is_enabled() =&gt; {
+                <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>tx_config)) <span class="kw">if </span>tx_config.is_enabled() =&gt; {
                     <span class="kw">let </span>transaction_from_dsc = state
                         .managed_envelope
                         .envelope()
@@ -6090,23 +6091,14 @@
 
                     <span class="kw">let </span>extractor = TransactionExtractor {
                         aggregator_config: <span class="self">self</span>.inner.config.aggregator_config(),
-                        config,
+                        config: tx_config,
+                        generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
                         sampling_result: <span class="kw-2">&amp;</span>state.sampling_result,
                         has_profile: state.has_profile,
                     };
 
-                    <span class="kw">let </span><span class="kw-2">mut </span>extracted = extractor.extract(event)<span class="question-mark">?</span>;
-
-                    <span class="comment">// TODO: Move conditional tagging to generic metrics extraction
-                    </span><span class="kw">let </span>tagging_config = <span class="kw-2">&amp;</span>state.project_state.config.metric_conditional_tagging;
-                    <span class="kw">crate</span>::metrics_extraction::conditional_tagging::run_conditional_tagging(
-                        event,
-                        tagging_config,
-                        <span class="kw-2">&amp;mut </span>extracted.project_metrics,
-                    );
-
-                    state.extracted_metrics.extend(extracted);
+                    state.extracted_metrics.extend(extractor.extract(event)<span class="question-mark">?</span>);
                     state.event_metrics_extracted |= <span class="bool-val">true</span>;
                 }
                 <span class="kw">_ </span>=&gt; (),

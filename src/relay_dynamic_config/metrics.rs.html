@@ -327,6 +327,71 @@
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -474,11 +539,34 @@
     /// tag extracted, the existing tag is left unchanged.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>tags: Vec&lt;TagMapping&gt;,
+
+    <span class="doccomment">/// This config has been extended with fields from `conditional_tagging`.
+    ///
+    /// At the moment, Relay will parse `conditional_tagging` rules and insert them into the `tags`
+    /// mapping in this struct. If the flag is `true`, this has already happened and should not be
+    /// repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    </span><span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>_conditional_tags_extended: bool,
 }
 
 <span class="kw">impl </span>MetricExtractionConfig {
     <span class="doccomment">/// The latest version for this config struct.
     </span><span class="kw">pub const </span>VERSION: u16 = <span class="number">1</span>;
+
+    <span class="doccomment">/// Returns an empty `MetricExtractionConfig` with the latest version.
+    ///
+    /// As opposed to `default()`, this will be enabled once populated with specs.
+    </span><span class="kw">pub fn </span>empty() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            version: <span class="self">Self</span>::VERSION,
+            metrics: Vec::new(),
+            tags: Vec::new(),
+            _conditional_tags_extended: <span class="bool-val">false</span>,
+        }
+    }
 
     <span class="doccomment">/// Returns `true` if metric extraction is configured.
     </span><span class="kw">pub fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -654,6 +742,48 @@
         <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;metrics&quot;: [&quot;d:spans/*&quot;], &quot;tags&quot;: [{&quot;key&quot;:&quot;foo&quot;,&quot;field&quot;:&quot;bar&quot;}]}&quot;#</span>;
         <span class="kw">let </span>mapping: TagMapping = serde_json::from_str(json).unwrap();
         <span class="macro">assert!</span>(mapping.metrics[<span class="number">0</span>].compiled().is_match(<span class="string">&quot;d:spans/foo&quot;</span>));
+    }
+}
+
+<span class="doccomment">/// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
+/// config.
+</span><span class="kw">pub fn </span>convert_conditional_tagging(rules: Vec&lt;TaggingRule&gt;) -&gt; <span class="kw">impl </span>Iterator&lt;Item = TagMapping&gt; {
+    TaggingRuleConverter {
+        rules: rules.into_iter().peekable(),
+        tags: Vec::new(),
+    }
+}
+
+<span class="kw">struct </span>TaggingRuleConverter {
+    rules: std::iter::Peekable&lt;std::vec::IntoIter&lt;TaggingRule&gt;&gt;,
+    tags: Vec&lt;TagSpec&gt;,
+}
+
+<span class="kw">impl </span>Iterator <span class="kw">for </span>TaggingRuleConverter {
+    <span class="kw">type </span>Item = TagMapping;
+
+    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>old = <span class="self">self</span>.rules.next()<span class="question-mark">?</span>;
+
+            <span class="self">self</span>.tags.push(TagSpec {
+                key: old.target_tag,
+                field: <span class="prelude-val">None</span>,
+                value: <span class="prelude-val">Some</span>(old.tag_value),
+                condition: <span class="prelude-val">Some</span>(old.condition),
+            });
+
+            <span class="comment">// Optimization: Collect tags for consecutive tagging rules for the same set of metrics.
+            // Then, emit a single entry with all tag specs at once.
+            </span><span class="kw">if </span><span class="self">self</span>.rules.peek().map(|r| <span class="kw-2">&amp;</span>r.target_metrics) == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>old.target_metrics) {
+                <span class="kw">continue</span>;
+            }
+
+            <span class="kw">return </span><span class="prelude-val">Some</span>(TagMapping {
+                metrics: old.target_metrics.into_iter().map(LazyGlob::new).collect(),
+                tags: std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.tags),
+            });
+        }
     }
 }
 </code></pre></div></section></main></body></html>

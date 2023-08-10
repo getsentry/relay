@@ -529,6 +529,7 @@
 <a href="#529" id="529">529</a>
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>relay_common::DataCategory;
 <span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
@@ -538,7 +539,7 @@
 <span class="kw">use </span>relay_sampling::{EqCondition, RuleCondition};
 <span class="kw">use </span>serde_json::Value;
 
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics_from;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::extract_metrics;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::ExtractMetricsError;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 
@@ -613,6 +614,7 @@
                     .into(),
             },
         ],
+        _conditional_tags_extended: <span class="bool-val">false</span>,
     }
 });
 
@@ -629,7 +631,7 @@
 
     <span class="kw">for </span>annotated_span <span class="kw">in </span>spans {
         <span class="kw">let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() <span class="kw">else </span>{ <span class="kw">continue </span>};
-        <span class="kw">let </span>span_metrics = extract_metrics_from(span, <span class="kw-2">&amp;</span>SPAN_EXTRACTION_CONFIG);
+        <span class="kw">let </span>span_metrics = extract_metrics(span, <span class="kw-2">&amp;</span>SPAN_EXTRACTION_CONFIG);
         metrics.extend(span_metrics);
     }
 

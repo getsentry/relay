@@ -131,6 +131,24 @@
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -184,6 +202,24 @@
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Ok(t) =&gt; t,
             <span class="self">Self</span>::Err(e) =&gt; op(e.as_ref()),
+        }
+    }
+
+    <span class="doccomment">/// Inserts a value computed from `f` into the error boundary if it is [`Err`],
+    /// then returns a mutable reference to the contained value.
+    </span><span class="kw">pub fn </span>get_or_insert_with&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, f: F) -&gt; <span class="kw-2">&amp;mut </span>T
+    <span class="kw">where
+        </span>F: FnOnce() -&gt; T,
+    {
+        <span class="kw">if let </span><span class="self">Self</span>::Err(<span class="kw">_</span>) = <span class="self">self </span>{
+            <span class="kw-2">*</span><span class="self">self </span>= <span class="self">Self</span>::Ok(f());
+        }
+
+        <span class="comment">// SAFETY: an `Err` variant for `self` would have been replaced by a `Ok`
+        // variant in the code above.
+        </span><span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Ok(t) =&gt; t,
+            <span class="self">Self</span>::Err(<span class="kw">_</span>) =&gt; <span class="kw">unsafe </span>{ std::hint::unreachable_unchecked() },
         }
     }
 }

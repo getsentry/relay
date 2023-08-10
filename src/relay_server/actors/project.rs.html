@@ -1387,7 +1387,7 @@
 
     <span class="doccomment">/// Validates data in this project state and removes values that are partially invalid.
     </span><span class="kw">pub fn </span>sanitize(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        <span class="self">self</span>.config.quotas.retain(Quota::is_valid);
+        <span class="self">self</span>.config.sanitize();
         <span class="self">self
     </span>}
 

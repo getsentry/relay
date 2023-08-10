@@ -316,16 +316,24 @@
 <a href="#316" id="316">316</a>
 <a href="#317" id="317">317</a>
 <a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DataCategory, UnixTimestamp};
-<span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, TagSource, TagSpec};
+<span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
 <span class="kw">use </span>relay_general::protocol::{Event, Span, Timestamp};
 <span class="kw">use </span>relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 <span class="kw">use </span>relay_sampling::FieldValueProvider;
 
 <span class="doccomment">/// Item from which metrics can be extracted.
-</span><span class="kw">pub trait </span>Extractable {
+</span><span class="kw">pub trait </span>Extractable: FieldValueProvider {
     <span class="doccomment">/// Data category for the metric spec to match on.
     </span><span class="kw">fn </span>category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DataCategory;
 
@@ -363,9 +371,9 @@
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-</span><span class="kw">pub fn </span>extract_metrics_from&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, config: <span class="kw-2">&amp;</span>MetricExtractionConfig) -&gt; Vec&lt;Metric&gt;
+</span><span class="kw">pub fn </span>extract_metrics&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, config: <span class="kw-2">&amp;</span>MetricExtractionConfig) -&gt; Vec&lt;Metric&gt;
 <span class="kw">where
-    </span>T: Extractable + FieldValueProvider,
+    </span>T: Extractable,
 {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = Vec::new();
 
@@ -405,18 +413,26 @@
         });
     }
 
-    <span class="kw">for </span>mapping <span class="kw">in </span><span class="kw-2">&amp;</span>config.tags {
+    <span class="comment">// TODO: Inline this again once transaction metric extraction has been moved to generic metrics.
+    </span>tmp_apply_tags(<span class="kw-2">&amp;mut </span>metrics, instance, <span class="kw-2">&amp;</span>config.tags);
+
+    metrics
+}
+
+<span class="kw">pub fn </span>tmp_apply_tags&lt;T&gt;(metrics: <span class="kw-2">&amp;mut </span>[Metric], instance: <span class="kw-2">&amp;</span>T, mappings: <span class="kw-2">&amp;</span>[TagMapping])
+<span class="kw">where
+    </span>T: FieldValueProvider,
+{
+    <span class="kw">for </span>mapping <span class="kw">in </span>mappings {
         <span class="kw">let </span><span class="kw-2">mut </span>lazy_tags = <span class="prelude-val">None</span>;
 
-        <span class="kw">for </span>metric <span class="kw">in </span><span class="kw-2">&amp;mut </span>metrics {
+        <span class="kw">for </span>metric <span class="kw">in </span><span class="kw-2">&amp;mut *</span>metrics {
             <span class="kw">if </span>mapping.matches(<span class="kw-2">&amp;</span>metric.name) {
                 <span class="kw">let </span>tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, <span class="kw-2">&amp;</span>mapping.tags));
                 metric.tags.extend(tags.clone());
             }
         }
     }
-
-    metrics
 }
 
 <span class="kw">fn </span>extract_tags&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, tags: <span class="kw-2">&amp;</span>[TagSpec]) -&gt; BTreeMap&lt;String, String&gt;
@@ -491,7 +507,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics_from(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
@@ -527,7 +543,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics_from(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
@@ -565,7 +581,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics_from(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
@@ -615,7 +631,7 @@
         });
         <span class="kw">let </span>config = serde_json::from_value(config_json).unwrap();
 
-        <span class="kw">let </span>metrics = extract_metrics_from(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
+        <span class="kw">let </span>metrics = extract_metrics(event.value().unwrap(), <span class="kw-2">&amp;</span>config);
         <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
         [
             Metric {
