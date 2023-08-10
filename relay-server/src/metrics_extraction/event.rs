@@ -35,7 +35,7 @@ impl Extractable for Span {
     }
 }
 
-/// Extract metrics from an [`Event`].
+/// Extracts metrics from an [`Event`].
 ///
 /// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure

@@ -187,10 +187,15 @@ impl MetricExtractionConfig {
         }
     }
 
-    /// Returns `true` if metric extraction is configured.
+    /// Returns `true` if the version of this metric extraction config is supported.
+    pub fn is_supported(&self) -> bool {
+        self.version <= Self::VERSION
+    }
+
+    /// Returns `true` if metric extraction is configured and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
         self.version > 0
-            && self.version <= Self::VERSION
+            && self.is_supported()
             && !(self.metrics.is_empty() && self.tags.is_empty())
     }
 }
@@ -379,7 +384,7 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
         .metric_extraction
         .get_or_insert_with(MetricExtractionConfig::empty);
 
-    if config._conditional_tags_extended {
+    if !config.is_supported() || config._conditional_tags_extended {
         return;
     }
 
@@ -389,6 +394,9 @@ pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
     });
 
     config._conditional_tags_extended = true;
+    if config.version == 0 {
+        config.version = MetricExtractionConfig::VERSION;
+    }
 }
 
 struct TaggingRuleConverter<I: Iterator<Item = TaggingRule>> {

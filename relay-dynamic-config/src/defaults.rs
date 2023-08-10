@@ -21,7 +21,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         .metric_extraction
         .get_or_insert_with(MetricExtractionConfig::empty);
 
-    if config._span_metrics_extended {
+    if !config.is_supported() || config._span_metrics_extended {
         return;
     }
 
@@ -92,4 +92,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     ]);
 
     config._span_metrics_extended = true;
+    if config.version == 0 {
+        config.version = MetricExtractionConfig::VERSION;
+    }
 }
