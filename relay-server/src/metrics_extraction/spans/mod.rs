@@ -7,7 +7,7 @@ use relay_metrics::Metric;
 use relay_sampling::{EqCondition, RuleCondition};
 use serde_json::Value;
 
-use crate::metrics_extraction::generic::extract_metrics_from;
+use crate::metrics_extraction::generic::extract_metrics;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::statsd::RelayTimers;
 
@@ -99,7 +99,7 @@ fn extract_span_metrics_inner(event: &Event) -> Result<Vec<Metric>, ExtractMetri
 
     for annotated_span in spans {
         let Some(span) = annotated_span.value() else { continue };
-        let span_metrics = extract_metrics_from(span, &SPAN_EXTRACTION_CONFIG);
+        let span_metrics = extract_metrics(span, &SPAN_EXTRACTION_CONFIG);
         metrics.extend(span_metrics);
     }
 

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
-use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
+use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
@@ -238,7 +238,7 @@ impl ExtractedMetrics {
 pub struct TransactionExtractor<'a> {
     pub aggregator_config: &'a AggregatorConfig,
     pub config: &'a TransactionMetricsConfig,
-    pub generic_config: &'a MetricExtractionConfig,
+    pub generic_tags: &'a [TagMapping],
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
@@ -387,8 +387,8 @@ impl TransactionExtractor<'_> {
 
         // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
         // metric extraction, after which this is done automatically.
-        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_config);
-        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_config);
+        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_tags);
+        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_tags);
 
         Ok(metrics)
     }
@@ -532,7 +532,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -711,7 +711,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -800,7 +800,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -877,7 +877,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -943,7 +943,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1022,7 +1022,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1059,7 +1059,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1124,7 +1124,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1171,7 +1171,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1194,7 +1194,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1232,7 +1232,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("root_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1493,7 +1493,7 @@ mod tests {
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &Default::default(),
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1583,39 +1583,36 @@ mod tests {
 
         let config = TransactionMetricsConfig::new();
         let aggregator_config = aggregator_config();
-        let generic_config: MetricExtractionConfig = serde_json::from_str(
-            r#"{
-                "version": 1,
-                "tags": [
-                    {
-                        "metrics": ["d:transactions/duration@millisecond"],
-                        "tags": [
-                            {
-                                "condition": {"op": "gte", "name": "event.duration", "value": 9001},
-                                "key": "satisfaction",
-                                "value": "frustrated"
-                            },
-                            {
-                                "condition": {"op": "gte", "name": "event.duration", "value": 666},
-                                "key": "satisfaction",
-                                "value": "tolerated"
-                            },
-                            {
-                                "condition": {"op": "and", "inner": []},
-                                "key": "satisfaction",
-                                "value": "satisfied"
-                            }
-                        ]
-                    }
-                ]
-            }"#,
+        let generic_tags: Vec<TagMapping> = serde_json::from_str(
+            r#"[
+                {
+                    "metrics": ["d:transactions/duration@millisecond"],
+                    "tags": [
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 9001},
+                            "key": "satisfaction",
+                            "value": "frustrated"
+                        },
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 666},
+                            "key": "satisfaction",
+                            "value": "tolerated"
+                        },
+                        {
+                            "condition": {"op": "and", "inner": []},
+                            "key": "satisfaction",
+                            "value": "satisfied"
+                        }
+                    ]
+                }
+            ]"#,
         )
         .unwrap();
 
         let extractor = TransactionExtractor {
             aggregator_config: &aggregator_config,
             config: &config,
-            generic_config: &generic_config,
+            generic_tags: &generic_tags,
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,

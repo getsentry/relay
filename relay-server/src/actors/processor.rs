@@ -2068,10 +2068,11 @@ impl EnvelopeProcessorService {
     fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
         // will upsert this configuration from transaction and conditional tagging fields, even if
-        // it is not present in the actual project config payload.
+        // it is not present in the actual project config payload. Once transaction metric
+        // extraction is moved to generic metrics, this can be converted into an early return.
         let config = match state.project_state.config.metric_extraction {
-            ErrorBoundary::Ok(ref config) if config.is_enabled() => config,
-            _ => return Ok(()),
+            ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
+            _ => None,
         };
 
         // TODO: Make span metrics extraction immutable
@@ -2080,9 +2081,11 @@ impl EnvelopeProcessorService {
                 return Ok(());
             }
 
-            let metrics = crate::metrics_extraction::generic::extract_metrics_from(event, config);
-            state.event_metrics_extracted |= !metrics.is_empty();
-            state.extracted_metrics.project_metrics.extend(metrics);
+            if let Some(config) = config {
+                let metrics = crate::metrics_extraction::generic::extract_metrics(event, config);
+                state.event_metrics_extracted |= !metrics.is_empty();
+                state.extracted_metrics.project_metrics.extend(metrics);
+            }
 
             match state.project_state.config.transaction_metrics {
                 Some(ErrorBoundary::Ok(ref tx_config)) if tx_config.is_enabled() => {
@@ -2095,7 +2098,7 @@ impl EnvelopeProcessorService {
                     let extractor = TransactionExtractor {
                         aggregator_config: self.inner.config.aggregator_config(),
                         config: tx_config,
-                        generic_config: config,
+                        generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
                         sampling_result: &state.sampling_result,
                         has_profile: state.has_profile,

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_dynamic_config::{MetricExtractionConfig, TagSource, TagSpec};
+use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
 use relay_general::protocol::{Event, Span, Timestamp};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
@@ -45,7 +45,7 @@ impl Extractable for Span {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics_from<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
+pub fn extract_metrics<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
 where
     T: Extractable,
 {
@@ -88,16 +88,16 @@ where
     }
 
     // TODO: Inline this again once transaction metric extraction has been moved to generic metrics.
-    tmp_apply_tags(&mut metrics, instance, config);
+    tmp_apply_tags(&mut metrics, instance, &config.tags);
 
     metrics
 }
 
-pub fn tmp_apply_tags<T>(metrics: &mut [Metric], instance: &T, config: &MetricExtractionConfig)
+pub fn tmp_apply_tags<T>(metrics: &mut [Metric], instance: &T, mappings: &[TagMapping])
 where
     T: FieldValueProvider,
 {
-    for mapping in &config.tags {
+    for mapping in mappings {
         let mut lazy_tags = None;
 
         for metric in &mut *metrics {
@@ -181,7 +181,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -217,7 +217,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -255,7 +255,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -305,7 +305,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
