@@ -169,6 +169,11 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
 }
 
 /// Writes fields into [`Span::data`].
+///
+/// Generating new span data fields is based on a combination of looking at
+/// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
+/// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
+/// and rely on Sentry conventions and heuristics.
 pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
     let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
     if let Some(unsanitized_span_op) = span.op.value() {
@@ -200,9 +205,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             .and_then(|data| data.get("description.scrubbed"))
             .and_then(|value| value.as_str());
 
-        // TODO(iker): we're relying on the existance of `http.method`/`http.response.method`
-        // or `db.operation`. This is not guaranteed, and we'll need to
-        // parse the span description in that case.
         let action = match (span_module, span_op.as_str(), scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
