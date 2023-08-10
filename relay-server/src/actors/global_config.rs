@@ -106,12 +106,15 @@ pub struct GlobalConfigService {
     // service. An alternative is to create a channel internal to the service
     // and handle the updates through them.
     sender: watch::Sender<Arc<GlobalConfig>>,
+    /// Sender of the internal channel to forward global configs from upstream.
     internal_tx: UnboundedSender<Arc<GlobalConfig>>,
+    /// Receiver of the internal channel to forward global configs from upstream.
     internal_rx: UnboundedReceiver<Arc<GlobalConfig>>,
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
     /// The duration to wait before fetching global configs from upstream.
     fetch_interval: Duration,
+    /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
 }
 
@@ -130,6 +133,7 @@ impl GlobalConfigService {
         }
     }
 
+    /// Handles messages from external services.
     fn handle_message(&self, message: GlobalConfigManager) {
         match message {
             GlobalConfigManager::Get(sender) => {
@@ -141,6 +145,7 @@ impl GlobalConfigService {
         }
     }
 
+    /// Schedules the next global config request.
     fn schedule_fetch(&mut self) {
         if self.fetch_handle.is_idle() {
             // XXX(iker): set a backoff mechanism?
@@ -172,6 +177,8 @@ impl GlobalConfigService {
         });
     }
 
+    /// Handles the global config response from upstream, forwarding the global
+    /// config through the internal channel if succesfully received.
     fn handle_upstream_response(
         response: Result<GetGlobalConfigResponse, UpstreamRequestError>,
         internal_tx: UnboundedSender<Arc<GlobalConfig>>,
@@ -192,6 +199,7 @@ impl GlobalConfigService {
         };
     }
 
+    /// Forwards the global config to the subscribers of the service.
     fn forward_global_config(&mut self, global_config: Arc<GlobalConfig>) {
         if self.sender.send(global_config).is_err() {
             relay_log::error!("failed to forward the global config to subscribers");
