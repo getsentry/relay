@@ -9,12 +9,14 @@
 <a href="#9" id="9">9</a>
 <a href="#10" id="10">10</a>
 <a href="#11" id="11">11</a>
+<a href="#12" id="12">12</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::UnixTimestamp;
 <span class="kw">use </span>relay_metrics::Metric;
 
-<span class="kw">pub mod </span>generic;
+<span class="kw">mod </span>generic;
+
+<span class="kw">pub mod </span>event;
 <span class="kw">pub mod </span>sessions;
-<span class="kw">pub mod </span>spans;
 <span class="kw">pub mod </span>transactions;
 
 <span class="kw">pub trait </span>IntoMetric {

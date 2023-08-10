@@ -3984,14 +3984,6 @@
 <a href="#3984" id="3984">3984</a>
 <a href="#3985" id="3985">3985</a>
 <a href="#3986" id="3986">3986</a>
-<a href="#3987" id="3987">3987</a>
-<a href="#3988" id="3988">3988</a>
-<a href="#3989" id="3989">3989</a>
-<a href="#3990" id="3990">3990</a>
-<a href="#3991" id="3991">3991</a>
-<a href="#3992" id="3992">3992</a>
-<a href="#3993" id="3993">3993</a>
-<a href="#3994" id="3994">3994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6076,7 +6068,7 @@
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(config) = config {
-                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::generic::extract_metrics(event, config);
+                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(event, config);
                 state.event_metrics_extracted |= !metrics.is_empty();
                 state.extracted_metrics.project_metrics.extend(metrics);
             }
@@ -6102,14 +6094,6 @@
                     state.event_metrics_extracted |= <span class="bool-val">true</span>;
                 }
                 <span class="kw">_ </span>=&gt; (),
-            }
-
-            <span class="kw">if </span>state
-                .project_state
-                .has_feature(Feature::SpanMetricsExtraction)
-            {
-                <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::spans::extract_metrics(event);
-                state.extracted_metrics.project_metrics.extend(metrics);
             }
 
             <span class="kw">if </span>state.event_metrics_extracted {
