@@ -8,6 +8,12 @@ use tokio::sync::watch;
 use crate::actors::project_upstream::{GetProjectStates, GetProjectStatesResponse};
 use crate::actors::upstream::{SendQuery, UpstreamRelay, UpstreamRequestError};
 
+/// The message for requesting the most recent global config from [`GlobalConfigService`].
+pub struct Get;
+
+/// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
+pub struct Subscribe;
+
 /// A way to get updates of the global config.
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
@@ -18,9 +24,6 @@ pub enum GlobalConfigManager {
 
 impl Interface for GlobalConfigManager {}
 
-/// The message for requesting the most recent global config from [`GlobalConfigService`].
-pub struct Get;
-
 impl FromMessage<Get> for GlobalConfigManager {
     type Response = AsyncResponse<Arc<GlobalConfig>>;
 
@@ -28,9 +31,6 @@ impl FromMessage<Get> for GlobalConfigManager {
         Self::Get(sender)
     }
 }
-
-/// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
-pub struct Subscribe;
 
 impl FromMessage<Subscribe> for GlobalConfigManager {
     type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
@@ -43,9 +43,8 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 /// Service implementing the [`GlobalConfigManager`] interface.
 ///
 /// The service offers two alternatives to fetch the [`GlobalConfig`]:
-/// responding to a [`GlobalConfigManager::Get`] message with the config for
-/// one-off requests, or subscribing to updates with
-/// [`Subscribe`] to keep up-to-date.
+/// responding to a [`Get`] message with the config for one-off requests, or
+/// subscribing to updates with [`Subscribe`] to keep up-to-date.
 #[derive(Debug)]
 pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.

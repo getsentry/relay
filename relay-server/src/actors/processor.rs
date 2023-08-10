@@ -18,7 +18,7 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
-use crate::actors::global_config::{GlobalConfigManager, Subscribe};
+use crate::actors::global_config::{Get, GlobalConfigManager, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -2771,23 +2771,33 @@ impl Service for EnvelopeProcessorService {
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            let mut global_config_rx = self
-                .inner
-                .global_config
-                .send(Subscribe)
-                .await
-                .expect("EnvelopeProcessorService failed subscribing to GlobalConfigService");
+            let mut global_config_rx = match self.inner.global_config.send(Subscribe).await {
+                Ok(c) => c,
+                Err(e) => {
+                    relay_log::error!(
+                        error = &e as &dyn Error,
+                        "failed to subscribe to GlobalConfigService",
+                    );
+                    std::process::exit(1);
+                }
+            };
+            match self.inner.global_config.send(Get).await {
+                Ok(global_config) => self.global_config = global_config,
+                Err(e) => {
+                    relay_log::error!(error = &e as &dyn Error, "failed to fetch global config");
+                    std::process::exit(1);
+                }
+            };
 
             loop {
                 tokio::select! {
                    biased;
 
                     _ = global_config_rx.changed() => self.global_config = global_config_rx.borrow().clone(),
-                            (Some(message), Ok(permit)) =  futures::future::join(
+                    (Some(message), Ok(permit)) = futures::future::join(
                         rx.recv(),
                         semaphore.clone().acquire_owned()
                     ) => {
-
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
                             service.handle_message(message);
