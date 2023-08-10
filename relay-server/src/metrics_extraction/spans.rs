@@ -7,8 +7,7 @@ use relay_metrics::Metric;
 use relay_sampling::{EqCondition, RuleCondition};
 use serde_json::Value;
 
-use crate::metrics_extraction::generic::extract_metrics;
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::generic;
 use crate::statsd::RelayTimers;
 
 /// Configuration for extracting metrics from spans.
@@ -87,23 +86,20 @@ static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
 });
 
 /// Extracts metrics from the spans of the given transaction.
-pub(crate) fn extract_span_metrics(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {
+pub fn extract_metrics(event: &Event) -> Vec<Metric> {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        extract_span_metrics_inner(event)
+        let mut metrics = Vec::new();
+
+        if let Some(spans) = event.spans.value() {
+            for annotated_span in spans {
+                let Some(span) = annotated_span.value() else { continue };
+                let span_metrics = generic::extract_metrics(span, &SPAN_EXTRACTION_CONFIG);
+                metrics.extend(span_metrics);
+            }
+        }
+
+        metrics
     })
-}
-
-fn extract_span_metrics_inner(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {
-    let mut metrics = Vec::new();
-    let Some(spans) = event.spans.value() else { return Ok(metrics) };
-
-    for annotated_span in spans {
-        let Some(span) = annotated_span.value() else { continue };
-        let span_metrics = extract_metrics(span, &SPAN_EXTRACTION_CONFIG);
-        metrics.extend(span_metrics);
-    }
-
-    Ok(metrics)
 }
 
 #[cfg(test)]
@@ -111,7 +107,7 @@ mod tests {
     use relay_general::store::{self, LightNormalizationConfig};
     use relay_general::types::Annotated;
 
-    use crate::metrics_extraction::spans::extract_span_metrics;
+    use super::*;
 
     #[test]
     fn test_extract_span_metrics() {
@@ -487,19 +483,17 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
 
-        let metrics = extract_span_metrics(event.value_mut().as_mut().unwrap()).unwrap();
-
-        insta::assert_debug_snapshot!(event.value().unwrap().spans);
+        let metrics = extract_metrics(event.value_mut().as_mut().unwrap());
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -538,7 +532,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
@@ -546,11 +540,10 @@ mod tests {
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
 
-        let metrics = extract_span_metrics(event.value_mut().as_mut().unwrap()).unwrap();
-
+        let metrics = extract_metrics(event.value_mut().as_mut().unwrap());
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 }
