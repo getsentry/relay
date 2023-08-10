@@ -117,12 +117,16 @@ impl GlobalConfigService {
         response: Result<GetProjectStatesResponse, UpstreamRequestError>,
         sender: Arc<watch::Sender<Arc<GlobalConfig>>>,
     ) {
-        if let Ok(config) = response {
-            match config.global {
+        match response {
+            Ok(config) => match config.global {
                 Some(global_config) => _ = sender.send(Arc::new(global_config)),
                 None => relay_log::error!("global config missing in upstream response"),
-            };
-        }
+            },
+            Err(e) => relay_log::error!(
+                error = &e as &dyn std::error::Error,
+                "failed to fetch global config from upstream"
+            ),
+        };
     }
 }
 
