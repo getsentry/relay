@@ -2771,13 +2771,6 @@ impl Service for EnvelopeProcessorService {
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            match self.inner.global_config.send(Get).await {
-                Ok(global_config) => self.global_config = global_config,
-                Err(e) => {
-                    relay_log::error!(error = &e as &dyn Error, "failed to fetch global config");
-                    std::process::exit(1);
-                }
-            };
             let mut global_config_rx = match self.inner.global_config.send(Subscribe).await {
                 Ok(c) => c,
                 Err(e) => {
@@ -2785,6 +2778,13 @@ impl Service for EnvelopeProcessorService {
                         error = &e as &dyn Error,
                         "failed to subscribe to GlobalConfigService",
                     );
+                    std::process::exit(1);
+                }
+            };
+            match self.inner.global_config.send(Get).await {
+                Ok(global_config) => self.global_config = global_config,
+                Err(e) => {
+                    relay_log::error!(error = &e as &dyn Error, "failed to fetch global config");
                     std::process::exit(1);
                 }
             };
