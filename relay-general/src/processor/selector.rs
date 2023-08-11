@@ -126,7 +126,7 @@ impl SelectorPathItem {
             (SelectorPathItem::Key(ref key), _) => state
                 .path()
                 .key()
-                .map(|k| k.to_lowercase() == key.to_lowercase())
+                .map(|k| k.eq_ignore_ascii_case(key))
                 .unwrap_or(false),
         }
     }

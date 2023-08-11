@@ -35,7 +35,7 @@ pub struct LazyPattern {
 
 impl PartialEq for LazyPattern {
     fn eq(&self, other: &Self) -> bool {
-        self.raw.to_lowercase() == other.raw.to_lowercase()
+        self.raw.eq_ignore_ascii_case(&other.raw)
     }
 }
 
