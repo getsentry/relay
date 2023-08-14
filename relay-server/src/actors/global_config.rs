@@ -220,13 +220,7 @@ impl Service for GlobalConfigService {
             // NOTE(iker): if this first request fails it's possible the default
             // global config is forwarded. This is not ideal, but we accept it
             // for now.
-            if self.config.has_credentials() {
-                self.update_global_config();
-            } else {
-                relay_log::info!(
-                    "fetching global configs from upstream disabled due to lack of credentials."
-                );
-            }
+            self.update_global_config();
 
             loop {
                 tokio::select! {
