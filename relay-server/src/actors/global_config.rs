@@ -14,7 +14,9 @@ use crate::actors::upstream::{
 };
 use crate::utils::SleepHandle;
 
-type UpstreamResult =
+/// The result of sending a global config query to upstream. It can fail both in sending it,
+/// and in the response.
+type UpstreamQueryResult =
     Result<Result<GetGlobalConfigResponse, UpstreamRequestError>, relay_system::SendError>;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -108,9 +110,9 @@ pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
     sender: watch::Sender<Arc<GlobalConfig>>,
     /// Sender of the internal channel to forward global configs from upstream.
-    internal_tx: UnboundedSender<UpstreamResult>,
+    internal_tx: UnboundedSender<UpstreamQueryResult>,
     /// Receiver of the internal channel to forward global configs from upstream.
-    internal_rx: UnboundedReceiver<UpstreamResult>,
+    internal_rx: UnboundedReceiver<UpstreamQueryResult>,
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
@@ -155,12 +157,18 @@ impl GlobalConfigService {
 
     /// Requests a new global config from upstream.
     ///
-    /// As the upstream service is responsible for authentication, the global
-    /// config service doesn't deal with it.
+    /// We check if we have credentials before sending,
+    /// otherwise we would log an [`UpstreamRequestError::NoCredentials`] error.
     fn update_global_config(&mut self) {
         self.fetch_handle.reset();
 
+        // Returning early will effectively shut off the fetching of new global configs, as the
+        // sleephandle is reset when `update_global_config` is called, and only after sending a new
+        // request will it be enabled again.
         if !self.config.has_credentials() {
+            relay_log::info!(
+                "fetching global configs from upstream disabled due to lack of credentials."
+            );
             return;
         }
 
@@ -177,8 +185,9 @@ impl GlobalConfigService {
     }
 
     /// Handles the global config response from upstream, forwarding the global
-    /// config through the internal channel if succesfully received.
-    fn handle_upstream_response(&mut self, response: UpstreamResult) {
+    /// config through the internal channel if query is succesfully sent, and a global config
+    /// is received.
+    fn handle_upstream_response(&mut self, response: UpstreamQueryResult) {
         match response {
             Ok(Ok(config)) => match config.global {
                 Some(global_config) => {
@@ -190,11 +199,11 @@ impl GlobalConfigService {
             },
             Ok(Err(e)) => relay_log::error!(
                 error = &e as &dyn std::error::Error,
-                "failed to send request to upstream"
+                "failed to fetch global config from upstream"
             ),
             Err(e) => relay_log::error!(
                 error = &e as &dyn std::error::Error,
-                "failed to fetch global config from upstream"
+                "failed to send request to upstream"
             ),
         };
         self.schedule_fetch();
@@ -211,7 +220,13 @@ impl Service for GlobalConfigService {
             // NOTE(iker): if this first request fails it's possible the default
             // global config is forwarded. This is not ideal, but we accept it
             // for now.
-            self.update_global_config();
+            if self.config.has_credentials() {
+                self.update_global_config();
+            } else {
+                relay_log::info!(
+                    "fetching global configs from upstream disabled due to lack of credentials."
+                );
+            }
 
             loop {
                 tokio::select! {

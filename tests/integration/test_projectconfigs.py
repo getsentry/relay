@@ -211,9 +211,9 @@ def test_pending_projects(mini_sentry, relay):
     assert data.get("pending") is None
 
 
-def request_config(relay, packed, signature):
+def request_config(relay, packed, signature, version: str):
     return relay.post(
-        "/api/0/relays/projectconfigs/?version=4",
+        "/api/0/relays/projectconfigs/?version=" + version,
         data=packed,
         headers={
             "X-Sentry-Relay-Id": relay.relay_id,
@@ -222,13 +222,13 @@ def request_config(relay, packed, signature):
     )
 
 
-def get_response(relay, packed, signature):
+def get_response(relay, packed, signature, version="3"):
     data = None
     deadline = time.monotonic() + 15
     while time.monotonic() <= deadline:
         # send 1 r/s
         time.sleep(1)
-        response = request_config(relay, packed, signature)
+        response = request_config(relay, packed, signature, version)
         assert response.ok
         data = response.json()
         if data["configs"]:
@@ -449,6 +449,6 @@ def test_get_global_config(mini_sentry, relay):
 
     body = {"publicKeys": [], "global": True}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
-    data = get_response(relay, packed, signature)
+    data = get_response(relay, packed, signature, version="4")
 
     assert data["global"] == {"measurements": {"maxCustomMeasurements": 0}}
