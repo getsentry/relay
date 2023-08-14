@@ -14,6 +14,9 @@ use crate::actors::upstream::{
 };
 use crate::utils::SleepHandle;
 
+type UpstreamResult =
+    Result<Result<GetGlobalConfigResponse, UpstreamRequestError>, relay_system::SendError>;
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfigResponse {
@@ -105,9 +108,9 @@ pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
     sender: watch::Sender<Arc<GlobalConfig>>,
     /// Sender of the internal channel to forward global configs from upstream.
-    internal_tx: UnboundedSender<Result<GetGlobalConfigResponse, UpstreamRequestError>>,
+    internal_tx: UnboundedSender<UpstreamResult>,
     /// Receiver of the internal channel to forward global configs from upstream.
-    internal_rx: UnboundedReceiver<Result<GetGlobalConfigResponse, UpstreamRequestError>>,
+    internal_rx: UnboundedReceiver<UpstreamResult>,
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
@@ -166,28 +169,18 @@ impl GlobalConfigService {
 
         tokio::spawn(async move {
             let query = GetGlobalConfig::query();
-            match upstream_relay.send(SendQuery(query)).await {
-                // TODO(iker): add observability on the request.
-                Ok(res) => {
-                    if internal_tx.send(res).is_err() {
-                        relay_log::error!("failed to forward internally the upstream response");
-                    }
-                }
-                // FIXME(iker): if the request to upstream fails, we should
-                // reschedule another fetch anyway.
-                Err(_) => relay_log::error!("failed to send request to upstream"),
-            };
+            let res = upstream_relay.send(SendQuery(query)).await;
+            if internal_tx.send(res).is_err() {
+                relay_log::error!("failed to forward internally the upstream response");
+            }
         });
     }
 
     /// Handles the global config response from upstream, forwarding the global
     /// config through the internal channel if succesfully received.
-    fn handle_upstream_response(
-        &mut self,
-        response: Result<GetGlobalConfigResponse, UpstreamRequestError>,
-    ) {
+    fn handle_upstream_response(&mut self, response: UpstreamResult) {
         match response {
-            Ok(config) => match config.global {
+            Ok(Ok(config)) => match config.global {
                 Some(global_config) => {
                     if self.sender.send(Arc::new(global_config)).is_err() {
                         relay_log::error!("failed to forward the global config internally");
@@ -195,6 +188,10 @@ impl GlobalConfigService {
                 }
                 None => relay_log::error!("global config missing in upstream response"),
             },
+            Ok(Err(e)) => relay_log::error!(
+                error = &e as &dyn std::error::Error,
+                "failed to send request to upstream"
+            ),
             Err(e) => relay_log::error!(
                 error = &e as &dyn std::error::Error,
                 "failed to fetch global config from upstream"
