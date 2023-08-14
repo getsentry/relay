@@ -26,11 +26,16 @@ pub struct GetGlobalConfigResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfig {
     pub global: bool,
+    // Upstream expects a list of global keys.
+    public_keys: Vec<()>,
 }
 
 impl GetGlobalConfig {
     pub fn query() -> GetGlobalConfig {
-        GetGlobalConfig { global: true }
+        GetGlobalConfig {
+            global: true,
+            public_keys: vec![],
+        }
     }
 }
 
