@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::sync::Arc;
-use std::time::Duration;
 
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
@@ -102,6 +101,7 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 /// subscribing to updates with [`Subscribe`] to keep up-to-date.
 #[derive(Debug)]
 pub struct GlobalConfigService {
+    config: Arc<Config>,
     /// Sender of the [`watch`] channel for the subscribers of the service.
     sender: watch::Sender<Arc<GlobalConfig>>,
     /// Sender of the internal channel to forward global configs from upstream.
@@ -110,8 +110,6 @@ pub struct GlobalConfigService {
     internal_rx: UnboundedReceiver<Result<GetGlobalConfigResponse, UpstreamRequestError>>,
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
-    /// The duration to wait before fetching global configs from upstream.
-    fetch_interval: Duration,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
 }
@@ -122,11 +120,11 @@ impl GlobalConfigService {
         let (sender, _) = watch::channel(Arc::default());
         let (internal_tx, internal_rx) = mpsc::unbounded_channel();
         Self {
+            config,
             sender,
             internal_tx,
             internal_rx,
             upstream,
-            fetch_interval: config.global_config_fetch_interval(),
             fetch_handle: SleepHandle::idle(),
         }
     }
@@ -147,7 +145,8 @@ impl GlobalConfigService {
     fn schedule_fetch(&mut self) {
         if self.fetch_handle.is_idle() {
             // XXX(iker): set a backoff mechanism?
-            self.fetch_handle.set(self.fetch_interval);
+            self.fetch_handle
+                .set(self.config.global_config_fetch_interval());
         }
     }
 
@@ -157,6 +156,10 @@ impl GlobalConfigService {
     /// config service doesn't deal with it.
     fn update_global_config(&mut self) {
         self.fetch_handle.reset();
+
+        if !self.config.has_credentials() {
+            return;
+        }
 
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
         let internal_tx = self.internal_tx.clone();
