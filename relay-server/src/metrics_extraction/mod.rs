@@ -1,10 +1,10 @@
 use relay_common::UnixTimestamp;
 use relay_metrics::Metric;
 
-pub mod conditional_tagging;
-pub mod generic;
+mod generic;
+
+pub mod event;
 pub mod sessions;
-pub mod spans;
 pub mod transactions;
 
 pub trait IntoMetric {

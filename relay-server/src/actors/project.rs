@@ -331,12 +331,13 @@ impl ProjectState {
 
     /// Validates data in this project state and removes values that are partially invalid.
     pub fn sanitize(mut self) -> Self {
-        self.config.quotas.retain(Quota::is_valid);
+        self.config.sanitize();
         self
     }
 
+    /// Returns `true` if the given feature is enabled for this project.
     pub fn has_feature(&self, feature: Feature) -> bool {
-        self.config.features.0.contains(&feature)
+        self.config.features.has(feature)
     }
 }
 

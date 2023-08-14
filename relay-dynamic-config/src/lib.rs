@@ -75,6 +75,7 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+mod defaults;
 mod error_boundary;
 mod feature;
 mod global;

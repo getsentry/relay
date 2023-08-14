@@ -171,6 +171,7 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
 
         nonlocal request_count
         request_count += 1
+        print("RETRY", request_count)
         return "no", 500
 
     RETRIES = 1

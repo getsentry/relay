@@ -16,6 +16,7 @@ from .test_metrics import metrics_by_name
 
 
 RELAY_ROOT = Path(__file__).parent.parent.parent
+
 HOUR_MILLISEC = 1000 * 3600
 
 

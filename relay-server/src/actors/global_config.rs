@@ -26,7 +26,7 @@ pub struct GetGlobalConfigResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfig {
     pub global: bool,
-    // Upstream expects a list of global keys.
+    // Upstream expects a list of public keys.
     public_keys: Vec<()>,
 }
 

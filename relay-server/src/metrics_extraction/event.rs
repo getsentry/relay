@@ -1,116 +1,70 @@
-use once_cell::sync::Lazy;
-use relay_common::DataCategory;
-use relay_dynamic_config::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
-use relay_general::protocol::Event;
-use relay_general::store::LazyGlob;
+use relay_common::{DataCategory, UnixTimestamp};
+use relay_dynamic_config::MetricExtractionConfig;
+use relay_general::protocol::{Event, Span};
 use relay_metrics::Metric;
-use relay_sampling::{EqCondition, RuleCondition};
-use serde_json::Value;
 
-use crate::metrics_extraction::generic::extract_metrics_from;
-use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::generic::{self, Extractable};
 use crate::statsd::RelayTimers;
 
-/// Configuration for extracting metrics from spans.
-///
-/// This configuration is temporarily hard-coded here. It will later be moved to project config
-/// and be provided by the upstream.
-static SPAN_EXTRACTION_CONFIG: Lazy<MetricExtractionConfig> = Lazy::new(|| {
-    MetricExtractionConfig {
-        version: MetricExtractionConfig::VERSION,
-        metrics: vec![
-            MetricSpec {
-                category: DataCategory::Span,
-                mri: "d:spans/exclusive_time@millisecond".into(),
-                field: Some("span.exclusive_time".into()),
-                condition: None,
-                tags: vec![TagSpec {
-                    key: "transaction".into(),
-                    field: Some("span.data.transaction".into()),
-                    value: None,
-                    condition: None,
-                }],
-            },
-            MetricSpec {
-                category: DataCategory::Span,
-                mri: "d:spans/exclusive_time_light@millisecond".into(),
-                field: Some("span.exclusive_time".into()),
-                condition: None,
-                tags: Default::default(),
-            },
-        ],
-        tags: vec![
-            TagMapping {
-                metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-                tags: [
-                    "environment",
-                    "http.status_code",
-                    "span.action",
-                    "span.category",
-                    "span.description",
-                    "span.domain",
-                    "span.group",
-                    "span.module",
-                    "span.op",
-                    "span.status_code",
-                    "span.status",
-                    "span.system",
-                    "transaction.method",
-                    "transaction.op",
-                ]
-                .map(|key| TagSpec {
-                    key: key.into(),
-                    field: Some(format!("span.data.{}", key.replace('.', "\\."))),
-                    value: None,
-                    condition: None,
-                })
-                .into(),
-            },
-            TagMapping {
-                metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-                tags: ["release", "device.class"] // TODO: sentry PR for static strings
-                    .map(|key| TagSpec {
-                        key: key.into(),
-                        field: Some(format!("span.data.{}", key.replace('.', "\\."))),
-                        value: None,
-                        condition: Some(RuleCondition::Eq(EqCondition {
-                            name: "span.data.mobile".into(),
-                            value: Value::Bool(true),
-                            options: Default::default(),
-                        })),
-                    })
-                    .into(),
-            },
-        ],
+impl Extractable for Event {
+    fn category(&self) -> DataCategory {
+        // Obtain the event's data category, but treat default events as error events for the
+        // purpose of metric tagging.
+        match DataCategory::from(self.ty.value().copied().unwrap_or_default()) {
+            DataCategory::Default => DataCategory::Error,
+            category => category,
+        }
     }
-});
 
-/// Extracts metrics from the spans of the given transaction.
-pub(crate) fn extract_span_metrics(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {
-    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        extract_span_metrics_inner(event)
-    })
+    fn timestamp(&self) -> Option<UnixTimestamp> {
+        self.timestamp
+            .value()
+            .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
+    }
 }
 
-fn extract_span_metrics_inner(event: &Event) -> Result<Vec<Metric>, ExtractMetricsError> {
-    let mut metrics = Vec::new();
-    let Some(spans) = event.spans.value() else { return Ok(metrics) };
-
-    for annotated_span in spans {
-        let Some(span) = annotated_span.value() else { continue };
-        let span_metrics = extract_metrics_from(span, &SPAN_EXTRACTION_CONFIG);
-        metrics.extend(span_metrics);
+impl Extractable for Span {
+    fn category(&self) -> DataCategory {
+        DataCategory::Span
     }
 
-    Ok(metrics)
+    fn timestamp(&self) -> Option<UnixTimestamp> {
+        self.timestamp
+            .value()
+            .and_then(|ts| UnixTimestamp::from_datetime(ts.0))
+    }
+}
+
+/// Extracts metrics from an [`Event`].
+///
+/// The event must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
+/// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
+/// valid timestamps.
+///
+/// If this is a transaction event with spans, metrics will also be extracted from the spans.
+pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
+    let mut metrics = generic::extract_metrics(event, config);
+
+    relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        if let Some(spans) = event.spans.value() {
+            for annotated_span in spans {
+                if let Some(span) = annotated_span.value() {
+                    metrics.extend(generic::extract_metrics(span, config));
+                }
+            }
+        }
+    });
+
+    metrics
 }
 
 #[cfg(test)]
 mod tests {
+    use relay_dynamic_config::{Feature, ProjectConfig};
     use relay_general::store::{self, LightNormalizationConfig};
     use relay_general::types::Annotated;
 
-    use crate::metrics_extraction::spans::extract_span_metrics;
+    use super::*;
 
     #[test]
     fn test_extract_span_metrics() {
@@ -166,6 +120,30 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "data": {
                         "http.method": "GET"
+                    }
+                },
+                {
+                    "description": "POST http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "http.request.method": "POST"
+                    }
+                },
+                {
+                    "description": "PUT http://domain.tld/hi",
+                    "op": "http.client",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bd429c44b67a3eb4",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "data": {
+                        "method": "PUT"
                     }
                 },
                 {
@@ -279,7 +257,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -303,7 +281,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -317,7 +295,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "INSERT"
                     }
                 },
@@ -341,7 +319,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -355,7 +333,7 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {
-                        "db.system": "MyDatabase",
+                        "db.system": "postgresql",
                         "db.operation": "SELECT"
                     }
                 },
@@ -462,19 +440,25 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
                 light_normalize_spans: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
 
-        let metrics = extract_span_metrics(event.value_mut().as_mut().unwrap()).unwrap();
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
 
-        insta::assert_debug_snapshot!(event.value().unwrap().spans);
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics);
     }
 
@@ -513,7 +497,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
@@ -521,11 +505,18 @@ mod tests {
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
 
-        let metrics = extract_span_metrics(event.value_mut().as_mut().unwrap()).unwrap();
+        // Create a project config with the relevant feature flag. Sanitize to fill defaults.
+        let mut project = ProjectConfig {
+            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            ..ProjectConfig::default()
+        };
+        project.sanitize();
 
+        let config = project.metric_extraction.ok().unwrap();
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 }
