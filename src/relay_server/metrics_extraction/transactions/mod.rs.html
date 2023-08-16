@@ -1634,19 +1634,6 @@
 <a href="#1634" id="1634">1634</a>
 <a href="#1635" id="1635">1635</a>
 <a href="#1636" id="1636">1636</a>
-<a href="#1637" id="1637">1637</a>
-<a href="#1638" id="1638">1638</a>
-<a href="#1639" id="1639">1639</a>
-<a href="#1640" id="1640">1640</a>
-<a href="#1641" id="1641">1641</a>
-<a href="#1642" id="1642">1642</a>
-<a href="#1643" id="1643">1643</a>
-<a href="#1644" id="1644">1644</a>
-<a href="#1645" id="1645">1645</a>
-<a href="#1646" id="1646">1646</a>
-<a href="#1647" id="1647">1647</a>
-<a href="#1648" id="1648">1648</a>
-<a href="#1649" id="1649">1649</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
@@ -1670,6 +1657,10 @@
 };
 
 <span class="kw">pub mod </span>types;
+
+<span class="doccomment">/// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
+/// cardinality data such as raw URLs.
+</span><span class="kw">const </span>PLACEHOLDER_UNPARAMETERIZED: <span class="kw-2">&amp;</span>str = <span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>;
 
 <span class="doccomment">/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
 /// Must be consistent with `process_trace_context` in [`relay_general::store`].
@@ -1704,11 +1695,7 @@
     geo.country_code.value().cloned()
 }
 
-<span class="kw">fn </span>is_low_cardinality(source: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TransactionSource&gt;) -&gt; bool {
-    <span class="comment">// `None` is used to mark a legacy SDK that does not send the transaction name,
-    // and we assume sends high-cardinality data. See `is_high_cardinality_transaction`.
-    </span><span class="kw">let </span><span class="prelude-val">Some</span>(source) = source <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-
+<span class="kw">fn </span>is_low_cardinality(source: <span class="kw-2">&amp;</span>TransactionSource) -&gt; bool {
     <span class="kw">match </span>source {
         <span class="comment">// For now, we hope that custom transaction names set by users are low-cardinality.
         </span>TransactionSource::Custom =&gt; <span class="bool-val">true</span>,
@@ -1740,36 +1727,25 @@
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
 </span><span class="kw">fn </span>get_transaction_name(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="kw">let </span>original_transaction_name = <span class="kw">match </span>event.transaction.value() {
-        <span class="prelude-val">Some</span>(name) =&gt; name,
-        <span class="prelude-val">None </span>=&gt; {
-            <span class="kw">return </span><span class="prelude-val">None</span>;
-        }
-    };
+    <span class="kw">let </span>original = event.transaction.value()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>source = event
         .transaction_info
         .value()
         .and_then(|info| info.source.value());
 
-    <span class="kw">let </span>use_original_name = is_low_cardinality(source);
+    <span class="kw">match </span>source {
+        <span class="prelude-val">Some</span>(source) <span class="kw">if </span>is_low_cardinality(source) =&gt; <span class="prelude-val">Some</span>(original.clone()),
+        <span class="prelude-val">Some</span>(TransactionSource::Other(<span class="kw">_</span>)) | <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(PLACEHOLDER_UNPARAMETERIZED.to_owned()),
+    }
+}
 
-    <span class="kw">let </span>name_used;
-    <span class="kw">let </span>name = <span class="kw">if </span>use_original_name {
-        name_used = <span class="string">&quot;original&quot;</span>;
-        <span class="prelude-val">Some</span>(original_transaction_name.clone())
-    } <span class="kw">else </span>{
-        <span class="comment">// Pick a sentinel based on the transaction source:
-        </span><span class="kw">match </span>source {
-            <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(TransactionSource::Other(<span class="kw">_</span>)) =&gt; {
-                name_used = <span class="string">&quot;none&quot;</span>;
-                <span class="prelude-val">None
-            </span>}
-            <span class="kw">_ </span>=&gt; {
-                name_used = <span class="string">&quot;placeholder&quot;</span>;
-                <span class="prelude-val">Some</span>(<span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>.to_owned())
-            }
-        }
+<span class="kw">fn </span>track_transaction_name_stats(event: <span class="kw-2">&amp;</span>Event) {
+    <span class="kw">let </span>name_used = <span class="kw">match </span>get_transaction_name(event).as_deref() {
+        <span class="prelude-val">Some</span>(<span class="self">self</span>::PLACEHOLDER_UNPARAMETERIZED) =&gt; <span class="string">&quot;placeholder&quot;</span>,
+        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="string">&quot;original&quot;</span>,
+        <span class="prelude-val">None </span>=&gt; <span class="string">&quot;none&quot;</span>,
     };
 
     <span class="macro">relay_statsd::metric!</span>(
@@ -1778,13 +1754,10 @@
         sdk_name = event
             .client_sdk
             .value()
-            .and_then(|c| c.name.value())
-            .map(std::string::String::as_str)
+            .and_then(|sdk| sdk.name.as_str())
             .unwrap_or_default(),
         name_used = name_used,
     );
-
-    name
 }
 
 <span class="doccomment">/// These are the tags that are added to all extracted metrics.
@@ -1923,6 +1896,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
         }
 
+        track_transaction_name_stats(event);
         <span class="kw">let </span>tags = extract_universal_tags(event, <span class="self">self</span>.config);
 
         <span class="comment">// Measurements
