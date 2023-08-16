@@ -834,7 +834,7 @@ struct Cache {
     /// Interval for evicting outdated project configs from memory.
     eviction_interval: u32,
     /// Interval for fetching new global configs from the upstream.
-    global_config_interval: u32,
+    global_config_fetch_interval: u32,
 }
 
 impl Default for Cache {
@@ -848,9 +848,9 @@ impl Default for Cache {
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             batch_size: 500,
-            file_interval: 10,          // 10 seconds
-            eviction_interval: 60,      // 60 seconds
-            global_config_interval: 10, // 10 seconds
+            file_interval: 10,                // 10 seconds
+            eviction_interval: 60,            // 60 seconds
+            global_config_fetch_interval: 10, // 10 seconds
         }
     }
 }
@@ -1759,7 +1759,7 @@ impl Config {
     /// Returns the interval in seconds in which fresh global configs should be
     /// fetched from  upstream.
     pub fn global_config_fetch_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.global_config_interval.into())
+        Duration::from_secs(self.values.cache.global_config_fetch_interval.into())
     }
 
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.

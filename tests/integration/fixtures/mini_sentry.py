@@ -322,7 +322,7 @@ def mini_sentry(request):  # noqa
 
         elif version in ["2", "3", "4"]:
             if version == "4":
-                if flask_request.json.get("global") or True:
+                if flask_request.json["global"]:
                     global_key["measurements"] = {"maxCustomMeasurements": 0}
                     global_key["metricsConditionalTagging"] = []
 

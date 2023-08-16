@@ -16,6 +16,7 @@ use flate2::Compression;
 use once_cell::sync::OnceCell;
 use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
+use tokio::sync::watch::Receiver;
 use tokio::sync::Semaphore;
 
 use crate::actors::global_config::{Get, GlobalConfigManager, Subscribe};
@@ -292,10 +293,6 @@ struct ProcessEnvelopeState {
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
     sampling_project_state: Option<Arc<ProjectState>>,
-
-    /// The configuration options for projects which apply to all DSNs.
-    /// TODO(tor) implement global config logic
-    _global_config: Arc<GlobalConfig>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -1370,7 +1367,6 @@ impl EnvelopeProcessorService {
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
-            _global_config: Arc::clone(&self.global_config),
             project_id,
             managed_envelope,
             has_profile: false,
@@ -2747,6 +2743,29 @@ impl EnvelopeProcessorService {
             }
         }
     }
+
+    async fn subscribe_global_config(&self) -> Receiver<Arc<GlobalConfig>> {
+        match self.inner.global_config.send(Subscribe).await {
+            Ok(c) => c,
+            Err(e) => {
+                relay_log::error!(
+                    error = &e as &dyn Error,
+                    "failed to subscribe to GlobalConfigService",
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+
+    async fn get_global_config(&self) -> Arc<GlobalConfig> {
+        match self.inner.global_config.send(Get).await {
+            Ok(global_config) => global_config,
+            Err(e) => {
+                relay_log::error!(error = &e as &dyn Error, "failed to fetch global config");
+                std::process::exit(1);
+            }
+        }
+    }
 }
 
 impl Service for EnvelopeProcessorService {
@@ -2759,23 +2778,9 @@ impl Service for EnvelopeProcessorService {
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            let mut global_config_rx = match self.inner.global_config.send(Subscribe).await {
-                Ok(c) => c,
-                Err(e) => {
-                    relay_log::error!(
-                        error = &e as &dyn Error,
-                        "failed to subscribe to GlobalConfigService",
-                    );
-                    std::process::exit(1);
-                }
-            };
-            match self.inner.global_config.send(Get).await {
-                Ok(global_config) => self.global_config = global_config,
-                Err(e) => {
-                    relay_log::error!(error = &e as &dyn Error, "failed to fetch global config");
-                    std::process::exit(1);
-                }
-            };
+            let (mut global_config_rx, global_config) =
+                futures::join!(self.subscribe_global_config(), self.get_global_config());
+            self.global_config = global_config;
 
             loop {
                 tokio::select! {
@@ -3018,7 +3023,6 @@ mod tests {
             ProcessEnvelopeState {
                 event: Annotated::from(event),
                 metrics: Default::default(),
-                _global_config: Arc::default(),
                 sample_rates: None,
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
@@ -3087,7 +3091,6 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                _global_config: Arc::default(),
                 sampling_result: SamplingResult::Keep,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),

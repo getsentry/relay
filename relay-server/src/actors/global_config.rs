@@ -30,7 +30,7 @@ pub struct GetGlobalConfigResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfig {
     pub global: bool,
-    // Upstream expects a list of public keys.
+    // Dummy variable - upstream expects a list of public keys.
     public_keys: Vec<()>,
 }
 
@@ -184,10 +184,13 @@ impl GlobalConfigService {
         });
     }
 
-    /// Handles the global config response from upstream, forwarding the global
-    /// config through the internal channel if query is succesfully sent, and a global config
-    /// is received.
-    fn handle_upstream_response(&mut self, response: UpstreamQueryResult) {
+    /// Handles the response of an attempt to fetch the global config from upstream.
+    ///
+    /// This function checks two levels of results:
+    ///     1. Whether the request to the upstream was successful.
+    ///     2. If the request was successful, it then checks whether the returned global config
+    ///         is valid and contains the expected data.
+    fn handle_upstream_query_result(&mut self, response: UpstreamQueryResult) {
         match response {
             Ok(Ok(config)) => match config.global {
                 Some(global_config) => {
@@ -227,7 +230,7 @@ impl Service for GlobalConfigService {
                     biased;
 
                     () = &mut self.fetch_handle => self.update_global_config(),
-                    Some(global_config) = self.internal_rx.recv() => self.handle_upstream_response(global_config),
+                    Some(global_config) = self.internal_rx.recv() => self.handle_upstream_query_result(global_config),
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,

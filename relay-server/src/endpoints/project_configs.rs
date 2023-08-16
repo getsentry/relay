@@ -34,7 +34,7 @@ const ENDPOINT_V3: u16 = 3;
 
 /// V4 version of this endpoint.
 ///
-/// Similar to V3, but also returning global configs.
+/// Can be used for fetching global configs.
 const ENDPOINT_V4: u16 = 4;
 
 /// Helper to deserialize the `version` query parameter.
@@ -112,7 +112,6 @@ async fn inner(
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
     let project_cache = &state.project_cache().clone();
-    let global_config = &state.global_config().clone();
 
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
@@ -137,7 +136,7 @@ async fn inner(
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
     let global_config = match inner.global {
-        true => Some(global_config.send(global_config::Get).await?),
+        true => Some(state.global_config().send(global_config::Get).await?),
         false => None,
     };
 
