@@ -322,7 +322,7 @@ def mini_sentry(request):  # noqa
 
         elif version in ["2", "3", "4"]:
             if version == "4":
-                if flask_request.json["global"]:
+                if flask_request.json.get("global"):
                     # There are no fields in global config for now
                     global_ = {}
 

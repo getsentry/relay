@@ -833,7 +833,7 @@ struct Cache {
     file_interval: u32,
     /// Interval for evicting outdated project configs from memory.
     eviction_interval: u32,
-    /// Interval for fetching new global configs from the upstream.
+    /// Interval for fetching new global configs from the upstream, in seconds.
     global_config_fetch_interval: u32,
 }
 

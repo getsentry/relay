@@ -213,7 +213,7 @@ def test_pending_projects(mini_sentry, relay):
 
 def request_config(relay, packed, signature, version: str):
     return relay.post(
-        "/api/0/relays/projectconfigs/?version=" + version,
+        f"/api/0/relays/projectconfigs/?version={version}",
         data=packed,
         headers={
             "X-Sentry-Relay-Id": relay.relay_id,

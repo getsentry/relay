@@ -95,7 +95,7 @@ struct GetProjectStatesResponseWrapper {
 /// which allows skipping invalid project keys.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetProjectStatesRequest {
+struct GetProjectStatesRequest {
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
     #[serde(default)]
     full_config: bool,

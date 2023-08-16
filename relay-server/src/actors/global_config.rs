@@ -13,15 +13,15 @@ use crate::actors::upstream::{
 };
 use crate::utils::SleepHandle;
 
-/// The result of sending a global config query to upstream. It can fail both in sending it,
-/// and in the response.
+/// The result of sending a global config query to upstream.
+/// It can fail both in sending it, and in the response.
 type UpstreamQueryResult =
     Result<Result<GetGlobalConfigResponse, UpstreamRequestError>, relay_system::SendError>;
 
 /// The response of a fetch of a global config from upstream.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetGlobalConfigResponse {
+struct GetGlobalConfigResponse {
     #[serde(default)]
     global: Option<GlobalConfig>,
 }
@@ -29,14 +29,14 @@ pub struct GetGlobalConfigResponse {
 /// The request to fetch a global config from upstream.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetGlobalConfig {
-    pub global: bool,
+struct GetGlobalConfig {
+    global: bool,
     // Dummy variable - upstream expects a list of public keys.
     public_keys: Vec<()>,
 }
 
 impl GetGlobalConfig {
-    pub fn query() -> GetGlobalConfig {
+    fn new() -> GetGlobalConfig {
         GetGlobalConfig {
             global: true,
             public_keys: vec![],
@@ -165,11 +165,11 @@ impl GlobalConfigService {
     fn update_global_config(&mut self) {
         self.fetch_handle.reset();
 
-        let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
+        let upstream_relay = self.upstream.clone();
         let internal_tx = self.internal_tx.clone();
 
         tokio::spawn(async move {
-            let query = GetGlobalConfig::query();
+            let query = GetGlobalConfig::new();
             let res = upstream_relay.send(SendQuery(query)).await;
             // Internal forwarding should only fail when the internal receiver
             // is closed.
