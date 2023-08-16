@@ -2743,29 +2743,6 @@ impl EnvelopeProcessorService {
             }
         }
     }
-
-    async fn subscribe_global_config(&self) -> Receiver<Arc<GlobalConfig>> {
-        match self.inner.global_config.send(Subscribe).await {
-            Ok(c) => c,
-            Err(e) => {
-                relay_log::error!(
-                    error = &e as &dyn Error,
-                    "failed to subscribe to GlobalConfigService",
-                );
-                std::process::exit(1);
-            }
-        }
-    }
-
-    async fn get_global_config(&self) -> Arc<GlobalConfig> {
-        match self.inner.global_config.send(Get).await {
-            Ok(global_config) => global_config,
-            Err(e) => {
-                relay_log::error!(error = &e as &dyn Error, "failed to fetch global config");
-                std::process::exit(1);
-            }
-        }
-    }
 }
 
 impl Service for EnvelopeProcessorService {
@@ -2778,19 +2755,23 @@ impl Service for EnvelopeProcessorService {
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            let (mut global_config_rx, global_config) =
-                futures::join!(self.subscribe_global_config(), self.get_global_config());
-            self.global_config = global_config;
+            let Ok(mut subscription) = self.inner.global_config.send(Subscribe).await else {
+                // TODO(iker): we accept this sub-optimal error handling. TBD
+                // the approach to deal with failures on the subscription
+                // mechanism.
+                relay_log::error!("failed to subscribe to GlobalConfigService");
+                return;
+            };
 
             loop {
+                let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
+
                 tokio::select! {
                    biased;
 
-                    _ = global_config_rx.changed() => self.global_config = global_config_rx.borrow().clone(),
-                    (Some(message), Ok(permit)) = futures::future::join(
-                        rx.recv(),
-                        semaphore.clone().acquire_owned()
-                    ) => {
+                    // TODO(iker): deal with the error when the sender of the channel is dropped.
+                    _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
+                    (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
                             service.handle_message(message);
