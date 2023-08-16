@@ -46,10 +46,10 @@ pub struct GetProjectStates {
 pub struct GetProjectStatesResponse {
     /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
     #[serde(default)]
-    pub(crate) configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
     /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
-    pub(crate) pending: Vec<ProjectKey>,
+    pending: Vec<ProjectKey>,
 }
 
 impl UpstreamQuery for GetProjectStates {

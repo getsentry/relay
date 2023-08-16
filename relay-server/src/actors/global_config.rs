@@ -18,6 +18,7 @@ use crate::utils::SleepHandle;
 type UpstreamQueryResult =
     Result<Result<GetGlobalConfigResponse, UpstreamRequestError>, relay_system::SendError>;
 
+/// The response of a fetch of a global config from upstream.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfigResponse {
@@ -25,6 +26,7 @@ pub struct GetGlobalConfigResponse {
     global: Option<GlobalConfig>,
 }
 
+/// The request to fetch a global config from upstream.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetGlobalConfig {
@@ -199,7 +201,8 @@ impl GlobalConfigService {
                 error = &e as &dyn std::error::Error,
                 "failed to send request to upstream"
             ),
-        };
+        }
+
         self.schedule_fetch();
     }
 }

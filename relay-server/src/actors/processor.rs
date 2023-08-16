@@ -552,7 +552,6 @@ impl EnvelopeProcessorService {
         global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
-        // TODO(tor): Replace with state enum (`init`, `ready`) and do not process anything while global_config is undefined.
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
                 Ok(geoip) => Some(geoip),
