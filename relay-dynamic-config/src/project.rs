@@ -12,10 +12,12 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::defaults;
+use crate::error_boundary::ErrorBoundary;
+use crate::feature::FeatureSet;
 use crate::metrics::{
-    MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
+    self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::{ErrorBoundary, FeatureSet};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +80,16 @@ pub struct ProjectConfig {
     /// Span description renaming rules.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+}
+
+impl ProjectConfig {
+    /// Validates fields in this project config and removes values that are partially invalid.
+    pub fn sanitize(&mut self) {
+        self.quotas.retain(Quota::is_valid);
+
+        metrics::convert_conditional_tagging(self);
+        defaults::add_span_metrics(self);
+    }
 }
 
 impl Default for ProjectConfig {
