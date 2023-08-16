@@ -179,7 +179,7 @@ impl GlobalConfigService {
             let query = GetGlobalConfig::query();
             let res = upstream_relay.send(SendQuery(query)).await;
             if internal_tx.send(res).is_err() {
-                relay_log::error!("failed to forward internally the upstream response");
+                relay_log::error!("failed to forward internally the upstream query result");
             }
         });
     }
