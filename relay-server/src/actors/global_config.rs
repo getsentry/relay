@@ -130,7 +130,7 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 pub struct GlobalConfigService {
     config: Arc<Config>,
     /// Sender of the [`watch`] channel for the subscribers of the service.
-    sender: watch::Sender<Arc<GlobalConfig>>,
+    global_config_watch: watch::Sender<Arc<GlobalConfig>>,
     /// Sender of the internal channel to forward global configs from upstream.
     internal_tx: mpsc::Sender<UpstreamQueryResult>,
     /// Receiver of the internal channel to forward global configs from upstream.
@@ -144,11 +144,11 @@ pub struct GlobalConfigService {
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let (sender, _) = watch::channel(Arc::default());
+        let (global_config_watch, _) = watch::channel(Arc::default());
         let (internal_tx, internal_rx) = mpsc::channel(1);
         Self {
             config,
-            sender,
+            global_config_watch,
             internal_tx,
             internal_rx,
             upstream,
@@ -160,10 +160,10 @@ impl GlobalConfigService {
     fn handle_message(&self, message: GlobalConfigManager) {
         match message {
             GlobalConfigManager::Get(sender) => {
-                sender.send(self.sender.borrow().clone());
+                sender.send(self.global_config_watch.borrow().clone());
             }
             GlobalConfigManager::Subscribe(sender) => {
-                sender.send(self.sender.subscribe());
+                sender.send(self.global_config_watch.subscribe());
             }
         }
     }
@@ -207,7 +207,7 @@ impl GlobalConfigService {
             Ok(Ok(config)) => match config.global {
                 Some(global_config) => {
                     // Forwarding only fails when no subscribers.
-                    self.sender.send(Arc::new(global_config)).ok();
+                    self.global_config_watch.send(Arc::new(global_config)).ok();
                 }
                 None => relay_log::error!("global config missing in upstream response"),
             },
