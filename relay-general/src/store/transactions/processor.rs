@@ -548,6 +548,25 @@ mod tests {
     }
 
     #[test]
+    fn test_discards_when_timestamp_out_of_range() {
+        let mut event = new_test_event();
+
+        let processor = &mut TransactionsProcessor::new(
+            TransactionNameConfig::default(),
+            false,
+            None,
+            Some(UnixTimestamp::now()..UnixTimestamp::now()),
+        );
+
+        assert!(matches!(
+            process_value(&mut event, processor, ProcessingState::root()),
+            Err(ProcessingAction::InvalidTransaction(
+                "timestamp is out of the valid range for metrics"
+            ))
+        ));
+    }
+
+    #[test]
     fn test_replace_missing_timestamp() {
         let span = Span {
             start_timestamp: Annotated::new(
