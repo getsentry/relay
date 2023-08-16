@@ -310,8 +310,8 @@ def mini_sentry(request):  # noqa
 
         response = {}
         configs = {}
-        global_key = {}
         pending = []
+        global_ = None
 
         version = flask_request.args.get("version")
         if version in [None, "1"]:
@@ -323,8 +323,8 @@ def mini_sentry(request):  # noqa
         elif version in ["2", "3", "4"]:
             if version == "4":
                 if flask_request.json["global"]:
-                    global_key["measurements"] = {"maxCustomMeasurements": 0}
-                    global_key["metricsConditionalTagging"] = []
+                    # There are no fields in global config for now
+                    global_ = {}
 
             for public_key in flask_request.json["publicKeys"]:
                 # We store projects by id, but need to return by key
@@ -352,7 +352,8 @@ def mini_sentry(request):  # noqa
 
         response["configs"] = configs
         response["pending"] = pending
-        response["global"] = global_key
+        if global_ is not None:
+            response["global"] = global_
 
         return jsonify(response)
 

@@ -99,7 +99,6 @@ class SentryLike:
             return
 
         self._wait("/api/relay/healthcheck/ready/")
-
         self._health_check_passed = True
 
     def __repr__(self):
