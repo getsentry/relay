@@ -149,7 +149,6 @@ impl GlobalConfigService {
     /// Schedules the next global config request.
     fn schedule_fetch(&mut self) {
         if self.fetch_handle.is_idle() {
-            // XXX(iker): set a backoff mechanism?
             self.fetch_handle
                 .set(self.config.global_config_fetch_interval());
         }
@@ -162,16 +161,6 @@ impl GlobalConfigService {
     fn update_global_config(&mut self) {
         self.fetch_handle.reset();
 
-        // Returning early will effectively shut off the fetching of new global configs, as the
-        // sleephandle is reset when `update_global_config` is called, and only after sending a new
-        // request will it be enabled again.
-        if !self.config.has_credentials() {
-            relay_log::info!(
-                "fetching global configs from upstream disabled due to lack of credentials."
-            );
-            return;
-        }
-
         let upstream_relay: Addr<UpstreamRelay> = self.upstream.clone();
         let internal_tx = self.internal_tx.clone();
 
@@ -179,24 +168,24 @@ impl GlobalConfigService {
             let query = GetGlobalConfig::query();
             let res = upstream_relay.send(SendQuery(query)).await;
             if internal_tx.send(res).is_err() {
-                relay_log::error!("failed to forward internally the upstream query result");
+                relay_log::error!("global config service shut down during fetch");
             }
         });
     }
 
-    /// Handles the response of an attempt to fetch the global config from upstream.
+    /// Handles the response of an attempt to fetch the global config from
+    /// upstream.
     ///
     /// This function checks two levels of results:
-    ///     1. Whether the request to the upstream was successful.
-    ///     2. If the request was successful, it then checks whether the returned global config
-    ///         is valid and contains the expected data.
-    fn handle_upstream_query_result(&mut self, response: UpstreamQueryResult) {
+    /// 1. Whether the request to the upstream was successful.
+    /// 2. If the request was successful, it then checks whether the returned
+    /// global config is valid and contains the expected data.
+    fn handle_upstream_result(&mut self, response: UpstreamQueryResult) {
         match response {
             Ok(Ok(config)) => match config.global {
                 Some(global_config) => {
-                    if self.sender.send(Arc::new(global_config)).is_err() {
-                        relay_log::error!("failed to forward the global config internally");
-                    }
+                    // Forwarding only fails when no subscribers.
+                    self.sender.send(Arc::new(global_config)).ok();
                 }
                 None => relay_log::error!("global config missing in upstream response"),
             },
@@ -220,17 +209,23 @@ impl Service for GlobalConfigService {
         tokio::spawn(async move {
             relay_log::info!("global config service starting");
 
-            // NOTE(iker): if this first request fails it's possible the default
-            // global config is forwarded. This is not ideal, but we accept it
-            // for now.
-            self.update_global_config();
+            if self.config.has_credentials() {
+                // NOTE(iker): if this first request fails it's possible the default
+                // global config is forwarded. This is not ideal, but we accept it
+                // for now.
+                self.update_global_config();
+            } else {
+                // NOTE(iker): not making a request results in the sleep handler
+                // not being reset, so no new requests are made.
+                relay_log::info!("fetching global configs disabled: no credentials configured");
+            }
 
             loop {
                 tokio::select! {
                     biased;
 
                     () = &mut self.fetch_handle => self.update_global_config(),
-                    Some(global_config) = self.internal_rx.recv() => self.handle_upstream_query_result(global_config),
+                    Some(global_config) = self.internal_rx.recv() => self.handle_upstream_result(global_config),
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,
