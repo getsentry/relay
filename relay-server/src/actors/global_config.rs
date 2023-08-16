@@ -3,10 +3,9 @@ use std::sync::Arc;
 
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::{mpsc, watch};
 
 use crate::actors::upstream::{
@@ -76,9 +75,9 @@ pub struct Subscribe;
 /// A way to get updates of the global config.
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
-    Get(Sender<Arc<GlobalConfig>>),
+    Get(relay_system::Sender<Arc<GlobalConfig>>),
     /// Returns a [`watch::Receiver`] where global config updates will be sent to.
-    Subscribe(Sender<watch::Receiver<Arc<GlobalConfig>>>),
+    Subscribe(relay_system::Sender<watch::Receiver<Arc<GlobalConfig>>>),
 }
 
 impl Interface for GlobalConfigManager {}
@@ -86,7 +85,7 @@ impl Interface for GlobalConfigManager {}
 impl FromMessage<Get> for GlobalConfigManager {
     type Response = AsyncResponse<Arc<GlobalConfig>>;
 
-    fn from_message(_: Get, sender: Sender<Arc<GlobalConfig>>) -> Self {
+    fn from_message(_: Get, sender: relay_system::Sender<Arc<GlobalConfig>>) -> Self {
         Self::Get(sender)
     }
 }
@@ -94,7 +93,10 @@ impl FromMessage<Get> for GlobalConfigManager {
 impl FromMessage<Subscribe> for GlobalConfigManager {
     type Response = AsyncResponse<watch::Receiver<Arc<GlobalConfig>>>;
 
-    fn from_message(_: Subscribe, sender: Sender<watch::Receiver<Arc<GlobalConfig>>>) -> Self {
+    fn from_message(
+        _: Subscribe,
+        sender: relay_system::Sender<watch::Receiver<Arc<GlobalConfig>>>,
+    ) -> Self {
         Self::Subscribe(sender)
     }
 }
@@ -110,9 +112,9 @@ pub struct GlobalConfigService {
     /// Sender of the [`watch`] channel for the subscribers of the service.
     sender: watch::Sender<Arc<GlobalConfig>>,
     /// Sender of the internal channel to forward global configs from upstream.
-    internal_tx: UnboundedSender<UpstreamQueryResult>,
+    internal_tx: mpsc::Sender<UpstreamQueryResult>,
     /// Receiver of the internal channel to forward global configs from upstream.
-    internal_rx: UnboundedReceiver<UpstreamQueryResult>,
+    internal_rx: mpsc::Receiver<UpstreamQueryResult>,
     /// Upstream service to request global configs from.
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
@@ -123,7 +125,7 @@ impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (sender, _) = watch::channel(Arc::default());
-        let (internal_tx, internal_rx) = mpsc::unbounded_channel();
+        let (internal_tx, internal_rx) = mpsc::channel(1);
         Self {
             config,
             sender,
@@ -167,9 +169,9 @@ impl GlobalConfigService {
         tokio::spawn(async move {
             let query = GetGlobalConfig::query();
             let res = upstream_relay.send(SendQuery(query)).await;
-            if internal_tx.send(res).is_err() {
-                relay_log::error!("global config service shut down during fetch");
-            }
+            // Internal forwarding should only fail when the internal receiver
+            // is closed.
+            internal_tx.send(res).await.ok();
         });
     }
 
@@ -180,8 +182,8 @@ impl GlobalConfigService {
     /// 1. Whether the request to the upstream was successful.
     /// 2. If the request was successful, it then checks whether the returned
     /// global config is valid and contains the expected data.
-    fn handle_upstream_result(&mut self, response: UpstreamQueryResult) {
-        match response {
+    fn handle_result(&mut self, result: UpstreamQueryResult) {
+        match result {
             Ok(Ok(config)) => match config.global {
                 Some(global_config) => {
                     // Forwarding only fails when no subscribers.
@@ -225,7 +227,7 @@ impl Service for GlobalConfigService {
                     biased;
 
                     () = &mut self.fetch_handle => self.update_global_config(),
-                    Some(global_config) = self.internal_rx.recv() => self.handle_upstream_result(global_config),
+                    Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,
