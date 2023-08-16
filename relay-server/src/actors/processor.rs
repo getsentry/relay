@@ -16,10 +16,9 @@ use flate2::Compression;
 use once_cell::sync::OnceCell;
 use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
-use tokio::sync::watch::Receiver;
 use tokio::sync::Semaphore;
 
-use crate::actors::global_config::{Get, GlobalConfigManager, Subscribe};
+use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
