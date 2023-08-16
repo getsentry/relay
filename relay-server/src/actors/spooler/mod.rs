@@ -1063,6 +1063,7 @@ mod tests {
             key,
             value: empty_managed_envelope(),
         });
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Nothing dequeued yet:
         assert!(rx.try_recv().is_err());
