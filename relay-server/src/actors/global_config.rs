@@ -1,3 +1,14 @@
+//! This module implements the Global Config service.
+//!
+//! The global config service is a Relay service to manage [`GlobalConfig`]s,
+//! from fetching to forwarding. Once the service is started, it requests
+//! recurrently the configs from upstream in a timely manner to provide it to
+//! the rest of Relay.
+//!
+//! There are two ways to interact with this service: requesting a single global
+//! config update or subscribing for updates; see [`GlobalConfigManager`] for
+//! more details.
+
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -74,7 +85,14 @@ pub struct Get;
 /// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
 pub struct Subscribe;
 
-/// A way to get updates of the global config.
+/// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].
+///
+/// For a one-off update, [`GlobalConfigService`] responds to
+/// [`GlobalConfigManager::Get`] messages with the latest instance of the
+/// [`GlobalConfig`]. For continued updates, you can subscribe with
+/// [`GlobalConfigManager::Subscribe`] to get a receiver back where up-to-date
+/// instances will be sent to, while [`GlobalConfigService`] manages the update
+/// frequency from upstream.
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
     Get(relay_system::Sender<Arc<GlobalConfig>>),
