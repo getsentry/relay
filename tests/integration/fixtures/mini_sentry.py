@@ -314,6 +314,11 @@ def mini_sentry(request):  # noqa
         global_ = None
 
         version = flask_request.args.get("version")
+
+        if version == "4" and flask_request.json.get("global"):
+            # There are no fields in global config for now
+            global_ = {}
+
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
@@ -321,11 +326,6 @@ def mini_sentry(request):  # noqa
                     configs[project_id] = project_config
 
         elif version in ["2", "3", "4"]:
-            if version == "4":
-                if flask_request.json.get("global"):
-                    # There are no fields in global config for now
-                    global_ = {}
-
             for public_key in flask_request.json["publicKeys"]:
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
