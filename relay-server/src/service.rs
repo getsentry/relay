@@ -101,7 +101,7 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub async fn start(config: Arc<Config>) -> Result<Self> {
+    pub fn start(config: Arc<Config>) -> Result<Self> {
         let upstream_runtime = create_runtime("upstream-rt", 1);
         let project_runtime = create_runtime("project-rt", 1);
         let aggregator_runtime = create_runtime("aggregator-rt", 1);
