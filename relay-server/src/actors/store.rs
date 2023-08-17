@@ -205,6 +205,7 @@ impl StoreService {
                 ItemType::Span => self.produce_span(
                     scoping.organization_id,
                     scoping.project_id,
+                    event_id,
                     start_time,
                     item,
                 )?,
@@ -743,6 +744,7 @@ impl StoreService {
         &self,
         organization_id: u64,
         project_id: ProjectId,
+        event_id: Option<EventId>,
         start_time: Instant,
         item: &Item,
     ) -> Result<(), StoreError> {
@@ -761,6 +763,7 @@ impl StoreService {
             project_id,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             span,
+            event_id,
         });
 
         self.produce(KafkaTopic::Spans, organization_id, message)?;
@@ -1032,12 +1035,17 @@ struct CheckInKafkaMessage {
 
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage {
-    /// Raw span data.
+    /// Raw span data. See [`relay_general::protocol::Span`] for schema.
     span: serde_json::Value,
     /// Time at which the span was received by Relay.
     start_time: u64,
     /// The project id for the current span.
     project_id: ProjectId,
+    /// The event id for the current span.
+    ///
+    /// Once spans are truly standalone, this field will be omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_id: Option<EventId>,
 }
 
 /// An enum over all possible ingest messages.
