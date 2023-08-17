@@ -18,12 +18,15 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
+use relay_dynamic_config::{
+    ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
+};
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -522,6 +525,7 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
+    global_config: Arc<GlobalConfig>,
     inner: Arc<InnerProcessor>,
 }
 
@@ -529,6 +533,7 @@ struct InnerProcessor {
     config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
+    global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -544,6 +549,7 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
+        global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -563,12 +569,14 @@ impl EnvelopeProcessorService {
             config,
             envelope_manager,
             project_cache,
+            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
         };
 
         Self {
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -2738,22 +2746,39 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let thread_count = self.inner.config.cpu_concurrency();
         relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            while let (Some(message), Ok(permit)) =
-                tokio::join!(rx.recv(), semaphore.clone().acquire_owned())
-            {
-                let service = self.clone();
+            let Ok(mut subscription) = self.inner.global_config.send(Subscribe).await else {
+                // TODO(iker): we accept this sub-optimal error handling. TBD
+                // the approach to deal with failures on the subscription
+                // mechanism.
+                relay_log::error!("failed to subscribe to GlobalConfigService");
+                return;
+            };
 
-                tokio::task::spawn_blocking(move || {
-                    service.handle_message(message);
-                    drop(permit);
-                });
+            loop {
+                let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
+
+                tokio::select! {
+                   biased;
+
+                    // TODO(iker): deal with the error when the sender of the channel is dropped.
+                    _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
+                    (Some(message), Ok(permit)) = next_msg => {
+                        let service = self.clone();
+                        tokio::task::spawn_blocking(move || {
+                            service.handle_message(message);
+                            drop(permit);
+                        });
+                    },
+
+                    else => break
+                }
             }
         });
     }
@@ -3192,6 +3217,7 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3201,9 +3227,11 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
+            global_config,
         };
 
         EnvelopeProcessorService {
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }

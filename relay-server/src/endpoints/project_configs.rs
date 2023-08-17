@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::extract::Query;
 use axum::handler::Handler;
@@ -7,9 +8,10 @@ use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
 use relay_common::ProjectKey;
-use relay_dynamic_config::ErrorBoundary;
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
+use crate::actors::global_config;
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
@@ -29,6 +31,11 @@ const ENDPOINT_V2: u16 = 2;
 /// next time a downstream relay polls for this it is hopefully in our cache and will be
 /// returned, or a further poll ensues.
 const ENDPOINT_V3: u16 = 3;
+
+/// V4 version of this endpoint.
+///
+/// Can be used for fetching global configs.
+const ENDPOINT_V4: u16 = 4;
 
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -70,12 +77,16 @@ impl ProjectStateWrapper {
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections.  This list is always empty before V3.
+///
+/// Version 4 adds a global config [`GlobalConfig`] if `global` is enabled.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
     configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global: Option<Arc<GlobalConfig>>,
 }
 
 /// Request payload of the project config endpoint.
@@ -90,6 +101,8 @@ struct GetProjectStatesRequest {
     full_config: bool,
     #[serde(default)]
     no_cache: bool,
+    #[serde(default)]
+    global: bool,
 }
 
 async fn inner(
@@ -122,6 +135,10 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
+    let global_config = match inner.global {
+        true => Some(state.global_config().send(global_config::Get).await?),
+        false => None,
+    };
 
     for (project_key, state_result) in future::join_all(futures).await {
         let Some(project_state) = state_result? else {
@@ -150,12 +167,16 @@ async fn inner(
         };
     }
 
-    Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
+    Ok(Json(GetProjectStatesResponseWrapper {
+        configs,
+        pending,
+        global: global_config,
+    }))
 }
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V4
 }
 
 /// Endpoint handler for the project configs endpoint.
