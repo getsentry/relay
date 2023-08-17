@@ -258,7 +258,7 @@ def test_ignore_transactions_filters_are_applied(
 
     now = datetime.datetime.utcnow()
     start_timestamp = now.timestamp()
-    timestamp = (now - datetime.timedelta(minutes=-1)).timestamp()
+    timestamp = (now + datetime.timedelta(minutes=1)).timestamp()
 
     transaction = {
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
