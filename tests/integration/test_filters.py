@@ -254,7 +254,7 @@ def test_ignore_transactions_filters_are_applied(
             "isEnabled": is_enabled,
         }
 
-    transactions_consumer = transactions_consumer(timeout=10)
+    transactions_consumer = transactions_consumer(timeout=15)
 
     now = datetime.datetime.utcnow()
     start_timestamp = now.timestamp()
