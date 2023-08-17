@@ -374,7 +374,7 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
+                Ok(state) => state.map(ProjectState::sanitize).map(Arc::new),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,

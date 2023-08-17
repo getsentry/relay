@@ -13,6 +13,7 @@ use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
+use crate::actors::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::actors::health_check::{HealthCheck, HealthCheckService};
 use crate::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::actors::outcome_aggregator::OutcomeAggregator;
@@ -52,6 +53,7 @@ pub struct Registry {
     pub envelope_manager: Addr<EnvelopeManager>,
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
+    pub global_config: Addr<GlobalConfigManager>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
 }
@@ -129,6 +131,9 @@ impl ServiceState {
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
+        let global_config =
+            GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
+
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
         let processor = EnvelopeProcessorService::new(
             config.clone(),
@@ -136,6 +141,7 @@ impl ServiceState {
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
+            global_config.clone(),
             upstream_relay.clone(),
         )
         .start();
@@ -211,6 +217,7 @@ impl ServiceState {
             envelope_manager,
             test_store,
             relay_cache,
+            global_config,
             project_cache,
             upstream_relay,
         };
@@ -277,6 +284,11 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn processor(&self) -> &Addr<EnvelopeProcessor> {
         &self.inner.registry.processor
+    }
+
+    /// Returns the address of the [`GlobalConfigService`] service.
+    pub fn global_config(&self) -> &Addr<GlobalConfigManager> {
+        &self.inner.registry.global_config
     }
 
     /// Returns the address of the [`OutcomeProducer`] service.

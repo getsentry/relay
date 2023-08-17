@@ -308,16 +308,24 @@ def mini_sentry(request):  # noqa
         if relay_id not in authenticated_relays:
             abort(403, "relay not registered")
 
+        response = {}
         configs = {}
         pending = []
+        global_ = None
+
         version = flask_request.args.get("version")
+
+        if version == "4" and flask_request.json.get("global"):
+            # There are no fields in global config for now
+            global_ = {}
+
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
                 if is_trusted(relay_id, project_config):
                     configs[project_id] = project_config
 
-        elif version in ["2", "3"]:
+        elif version in ["2", "3", "4"]:
             for public_key in flask_request.json["publicKeys"]:
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
@@ -340,9 +348,14 @@ def mini_sentry(request):  # noqa
                                 configs[public_key]["publicKeys"] = [key]
 
         else:
-            abort(500, "unsupported version")
+            abort(500, f"unsupported version: {version}")
 
-        return jsonify(configs=configs, pending=pending)
+        response["configs"] = configs
+        response["pending"] = pending
+        if global_ is not None:
+            response["global"] = global_
+
+        return jsonify(response)
 
     @app.route("/api/0/relays/publickeys/", methods=["POST"])
     def public_keys():

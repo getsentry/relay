@@ -44,10 +44,12 @@ pub struct GetProjectStates {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
+    /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
     #[serde(default)]
-    pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
-    pub pending: Vec<ProjectKey>,
+    pending: Vec<ProjectKey>,
 }
 
 impl UpstreamQuery for GetProjectStates {
