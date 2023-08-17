@@ -104,7 +104,7 @@ setup(
     version=version,
     packages=find_packages(),
     author="Sentry",
-    license="BSL-1.1",
+    license="BUSL-1.1",
     author_email="hello@sentry.io",
     description="A python library to access sentry relay functionality.",
     long_description=readme,
