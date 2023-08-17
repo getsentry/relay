@@ -1074,11 +1074,9 @@ mod tests {
             sender: tx.clone(),
         });
 
-        tokio::time::sleep(Duration::from_millis(500)).await;
-
         // There are enough permits, so get an envelope:
-        let res = rx.try_recv();
-        assert!(res.is_ok(), "{res:?}");
+        let res = rx.recv().await;
+        assert!(res.is_some(), "{res:?}");
         assert_eq!(buffer_guard.available(), 2);
 
         // Simulate a new envelope coming in via a web request:

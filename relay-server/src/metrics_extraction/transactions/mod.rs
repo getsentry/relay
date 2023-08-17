@@ -22,6 +22,10 @@ use relay_general::store::utils::{
 
 pub mod types;
 
+/// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
+/// cardinality data such as raw URLs.
+const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
+
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
 /// Must be consistent with `process_trace_context` in [`relay_general::store`].
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
@@ -55,11 +59,7 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
     geo.country_code.value().cloned()
 }
 
-fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
-    // `None` is used to mark a legacy SDK that does not send the transaction name,
-    // and we assume sends high-cardinality data. See `is_high_cardinality_transaction`.
-    let Some(source) = source else { return false };
-
+fn is_low_cardinality(source: &TransactionSource) -> bool {
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
         TransactionSource::Custom => true,
@@ -91,36 +91,25 @@ fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
 fn get_transaction_name(event: &Event) -> Option<String> {
-    let original_transaction_name = match event.transaction.value() {
-        Some(name) => name,
-        None => {
-            return None;
-        }
-    };
+    let original = event.transaction.value()?;
 
     let source = event
         .transaction_info
         .value()
         .and_then(|info| info.source.value());
 
-    let use_original_name = is_low_cardinality(source);
+    match source {
+        Some(source) if is_low_cardinality(source) => Some(original.clone()),
+        Some(TransactionSource::Other(_)) | None => None,
+        Some(_) => Some(PLACEHOLDER_UNPARAMETERIZED.to_owned()),
+    }
+}
 
-    let name_used;
-    let name = if use_original_name {
-        name_used = "original";
-        Some(original_transaction_name.clone())
-    } else {
-        // Pick a sentinel based on the transaction source:
-        match source {
-            None | Some(TransactionSource::Other(_)) => {
-                name_used = "none";
-                None
-            }
-            _ => {
-                name_used = "placeholder";
-                Some("<< unparameterized >>".to_owned())
-            }
-        }
+fn track_transaction_name_stats(event: &Event) {
+    let name_used = match get_transaction_name(event).as_deref() {
+        Some(self::PLACEHOLDER_UNPARAMETERIZED) => "placeholder",
+        Some(_) => "original",
+        None => "none",
     };
 
     relay_statsd::metric!(
@@ -129,13 +118,10 @@ fn get_transaction_name(event: &Event) -> Option<String> {
         sdk_name = event
             .client_sdk
             .value()
-            .and_then(|c| c.name.value())
-            .map(std::string::String::as_str)
+            .and_then(|sdk| sdk.name.as_str())
             .unwrap_or_default(),
         name_used = name_used,
     );
-
-    name
 }
 
 /// These are the tags that are added to all extracted metrics.
@@ -274,6 +260,7 @@ impl TransactionExtractor<'_> {
             return Err(ExtractMetricsError::InvalidTimestamp);
         }
 
+        track_transaction_name_stats(event);
         let tags = extract_universal_tags(event, self.config);
 
         // Measurements
