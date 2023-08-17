@@ -335,40 +335,6 @@ pub enum TagSource<'a> {
     Unknown,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use similar_asserts::assert_eq;
-
-    #[test]
-    fn parse_tag_spec_value() {
-        let json = r#"{"key":"foo","value":"bar"}"#;
-        let spec: TagSpec = serde_json::from_str(json).unwrap();
-        assert_eq!(spec.source(), TagSource::Literal("bar"));
-    }
-
-    #[test]
-    fn parse_tag_spec_field() {
-        let json = r#"{"key":"foo","field":"bar"}"#;
-        let spec: TagSpec = serde_json::from_str(json).unwrap();
-        assert_eq!(spec.source(), TagSource::Field("bar"));
-    }
-
-    #[test]
-    fn parse_tag_spec_unsupported() {
-        let json = r#"{"key":"foo","somethingNew":"bar"}"#;
-        let spec: TagSpec = serde_json::from_str(json).unwrap();
-        assert_eq!(spec.source(), TagSource::Unknown);
-    }
-
-    #[test]
-    fn parse_tag_mapping() {
-        let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
-        let mapping: TagMapping = serde_json::from_str(json).unwrap();
-        assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
-    }
-}
-
 /// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
 /// config.
 pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
@@ -432,5 +398,39 @@ where
                 tags: std::mem::take(&mut self.tags),
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use similar_asserts::assert_eq;
+
+    #[test]
+    fn parse_tag_spec_value() {
+        let json = r#"{"key":"foo","value":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.source(), TagSource::Literal("bar"));
+    }
+
+    #[test]
+    fn parse_tag_spec_field() {
+        let json = r#"{"key":"foo","field":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.source(), TagSource::Field("bar"));
+    }
+
+    #[test]
+    fn parse_tag_spec_unsupported() {
+        let json = r#"{"key":"foo","somethingNew":"bar"}"#;
+        let spec: TagSpec = serde_json::from_str(json).unwrap();
+        assert_eq!(spec.source(), TagSource::Unknown);
+    }
+
+    #[test]
+    fn parse_tag_mapping() {
+        let json = r#"{"metrics": ["d:spans/*"], "tags": [{"key":"foo","field":"bar"}]}"#;
+        let mapping: TagMapping = serde_json::from_str(json).unwrap();
+        assert!(mapping.metrics[0].compiled().is_match("d:spans/foo"));
     }
 }

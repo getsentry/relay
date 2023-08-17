@@ -76,7 +76,12 @@ where
         for metric in &mut *metrics {
             if mapping.matches(&metric.name) {
                 let tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, &mapping.tags));
-                metric.tags.extend(tags.clone());
+
+                for (key, val) in tags {
+                    if !metric.tags.contains_key(key) {
+                        metric.tags.insert(key.clone(), val.clone());
+                    }
+                }
             }
         }
     }
@@ -292,6 +297,112 @@ mod tests {
                     "fast": "no",
                     "id": "4711",
                     "release": "myapp@1.0.0",
+                },
+            },
+        ]
+        "#);
+    }
+
+    #[test]
+    fn extract_tag_precedence() {
+        let event_json = json!({
+            "type": "transaction",
+            "start_timestamp": 1597976300.0,
+            "timestamp": 1597976302.0,
+            "release": "myapp@1.0.0",
+        });
+        let event = Event::from_value(event_json.into());
+
+        // NOTE: The first condition should match and therefore the second tag should be skipped.
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "c:transactions/counter@none",
+                    "tags": [
+                        {
+                            "key": "fast",
+                            "value": "yes",
+                            "condition": {"op": "lte", "name": "event.duration", "value": 2000},
+                        },
+                        {
+                            "key": "fast",
+                            "value": "no",
+                        },
+                    ]
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r#"
+        [
+            Metric {
+                name: "c:transactions/counter@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {
+                    "fast": "yes",
+                },
+            },
+        ]
+        "#);
+    }
+
+    #[test]
+    fn extract_tag_precedence_multiple_rules() {
+        let event_json = json!({
+            "type": "transaction",
+            "start_timestamp": 1597976300.0,
+            "timestamp": 1597976302.0,
+            "release": "myapp@1.0.0",
+        });
+        let event = Event::from_value(event_json.into());
+
+        // NOTE: The first tagging condition should match and the second one should be skipped.
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [{
+                "category": "transaction",
+                "mri": "c:transactions/counter@none",
+            }],
+            "tags": [
+                {
+                    "metrics": ["c:transactions/counter@none"],
+                    "tags": [{
+                        "key": "fast",
+                        "value": "yes",
+                        "condition": {"op": "lte", "name": "event.duration", "value": 2000},
+                    }],
+                },
+                {
+                    "metrics": ["c:transactions/counter@none"],
+                    "tags": [{
+                        "key": "fast",
+                        "value": "no",
+                    }]
+                },
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r#"
+        [
+            Metric {
+                name: "c:transactions/counter@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {
+                    "fast": "yes",
                 },
             },
         ]
