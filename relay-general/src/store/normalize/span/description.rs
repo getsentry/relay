@@ -61,14 +61,15 @@ static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-/// Collapse simple lists of columns in select.
+/// Collapse simple lists of column names.
 /// For example:
-///   SELECT a, b FROM x -> SELECT .. FROM x
+///   SELECT a, b, count(*) FROM x -> SELECT .., count(*) FROM x
 ///   SELECT "a.b" AS a__b, "a.c" AS a__c FROM x -> SELECT .. FROM x
-static SQL_COLLAPSE_SELECT: Lazy<Regex> = Lazy::new(|| {
+///
+/// Assumes that column names have already been normalized.
+static SQL_COLLAPSE_LIST_OF_COLUMNS: Lazy<Regex> = Lazy::new(|| {
     let col = r"\w+( AS \w+)?";
-    Regex::new(format!(r"(?i)(?P<select>SELECT(\s+(DISTINCT|ALL))?)\s+(?P<columns>({col}(?:\s*,\s*{col})+))\s+(?<from>FROM|$)").as_str())
-        .unwrap()
+    Regex::new(format!(r"(?i)(?P<pre>(SELECT(\s+(DISTINCT|ALL))?|,|\())\s+(?P<columns>({col}(?:\s*,\s*{col})+))(?P<post>\s+)").as_str()).unwrap()
 });
 
 /// Regex to identify SQL queries that are already normalized.
@@ -123,7 +124,7 @@ fn scrub_sql_queries(string: &str) -> Option<String> {
         (&SQL_PARENS, "$pre$post"),
         (&SQL_COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
         (&SQL_COLLAPSE_ENTITIES, "$entity_name"),
-        (&SQL_COLLAPSE_SELECT, "$select .. $from"),
+        (&SQL_COLLAPSE_LIST_OF_COLUMNS, "$pre..$post"),
     ] {
         let replaced = regex.replace_all(&string, replacement);
         if let Cow::Owned(s) = replaced {
@@ -690,12 +691,19 @@ mod tests {
     );
 
     span_description_test!(
-        span_description_do_not_collapse_columns,
-        // Leave select untouched if it contains more complex expressions
-        r#"SELECT myfield1, "a"."b", count(*) AS c, another_field FROM table WHERE %s"#,
+        span_description_collapse_partial_column_lists,
+        r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table WHERE %s"#,
         "db.sql.query",
-        "SELECT myfield1, b, count(*) AS c, another_field FROM table WHERE %s"
+        "SELECT .., count(*) AS c, .. FROM table WHERE %s"
     );
+
+    span_description_test!(
+        span_description_collapse_partial_column_lists_2,
+        r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"
+        "db.sql.query",
+        "SELECT .., COALESCE(foo, %s) AS id FROM x"
+    );
+
 
     span_description_test!(
         span_description_collapse_columns_distinct,
