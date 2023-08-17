@@ -771,40 +771,6 @@
     </span>Unknown,
 }
 
-<span class="attr">#[cfg(test)]
-</span><span class="kw">mod </span>tests {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span>similar_asserts::assert_eq;
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>parse_tag_spec_value() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;value&quot;:&quot;bar&quot;}&quot;#</span>;
-        <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
-        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Literal(<span class="string">&quot;bar&quot;</span>));
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>parse_tag_spec_field() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;field&quot;:&quot;bar&quot;}&quot;#</span>;
-        <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
-        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Field(<span class="string">&quot;bar&quot;</span>));
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>parse_tag_spec_unsupported() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;somethingNew&quot;:&quot;bar&quot;}&quot;#</span>;
-        <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
-        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Unknown);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>parse_tag_mapping() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;metrics&quot;: [&quot;d:spans/*&quot;], &quot;tags&quot;: [{&quot;key&quot;:&quot;foo&quot;,&quot;field&quot;:&quot;bar&quot;}]}&quot;#</span>;
-        <span class="kw">let </span>mapping: TagMapping = serde_json::from_str(json).unwrap();
-        <span class="macro">assert!</span>(mapping.metrics[<span class="number">0</span>].compiled().is_match(<span class="string">&quot;d:spans/foo&quot;</span>));
-    }
-}
-
 <span class="doccomment">/// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
 /// config.
 </span><span class="kw">pub fn </span>convert_conditional_tagging(project_config: <span class="kw-2">&amp;mut </span>ProjectConfig) {
@@ -868,6 +834,40 @@
                 tags: std::mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.tags),
             });
         }
+    }
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use </span>similar_asserts::assert_eq;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_tag_spec_value() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;value&quot;:&quot;bar&quot;}&quot;#</span>;
+        <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
+        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Literal(<span class="string">&quot;bar&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_tag_spec_field() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;field&quot;:&quot;bar&quot;}&quot;#</span>;
+        <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
+        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Field(<span class="string">&quot;bar&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_tag_spec_unsupported() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;key&quot;:&quot;foo&quot;,&quot;somethingNew&quot;:&quot;bar&quot;}&quot;#</span>;
+        <span class="kw">let </span>spec: TagSpec = serde_json::from_str(json).unwrap();
+        <span class="macro">assert_eq!</span>(spec.source(), TagSource::Unknown);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_tag_mapping() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{&quot;metrics&quot;: [&quot;d:spans/*&quot;], &quot;tags&quot;: [{&quot;key&quot;:&quot;foo&quot;,&quot;field&quot;:&quot;bar&quot;}]}&quot;#</span>;
+        <span class="kw">let </span>mapping: TagMapping = serde_json::from_str(json).unwrap();
+        <span class="macro">assert!</span>(mapping.metrics[<span class="number">0</span>].compiled().is_match(<span class="string">&quot;d:spans/foo&quot;</span>));
     }
 }
 </code></pre></div></section></main></body></html>

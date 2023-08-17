@@ -304,7 +304,15 @@
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>once_cell::sync::OnceCell;
@@ -316,7 +324,7 @@
 <span class="doccomment">/// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
 ///
 /// This allows to compile the Glob with internal regexes only then whent they are used.
-</span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq)]
+</span><span class="attr">#[derive(Clone, Eq, PartialEq)]
 </span><span class="kw">pub struct </span>LazyGlob {
     raw: String,
     glob: OnceCell&lt;Glob&gt;,
@@ -340,6 +348,12 @@
                 .capture_question_mark(<span class="bool-val">false</span>)
                 .build()
         })
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>LazyGlob {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;LazyGlob({:?})&quot;</span>, <span class="self">self</span>.raw)
     }
 }
 
