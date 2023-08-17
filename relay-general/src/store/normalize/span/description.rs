@@ -67,9 +67,19 @@ static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 ///   SELECT "a.b" AS a__b, "a.c" AS a__c FROM x -> SELECT .. FROM x
 ///
 /// Assumes that column names have already been normalized.
-static SQL_COLLAPSE_LIST_OF_COLUMNS: Lazy<Regex> = Lazy::new(|| {
+static SQL_COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
     let col = r"\w+( AS \w+)?";
-    Regex::new(format!(r"(?i)(?P<pre>(SELECT(\s+(DISTINCT|ALL))?|,|\())\s+(?P<columns>({col}(?:\s*,\s*{col})+))(?P<post>\s+)").as_str()).unwrap()
+    Regex::new(
+        format!(
+            r"(?ix)
+        (?P<pre>(SELECT(\s+(DISTINCT|ALL))?\s|,|\())
+        \s*
+        (?P<columns>({col}(?:\s*,\s*{col})+))
+        (?P<post>\s*(,|\s+|\)))"
+        )
+        .as_str(),
+    )
+    .unwrap()
 });
 
 /// Regex to identify SQL queries that are already normalized.
@@ -124,7 +134,7 @@ fn scrub_sql_queries(string: &str) -> Option<String> {
         (&SQL_PARENS, "$pre$post"),
         (&SQL_COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
         (&SQL_COLLAPSE_ENTITIES, "$entity_name"),
-        (&SQL_COLLAPSE_LIST_OF_COLUMNS, "$pre..$post"),
+        (&SQL_COLLAPSE_COLUMNS, "$pre..$post"),
     ] {
         let replaced = regex.replace_all(&string, replacement);
         if let Cow::Owned(s) = replaced {
@@ -556,9 +566,9 @@ mod tests {
 
     span_description_test!(
         span_description_strip_prefixes,
-        r#"SELECT "table"."foo", "table"."bar", count(*) from "table" WHERE sku = %s"#,
+        r#"SELECT "table"."foo", count(*) from "table" WHERE sku = %s"#,
         "db.sql.query",
-        r#"SELECT foo, bar, count(*) from table WHERE sku = %s"#
+        r#"SELECT foo, count(*) from table WHERE sku = %s"#
     );
 
     span_description_test!(
@@ -694,16 +704,15 @@ mod tests {
         span_description_collapse_partial_column_lists,
         r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table WHERE %s"#,
         "db.sql.query",
-        "SELECT .., count(*) AS c, .. FROM table WHERE %s"
+        "SELECT .., count(*) AS c,.. FROM table WHERE %s"
     );
 
     span_description_test!(
         span_description_collapse_partial_column_lists_2,
-        r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"
+        r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"#,
         "db.sql.query",
-        "SELECT .., COALESCE(foo, %s) AS id FROM x"
+        "SELECT DISTINCT .., COALESCE(foo, %s) AS id FROM x"
     );
-
 
     span_description_test!(
         span_description_collapse_columns_distinct,
@@ -724,7 +733,7 @@ mod tests {
         span_description_scrub_values,
         "INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)",
         "db.sql.query",
-        "INSERT INTO a (b, c, d, e) VALUES (%s)"
+        "INSERT INTO a (..) VALUES (%s)"
     );
 
     span_description_test!(
@@ -738,14 +747,14 @@ mod tests {
         span_description_scrub_values_multi,
         "INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
         "db.sql.query",
-        "INSERT INTO a (b, c, d, e) VALuES (%s) ON CONFLICT DO NOTHING"
+        "INSERT INTO a (..) VALuES (%s) ON CONFLICT DO NOTHING"
     );
 
     span_description_test!(
         span_description_scrub_type_casts,
         "INSERT INTO a (b, c, d) VALUES ('foo'::date, 123::bigint[], %s::bigint[])",
         "db.sql.query",
-        "INSERT INTO a (b, c, d) VALUES (%s)"
+        "INSERT INTO a (..) VALUES (%s)"
     );
 
     span_description_test!(
