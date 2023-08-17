@@ -14,14 +14,17 @@ use std::sync::Arc;
 
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
+use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
+use tokio::time::Instant;
 
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
+use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::SleepHandle;
 
 /// The result of sending a global config query to upstream.
@@ -187,11 +190,15 @@ impl GlobalConfigService {
         let internal_tx = self.internal_tx.clone();
 
         tokio::spawn(async move {
+            let request_start = Instant::now();
+
             let query = GetGlobalConfig::new();
             let res = upstream_relay.send(SendQuery(query)).await;
             // Internal forwarding should only fail when the internal receiver
             // is closed.
             internal_tx.send(res).await.ok();
+
+            metric!(timer(RelayTimers::GlobalConfigRequestDuration) = request_start.elapsed());
         });
     }
 
@@ -204,13 +211,21 @@ impl GlobalConfigService {
     /// global config is valid and contains the expected data.
     fn handle_result(&mut self, result: UpstreamQueryResult) {
         match result {
-            Ok(Ok(config)) => match config.global {
-                Some(global_config) => {
-                    // Forwarding only fails when no subscribers.
-                    self.global_config_watch.send(Arc::new(global_config)).ok();
+            Ok(Ok(config)) => {
+                let mut success = false;
+                match config.global {
+                    Some(global_config) => {
+                        // Forwarding only fails when no subscribers.
+                        self.global_config_watch.send(Arc::new(global_config)).ok();
+                        success = true;
+                    }
+                    None => relay_log::error!("global config missing in upstream response"),
                 }
-                None => relay_log::error!("global config missing in upstream response"),
-            },
+                metric!(
+                    counter(RelayCounters::GlobalConfigFetched) += 1,
+                    success = if success { "true" } else { "false" },
+                );
+            }
             Ok(Err(e)) => relay_log::error!(
                 error = &e as &dyn std::error::Error,
                 "failed to fetch global config from upstream"
