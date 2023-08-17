@@ -1272,6 +1272,14 @@
 <a href="#1272" id="1272">1272</a>
 <a href="#1273" id="1273">1273</a>
 <a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
+<a href="#1278" id="1278">1278</a>
+<a href="#1279" id="1279">1279</a>
+<a href="#1280" id="1280">1280</a>
+<a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1479,6 +1487,7 @@
                 ItemType::Span =&gt; <span class="self">self</span>.produce_span(
                     scoping.organization_id,
                     scoping.project_id,
+                    event_id,
                     start_time,
                     item,
                 )<span class="question-mark">?</span>,
@@ -2017,6 +2026,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         organization_id: u64,
         project_id: ProjectId,
+        event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
         start_time: Instant,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
@@ -2035,6 +2045,7 @@
             project_id,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             span,
+            event_id,
         });
 
         <span class="self">self</span>.produce(KafkaTopic::Spans, organization_id, message)<span class="question-mark">?</span>;
@@ -2306,12 +2317,17 @@
 
 <span class="attr">#[derive(Debug, Serialize)]
 </span><span class="kw">struct </span>SpanKafkaMessage {
-    <span class="doccomment">/// Raw span data.
+    <span class="doccomment">/// Raw span data. See [`relay_general::protocol::Span`] for schema.
     </span>span: serde_json::Value,
     <span class="doccomment">/// Time at which the span was received by Relay.
     </span>start_time: u64,
     <span class="doccomment">/// The project id for the current span.
     </span>project_id: ProjectId,
+    <span class="doccomment">/// The event id for the current span.
+    ///
+    /// Once spans are truly standalone, this field will be omitted.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
 }
 
 <span class="doccomment">/// An enum over all possible ingest messages.
