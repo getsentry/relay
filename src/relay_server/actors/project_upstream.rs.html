@@ -483,6 +483,8 @@
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -529,10 +531,12 @@
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">pub struct </span>GetProjectStatesResponse {
-    <span class="attr">#[serde(default)]
-    </span><span class="kw">pub </span>configs: HashMap&lt;ProjectKey, ErrorBoundary&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;&gt;&gt;,
-    <span class="attr">#[serde(default)]
-    </span><span class="kw">pub </span>pending: Vec&lt;ProjectKey&gt;,
+    <span class="doccomment">/// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
+    </span><span class="attr">#[serde(default)]
+    </span>configs: HashMap&lt;ProjectKey, ErrorBoundary&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;&gt;&gt;,
+    <span class="doccomment">/// The [`ProjectKey`]&#39;s that couldn&#39;t be immediately retrieved from the upstream.
+    </span><span class="attr">#[serde(default)]
+    </span>pending: Vec&lt;ProjectKey&gt;,
 }
 
 <span class="kw">impl </span>UpstreamQuery <span class="kw">for </span>GetProjectStates {

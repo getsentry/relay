@@ -293,6 +293,18 @@
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -308,6 +320,7 @@
 <span class="kw">use </span>tokio::runtime::Runtime;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
+<span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::health_check::{HealthCheck, HealthCheckService};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome_aggregator::OutcomeAggregator;
@@ -347,6 +360,7 @@
     <span class="kw">pub </span>envelope_manager: Addr&lt;EnvelopeManager&gt;,
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
+    <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
     <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
 }
@@ -424,6 +438,9 @@
         <span class="kw">let </span>outcome_aggregator =
             OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start_in(<span class="kw-2">&amp;</span>outcome_runtime);
 
+        <span class="kw">let </span>global_config =
+            GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
+
         <span class="kw">let </span>(project_cache, project_cache_rx) = channel(ProjectCacheService::name());
         <span class="kw">let </span>processor = EnvelopeProcessorService::new(
             config.clone(),
@@ -431,6 +448,7 @@
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
+            global_config.clone(),
             upstream_relay.clone(),
         )
         .start();
@@ -506,6 +524,7 @@
             envelope_manager,
             test_store,
             relay_cache,
+            global_config,
             project_cache,
             upstream_relay,
         };
@@ -572,6 +591,11 @@
     <span class="doccomment">/// Returns the address of the [`OutcomeProducer`] service.
     </span><span class="kw">pub fn </span>processor(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;EnvelopeProcessor&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.processor
+    }
+
+    <span class="doccomment">/// Returns the address of the [`GlobalConfigService`] service.
+    </span><span class="kw">pub fn </span>global_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;GlobalConfigManager&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.global_config
     }
 
     <span class="doccomment">/// Returns the address of the [`OutcomeProducer`] service.

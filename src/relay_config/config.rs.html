@@ -2052,6 +2052,15 @@
 <a href="#2052" id="2052">2052</a>
 <a href="#2053" id="2053">2053</a>
 <a href="#2054" id="2054">2054</a>
+<a href="#2055" id="2055">2055</a>
+<a href="#2056" id="2056">2056</a>
+<a href="#2057" id="2057">2057</a>
+<a href="#2058" id="2058">2058</a>
+<a href="#2059" id="2059">2059</a>
+<a href="#2060" id="2060">2060</a>
+<a href="#2061" id="2061">2061</a>
+<a href="#2062" id="2062">2062</a>
+<a href="#2063" id="2063">2063</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2887,6 +2896,8 @@
     </span>file_interval: u32,
     <span class="doccomment">/// Interval for evicting outdated project configs from memory.
     </span>eviction_interval: u32,
+    <span class="doccomment">/// Interval for fetching new global configs from the upstream, in seconds.
+    </span>global_config_fetch_interval: u32,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Cache {
@@ -2900,8 +2911,9 @@
             miss_expiry: <span class="number">60</span>,     <span class="comment">// 1 minute
             </span>batch_interval: <span class="number">100</span>, <span class="comment">// 100ms
             </span>batch_size: <span class="number">500</span>,
-            file_interval: <span class="number">10</span>,     <span class="comment">// 10 seconds
-            </span>eviction_interval: <span class="number">60</span>, <span class="comment">// 60 seconds
+            file_interval: <span class="number">10</span>,                <span class="comment">// 10 seconds
+            </span>eviction_interval: <span class="number">60</span>,            <span class="comment">// 60 seconds
+            </span>global_config_fetch_interval: <span class="number">10</span>, <span class="comment">// 10 seconds
         </span>}
     }
 }
@@ -3805,6 +3817,12 @@
     /// memory when expired.
     </span><span class="kw">pub fn </span>cache_eviction_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.cache.eviction_interval.into())
+    }
+
+    <span class="doccomment">/// Returns the interval in seconds in which fresh global configs should be
+    /// fetched from  upstream.
+    </span><span class="kw">pub fn </span>global_config_fetch_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_secs(<span class="self">self</span>.values.cache.global_config_fetch_interval.into())
     }
 
     <span class="doccomment">/// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.

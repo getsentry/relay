@@ -3984,6 +3984,34 @@
 <a href="#3984" id="3984">3984</a>
 <a href="#3985" id="3985">3985</a>
 <a href="#3986" id="3986">3986</a>
+<a href="#3987" id="3987">3987</a>
+<a href="#3988" id="3988">3988</a>
+<a href="#3989" id="3989">3989</a>
+<a href="#3990" id="3990">3990</a>
+<a href="#3991" id="3991">3991</a>
+<a href="#3992" id="3992">3992</a>
+<a href="#3993" id="3993">3993</a>
+<a href="#3994" id="3994">3994</a>
+<a href="#3995" id="3995">3995</a>
+<a href="#3996" id="3996">3996</a>
+<a href="#3997" id="3997">3997</a>
+<a href="#3998" id="3998">3998</a>
+<a href="#3999" id="3999">3999</a>
+<a href="#4000" id="4000">4000</a>
+<a href="#4001" id="4001">4001</a>
+<a href="#4002" id="4002">4002</a>
+<a href="#4003" id="4003">4003</a>
+<a href="#4004" id="4004">4004</a>
+<a href="#4005" id="4005">4005</a>
+<a href="#4006" id="4006">4006</a>
+<a href="#4007" id="4007">4007</a>
+<a href="#4008" id="4008">4008</a>
+<a href="#4009" id="4009">4009</a>
+<a href="#4010" id="4010">4010</a>
+<a href="#4011" id="4011">4011</a>
+<a href="#4012" id="4012">4012</a>
+<a href="#4013" id="4013">4013</a>
+<a href="#4014" id="4014">4014</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4004,12 +4032,15 @@
 <span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
 <span class="kw">use </span>tokio::sync::Semaphore;
 
+<span class="kw">use </span><span class="kw">crate</span>::actors::global_config::{GlobalConfigManager, Subscribe};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span>relay_auth::RelayVersion;
 <span class="kw">use </span>relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 <span class="kw">use </span>relay_config::{Config, HttpEncoding};
-<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
+<span class="kw">use </span>relay_dynamic_config::{
+    ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
+};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 <span class="kw">use </span>relay_general::processor::{process_value, ProcessingState};
@@ -4508,6 +4539,7 @@
 /// This service handles messages in a worker pool with configurable concurrency.
 </span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>EnvelopeProcessorService {
+    global_config: Arc&lt;GlobalConfig&gt;,
     inner: Arc&lt;InnerProcessor&gt;,
 }
 
@@ -4515,6 +4547,7 @@
     config: Arc&lt;Config&gt;,
     envelope_manager: Addr&lt;EnvelopeManager&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
+    global_config: Addr&lt;GlobalConfigManager&gt;,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
@@ -4530,6 +4563,7 @@
         envelope_manager: Addr&lt;EnvelopeManager&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
+        global_config: Addr&lt;GlobalConfigManager&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
@@ -4549,12 +4583,14 @@
             config,
             envelope_manager,
             project_cache,
+            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
         };
 
         <span class="self">Self </span>{
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -6724,22 +6760,39 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>EnvelopeProcessorService {
     <span class="kw">type </span>Interface = EnvelopeProcessor;
 
-    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>thread_count = <span class="self">self</span>.inner.config.cpu_concurrency();
         <span class="macro">relay_log::info!</span>(<span class="string">&quot;starting {thread_count} envelope processing workers&quot;</span>);
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span>semaphore = Arc::new(Semaphore::new(thread_count));
 
-            <span class="kw">while let </span>(<span class="prelude-val">Some</span>(message), <span class="prelude-val">Ok</span>(permit)) =
-                <span class="macro">tokio::join!</span>(rx.recv(), semaphore.clone().acquire_owned())
-            {
-                <span class="kw">let </span>service = <span class="self">self</span>.clone();
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>subscription) = <span class="self">self</span>.inner.global_config.send(Subscribe).<span class="kw">await else </span>{
+                <span class="comment">// TODO(iker): we accept this sub-optimal error handling. TBD
+                // the approach to deal with failures on the subscription
+                // mechanism.
+                </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to subscribe to GlobalConfigService&quot;</span>);
+                <span class="kw">return</span>;
+            };
 
-                tokio::task::spawn_blocking(<span class="kw">move </span>|| {
-                    service.handle_message(message);
-                    drop(permit);
-                });
+            <span class="kw">loop </span>{
+                <span class="kw">let </span>next_msg = <span class="kw">async </span>{ <span class="macro">tokio::join!</span>(rx.recv(), semaphore.clone().acquire_owned()) };
+
+                <span class="macro">tokio::select! </span>{
+                   biased;
+
+                    <span class="comment">// TODO(iker): deal with the error when the sender of the channel is dropped.
+                    </span><span class="kw">_ </span>= subscription.changed() =&gt; <span class="self">self</span>.global_config = subscription.borrow().clone(),
+                    (<span class="prelude-val">Some</span>(message), <span class="prelude-val">Ok</span>(permit)) = next_msg =&gt; {
+                        <span class="kw">let </span>service = <span class="self">self</span>.clone();
+                        tokio::task::spawn_blocking(<span class="kw">move </span>|| {
+                            service.handle_message(message);
+                            drop(permit);
+                        });
+                    },
+
+                    <span class="kw">else </span>=&gt; <span class="kw">break
+                </span>}
             }
         });
     }
@@ -7178,6 +7231,7 @@
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(upstream_relay, <span class="kw">_</span>) = mock_service(<span class="string">&quot;upstream_relay&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(global_config, <span class="kw">_</span>) = mock_service(<span class="string">&quot;global_config&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -7187,9 +7241,11 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>rate_limiter: <span class="prelude-val">None</span>,
             geoip_lookup: <span class="prelude-val">None</span>,
+            global_config,
         };
 
         EnvelopeProcessorService {
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }

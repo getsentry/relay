@@ -182,7 +182,29 @@
 <a href="#182" id="182">182</a>
 <a href="#183" id="183">183</a>
 <a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>axum::extract::Query;
 <span class="kw">use </span>axum::handler::Handler;
@@ -191,9 +213,10 @@
 <span class="kw">use </span>axum::{Json, RequestExt};
 <span class="kw">use </span>futures::future;
 <span class="kw">use </span>relay_common::ProjectKey;
-<span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
+<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
+<span class="kw">use </span><span class="kw">crate</span>::actors::global_config;
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::{LimitedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{GetCachedProjectState, GetProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::ServiceUnavailable;
@@ -213,6 +236,11 @@
 /// next time a downstream relay polls for this it is hopefully in our cache and will be
 /// returned, or a further poll ensues.
 </span><span class="kw">const </span>ENDPOINT_V3: u16 = <span class="number">3</span>;
+
+<span class="doccomment">/// V4 version of this endpoint.
+///
+/// Can be used for fetching global configs.
+</span><span class="kw">const </span>ENDPOINT_V4: u16 = <span class="number">4</span>;
 
 <span class="doccomment">/// Helper to deserialize the `version` query parameter.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Deserialize)]
@@ -254,12 +282,16 @@
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
 /// be in both collections.  This list is always empty before V3.
+///
+/// Version 4 adds a global config [`GlobalConfig`] if `global` is enabled.
 </span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
 </span><span class="kw">struct </span>GetProjectStatesResponseWrapper {
     configs: HashMap&lt;ProjectKey, <span class="prelude-ty">Option</span>&lt;ProjectStateWrapper&gt;&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span>pending: Vec&lt;ProjectKey&gt;,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>global: <span class="prelude-ty">Option</span>&lt;Arc&lt;GlobalConfig&gt;&gt;,
 }
 
 <span class="doccomment">/// Request payload of the project config endpoint.
@@ -274,6 +306,8 @@
     </span>full_config: bool,
     <span class="attr">#[serde(default)]
     </span>no_cache: bool,
+    <span class="attr">#[serde(default)]
+    </span>global: bool,
 }
 
 <span class="kw">async fn </span>inner(
@@ -306,6 +340,10 @@
 
     <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
     <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
+    <span class="kw">let </span>global_config = <span class="kw">match </span>inner.global {
+        <span class="bool-val">true </span>=&gt; <span class="prelude-val">Some</span>(state.global_config().send(global_config::Get).<span class="kw">await</span><span class="question-mark">?</span>),
+        <span class="bool-val">false </span>=&gt; <span class="prelude-val">None</span>,
+    };
 
     <span class="kw">for </span>(project_key, state_result) <span class="kw">in </span>future::join_all(futures).<span class="kw">await </span>{
         <span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = state_result<span class="question-mark">? </span><span class="kw">else </span>{
@@ -334,12 +372,16 @@
         };
     }
 
-    <span class="prelude-val">Ok</span>(Json(GetProjectStatesResponseWrapper { configs, pending }))
+    <span class="prelude-val">Ok</span>(Json(GetProjectStatesResponseWrapper {
+        configs,
+        pending,
+        global: global_config,
+    }))
 }
 
 <span class="doccomment">/// Returns `true` if the `?version` query parameter is compatible with this implementation.
 </span><span class="kw">fn </span>is_compatible(Query(query): Query&lt;VersionQuery&gt;) -&gt; bool {
-    query.version &gt;= ENDPOINT_V2 &amp;&amp; query.version &lt;= ENDPOINT_V3
+    query.version &gt;= ENDPOINT_V2 &amp;&amp; query.version &lt;= ENDPOINT_V4
 }
 
 <span class="doccomment">/// Endpoint handler for the project configs endpoint.
