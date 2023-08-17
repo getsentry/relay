@@ -17,6 +17,7 @@ use relay_dynamic_config::GlobalConfig;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
+use tokio::sync::watch::Sender;
 use tokio::sync::{mpsc, watch};
 
 use crate::actors::upstream::{
@@ -143,8 +144,11 @@ pub struct GlobalConfigService {
 
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let (global_config_watch, _) = watch::channel(Arc::default());
+    pub fn new(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+        global_config_watch: Sender<Arc<GlobalConfig>>,
+    ) -> Self {
         let (internal_tx, internal_rx) = mpsc::channel(1);
         Self {
             config,

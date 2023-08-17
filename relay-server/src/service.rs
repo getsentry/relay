@@ -11,6 +11,7 @@ use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
+use tokio::sync::watch;
 
 use crate::actors::envelopes::{EnvelopeManager, EnvelopeManagerService};
 use crate::actors::global_config::{GlobalConfigManager, GlobalConfigService};
@@ -100,7 +101,7 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self> {
+    pub async fn start(config: Arc<Config>) -> Result<Self> {
         let upstream_runtime = create_runtime("upstream-rt", 1);
         let project_runtime = create_runtime("project-rt", 1);
         let aggregator_runtime = create_runtime("aggregator-rt", 1);
@@ -131,8 +132,10 @@ impl ServiceState {
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
 
+        let (global_config_watch, global_config_receiver) = watch::channel(Arc::default());
         let global_config =
-            GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
+            GlobalConfigService::new(config.clone(), upstream_relay.clone(), global_config_watch)
+                .start();
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
         let processor = EnvelopeProcessorService::new(
@@ -141,8 +144,8 @@ impl ServiceState {
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
-            global_config.clone(),
             upstream_relay.clone(),
+            global_config_receiver,
         )
         .start();
 

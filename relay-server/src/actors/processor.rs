@@ -16,9 +16,9 @@ use flate2::Compression;
 use once_cell::sync::OnceCell;
 use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
+use tokio::sync::watch::Receiver;
 use tokio::sync::Semaphore;
 
-use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
@@ -526,6 +526,7 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
     global_config: Arc<GlobalConfig>,
+    global_config_receiver: Receiver<Arc<GlobalConfig>>,
     inner: Arc<InnerProcessor>,
 }
 
@@ -533,7 +534,6 @@ struct InnerProcessor {
     config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
-    global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -549,8 +549,8 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
-        global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
+        global_config_receiver: Receiver<Arc<GlobalConfig>>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -569,7 +569,6 @@ impl EnvelopeProcessorService {
             config,
             envelope_manager,
             project_cache,
-            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
@@ -578,6 +577,7 @@ impl EnvelopeProcessorService {
         Self {
             global_config: Arc::default(),
             inner: Arc::new(inner),
+            global_config_receiver,
         }
     }
 
@@ -2753,14 +2753,6 @@ impl Service for EnvelopeProcessorService {
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            let Ok(mut subscription) = self.inner.global_config.send(Subscribe).await else {
-                // TODO(iker): we accept this sub-optimal error handling. TBD
-                // the approach to deal with failures on the subscription
-                // mechanism.
-                relay_log::error!("failed to subscribe to GlobalConfigService");
-                return;
-            };
-
             loop {
                 let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
 
@@ -2768,7 +2760,7 @@ impl Service for EnvelopeProcessorService {
                    biased;
 
                     // TODO(iker): deal with the error when the sender of the channel is dropped.
-                    _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
+                    _ = self.global_config_receiver.changed() => self.global_config = self.global_config_receiver.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
@@ -2800,6 +2792,7 @@ mod tests {
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
     use relay_test::mock_service;
+    use tokio::sync::watch;
 
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
@@ -3217,7 +3210,7 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
+        let (_, global_config_receiver) = watch::channel(Arc::default());
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3227,12 +3220,12 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
-            global_config,
         };
 
         EnvelopeProcessorService {
             global_config: Arc::default(),
             inner: Arc::new(inner),
+            global_config_receiver,
         }
     }
 
