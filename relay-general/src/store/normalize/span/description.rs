@@ -68,7 +68,7 @@ static SQL_COLLAPSE_PLACEHOLDERS: Lazy<Regex> = Lazy::new(|| {
 ///
 /// Assumes that column names have already been normalized.
 static SQL_COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
-    let col = r"\w+( AS \w+)?";
+    let col = r"\w+(\s+AS\s+\w+)?";
     Regex::new(
         format!(
             r"(?ix)
