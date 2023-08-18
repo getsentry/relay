@@ -18,7 +18,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_deserialize() {
+    fn test_deserialize_global_config() {
         let json = r#"{
 "measurements":
        {
@@ -50,7 +50,6 @@ mod tests {
     }"#;
 
         let deserialized: GlobalConfig = serde_json::from_str(json).unwrap();
-        let default = GlobalConfig::default();
-        assert_eq!(deserialized, default);
+        assert_eq!(deserialized, GlobalConfig::default());
     }
 }
