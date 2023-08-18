@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use relay_auth::PublicKey;
 use relay_filter::FiltersConfig;
@@ -12,12 +13,12 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::defaults;
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
     self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
+use crate::{defaults, GlobalConfig};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,7 +50,7 @@ pub struct ProjectConfig {
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for measurements.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub measurements: Option<MeasurementsConfig>,
+    measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
@@ -89,6 +90,13 @@ impl ProjectConfig {
 
         metrics::convert_conditional_tagging(self);
         defaults::add_span_metrics(self);
+    }
+
+    /// Retrieves the measurements from project config and falls back on global config if missing.
+    pub fn measurements<'a>(&'a self, global_config: &'a Arc<GlobalConfig>) -> &MeasurementsConfig {
+        self.measurements
+            .as_ref()
+            .unwrap_or(&global_config.measurements)
     }
 }
 

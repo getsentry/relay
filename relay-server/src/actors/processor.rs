@@ -2382,7 +2382,9 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state.project_state.config.measurements.as_ref(),
+                measurements_config: Some(
+                    state.project_state.config.measurements(&self.global_config),
+                ),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
@@ -3493,10 +3495,11 @@ mod tests {
         )
         .unwrap();
 
-        let config = ProjectConfig {
-            datascrubbing_settings,
-            pii_config: Some(pii_config),
-            ..Default::default()
+        let config = {
+            let mut config = ProjectConfig::default();
+            config.datascrubbing_settings = datascrubbing_settings;
+            config.pii_config = Some(pii_config);
+            config
         };
 
         let mut project_state = ProjectState::allowed();

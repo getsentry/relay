@@ -451,10 +451,12 @@ mod tests {
         .unwrap();
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
-        let mut project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
-            ..ProjectConfig::default()
+        let mut project = {
+            let mut project = ProjectConfig::default();
+            project.features = [Feature::SpanMetricsExtraction].into_iter().collect();
+            project
         };
+
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
@@ -509,9 +511,10 @@ mod tests {
         .unwrap();
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
-        let mut project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
-            ..ProjectConfig::default()
+        let mut project = {
+            let mut project = ProjectConfig::default();
+            project.features = [Feature::SpanMetricsExtraction].into_iter().collect();
+            project
         };
         project.sanitize();
 

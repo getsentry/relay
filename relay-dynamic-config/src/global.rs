@@ -1,3 +1,4 @@
+use relay_general::store::MeasurementsConfig;
 use serde::{Deserialize, Serialize};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
@@ -6,4 +7,7 @@ use serde::{Deserialize, Serialize};
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct GlobalConfig {}
+pub struct GlobalConfig {
+    /// Configuration for measurements normalization.
+    pub measurements: MeasurementsConfig,
+}
