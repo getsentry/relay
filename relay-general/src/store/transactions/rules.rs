@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 
 use chrono::{DateTime, Utc};
 use once_cell::sync::OnceCell;
@@ -10,7 +11,7 @@ use crate::utils::Glob;
 /// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
 ///
 /// This allows to compile the Glob with internal regexes only then whent they are used.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct LazyGlob {
     raw: String,
     glob: OnceCell<Glob>,
@@ -34,6 +35,12 @@ impl LazyGlob {
                 .capture_question_mark(false)
                 .build()
         })
+    }
+}
+
+impl fmt::Debug for LazyGlob {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "LazyGlob({:?})", self.raw)
     }
 }
 
