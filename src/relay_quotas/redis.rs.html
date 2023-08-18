@@ -1031,7 +1031,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.pool.client().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
         <span class="kw">let </span>rejections: Vec&lt;bool&gt; = invocation
-            .invoke(<span class="kw-2">&amp;mut </span>client.connection())
+            .invoke(<span class="kw-2">&amp;mut </span>client.connection().map_err(RateLimitingError::Redis)<span class="question-mark">?</span>)
             .map_err(RedisError::Redis)
             .map_err(RateLimitingError::Redis)<span class="question-mark">?</span>;
 
@@ -1073,7 +1073,7 @@
             .unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;redis://127.0.0.1:6379&quot;</span>.to_owned());
 
         RedisRateLimiter {
-            pool: RedisPool::single(<span class="kw-2">&amp;</span>url, <span class="kw-2">&amp;</span>RedisConfigOptions::default()).unwrap(),
+            pool: RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: <span class="prelude-val">None</span>,
         }
@@ -1495,7 +1495,7 @@
 
         <span class="kw">let </span>rate_limiter = build_rate_limiter();
         <span class="kw">let </span><span class="kw-2">mut </span>client = rate_limiter.pool.client().expect(<span class="string">&quot;get client&quot;</span>);
-        <span class="kw">let </span><span class="kw-2">mut </span>conn = client.connection();
+        <span class="kw">let </span><span class="kw-2">mut </span>conn = client.connection().expect(<span class="string">&quot;Redis connection&quot;</span>);
 
         <span class="comment">// define a few keys with random seed such that they do not collide with repeated test runs
         </span><span class="kw">let </span>foo = <span class="macro">format!</span>(<span class="string">&quot;foo___{now}&quot;</span>);
