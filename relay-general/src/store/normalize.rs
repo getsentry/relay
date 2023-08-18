@@ -43,15 +43,24 @@ mod request;
 mod stacktrace;
 
 /// Defines a builtin measurement.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
 }
 
+impl BuiltinMeasurementKey {
+    pub fn new(name: &str, unit: MetricUnit) -> Self {
+        Self {
+            name: name.to_string(),
+            unit,
+        }
+    }
+}
+
 /// Configuration for measurements normalization.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
@@ -60,6 +69,46 @@ pub struct MeasurementsConfig {
 
     /// The maximum number of measurements allowed per event that are not known measurements.
     max_custom_measurements: usize,
+}
+
+impl Default for MeasurementsConfig {
+    fn default() -> Self {
+        use MetricUnit::*;
+
+        let builtin_measurements = vec![
+            BuiltinMeasurementKey::new("app_start_cold", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("app_start_warm", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("cls", None),
+            BuiltinMeasurementKey::new("fcp", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("fid", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("fp", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("frames_frozen_rate", Fraction(FractionUnit::Ratio)),
+            BuiltinMeasurementKey::new("frames_frozen", None),
+            BuiltinMeasurementKey::new("frames_slow_rate", Fraction(FractionUnit::Ratio)),
+            BuiltinMeasurementKey::new("frames_slow", None),
+            BuiltinMeasurementKey::new("frames_total", None),
+            BuiltinMeasurementKey::new("inp", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("lcp", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("stall_count", None),
+            BuiltinMeasurementKey::new("stall_longest_time", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("stall_percentage", Fraction(FractionUnit::Ratio)),
+            BuiltinMeasurementKey::new("stall_total_time", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("ttfb.requesttime", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("ttfb", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new("time_to_full_display", Duration(DurationUnit::MilliSecond)),
+            BuiltinMeasurementKey::new(
+                "time_to_initial_display",
+                Duration(DurationUnit::MilliSecond),
+            ),
+        ];
+
+        let max_custom_measurements = 10;
+
+        Self {
+            builtin_measurements,
+            max_custom_measurements,
+        }
+    }
 }
 
 impl MeasurementsConfig {

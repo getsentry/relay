@@ -6,6 +6,10 @@
 
 - Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
 
+**Features**:
+
+- Fall back to `MeasurementsConfig` from `GlobalConfig`. ([#2415](https://github.com/getsentry/relay/pull/2415))
+
 ## 23.8.0
 
 **Features**:
