@@ -4017,6 +4017,26 @@
 <a href="#4017" id="4017">4017</a>
 <a href="#4018" id="4018">4018</a>
 <a href="#4019" id="4019">4019</a>
+<a href="#4020" id="4020">4020</a>
+<a href="#4021" id="4021">4021</a>
+<a href="#4022" id="4022">4022</a>
+<a href="#4023" id="4023">4023</a>
+<a href="#4024" id="4024">4024</a>
+<a href="#4025" id="4025">4025</a>
+<a href="#4026" id="4026">4026</a>
+<a href="#4027" id="4027">4027</a>
+<a href="#4028" id="4028">4028</a>
+<a href="#4029" id="4029">4029</a>
+<a href="#4030" id="4030">4030</a>
+<a href="#4031" id="4031">4031</a>
+<a href="#4032" id="4032">4032</a>
+<a href="#4033" id="4033">4033</a>
+<a href="#4034" id="4034">4034</a>
+<a href="#4035" id="4035">4035</a>
+<a href="#4036" id="4036">4036</a>
+<a href="#4037" id="4037">4037</a>
+<a href="#4038" id="4038">4038</a>
+<a href="#4039" id="4039">4039</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6252,7 +6272,9 @@
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>extract_spans(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="comment">// For now, drop any spans submitted by the SDK.
-        </span>state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+
+        </span><span class="kw">use </span>relay_general::protocol::Span;
+        state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::Span =&gt; ItemAction::DropSilently,
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
@@ -6270,20 +6292,38 @@
             <span class="kw">return</span>;
         };
 
-        <span class="comment">// Extract.
-        </span><span class="kw">let </span><span class="prelude-val">Some</span>(spans) = state.event.value().and_then(|e| e.spans.value()) <span class="kw">else </span>{ <span class="kw">return </span>};
-        <span class="kw">for </span>span <span class="kw">in </span>spans {
+        <span class="comment">// Extract transaction as a span.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{ <span class="kw">return </span>};
+        <span class="kw">let </span>transaction_span: Span = event.into();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>add_span = |span: Annotated&lt;Span&gt;| {
             <span class="kw">let </span>span = <span class="kw">match </span>span.to_json() {
                 <span class="prelude-val">Ok</span>(span) =&gt; span,
                 <span class="prelude-val">Err</span>(e) =&gt; {
                     <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;Failed to serialize span&quot;</span>);
-                    <span class="kw">continue</span>;
+                    <span class="kw">return</span>;
                 }
             };
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Span);
             item.set_payload(ContentType::Json, span);
             state.managed_envelope.envelope_mut().add_item(item);
+        };
+
+        <span class="comment">// Add child spans as envelope items.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
+            <span class="kw">for </span>span <span class="kw">in </span>child_spans {
+                <span class="comment">// HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                </span><span class="kw">let </span><span class="kw-2">mut </span>span = span.clone();
+                <span class="kw">let </span><span class="prelude-val">Some</span>(inner_span) = span.value_mut() <span class="kw">else </span>{ <span class="kw">continue </span>};
+                inner_span.segment_id = transaction_span.segment_id.clone();
+                inner_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
+                add_span(span);
+            }
         }
+
+        <span class="comment">// Add transaction span as an envelope item.
+        </span>add_span(transaction_span.into());
     }
 
     <span class="doccomment">/// Computes the sampling decision on the incoming event
