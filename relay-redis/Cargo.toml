@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 r2d2 = { version = "0.8.10", optional = true }
-redis = { version = "0.22.2", optional = true, features = ["cluster", "r2d2", "tls"] }
+redis = { version = "0.23.1", optional = true, features = ["cluster", "r2d2", "tls-native-tls", "keep-alive"] }
 serde = { version = "1.0.114", features = ["derive"] }
 thiserror = "1.0.38"
 
