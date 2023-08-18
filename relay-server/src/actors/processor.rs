@@ -3495,11 +3495,10 @@ mod tests {
         )
         .unwrap();
 
-        let config = {
-            let mut config = ProjectConfig::default();
-            config.datascrubbing_settings = datascrubbing_settings;
-            config.pii_config = Some(pii_config);
-            config
+        let config = ProjectConfig {
+            datascrubbing_settings,
+            pii_config: Some(pii_config),
+            ..Default::default()
         };
 
         let mut project_state = ProjectState::allowed();

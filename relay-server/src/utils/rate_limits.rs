@@ -1101,9 +1101,10 @@ mod tests {
     }
 
     fn config_with_tx_metrics() -> ProjectConfig {
-        let mut project = ProjectConfig::default();
-        project.transaction_metrics = Some(ErrorBoundary::Ok(TransactionMetricsConfig::new()));
-        project
+        ProjectConfig {
+            transaction_metrics: Some(ErrorBoundary::Ok(TransactionMetricsConfig::new())),
+            ..ProjectConfig::default()
+        }
     }
 
     #[test]
