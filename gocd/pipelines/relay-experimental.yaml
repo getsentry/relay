@@ -12,6 +12,7 @@ pipelines:
       GKE_BASTION_ZONE: b
 
     group: relay
+    display_order: 100 # Ensure it's last pipeline in UI
     lock_behavior: unlockWhenFinished
 
     materials:
