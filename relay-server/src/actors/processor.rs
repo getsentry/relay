@@ -2233,6 +2233,8 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
         // For now, drop any spans submitted by the SDK.
+
+        use relay_general::protocol::Span;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Span => ItemAction::DropSilently,
             _ => ItemAction::Keep,
@@ -2251,20 +2253,38 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        // Extract.
-        let Some(spans) = state.event.value().and_then(|e| e.spans.value()) else { return };
-        for span in spans {
+        // Extract transaction as a span.
+        let Some(event) = state.event.value() else { return };
+        let transaction_span: Span = event.into();
+
+        let mut add_span = |span: Annotated<Span>| {
             let span = match span.to_json() {
                 Ok(span) => span,
                 Err(e) => {
                     relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                    continue;
+                    return;
                 }
             };
             let mut item = Item::new(ItemType::Span);
             item.set_payload(ContentType::Json, span);
             state.managed_envelope.envelope_mut().add_item(item);
+        };
+
+        // Add child spans as envelope items.
+        if let Some(child_spans) = event.spans.value() {
+            for span in child_spans {
+                // HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                let mut span = span.clone();
+                let Some(inner_span) = span.value_mut() else { continue };
+                inner_span.segment_id = transaction_span.segment_id.clone();
+                inner_span.is_segment = Annotated::new(false);
+                add_span(span);
+            }
         }
+
+        // Add transaction span as an envelope item.
+        add_span(transaction_span.into());
     }
 
     /// Computes the sampling decision on the incoming event

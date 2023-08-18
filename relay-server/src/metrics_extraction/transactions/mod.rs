@@ -523,6 +523,8 @@ mod tests {
                 trace_id: TraceId(
                     "ff62a8b040f340bda5d830223def1d81",
                 ),
+                segment_id: ~,
+                is_segment: ~,
                 status: ~,
                 tags: ~,
                 origin: ~,
