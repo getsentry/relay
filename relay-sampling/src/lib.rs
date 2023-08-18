@@ -719,8 +719,12 @@ impl FieldValueProvider for Event {
                 .map_or(Value::Null, Value::from),
 
             // Computed fields (see Discover)
-            "duration" => match (self.ty.value(), store::validate_timestamps(self)) {
-                (Some(&EventType::Transaction), Ok((start, end))) => {
+            "duration" => match (
+                self.ty.value(),
+                self.start_timestamp.value(),
+                self.timestamp.value(),
+            ) {
+                (Some(&EventType::Transaction), Some(&start), Some(&end)) if start <= end => {
                     match Number::from_f64(relay_common::chrono_to_positive_millis(end - start)) {
                         Some(num) => Value::Number(num),
                         None => Value::Null,

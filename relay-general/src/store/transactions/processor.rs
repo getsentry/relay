@@ -1,12 +1,13 @@
 use std::borrow::Cow;
+use std::ops::Range;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_common::SpanStatus;
+use relay_common::{SpanStatus, UnixTimestamp};
 
 use super::TransactionNameRule;
 use crate::processor::{ProcessValue, ProcessingState, Processor};
-use crate::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
+use crate::protocol::{Event, EventType, Span, TraceContext, TransactionSource};
 use crate::store::normalize::span::description::scrub_span_description;
 use crate::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::store::SpanDescriptionRule;
@@ -20,10 +21,11 @@ pub struct TransactionNameConfig<'r> {
 }
 
 /// Rejects transactions based on required fields.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
     span_desc_rules: Vec<SpanDescriptionRule>,
+    timestamp_range: Option<Range<UnixTimestamp>>,
     enrich_spans: bool,
 }
 
@@ -32,6 +34,7 @@ impl<'r> TransactionsProcessor<'r> {
         name_config: TransactionNameConfig<'r>,
         enrich_spans: bool,
         span_description_rules: Option<&Vec<SpanDescriptionRule>>,
+        timestamp_range: Option<Range<UnixTimestamp>>,
     ) -> Self {
         let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
             span_desc_rules.clone()
@@ -46,6 +49,7 @@ impl<'r> TransactionsProcessor<'r> {
         Self {
             name_config,
             span_desc_rules,
+            timestamp_range,
             enrich_spans,
         }
     }
@@ -138,62 +142,67 @@ impl<'r> TransactionsProcessor<'r> {
 
         Ok(())
     }
-}
 
-/// Returns start and end timestamps if they are both set and start <= end.
-pub fn validate_timestamps(
-    transaction_event: &Event,
-) -> Result<(Timestamp, Timestamp), ProcessingAction> {
-    match (
-        transaction_event.start_timestamp.value(),
-        transaction_event.timestamp.value(),
-    ) {
-        (Some(&start), Some(&end)) => {
-            if end < start {
-                return Err(ProcessingAction::InvalidTransaction(
-                    "end timestamp is smaller than start timestamp",
-                ));
+    fn validate_transaction(&self, event: &mut Event) -> ProcessingResult {
+        self.validate_timestamps(event)?;
+
+        let Some(trace_context) = event.context_mut::<TraceContext>() else {
+            return Err(ProcessingAction::InvalidTransaction(
+                "missing valid trace context",
+            ));
+        };
+
+        if trace_context.trace_id.value().is_none() {
+            return Err(ProcessingAction::InvalidTransaction(
+                "trace context is missing trace_id",
+            ));
+        }
+
+        if trace_context.span_id.value().is_none() {
+            return Err(ProcessingAction::InvalidTransaction(
+                "trace context is missing span_id",
+            ));
+        }
+
+        trace_context.op.get_or_insert_with(|| "default".to_owned());
+        Ok(())
+    }
+
+    /// Returns start and end timestamps if they are both set and start <= end.
+    fn validate_timestamps(&self, transaction_event: &Event) -> ProcessingResult {
+        match (
+            transaction_event.start_timestamp.value(),
+            transaction_event.timestamp.value(),
+        ) {
+            (Some(start), Some(end)) => {
+                if end < start {
+                    return Err(ProcessingAction::InvalidTransaction(
+                        "end timestamp is smaller than start timestamp",
+                    ));
+                }
+
+                if let Some(ref range) = self.timestamp_range {
+                    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+                        return Err(ProcessingAction::InvalidTransaction("invalid unix timestamp"));
+                    };
+                    if !range.contains(&timestamp) {
+                        return Err(ProcessingAction::InvalidTransaction(
+                            "timestamp is out of the valid range for metrics",
+                        ));
+                    }
+                }
+
+                Ok(())
             }
-            Ok((start, end))
-        }
-        (_, None) => {
-            // This invariant should be already guaranteed for regular error events.
-            Err(ProcessingAction::InvalidTransaction(
+            (_, None) => Err(ProcessingAction::InvalidTransaction(
                 "timestamp hard-required for transaction events",
-            ))
-        }
-        (None, _) => {
+            )),
             // XXX: Maybe copy timestamp over?
-            Err(ProcessingAction::InvalidTransaction(
+            (None, _) => Err(ProcessingAction::InvalidTransaction(
                 "start_timestamp hard-required for transaction events",
-            ))
+            )),
         }
     }
-}
-
-fn validate_transaction(event: &mut Event) -> ProcessingResult {
-    validate_timestamps(event)?;
-
-    let Some(trace_context) = event.context_mut::<TraceContext>() else {
-        return Err(ProcessingAction::InvalidTransaction(
-            "missing valid trace context",
-        ));
-    };
-
-    if trace_context.trace_id.value().is_none() {
-        return Err(ProcessingAction::InvalidTransaction(
-            "trace context is missing trace_id",
-        ));
-    }
-
-    if trace_context.span_id.value().is_none() {
-        return Err(ProcessingAction::InvalidTransaction(
-            "trace context is missing span_id",
-        ));
-    }
-
-    trace_context.op.get_or_insert_with(|| "default".to_owned());
-    Ok(())
 }
 
 /// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
@@ -404,13 +413,10 @@ impl Processor for TransactionsProcessor<'_> {
 
         set_default_transaction_source(event);
         self.normalize_transaction_name(event)?;
-
-        validate_transaction(event)?;
-
+        self.validate_transaction(event)?;
         end_all_spans(event)?;
 
         event.process_child_values(self, state)?;
-
         Ok(())
     }
 
@@ -539,6 +545,25 @@ mod tests {
                 "timestamp hard-required for transaction events"
             ))
         );
+    }
+
+    #[test]
+    fn test_discards_when_timestamp_out_of_range() {
+        let mut event = new_test_event();
+
+        let processor = &mut TransactionsProcessor::new(
+            TransactionNameConfig::default(),
+            false,
+            None,
+            Some(UnixTimestamp::now()..UnixTimestamp::now()),
+        );
+
+        assert!(matches!(
+            process_value(&mut event, processor, ProcessingState::root()),
+            Err(ProcessingAction::InvalidTransaction(
+                "timestamp is out of the valid range for metrics"
+            ))
+        ));
     }
 
     #[test]
@@ -1648,6 +1673,7 @@ mod tests {
                 },
                 false,
                 None,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -1712,6 +1738,7 @@ mod tests {
                     rules: rules.as_ref(),
                 },
                 false,
+                None,
                 None,
             ),
             ProcessingState::root(),
@@ -1801,6 +1828,7 @@ mod tests {
                 rules: rules.as_ref(),
             },
             false,
+            None,
             None,
         );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1934,6 +1962,7 @@ mod tests {
                 },
                 false,
                 None,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2001,6 +2030,7 @@ mod tests {
                     rules: rules.as_ref(),
                 },
                 false,
+                None,
                 None,
             ),
             ProcessingState::root(),
@@ -2118,7 +2148,12 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
+            &mut TransactionsProcessor::new(
+                TransactionNameConfig { rules: &[rule] },
+                false,
+                None,
+                None,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2347,6 +2382,7 @@ mod tests {
                 },
                 false,
                 None,
+                None,
             ),
             ProcessingState::root(),
         )
@@ -2392,6 +2428,7 @@ mod tests {
                     }],
                 },
                 false,
+                None,
                 None,
             ),
             ProcessingState::root(),
