@@ -2254,7 +2254,7 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        // Extract transaction as span.
+        // Extract transaction as a span.
         let Some(event) = state.event.value() else { return };
         let transaction_span: Span = event.into();
 
@@ -2284,7 +2284,7 @@ impl EnvelopeProcessorService {
             }
         }
 
-        // Add transaction span as envelope item.
+        // Add transaction span as an envelope item.
         add_span(transaction_span.into());
     }
 
