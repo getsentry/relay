@@ -2432,15 +2432,53 @@
 <a href="#2432" id="2432">2432</a>
 <a href="#2433" id="2433">2433</a>
 <a href="#2434" id="2434">2434</a>
+<a href="#2435" id="2435">2435</a>
+<a href="#2436" id="2436">2436</a>
+<a href="#2437" id="2437">2437</a>
+<a href="#2438" id="2438">2438</a>
+<a href="#2439" id="2439">2439</a>
+<a href="#2440" id="2440">2440</a>
+<a href="#2441" id="2441">2441</a>
+<a href="#2442" id="2442">2442</a>
+<a href="#2443" id="2443">2443</a>
+<a href="#2444" id="2444">2444</a>
+<a href="#2445" id="2445">2445</a>
+<a href="#2446" id="2446">2446</a>
+<a href="#2447" id="2447">2447</a>
+<a href="#2448" id="2448">2448</a>
+<a href="#2449" id="2449">2449</a>
+<a href="#2450" id="2450">2450</a>
+<a href="#2451" id="2451">2451</a>
+<a href="#2452" id="2452">2452</a>
+<a href="#2453" id="2453">2453</a>
+<a href="#2454" id="2454">2454</a>
+<a href="#2455" id="2455">2455</a>
+<a href="#2456" id="2456">2456</a>
+<a href="#2457" id="2457">2457</a>
+<a href="#2458" id="2458">2458</a>
+<a href="#2459" id="2459">2459</a>
+<a href="#2460" id="2460">2460</a>
+<a href="#2461" id="2461">2461</a>
+<a href="#2462" id="2462">2462</a>
+<a href="#2463" id="2463">2463</a>
+<a href="#2464" id="2464">2464</a>
+<a href="#2465" id="2465">2465</a>
+<a href="#2466" id="2466">2466</a>
+<a href="#2467" id="2467">2467</a>
+<a href="#2468" id="2468">2468</a>
+<a href="#2469" id="2469">2469</a>
+<a href="#2470" id="2470">2470</a>
+<a href="#2471" id="2471">2471</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::ops::Range;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>relay_common::SpanStatus;
+<span class="kw">use </span>relay_common::{SpanStatus, UnixTimestamp};
 
 <span class="kw">use </span><span class="kw">super</span>::TransactionNameRule;
 <span class="kw">use </span><span class="kw">crate</span>::processor::{ProcessValue, ProcessingState, Processor};
-<span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, EventType, Span, Timestamp, TraceContext, TransactionSource};
+<span class="kw">use </span><span class="kw">crate</span>::protocol::{Event, EventType, Span, TraceContext, TransactionSource};
 <span class="kw">use </span><span class="kw">crate</span>::store::normalize::span::description::scrub_span_description;
 <span class="kw">use </span><span class="kw">crate</span>::store::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 <span class="kw">use </span><span class="kw">crate</span>::store::SpanDescriptionRule;
@@ -2454,10 +2492,11 @@
 }
 
 <span class="doccomment">/// Rejects transactions based on required fields.
-</span><span class="attr">#[derive(Default)]
+</span><span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">pub struct </span>TransactionsProcessor&lt;<span class="lifetime">&#39;r</span>&gt; {
     name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
     span_desc_rules: Vec&lt;SpanDescriptionRule&gt;,
+    timestamp_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
     enrich_spans: bool,
 }
 
@@ -2466,6 +2505,7 @@
         name_config: TransactionNameConfig&lt;<span class="lifetime">&#39;r</span>&gt;,
         enrich_spans: bool,
         span_description_rules: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Vec&lt;SpanDescriptionRule&gt;&gt;,
+        timestamp_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>span_desc_rules = <span class="kw">if let </span><span class="prelude-val">Some</span>(span_desc_rules) = span_description_rules {
             span_desc_rules.clone()
@@ -2480,6 +2520,7 @@
         <span class="self">Self </span>{
             name_config,
             span_desc_rules,
+            timestamp_range,
             enrich_spans,
         }
     }
@@ -2572,62 +2613,67 @@
 
         <span class="prelude-val">Ok</span>(())
     }
-}
 
-<span class="doccomment">/// Returns start and end timestamps if they are both set and start &lt;= end.
-</span><span class="kw">pub fn </span>validate_timestamps(
-    transaction_event: <span class="kw-2">&amp;</span>Event,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(Timestamp, Timestamp), ProcessingAction&gt; {
-    <span class="kw">match </span>(
-        transaction_event.start_timestamp.value(),
-        transaction_event.timestamp.value(),
-    ) {
-        (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) =&gt; {
-            <span class="kw">if </span>end &lt; start {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-                    <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
-                ));
+    <span class="kw">fn </span>validate_transaction(<span class="kw-2">&amp;</span><span class="self">self</span>, event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+        <span class="self">self</span>.validate_timestamps(event)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(trace_context) = event.context_mut::&lt;TraceContext&gt;() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;missing valid trace context&quot;</span>,
+            ));
+        };
+
+        <span class="kw">if </span>trace_context.trace_id.value().is_none() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;trace context is missing trace_id&quot;</span>,
+            ));
+        }
+
+        <span class="kw">if </span>trace_context.span_id.value().is_none() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;trace context is missing span_id&quot;</span>,
+            ));
+        }
+
+        trace_context.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Returns start and end timestamps if they are both set and start &lt;= end.
+    </span><span class="kw">fn </span>validate_timestamps(<span class="kw-2">&amp;</span><span class="self">self</span>, transaction_event: <span class="kw-2">&amp;</span>Event) -&gt; ProcessingResult {
+        <span class="kw">match </span>(
+            transaction_event.start_timestamp.value(),
+            transaction_event.timestamp.value(),
+        ) {
+            (<span class="prelude-val">Some</span>(start), <span class="prelude-val">Some</span>(end)) =&gt; {
+                <span class="kw">if </span>end &lt; start {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                        <span class="string">&quot;end timestamp is smaller than start timestamp&quot;</span>,
+                    ));
+                }
+
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>range) = <span class="self">self</span>.timestamp_range {
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) <span class="kw">else </span>{
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(<span class="string">&quot;invalid unix timestamp&quot;</span>));
+                    };
+                    <span class="kw">if </span>!range.contains(<span class="kw-2">&amp;</span>timestamp) {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                            <span class="string">&quot;timestamp is out of the valid range for metrics&quot;</span>,
+                        ));
+                    }
+                }
+
+                <span class="prelude-val">Ok</span>(())
             }
-            <span class="prelude-val">Ok</span>((start, end))
-        }
-        (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; {
-            <span class="comment">// This invariant should be already guaranteed for regular error events.
-            </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">&quot;timestamp hard-required for transaction events&quot;</span>,
-            ))
-        }
-        (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; {
+            )),
             <span class="comment">// XXX: Maybe copy timestamp over?
-            </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+            </span>(<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
                 <span class="string">&quot;start_timestamp hard-required for transaction events&quot;</span>,
-            ))
+            )),
         }
     }
-}
-
-<span class="kw">fn </span>validate_transaction(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
-    validate_timestamps(event)<span class="question-mark">?</span>;
-
-    <span class="kw">let </span><span class="prelude-val">Some</span>(trace_context) = event.context_mut::&lt;TraceContext&gt;() <span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;missing valid trace context&quot;</span>,
-        ));
-    };
-
-    <span class="kw">if </span>trace_context.trace_id.value().is_none() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;trace context is missing trace_id&quot;</span>,
-        ));
-    }
-
-    <span class="kw">if </span>trace_context.span_id.value().is_none() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
-            <span class="string">&quot;trace context is missing span_id&quot;</span>,
-        ));
-    }
-
-    trace_context.op.get_or_insert_with(|| <span class="string">&quot;default&quot;</span>.to_owned());
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
@@ -2838,13 +2884,10 @@
 
         set_default_transaction_source(event);
         <span class="self">self</span>.normalize_transaction_name(event)<span class="question-mark">?</span>;
-
-        validate_transaction(event)<span class="question-mark">?</span>;
-
+        <span class="self">self</span>.validate_transaction(event)<span class="question-mark">?</span>;
         end_all_spans(event)<span class="question-mark">?</span>;
 
         event.process_child_values(<span class="self">self</span>, state)<span class="question-mark">?</span>;
-
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2973,6 +3016,25 @@
                 <span class="string">&quot;timestamp hard-required for transaction events&quot;
             </span>))
         );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_discards_when_timestamp_out_of_range() {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = new_test_event();
+
+        <span class="kw">let </span>processor = <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
+            TransactionNameConfig::default(),
+            <span class="bool-val">false</span>,
+            <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(UnixTimestamp::now()..UnixTimestamp::now()),
+        );
+
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            process_value(<span class="kw-2">&amp;mut </span>event, processor, ProcessingState::root()),
+            <span class="prelude-val">Err</span>(ProcessingAction::InvalidTransaction(
+                <span class="string">&quot;timestamp is out of the valid range for metrics&quot;
+            </span>))
+        ));
     }
 
     <span class="attr">#[test]
@@ -4082,6 +4144,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span>,
             ),
             ProcessingState::root(),
         )
@@ -4146,6 +4209,7 @@
                     rules: rules.as_ref(),
                 },
                 <span class="bool-val">false</span>,
+                <span class="prelude-val">None</span>,
                 <span class="prelude-val">None</span>,
             ),
             ProcessingState::root(),
@@ -4235,6 +4299,7 @@
                 rules: rules.as_ref(),
             },
             <span class="bool-val">false</span>,
+            <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
         );
         process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root()).unwrap();
@@ -4368,6 +4433,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span>,
             ),
             ProcessingState::root(),
         )
@@ -4435,6 +4501,7 @@
                     rules: rules.as_ref(),
                 },
                 <span class="bool-val">false</span>,
+                <span class="prelude-val">None</span>,
                 <span class="prelude-val">None</span>,
             ),
             ProcessingState::root(),
@@ -4552,7 +4619,12 @@
 
         process_value(
             <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] }, <span class="bool-val">false</span>, <span class="prelude-val">None</span>),
+            <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(
+                TransactionNameConfig { rules: <span class="kw-2">&amp;</span>[rule] },
+                <span class="bool-val">false</span>,
+                <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span>,
+            ),
             ProcessingState::root(),
         )
         .unwrap();
@@ -4781,6 +4853,7 @@
                 },
                 <span class="bool-val">false</span>,
                 <span class="prelude-val">None</span>,
+                <span class="prelude-val">None</span>,
             ),
             ProcessingState::root(),
         )
@@ -4826,6 +4899,7 @@
                     }],
                 },
                 <span class="bool-val">false</span>,
+                <span class="prelude-val">None</span>,
                 <span class="prelude-val">None</span>,
             ),
             ProcessingState::root(),

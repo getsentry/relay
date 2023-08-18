@@ -1554,86 +1554,6 @@
 <a href="#1554" id="1554">1554</a>
 <a href="#1555" id="1555">1555</a>
 <a href="#1556" id="1556">1556</a>
-<a href="#1557" id="1557">1557</a>
-<a href="#1558" id="1558">1558</a>
-<a href="#1559" id="1559">1559</a>
-<a href="#1560" id="1560">1560</a>
-<a href="#1561" id="1561">1561</a>
-<a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a>
-<a href="#1598" id="1598">1598</a>
-<a href="#1599" id="1599">1599</a>
-<a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a>
-<a href="#1602" id="1602">1602</a>
-<a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
-<a href="#1605" id="1605">1605</a>
-<a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a>
-<a href="#1608" id="1608">1608</a>
-<a href="#1609" id="1609">1609</a>
-<a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a>
-<a href="#1613" id="1613">1613</a>
-<a href="#1614" id="1614">1614</a>
-<a href="#1615" id="1615">1615</a>
-<a href="#1616" id="1616">1616</a>
-<a href="#1617" id="1617">1617</a>
-<a href="#1618" id="1618">1618</a>
-<a href="#1619" id="1619">1619</a>
-<a href="#1620" id="1620">1620</a>
-<a href="#1621" id="1621">1621</a>
-<a href="#1622" id="1622">1622</a>
-<a href="#1623" id="1623">1623</a>
-<a href="#1624" id="1624">1624</a>
-<a href="#1625" id="1625">1625</a>
-<a href="#1626" id="1626">1626</a>
-<a href="#1627" id="1627">1627</a>
-<a href="#1628" id="1628">1628</a>
-<a href="#1629" id="1629">1629</a>
-<a href="#1630" id="1630">1630</a>
-<a href="#1631" id="1631">1631</a>
-<a href="#1632" id="1632">1632</a>
-<a href="#1633" id="1633">1633</a>
-<a href="#1634" id="1634">1634</a>
-<a href="#1635" id="1635">1635</a>
-<a href="#1636" id="1636">1636</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
@@ -1642,7 +1562,7 @@
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 <span class="kw">use </span>relay_general::store;
-<span class="kw">use </span>relay_metrics::{AggregatorConfig, Metric};
+<span class="kw">use </span>relay_metrics::Metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
@@ -1858,7 +1778,6 @@
 
 <span class="doccomment">/// A utility that extracts metrics from transactions.
 </span><span class="kw">pub struct </span>TransactionExtractor&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub </span>aggregator_config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>AggregatorConfig,
     <span class="kw">pub </span>config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>TransactionMetricsConfig,
     <span class="kw">pub </span>generic_tags: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[TagMapping],
     <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;,
@@ -1883,18 +1802,6 @@
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;event timestamp is not a valid unix timestamp&quot;</span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
         };
-
-        <span class="comment">// Validate the transaction event against the metrics timestamp limits. If the metric is too
-        // old or too new, we cannot extract the metric and also need to drop the transaction event
-        // for consistency between metrics and events.
-        </span><span class="kw">if </span>!<span class="self">self
-            </span>.aggregator_config
-            .timestamp_range()
-            .contains(<span class="kw-2">&amp;</span>timestamp)
-        {
-            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;event timestamp is out of the valid range for metrics&quot;</span>);
-            <span class="kw">return </span><span class="prelude-val">Err</span>(ExtractMetricsError::InvalidTimestamp);
-        }
 
         track_transaction_name_stats(event);
         <span class="kw">let </span>tags = extract_universal_tags(event, <span class="self">self</span>.config);
@@ -2042,7 +1949,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_dynamic_config::AcceptTransactionNames;
-    <span class="kw">use </span>relay_general::protocol::{Contexts, Timestamp, User};
+    <span class="kw">use </span>relay_general::protocol::User;
     <span class="kw">use </span>relay_general::store::{
         <span class="self">self</span>, set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
         MeasurementsConfig,
@@ -2051,15 +1958,6 @@
     <span class="kw">use </span>relay_metrics::MetricValue;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
-    <span class="doccomment">/// Returns an aggregator config that permits every timestamp.
-    </span><span class="kw">fn </span>aggregator_config() -&gt; AggregatorConfig {
-        AggregatorConfig {
-            max_secs_in_past: u64::MAX,
-            max_secs_in_future: u64::MAX,
-            ..Default::default()
-        }
-    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_extract_transaction_metrics() {
@@ -2151,9 +2049,7 @@
         )
         .unwrap();
 
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2330,9 +2226,7 @@
         store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, LightNormalizationConfig::default()).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2419,9 +2313,7 @@
         store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, LightNormalizationConfig::default()).unwrap();
 
         <span class="kw">let </span>config: TransactionMetricsConfig = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2496,9 +2388,7 @@
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2562,9 +2452,7 @@
         .unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2641,9 +2529,7 @@
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2678,9 +2564,7 @@
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2743,9 +2627,7 @@
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2770,40 +2652,6 @@
         );
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_expired_timestamp() {
-        <span class="kw">let </span>timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(<span class="number">7200</span>));
-
-        <span class="kw">let </span>event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(timestamp),
-            start_timestamp: Annotated::new(timestamp),
-            contexts: Annotated::new({
-                <span class="kw">let </span><span class="kw-2">mut </span>contexts = Contexts::new();
-                contexts.add(TraceContext::default());
-                contexts
-            }),
-            ..Default::default()
-        });
-
-        <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = AggregatorConfig {
-            max_secs_in_past: <span class="number">3600</span>,
-            ..Default::default()
-        };
-        <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
-            config: <span class="kw-2">&amp;</span>config,
-            generic_tags: <span class="kw-2">&amp;</span>[],
-            transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
-            has_profile: <span class="bool-val">false</span>,
-        };
-
-        <span class="kw">let </span>err = extractor.extract(event.value().unwrap()).unwrap_err();
-        <span class="macro">assert_eq!</span>(err, ExtractMetricsError::InvalidTimestamp);
-    }
-
     <span class="doccomment">/// Helper function to check if the transaction name is set correctly
     </span><span class="kw">fn </span>extract_transaction_name(json: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
@@ -2813,9 +2661,7 @@
         </span>set_default_transaction_source(event.value_mut().as_mut().unwrap());
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -2851,9 +2697,7 @@
         <span class="kw">let </span>event = Annotated::from_json(json).unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;root_transaction&quot;</span>),
@@ -3112,9 +2956,7 @@
         </span><span class="kw">let _ </span>= store::light_normalize_event(<span class="kw-2">&amp;mut </span>event, LightNormalizationConfig::default());
 
         <span class="kw">let </span>config = TransactionMetricsConfig::default();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
@@ -3205,7 +3047,6 @@
         .unwrap();
 
         <span class="kw">let </span>config = TransactionMetricsConfig::new();
-        <span class="kw">let </span>aggregator_config = aggregator_config();
         <span class="kw">let </span>generic_tags: Vec&lt;TagMapping&gt; = serde_json::from_str(
             <span class="string">r#&quot;[
                 {
@@ -3233,7 +3074,6 @@
         .unwrap();
 
         <span class="kw">let </span>extractor = TransactionExtractor {
-            aggregator_config: <span class="kw-2">&amp;</span>aggregator_config,
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>generic_tags,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),

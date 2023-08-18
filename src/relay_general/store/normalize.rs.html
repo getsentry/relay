@@ -3394,17 +3394,22 @@
 <a href="#3394" id="3394">3394</a>
 <a href="#3395" id="3395">3395</a>
 <a href="#3396" id="3396">3396</a>
+<a href="#3397" id="3397">3397</a>
+<a href="#3398" id="3398">3398</a>
+<a href="#3399" id="3399">3399</a>
+<a href="#3400" id="3400">3400</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::mem;
+<span class="kw">use </span>std::ops::Range;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::{DateTime, Duration, Utc};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>relay_common::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+<span class="kw">use </span>relay_common::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit, UnixTimestamp};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
 
@@ -4184,6 +4189,7 @@
     <span class="kw">pub </span>received_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     <span class="kw">pub </span>max_secs_in_past: <span class="prelude-ty">Option</span>&lt;i64&gt;,
     <span class="kw">pub </span>max_secs_in_future: <span class="prelude-ty">Option</span>&lt;i64&gt;,
+    <span class="kw">pub </span>transaction_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
     <span class="kw">pub </span>max_name_and_unit_len: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     <span class="kw">pub </span>measurements_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MeasurementsConfig&gt;,
     <span class="kw">pub </span>breakdowns_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>BreakdownsConfig&gt;,
@@ -4207,6 +4213,7 @@
             received_at: Default::default(),
             max_secs_in_past: Default::default(),
             max_secs_in_future: Default::default(),
+            transaction_range: Default::default(),
             max_name_and_unit_len: Default::default(),
             measurements_config: Default::default(),
             breakdowns_config: Default::default(),
@@ -4241,6 +4248,7 @@
             config.transaction_name_config,
             config.enrich_spans,
             config.span_description_rules,
+            config.transaction_range,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 

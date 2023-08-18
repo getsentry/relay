@@ -4012,6 +4012,11 @@
 <a href="#4012" id="4012">4012</a>
 <a href="#4013" id="4013">4013</a>
 <a href="#4014" id="4014">4014</a>
+<a href="#4015" id="4015">4015</a>
+<a href="#4016" id="4016">4016</a>
+<a href="#4017" id="4017">4017</a>
+<a href="#4018" id="4018">4018</a>
+<a href="#4019" id="4019">4019</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6118,7 +6123,6 @@
                         .and_then(|dsc| dsc.transaction.as_deref());
 
                     <span class="kw">let </span>extractor = TransactionExtractor {
-                        aggregator_config: <span class="self">self</span>.inner.config.aggregator_config(),
                         config: tx_config,
                         generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
@@ -6389,6 +6393,12 @@
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
+                transaction_range: <span class="prelude-val">Some</span>(
+                    <span class="self">self</span>.inner
+                        .config
+                        .aggregator_config_for(MetricNamespace::Transactions)
+                        .timestamp_range(),
+                ),
                 max_name_and_unit_len: <span class="prelude-val">Some</span>(
                     <span class="self">self</span>.inner
                         .config

@@ -435,6 +435,7 @@
 <a href="#435" id="435">435</a>
 <a href="#436" id="436">436</a>
 <a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -563,7 +564,8 @@
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
-        measurements_config: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
+        transaction_range: <span class="prelude-val">None</span>,   <span class="comment">// only supported in relay
+        </span>measurements_config: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
         </span>breakdowns_config: <span class="prelude-val">None</span>,   <span class="comment">// only supported in relay
         </span>normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), <span class="comment">// only supported in relay

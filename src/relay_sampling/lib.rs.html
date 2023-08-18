@@ -3976,6 +3976,10 @@
 <a href="#3976" id="3976">3976</a>
 <a href="#3977" id="3977">3977</a>
 <a href="#3978" id="3978">3978</a>
+<a href="#3979" id="3979">3979</a>
+<a href="#3980" id="3980">3980</a>
+<a href="#3981" id="3981">3981</a>
+<a href="#3982" id="3982">3982</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Sampling logic for performing sampling decisions of incoming events.
 //!
 //! In order to allow Sentry to offer performance at scale, Relay extracts key `metrics` from
@@ -4697,8 +4701,12 @@
                 .map_or(Value::Null, Value::from),
 
             <span class="comment">// Computed fields (see Discover)
-            </span><span class="string">&quot;duration&quot; </span>=&gt; <span class="kw">match </span>(<span class="self">self</span>.ty.value(), store::validate_timestamps(<span class="self">self</span>)) {
-                (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction), <span class="prelude-val">Ok</span>((start, end))) =&gt; {
+            </span><span class="string">&quot;duration&quot; </span>=&gt; <span class="kw">match </span>(
+                <span class="self">self</span>.ty.value(),
+                <span class="self">self</span>.start_timestamp.value(),
+                <span class="self">self</span>.timestamp.value(),
+            ) {
+                (<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>start), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>end)) <span class="kw">if </span>start &lt;= end =&gt; {
                     <span class="kw">match </span>Number::from_f64(relay_common::chrono_to_positive_millis(end - start)) {
                         <span class="prelude-val">Some</span>(num) =&gt; Value::Number(num),
                         <span class="prelude-val">None </span>=&gt; Value::Null,
