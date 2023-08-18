@@ -850,6 +850,23 @@
 <a href="#850" id="850">850</a>
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -913,14 +930,25 @@
     .unwrap()
 });
 
-<span class="doccomment">/// Collapse simple lists of columns in select.
+<span class="doccomment">/// Collapse simple lists of column names.
 /// For example:
-///   SELECT a, b FROM x -&gt; SELECT .. FROM x
+///   SELECT a, b, count(*) FROM x -&gt; SELECT .., count(*) FROM x
 ///   SELECT &quot;a.b&quot; AS a__b, &quot;a.c&quot; AS a__c FROM x -&gt; SELECT .. FROM x
-</span><span class="kw">static </span>SQL_COLLAPSE_SELECT: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    <span class="kw">let </span>col = <span class="string">r&quot;\w+( AS \w+)?&quot;</span>;
-    Regex::new(<span class="macro">format!</span>(<span class="string">r&quot;(?i)(?P&lt;select&gt;SELECT(\s+(DISTINCT|ALL))?)\s+(?P&lt;columns&gt;({col}(?:\s*,\s*{col})+))\s+(?&lt;from&gt;FROM|$)&quot;</span>).as_str())
-        .unwrap()
+///
+/// Assumes that column names have already been normalized.
+</span><span class="kw">static </span>SQL_COLLAPSE_COLUMNS: Lazy&lt;Regex&gt; = Lazy::new(|| {
+    <span class="kw">let </span>col = <span class="string">r&quot;\w+(\s+AS\s+\w+)?&quot;</span>;
+    Regex::new(
+        <span class="macro">format!</span>(
+            <span class="string">r&quot;(?ix)
+        (?P&lt;pre&gt;(SELECT(\s+(DISTINCT|ALL))?\s|,|\())
+        \s*
+        (?P&lt;columns&gt;({col}(?:\s*,\s*{col})+))
+        (?P&lt;post&gt;\s*(,|\s+|\)))&quot;
+        </span>)
+        .as_str(),
+    )
+    .unwrap()
 });
 
 <span class="doccomment">/// Regex to identify SQL queries that are already normalized.
@@ -975,7 +1003,7 @@
         (<span class="kw-2">&amp;</span>SQL_PARENS, <span class="string">&quot;$pre$post&quot;</span>),
         (<span class="kw-2">&amp;</span>SQL_COLLAPSE_PLACEHOLDERS, <span class="string">&quot;$pre%s$post&quot;</span>),
         (<span class="kw-2">&amp;</span>SQL_COLLAPSE_ENTITIES, <span class="string">&quot;$entity_name&quot;</span>),
-        (<span class="kw-2">&amp;</span>SQL_COLLAPSE_SELECT, <span class="string">&quot;$select .. $from&quot;</span>),
+        (<span class="kw-2">&amp;</span>SQL_COLLAPSE_COLUMNS, <span class="string">&quot;$pre..$post&quot;</span>),
     ] {
         <span class="kw">let </span>replaced = regex.replace_all(<span class="kw-2">&amp;</span>string, replacement);
         <span class="kw">if let </span>Cow::Owned(s) = replaced {
@@ -1407,9 +1435,9 @@
 
     <span class="macro">span_description_test!</span>(
         span_description_strip_prefixes,
-        <span class="string">r#&quot;SELECT &quot;table&quot;.&quot;foo&quot;, &quot;table&quot;.&quot;bar&quot;, count(*) from &quot;table&quot; WHERE sku = %s&quot;#</span>,
+        <span class="string">r#&quot;SELECT &quot;table&quot;.&quot;foo&quot;, count(*) from &quot;table&quot; WHERE sku = %s&quot;#</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">r#&quot;SELECT foo, bar, count(*) from table WHERE sku = %s&quot;#
+        <span class="string">r#&quot;SELECT foo, count(*) from table WHERE sku = %s&quot;#
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1542,11 +1570,17 @@
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_do_not_collapse_columns,
-        <span class="comment">// Leave select untouched if it contains more complex expressions
-        </span><span class="string">r#&quot;SELECT myfield1, &quot;a&quot;.&quot;b&quot;, count(*) AS c, another_field FROM table WHERE %s&quot;#</span>,
+        span_description_collapse_partial_column_lists,
+        <span class="string">r#&quot;SELECT myfield1, &quot;a&quot;.&quot;b&quot;, count(*) AS c, another_field, another_field2 FROM table WHERE %s&quot;#</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;SELECT myfield1, b, count(*) AS c, another_field FROM table WHERE %s&quot;
+        <span class="string">&quot;SELECT .., count(*) AS c,.. FROM table WHERE %s&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        span_description_collapse_partial_column_lists_2,
+        <span class="string">r#&quot;SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS &quot;id&quot; FROM x&quot;#</span>,
+        <span class="string">&quot;db.sql.query&quot;</span>,
+        <span class="string">&quot;SELECT DISTINCT .., COALESCE(foo, %s) AS id FROM x&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1568,7 +1602,7 @@
         span_description_scrub_values,
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s)&quot;
+        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1582,14 +1616,14 @@
         span_description_scrub_values_multi,
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (b, c, d, e) VALuES (%s) ON CONFLICT DO NOTHING&quot;
+        <span class="string">&quot;INSERT INTO a (..) VALuES (%s) ON CONFLICT DO NOTHING&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         span_description_scrub_type_casts,
         <span class="string">&quot;INSERT INTO a (b, c, d) VALUES (&#39;foo&#39;::date, 123::bigint[], %s::bigint[])&quot;</span>,
         <span class="string">&quot;db.sql.query&quot;</span>,
-        <span class="string">&quot;INSERT INTO a (b, c, d) VALUES (%s)&quot;
+        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
