@@ -258,6 +258,19 @@
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the Global Config service.
 //!
 //! The global config service is a Relay service to manage [`GlobalConfig`]s,
@@ -274,6 +287,7 @@
 
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
+<span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
 <span class="kw">use </span>reqwest::Method;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -282,6 +296,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::SleepHandle;
 
 <span class="doccomment">/// The result of sending a global config query to upstream.
@@ -447,11 +462,13 @@
         <span class="kw">let </span>internal_tx = <span class="self">self</span>.internal_tx.clone();
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span>query = GetGlobalConfig::new();
-            <span class="kw">let </span>res = upstream_relay.send(SendQuery(query)).<span class="kw">await</span>;
-            <span class="comment">// Internal forwarding should only fail when the internal receiver
-            // is closed.
-            </span>internal_tx.send(res).<span class="kw">await</span>.ok();
+            <span class="macro">metric!</span>(timer(RelayTimers::GlobalConfigRequestDuration), {
+                <span class="kw">let </span>query = GetGlobalConfig::new();
+                <span class="kw">let </span>res = upstream_relay.send(SendQuery(query)).<span class="kw">await</span>;
+                <span class="comment">// Internal forwarding should only fail when the internal
+                // receiver is closed.
+                </span>internal_tx.send(res).<span class="kw">await</span>.ok();
+            });
         });
     }
 
@@ -464,13 +481,22 @@
     /// global config is valid and contains the expected data.
     </span><span class="kw">fn </span>handle_result(<span class="kw-2">&amp;mut </span><span class="self">self</span>, result: UpstreamQueryResult) {
         <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(config)) =&gt; <span class="kw">match </span>config.global {
-                <span class="prelude-val">Some</span>(global_config) =&gt; {
-                    <span class="comment">// Forwarding only fails when no subscribers.
-                    </span><span class="self">self</span>.global_config_watch.send(Arc::new(global_config)).ok();
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Ok</span>(config)) =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>success = <span class="bool-val">false</span>;
+                <span class="kw">match </span>config.global {
+                    <span class="prelude-val">Some</span>(global_config) =&gt; {
+                        <span class="comment">// Notifying subscribers only fails when there are no
+                        // subscribers.
+                        </span><span class="self">self</span>.global_config_watch.send(Arc::new(global_config)).ok();
+                        success = <span class="bool-val">true</span>;
+                    }
+                    <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::error!</span>(<span class="string">&quot;global config missing in upstream response&quot;</span>),
                 }
-                <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::error!</span>(<span class="string">&quot;global config missing in upstream response&quot;</span>),
-            },
+                <span class="macro">metric!</span>(
+                    counter(RelayCounters::GlobalConfigFetched) += <span class="number">1</span>,
+                    success = <span class="kw">if </span>success { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
+                );
+            }
             <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(e)) =&gt; <span class="macro">relay_log::error!</span>(
                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                 <span class="string">&quot;failed to fetch global config from upstream&quot;

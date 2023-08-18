@@ -644,6 +644,16 @@
 <a href="#644" id="644">644</a>
 <a href="#645" id="645">645</a>
 <a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -962,6 +972,8 @@
     </span>OutcomeAggregatorFlushTime,
     <span class="doccomment">/// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     </span>ReplayRecordingProcessing,
+    <span class="doccomment">/// Total time spent to send a request and receive the response from upstream.
+    </span>GlobalConfigRequestDuration,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -995,6 +1007,7 @@
             RelayTimers::TimestampDelay =&gt; <span class="string">&quot;requests.timestamp_delay&quot;</span>,
             RelayTimers::OutcomeAggregatorFlushTime =&gt; <span class="string">&quot;outcomes.aggregator.flush_time&quot;</span>,
             RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">&quot;replay.recording.process&quot;</span>,
+            RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">&quot;global_config.requests.duration&quot;</span>,
         }
     }
 }
@@ -1187,6 +1200,12 @@
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry&#39;s SDKs and defaults to &quot;proprietary&quot;.
     </span>OpenTelemetryEvent,
+    <span class="doccomment">/// Number of global config fetches from upstream. Only 2XX responses are
+    /// considered and ignores send errors (e.g. auth or network errors).
+    ///
+    /// This metric is tagged with:
+    ///  - `success`: whether deserializing the global config succeeded.
+    </span>GlobalConfigFetched,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1221,6 +1240,7 @@
             RelayCounters::MetricBucketsParsingFailed =&gt; <span class="string">&quot;metrics.buckets.parsing_failed&quot;</span>,
             RelayCounters::MetricsTransactionNameExtracted =&gt; <span class="string">&quot;metrics.transaction_name&quot;</span>,
             RelayCounters::OpenTelemetryEvent =&gt; <span class="string">&quot;event.opentelemetry&quot;</span>,
+            RelayCounters::GlobalConfigFetched =&gt; <span class="string">&quot;global_config.fetch&quot;</span>,
         }
     }
 }
