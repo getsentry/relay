@@ -316,7 +316,7 @@ pub enum RelayTimers {
     OutcomeAggregatorFlushTime,
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
-    /// Total time spent to send a request to upstream and handle the response.
+    /// Total time spent to send a request and receive the response from upstream.
     GlobalConfigRequestDuration,
 }
 

@@ -190,15 +190,13 @@ impl GlobalConfigService {
         let internal_tx = self.internal_tx.clone();
 
         tokio::spawn(async move {
-            let request_start = Instant::now();
-
-            let query = GetGlobalConfig::new();
-            let res = upstream_relay.send(SendQuery(query)).await;
-            // Internal forwarding should only fail when the internal receiver
-            // is closed.
-            internal_tx.send(res).await.ok();
-
-            metric!(timer(RelayTimers::GlobalConfigRequestDuration) = request_start.elapsed());
+            metric!(timer(RelayTimers::GlobalConfigRequestDuration), {
+                let query = GetGlobalConfig::new();
+                let res = upstream_relay.send(SendQuery(query)).await;
+                // Internal forwarding should only fail when the internal
+                // receiver is closed.
+                internal_tx.send(res).await.ok();
+            });
         });
     }
 
@@ -215,7 +213,8 @@ impl GlobalConfigService {
                 let mut success = false;
                 match config.global {
                     Some(global_config) => {
-                        // Forwarding only fails when no subscribers.
+                        // Notifying subscribers only fails when there are no
+                        // subscribers.
                         self.global_config_watch.send(Arc::new(global_config)).ok();
                         success = true;
                     }
