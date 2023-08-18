@@ -2104,7 +2104,6 @@ impl EnvelopeProcessorService {
                         .and_then(|dsc| dsc.transaction.as_deref());
 
                     let extractor = TransactionExtractor {
-                        aggregator_config: self.inner.config.aggregator_config(),
                         config: tx_config,
                         generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
@@ -2375,6 +2374,12 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+                transaction_range: Some(
+                    self.inner
+                        .config
+                        .aggregator_config_for(MetricNamespace::Transactions)
+                        .timestamp_range(),
+                ),
                 max_name_and_unit_len: Some(
                     self.inner
                         .config

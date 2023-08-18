@@ -2,13 +2,14 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::ops::Range;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
 use itertools::Itertools;
 use once_cell::sync::OnceCell;
 use regex::Regex;
-use relay_common::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+use relay_common::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit, UnixTimestamp};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
@@ -788,6 +789,7 @@ pub struct LightNormalizationConfig<'a> {
     pub received_at: Option<DateTime<Utc>>,
     pub max_secs_in_past: Option<i64>,
     pub max_secs_in_future: Option<i64>,
+    pub transaction_range: Option<Range<UnixTimestamp>>,
     pub max_name_and_unit_len: Option<usize>,
     pub measurements_config: Option<&'a MeasurementsConfig>,
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -811,6 +813,7 @@ impl Default for LightNormalizationConfig<'_> {
             received_at: Default::default(),
             max_secs_in_past: Default::default(),
             max_secs_in_future: Default::default(),
+            transaction_range: Default::default(),
             max_name_and_unit_len: Default::default(),
             measurements_config: Default::default(),
             breakdowns_config: Default::default(),
@@ -845,6 +848,7 @@ pub fn light_normalize_event(
             config.transaction_name_config,
             config.enrich_spans,
             config.span_description_rules,
+            config.transaction_range,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
