@@ -9,6 +9,8 @@ mod envelope;
 mod events;
 mod forward;
 mod health_check;
+#[cfg(feature = "admin")]
+mod logs;
 mod minidump;
 mod monitor;
 mod outcomes;
@@ -37,7 +39,11 @@ where
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
-        .route("/api/relay/events/:event_id/", get(events::handle))
+        .route("/api/relay/events/:event_id/", get(events::handle));
+    #[cfg(feature = "admin")]
+    let internal_routes = internal_routes
+        .route("/api/relay/logs/", get(logs::handle));
+    let internal_routes = internal_routes
         // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/*not_found", any(statics::not_found));
 

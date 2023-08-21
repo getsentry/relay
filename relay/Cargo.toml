@@ -10,6 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
+admin = ["relay-server/admin"]
 default = []
 processing = ["relay-server/processing"]
 crash-handler = ["relay-log/crash-handler"]
