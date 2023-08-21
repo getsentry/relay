@@ -304,7 +304,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // Create secondary service runtimes.
     //
     // This must happen outside of the main runtime.
-    let runtimes: Arc<_> = Runtimes {
+    let runtimes = Runtimes {
         upstream: create_runtime("upstream-rt", 1),
         project: create_runtime("project-rt", 1),
         aggregator: create_runtime("aggregator-rt", 1),
@@ -313,24 +313,18 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         store: config
             .processing_enabled()
             .then(|| create_runtime("store-rt", 1)),
-    }
-    .into();
+    };
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    let service = main_runtime.block_on(async {
+    main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone(), runtimes.clone())?;
+        let service = ServiceState::start(config.clone(), &runtimes)?;
         HttpServer::new(config, service.clone())?.start();
         Controller::shutdown_handle().finished().await;
-        anyhow::Ok(service)
+        anyhow::Ok(())
     })?;
-
-    // TODO: Temporary workaround for dropping runtimes inside ServiceState. Dropping them within
-    // `main_runtime` causes panics. Consider removing the internal runtimes in favor of
-    // spawn_blocking and improved resource management.
-    drop(service);
 
     // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
     // not exit by themselves, and the shutdown timeout should have given them enough time to

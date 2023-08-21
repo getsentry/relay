@@ -86,7 +86,6 @@ struct StateInner {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
     registry: Registry,
-    _runtimes: Arc<Runtimes>,
 }
 
 /// Server state.
@@ -97,7 +96,7 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>, runtimes: Arc<Runtimes>) -> Result<Self> {
+    pub fn start(config: Arc<Config>, runtimes: &Runtimes) -> Result<Self> {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&runtimes.upstream);
         let test_store = TestStoreService::new(config.clone()).start();
 
@@ -215,7 +214,6 @@ impl ServiceState {
             buffer_guard: buffer,
             config,
             registry,
-            _runtimes: runtimes,
         };
 
         Ok(ServiceState {
