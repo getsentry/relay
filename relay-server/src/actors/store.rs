@@ -56,12 +56,8 @@ impl Producer {
         for topic in KafkaTopic::iter()
             .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
         {
-            let kafka_config = &config
-                .kafka_config(*topic)
-                .map_err(|_| ServiceError::Kafka)?;
-            client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServiceError::Kafka)?
+            let kafka_config = &config.kafka_config(*topic)?;
+            client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
         }
 
         Ok(Self {
