@@ -87,6 +87,8 @@ pub enum ItemType {
     FormData,
     /// Security report as sent by the browser in JSON.
     RawSecurity,
+    /// NEL report as sent by the browser.
+    Nel,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -126,9 +128,11 @@ impl ItemType {
         match event_type {
             EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
-            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
-                ItemType::Security
-            }
+            EventType::Csp
+            | EventType::Nel
+            | EventType::Hpkp
+            | EventType::ExpectCt
+            | EventType::ExpectStaple => ItemType::Security,
         }
     }
 }
@@ -142,6 +146,7 @@ impl fmt::Display for ItemType {
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form_data"),
             Self::RawSecurity => write!(f, "raw_security"),
+            Self::Nel => write!(f, "nel"),
             Self::UnrealReport => write!(f, "unreal_report"),
             Self::UserReport => write!(f, "user_report"),
             Self::Session => write!(f, "session"),
@@ -170,6 +175,7 @@ impl std::str::FromStr for ItemType {
             "attachment" => Self::Attachment,
             "form_data" => Self::FormData,
             "raw_security" => Self::RawSecurity,
+            "nel" => Self::Nel,
             "unreal_report" => Self::UnrealReport,
             "user_report" => Self::UserReport,
             "session" => Self::Session,
@@ -548,6 +554,7 @@ impl Item {
                 DataCategory::Transaction
             }),
             ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+            ItemType::Nel => None,
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
@@ -691,7 +698,8 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::UnrealReport => true,
+            | ItemType::UnrealReport
+            | ItemType::Nel => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
@@ -747,6 +755,7 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::Nel => true,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::ReplayEvent => true,

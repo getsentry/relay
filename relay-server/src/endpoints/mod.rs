@@ -11,6 +11,7 @@ mod forward;
 mod health_check;
 mod minidump;
 mod monitor;
+mod nel;
 mod outcomes;
 mod project_configs;
 mod public_keys;
@@ -64,6 +65,7 @@ where
         .route("/api/:project_id/envelope/", envelope::route(config))
         .route("/api/:project_id/security/", security_report::route(config))
         .route("/api/:project_id/csp-report/", security_report::route(config))
+        .route("/api/:project_id/nel/", nel::route(config))
         // No mandatory trailing slash here because people already use it like this.
         .route("/api/:project_id/minidump", minidump::route(config))
         .route("/api/:project_id/minidump/", minidump::route(config))

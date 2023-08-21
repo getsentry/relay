@@ -1620,6 +1620,7 @@ impl EnvelopeProcessorService {
             ItemType::Security => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::Nel => false, // TODO?
 
             // These should be removed conditionally:
             ItemType::UnrealReport => self.inner.config.processing_enabled(),

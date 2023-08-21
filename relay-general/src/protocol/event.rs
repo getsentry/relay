@@ -13,7 +13,7 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, DefaultContext, Exception,
     ExpectCt, ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry, Measurements,
-    Metrics, RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
+    Metrics, Nel, RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
     TransactionInfo, User, Values,
 };
 use crate::types::{
@@ -410,6 +410,9 @@ pub struct Event {
     #[metastructure(skip_serialization = "empty")]
     pub breadcrumbs: Annotated<Values<Breadcrumb>>,
 
+    #[metastructure(skip_serialization = "empty")]
+    pub nels: Annotated<Values<Nel>>,
+
     /// One or multiple chained (nested) exceptions.
     #[metastructure(legacy_alias = "sentry.interfaces.Exception")]
     #[metastructure(field = "exception")]
@@ -493,6 +496,11 @@ pub struct Event {
     #[metastructure(legacy_alias = "sentry.interfaces.Csp")]
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub csp: Annotated<Csp>,
+
+    /// NEL (Network Error Logging) reports.
+    #[metastructure(legacy_alias = "sentry.interfaces.Nel")] // remove "legacy"?
+    #[metastructure(omit_from_schema)] // we only document error events for now
+    pub nel: Annotated<Nel>,
 
     /// HPKP (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Hpkp")]

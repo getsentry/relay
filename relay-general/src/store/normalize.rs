@@ -245,6 +245,8 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::Error
         } else if event.csp.value().is_some() {
             EventType::Csp
+        } else if event.nel.value().is_some() {
+            EventType::Nel
         } else if event.hpkp.value().is_some() {
             EventType::Hpkp
         } else if event.expectct.value().is_some() {
