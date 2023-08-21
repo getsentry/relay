@@ -410,9 +410,6 @@ pub struct Event {
     #[metastructure(skip_serialization = "empty")]
     pub breadcrumbs: Annotated<Values<Breadcrumb>>,
 
-    #[metastructure(skip_serialization = "empty")]
-    pub nels: Annotated<Values<Nel>>,
-
     /// One or multiple chained (nested) exceptions.
     #[metastructure(legacy_alias = "sentry.interfaces.Exception")]
     #[metastructure(field = "exception")]

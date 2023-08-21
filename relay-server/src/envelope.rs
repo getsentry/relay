@@ -696,8 +696,8 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::UnrealReport
-            | ItemType::Nel => true,
+            | ItemType::Nel
+            | ItemType::UnrealReport => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
