@@ -4,7 +4,7 @@ use std::fmt::{self};
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{Event, LogEntry};
+use crate::protocol::{Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request};
 use crate::types::Annotated;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -68,6 +68,24 @@ impl NelReportRaw {
             body: Annotated::from(body),
         }
     }
+
+    fn get_request(&self) -> Request {
+        let headers = match self.user_agent {
+            Some(ref user_agent) if !user_agent.is_empty() => {
+                Annotated::new(Headers(PairList(vec![Annotated::new((
+                    Annotated::new(HeaderName::new("User-Agent")),
+                    Annotated::new(HeaderValue::new(user_agent.clone())),
+                ))])))
+            }
+            Some(_) | None => Annotated::empty(),
+        };
+
+        Request {
+            url: Annotated::from(self.url.clone()),
+            headers,
+            ..Request::default()
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -109,7 +127,7 @@ pub struct Nel {
 
 impl Nel {
     pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
-        let raw_report = serde_json::from_slice::<NelReportRaw>(data)?;
+        let raw_report: NelReportRaw = serde_json::from_slice::<NelReportRaw>(data)?;
 
         event.logentry = Annotated::new(LogEntry::from(format!(
             "{} / {}",
@@ -117,7 +135,8 @@ impl Nel {
             raw_report.body.ty.as_ref().unwrap_or(&String::new())
         )));
 
-        event.nel = Annotated::from(raw_report.into_protocol());
+        event.nel = Annotated::from(raw_report.clone().into_protocol());
+        event.request = Annotated::new(raw_report.get_request());
 
         // event.logentry = Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive)));
         // event.culprit = Annotated::new(raw_csp.get_culprit());
