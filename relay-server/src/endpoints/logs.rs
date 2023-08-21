@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::{
     extract::ws::{WebSocket, WebSocketUpgrade},
     response::Response,
@@ -8,17 +10,13 @@ pub async fn handle(ws: WebSocketUpgrade) -> Response {
 }
 
 async fn handle_socket(mut socket: WebSocket) {
-    while let Some(msg) = socket.recv().await {
-        let msg = if let Ok(msg) = msg {
-            msg
-        } else {
-            // client disconnected
-            return;
-        };
-
-        if socket.send(msg).await.is_err() {
-            // client disconnected
-            return;
+    let mut counter = 0;
+    loop {
+        let res = socket.send(format!("dummy message {counter}").into()).await;
+        if res.is_err() {
+            break;
         }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        counter += 1;
     }
 }
