@@ -1,6 +1,7 @@
 # Relay Pipelines
 
-Relay is in the process of moving to a set of rendered jsonnet pipelines.
+The relay pipelines are rendered as a
+[pipedream](https://www.notion.so/sentry/Pipedreams-in-GoCD-with-Jsonnet-430f46b87fa14650a80adf6708b088d9).
 
 ## Dependencies
 
