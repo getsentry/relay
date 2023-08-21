@@ -32,8 +32,6 @@ pub enum EventType {
     Error,
     /// A CSP violation payload.
     Csp,
-    /// A Network Error Logging payload.
-    Nel,
     /// An HPKP violation payload.
     Hpkp,
     /// An ExpectCT violation payload.
@@ -68,7 +66,6 @@ impl FromStr for EventType {
             "default" => EventType::Default,
             "error" => EventType::Error,
             "csp" => EventType::Csp,
-            "nel" => EventType::Nel,
             "hpkp" => EventType::Hpkp,
             "expectct" => EventType::ExpectCt,
             "expectstaple" => EventType::ExpectStaple,
@@ -84,7 +81,6 @@ impl fmt::Display for EventType {
             EventType::Default => write!(f, "default"),
             EventType::Error => write!(f, "error"),
             EventType::Csp => write!(f, "csp"),
-            EventType::Nel => write!(f, "nel"),
             EventType::Hpkp => write!(f, "hpkp"),
             EventType::ExpectCt => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
@@ -230,11 +226,9 @@ impl From<EventType> for DataCategory {
         match ty {
             EventType::Default | EventType::Error => Self::Error,
             EventType::Transaction => Self::Transaction,
-            EventType::Csp
-            | EventType::Nel
-            | EventType::Hpkp
-            | EventType::ExpectCt
-            | EventType::ExpectStaple => Self::Security,
+            EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
+                Self::Security
+            }
         }
     }
 }

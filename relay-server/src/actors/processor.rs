@@ -1481,11 +1481,10 @@ impl EnvelopeProcessorService {
         meta: &RequestMeta,
     ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
-        let mut event = Event::default();
-
-        // Explicitly set the event type. This is required so that a `Security` item can be created
-        // instead of a regular `Event` item.
-        event.ty = Annotated::new(EventType::Nel);
+        let mut event = Event {
+            ty: Annotated::from(EventType::Error),
+            ..Default::default()
+        };
 
         let data = &item.payload();
 
@@ -1740,7 +1739,7 @@ impl EnvelopeProcessorService {
                     );
                     error
                 })?
-        } else if let Some(mut item) = nel_item {
+        } else if let Some(item) = nel_item {
             relay_log::trace!("processing nel report");
             self.event_from_nel_report(item, envelope.meta())
                 .map_err(|error| {
