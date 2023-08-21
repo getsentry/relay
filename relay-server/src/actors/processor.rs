@@ -1478,7 +1478,7 @@ impl EnvelopeProcessorService {
     fn event_from_nel_report(
         &self,
         item: Item,
-        meta: &RequestMeta,
+        _meta: &RequestMeta,
     ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
         let mut event = Event {

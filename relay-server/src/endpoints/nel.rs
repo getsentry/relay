@@ -35,7 +35,6 @@ impl NelReportParams {
 
         // Iterate only if the body contains the list of the items.
         for item in items.as_array().into_iter().flatten() {
-            dbg!(item);
             let mut report_item = Item::new(ItemType::Nel);
             report_item.set_payload(ContentType::Json, item.to_owned().to_string());
             envelope.add_item(report_item);

@@ -1,16 +1,11 @@
 //! Contains definitions for the Network Error Logging (NEL) interface.
 
-use std::borrow::Cow;
-use std::fmt::{self, Write};
+use std::fmt::{self};
 
 use serde::{Deserialize, Serialize};
-use url::Url;
 
-use crate::macros::derive_fromstr_and_display;
-use crate::protocol::{
-    Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
-};
-use crate::types::{Annotated, Array, Object, Value};
+use crate::protocol::{Event, LogEntry};
+use crate::types::Annotated;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InvalidNelError;
