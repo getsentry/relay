@@ -1,6 +1,6 @@
 //! Endpoints for Network Error Logging reports.
 
-use axum::extract::{DefaultBodyLimit, FromRequest, Query};
+use axum::extract::{DefaultBodyLimit, FromRequest};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
@@ -15,58 +15,30 @@ use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{Mime, RequestMeta};
 use crate::service::ServiceState;
 
-#[derive(Debug, Deserialize)]
-struct NelReportQuery {
-    sentry_release: Option<String>,
-    sentry_environment: Option<String>,
-}
-
-#[derive(Debug, FromRequest)]
+#[derive(Debug, Deserialize, FromRequest)]
 #[from_request(state(ServiceState))]
 struct NelReportParams {
     meta: RequestMeta,
-    #[from_request(via(Query))]
-    query: NelReportQuery,
     body: Bytes,
 }
 
 impl NelReportParams {
     fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self { meta, query, body } = self;
-
-        println!("{meta:#?}");
-        println!("{query:#?}");
-        println!("{body:#?}");
+        let Self { meta, body } = self;
 
         if body.is_empty() {
             return Err(BadStoreRequest::EmptyBody);
         }
 
-        let items: Vec<Value> = serde_json::from_slice(&body).unwrap();
-        println!("{items:#?}");
-
+        let items: Value = serde_json::from_slice(&body).map_err(BadStoreRequest::InvalidJson)?;
         let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
 
-        for item in items.into_iter() {
+        // Iterate only if the body contains the list of the items.
+        for item in items.as_array().into_iter().flatten() {
             let mut report_item = Item::new(ItemType::Nel);
-            // let i = item.to_string().as_bytes().clone();
-            report_item.set_payload(ContentType::Json, item.as_str().unwrap());
+            report_item.set_payload(ContentType::Json, item.to_owned().to_string());
             envelope.add_item(report_item);
         }
-
-        // for item in items.iter() {
-        //     let mut report_item = Item::new(ItemType::Event);
-        //     report_item.set_payload(ContentType::Json, serde_json::to_string(item));
-
-        //     if let Some(sentry_release) = query.sentry_release {
-        //         report_item.set_header("sentry_release", sentry_release);
-        //     }
-
-        //     if let Some(sentry_environment) = query.sentry_environment {
-        //         report_item.set_header("sentry_environment", sentry_environment);
-        //     }
-
-        // }
 
         Ok(envelope)
     }
@@ -76,10 +48,6 @@ fn is_nel_mime(mime: Mime) -> bool {
     let ty = mime.type_().as_str();
     let subty = mime.subtype().as_str();
     let suffix = mime.suffix().map(|suffix| suffix.as_str());
-
-    // println!("{ty:#?}");
-    // println!("{subty:#?}");
-    // println!("{suffix:#?}");
 
     matches!(
         (ty, subty, suffix),
