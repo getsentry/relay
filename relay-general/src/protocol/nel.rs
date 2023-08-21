@@ -137,9 +137,9 @@ impl Nel {
 
         event.nel = Annotated::from(raw_report.clone().into_protocol());
         event.request = Annotated::new(raw_report.get_request());
+        event.logger.get_or_insert_with(|| "nel".to_string());
+        event.culprit = Annotated::new(String::from("hello culprit"));
 
-        // event.logentry = Annotated::new(LogEntry::from(raw_csp.get_message(effective_directive)));
-        // event.culprit = Annotated::new(raw_csp.get_culprit());
         // event.tags = Annotated::new(raw_csp.get_tags(effective_directive));
 
         Ok(())
