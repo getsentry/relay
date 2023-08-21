@@ -498,7 +498,6 @@ pub struct Event {
     pub csp: Annotated<Csp>,
 
     /// NEL (Network Error Logging) reports.
-    #[metastructure(legacy_alias = "sentry.interfaces.Nel")] // remove "legacy"?
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub nel: Annotated<Nel>,
 

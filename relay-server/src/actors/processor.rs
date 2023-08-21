@@ -32,8 +32,9 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
+    LenientString, Metrics, Nel, RelayInfo, Replay, ReplayError, SecurityReportType,
+    SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext,
+    UserReport, Values,
 };
 use relay_general::protocol::{Contexts, OtelContext};
 use relay_general::store::GeoIpLookup;
@@ -114,6 +115,9 @@ pub enum ProcessingError {
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
 
+    #[error("invalid nel report")]
+    InvalidNelReport(#[source] serde_json::Error),
+
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
@@ -143,6 +147,7 @@ impl ProcessingError {
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
             Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
@@ -1470,6 +1475,34 @@ impl EnvelopeProcessorService {
         Ok((Annotated::new(event), len))
     }
 
+    fn event_from_nel_report(
+        &self,
+        item: Item,
+        meta: &RequestMeta,
+    ) -> Result<ExtractedEvent, ProcessingError> {
+        let len = item.len();
+        let mut event = Event::default();
+
+        // Explicitly set the event type. This is required so that a `Security` item can be created
+        // instead of a regular `Event` item.
+        event.ty = Annotated::new(EventType::Nel);
+
+        let data = &item.payload();
+
+        let apply_result = Nel::apply_to_event(data, &mut event);
+
+        if let Err(json_error) = apply_result {
+            // logged in extract_event
+            relay_log::configure_scope(|scope| {
+                scope.set_extra("payload", String::from_utf8_lossy(data).into());
+            });
+
+            return Err(ProcessingError::InvalidNelReport(json_error));
+        }
+
+        Ok((Annotated::new(event), len))
+    }
+
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
         let payload = item.payload();
         let mut aggregator = ChunkedFormDataAggregator::new();
@@ -1664,6 +1697,7 @@ impl EnvelopeProcessorService {
         let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
         let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+        let nel_item = envelope.take_item_by(|item| item.ty() == &ItemType::Nel);
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
@@ -1704,6 +1738,13 @@ impl EnvelopeProcessorService {
                         error = &error as &dyn Error,
                         "failed to extract security report"
                     );
+                    error
+                })?
+        } else if let Some(mut item) = nel_item {
+            relay_log::trace!("processing nel report");
+            self.event_from_nel_report(item, envelope.meta())
+                .map_err(|error| {
+                    relay_log::error!(error = &error as &dyn Error, "failed to extract nel report");
                     error
                 })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {

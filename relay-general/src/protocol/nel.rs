@@ -485,13 +485,25 @@ impl fmt::Display for InvalidNelError {
 ///
 /// See `Nel` for meaning of fields.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
 struct NelReportRaw {
-    age: u64,
-    r#type: String, // always "network-error"
-    url: String,
-    user_agent: String,
+    age: Option<u64>,
+    #[serde(rename = "type")]
+    ty: Option<String>, // always "network-error"
+    url: Option<String>,
+    user_agent: Option<String>,
     // body: NelBodyRaw,
+}
+
+impl NelReportRaw {
+    fn into_protocol(self) -> Nel {
+        Nel {
+            age: Annotated::from(self.age),
+            ty: Annotated::from(self.ty),
+            url: Annotated::from(self.url),
+            user_agent: Annotated::from(self.user_agent),
+            // other: Annotated::empty(),
+        }
+    }
 }
 
 /// Models the content of a NEL report.
@@ -510,15 +522,15 @@ pub struct Nel {
     pub age: Annotated<u64>,
     /// TODO
     #[metastructure(pii = "true")]
-    pub r#type: Annotated<String>,
+    pub ty: Annotated<String>,
     /// The URL of the document in which the error occurred.
     #[metastructure(pii = "true")]
     pub url: Annotated<String>,
     /// The User-Agent HTTP header.
     pub user_agent: Annotated<String>,
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(pii = "true", additional_properties)]
-    pub other: Object<Value>,
+    // Additional arbitrary fields for forwards compatibility.
+    // #[metastructure(pii = "true", additional_properties)]
+    // pub other: Annotated<Object<Value>>,
 }
 
 // derive_fromstr_and_display!(Nel, InvalidNelError, {
@@ -537,7 +549,7 @@ impl Nel {
 
         event.logentry = Annotated::new(LogEntry::from(String::from("hello world")));
 
-        // event.nel = raw_report;
+        event.nel = Annotated::from(raw_report.into_protocol());
 
         // let effective_directive = raw_csp
         //     .effective_directive()
@@ -547,7 +559,8 @@ impl Nel {
         // event.culprit = Annotated::new(raw_csp.get_culprit());
         // event.tags = Annotated::new(raw_csp.get_tags(effective_directive));
         // event.request = Annotated::new(raw_csp.get_request());
-        // event.csp = Annotated::new(raw_csp.into_protocol(effective_directive));
+
+        // event.nel = Annotated::new(raw_report.into_protocol(effective_directive));
 
         Ok(())
     }
