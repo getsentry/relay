@@ -273,9 +273,21 @@ use std::time::Duration;
 
 use relay_config::Config;
 use relay_system::{Controller, Service};
+use tokio::runtime::Runtime;
 
 use crate::actors::server::HttpServer;
-use crate::service::ServiceState;
+use crate::service::{create_runtime, ServiceState};
+
+/// Contains secondary service runtimes.
+#[derive(Debug)]
+pub struct Runtimes {
+    upstream: Runtime,
+    project: Runtime,
+    aggregator: Runtime,
+    outcome: Runtime,
+    #[cfg(feature = "processing")]
+    store: Option<Runtime>,
+}
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -286,15 +298,30 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     let config = Arc::new(config);
     relay_log::info!("relay server starting");
 
-    // Create the main tokio runtime that all services run in.
+    // Creates the main runtime.
     let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
+
+    // Create secondary service runtimes.
+    //
+    // This must happen outside of the main runtime.
+    let runtimes: Arc<_> = Runtimes {
+        upstream: create_runtime("upstream-rt", 1),
+        project: create_runtime("project-rt", 1),
+        aggregator: create_runtime("aggregator-rt", 1),
+        outcome: create_runtime("outcome-rt", 1),
+        #[cfg(feature = "processing")]
+        store: config
+            .processing_enabled()
+            .then(|| create_runtime("store-rt", 1)),
+    }
+    .into();
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
     let service = main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone())?;
+        let service = ServiceState::start(config.clone(), runtimes.clone())?;
         HttpServer::new(config, service.clone())?.start();
         Controller::shutdown_handle().finished().await;
         anyhow::Ok(service)
