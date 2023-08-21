@@ -303,7 +303,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     // Create secondary service runtimes.
     //
-    // This must happen outside of the main runtime.
+    // Runtimes must not be dropped within other runtimes, so keep them alive here.
     let runtimes = Runtimes {
         upstream: create_runtime("upstream-rt", 1),
         project: create_runtime("project-rt", 1),

@@ -19,7 +19,6 @@ use serde::ser::Error;
 use serde::Serialize;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::service::ServiceError;
 use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
