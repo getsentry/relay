@@ -178,20 +178,25 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
 }
 
-// TODO: docs
-pub fn hijack_metrics() -> crossbeam_channel::Receiver<Vec<u8>> {
-    let (rx, sink) = cadence::SpyMetricSink::new();
-    let test_client = MetricsClient {
-        statsd_client: StatsdClient::from_sink("", sink),
-        default_tags: Default::default(),
-        sample_rate: 1.0,
-    };
+// Setup a simple metrics listener.
+//
+// Returns `None` if the global metrics client has already been configured.
+pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
+    let mut rx = None;
 
     CURRENT_CLIENT.with(|cell| {
-        cell.replace(Some(Arc::new(test_client)));
+        if cell.borrow().is_none() {
+            let (receiver, sink) = cadence::SpyMetricSink::new();
+            let test_client = MetricsClient {
+                statsd_client: StatsdClient::from_sink("", sink),
+                default_tags: Default::default(),
+                sample_rate: 1.0,
+            };
+            cell.replace(Some(Arc::new(test_client)));
+            rx = Some(receiver);
+        }
     });
 
-    // TODO: Use two clients simultanuously.
     rx
 }
 

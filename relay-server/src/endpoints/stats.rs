@@ -2,7 +2,6 @@ use axum::{
     extract::ws::{WebSocket, WebSocketUpgrade},
     response::Response,
 };
-use relay_statsd::hijack_metrics;
 use tokio::task::spawn_blocking;
 
 pub async fn handle(ws: WebSocketUpgrade) -> Response {
@@ -10,7 +9,10 @@ pub async fn handle(ws: WebSocketUpgrade) -> Response {
 }
 
 async fn handle_socket(mut socket: WebSocket) {
-    let rx = hijack_metrics();
+    let Some(rx) = relay_statsd::init_basic() else {
+        relay_log::error!("MetricsClient has already been set up");
+        return;
+    };
     loop {
         let rx = rx.clone();
         if let Ok(Ok(bytes)) = spawn_blocking(move || rx.recv()).await {
