@@ -660,6 +660,17 @@ fn is_security_report(event: &Event) -> bool {
         || event.hpkp.value().is_some()
 }
 
+fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
+    if event.nel.value().is_none() {
+        return;
+    }
+
+    if let Some(client_ip) = client_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        user.ip_address = Annotated::new(client_ip.to_owned());
+    }
+}
+
 /// Backfills common security report attributes.
 fn normalize_security_report(
     event: &mut Event,
@@ -857,6 +868,9 @@ pub fn light_normalize_event(
 
         // Process security reports first to ensure all props.
         normalize_security_report(event, config.client_ip, &config.user_agent);
+
+        // Process NEL reports to ensure all props.
+        normalize_nel_report(event, config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
