@@ -8,6 +8,7 @@ use tokio::sync::broadcast;
 use tracing::Level;
 
 /// Broadcast channel type.
+#[cfg(feature = "admin")]
 pub type BroadcastChannel<T> = (broadcast::Sender<T>, broadcast::Receiver<T>);
 
 /// Channel to deliver logs.
