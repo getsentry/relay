@@ -187,3 +187,6 @@ gocd: ## Build GoCD pipelines
 	@ cd ./gocd/templates && jsonnet --ext-code output-files=true -J vendor -m ../generated-pipelines ./relay.jsonnet
 	@ cd ./gocd/generated-pipelines && find . -type f \( -name '*.yaml' \) -print0 | xargs -n 1 -0 yq -p json -o yaml -i
 .PHONY: gocd
+
+web: ## Install and run frontend DEV web server for admin dashboard
+	@ cargo install --locked trunk && cd relay-admin-dashboard && trunk serve --open
