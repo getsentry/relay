@@ -1,9 +1,13 @@
 //! Contains definitions for the Network Error Logging (NEL) interface.
 
+use std::ops::Sub;
+
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::protocol::{
     AsPair, Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
+    Timestamp,
 };
 use crate::types::Annotated;
 use thiserror::Error;
@@ -41,7 +45,7 @@ struct NelBodyRaw {
 /// See `Nel` for meaning of fields.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 struct NelReportRaw {
-    age: Option<u64>,
+    age: Option<i64>,
     #[serde(rename = "type")]
     ty: Option<String>, // always "network-error"
     url: Option<String>,
@@ -128,7 +132,7 @@ pub struct NelBody {
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Nel {
     /// The age of the report since it got collected and before it got sent.
-    pub age: Annotated<u64>,
+    pub age: Annotated<i64>,
     /// The type of the report.
     #[metastructure(field = "type")]
     pub ty: Annotated<String>,
@@ -181,6 +185,11 @@ impl Nel {
                 Annotated::new(server_ip.to_string()),
             ))));
         }
+
+        // Set the timestamp on the event when it actually occured.
+        let now: DateTime<Utc> = Utc::now();
+        let even_time = now.sub(Duration::milliseconds(raw_report.age.unwrap_or_default()));
+        event.timestamp = Annotated::new(Timestamp::from(even_time));
 
         event.nel = Annotated::from(raw_report.into_protocol());
 
