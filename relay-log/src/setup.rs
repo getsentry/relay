@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{level_filters::LevelFilter, Level};
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
+#[cfg(feature = "admin")]
 use crate::LOGS;
 
 /// The full release name including the Relay version and SHA.
