@@ -7,7 +7,6 @@ use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
 use relay_config::Config;
 use relay_general::protocol::EventId;
-use serde::Deserialize;
 use serde_json::Value;
 
 use crate::endpoints::common::{self, BadStoreRequest};
@@ -15,7 +14,7 @@ use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{Mime, RequestMeta};
 use crate::service::ServiceState;
 
-#[derive(Debug, Deserialize, FromRequest)]
+#[derive(Debug, FromRequest)]
 #[from_request(state(ServiceState))]
 struct NelReportParams {
     meta: RequestMeta,
