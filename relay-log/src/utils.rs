@@ -1,13 +1,18 @@
 use std::error::Error;
 use std::fmt;
 
+#[cfg(feature = "admin")]
 use once_cell::sync::Lazy;
+#[cfg(feature = "admin")]
 use tokio::sync::broadcast;
 use tracing::Level;
 
+/// Broadcast channel type.
+pub type BroadcastChannel<T> = (broadcast::Sender<T>, broadcast::Receiver<T>);
+
 /// Channel to deliver logs.
-pub static LOGS: Lazy<(broadcast::Sender<Vec<u8>>, broadcast::Receiver<Vec<u8>>)> =
-    Lazy::new(|| broadcast::channel(2000));
+#[cfg(feature = "admin")]
+pub static LOGS: Lazy<BroadcastChannel<Vec<u8>>> = Lazy::new(|| broadcast::channel(2000));
 
 /// Returns `true` if backtrace printing is enabled.
 ///
