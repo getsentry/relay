@@ -99,6 +99,7 @@ Event {
     grouping_config: ~,
     checksum: ~,
     csp: ~,
+    nel: ~,
     hpkp: ~,
     expectct: ~,
     expectstaple: ~,

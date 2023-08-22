@@ -92,6 +92,7 @@ Event {
     grouping_config: ~,
     checksum: ~,
     csp: ~,
+    nel: ~,
     hpkp: Meta {
         remarks: [],
         errors: [
