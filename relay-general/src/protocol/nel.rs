@@ -1,19 +1,23 @@
 //! Contains definitions for the Network Error Logging (NEL) interface.
 
-use std::fmt::{self};
-
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request};
+use crate::protocol::{
+    AsPair, Event, HeaderName, HeaderValue, Headers, IpAddr, LogEntry, PairList, Request, TagEntry,
+    Tags, User,
+};
 use crate::types::Annotated;
+use thiserror::Error;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct InvalidNelError;
-
-impl fmt::Display for InvalidNelError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid nel report")
-    }
+/// The NEL parsing errors.
+#[derive(Debug, Error)]
+pub enum NelError {
+    /// Unexpected format
+    #[error("unexpected format")]
+    InvalidNel,
+    /// Incoming Json is unparsable.
+    #[error("incoming json is unparsable")]
+    InvalidJson(#[from] serde_json::Error),
 }
 
 /// Inner (useful) part of a NEL report.
@@ -88,17 +92,29 @@ impl NelReportRaw {
     }
 }
 
+/// Generated network error report (NEL).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NelBody {
+    /// The elapsed number of milliseconds between the start of the resource
+    /// fetch and when it was completed or aborted by the user agent.
     pub elapsed_time: Annotated<u64>,
+    /// HTTP method.
     pub method: Annotated<String>,
+    /// If request failed, the phase of its network error. If request succeeded, "application".
     pub phase: Annotated<String>,
+    /// The HTTP protocol and version.
     pub protocol: Annotated<String>,
+    /// Request's referrer, as determined by the referrer policy associated with its client.
     pub referrer: Annotated<String>,
+    /// The sampling rate.
     pub sampling_fraction: Annotated<f64>,
+    /// The IP address of the server where the site is hosted.
     pub server_ip: Annotated<String>,
+    /// HTTP status code.
     pub status_code: Annotated<u64>,
+    /// If request failed, the type of its network error. If request succeeded, "ok".
+    #[metastructure(field = "type")]
     pub ty: Annotated<String>,
 }
 
@@ -108,25 +124,26 @@ pub struct NelBody {
 /// infrastructure). We also use a version of this structure to deserialize from raw JSON
 /// via serde.
 ///
-///
 /// See <https://w3c.github.io/network-error-logging/>
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Nel {
-    #[metastructure(pii = "true")]
+    /// The age of the report since it got collected and before it got sent.
     pub age: Annotated<u64>,
-    #[metastructure(pii = "true")]
+    /// The type of the report.
+    #[metastructure(field = "type")]
     pub ty: Annotated<String>,
     /// The URL of the document in which the error occurred.
     #[metastructure(pii = "true")]
     pub url: Annotated<String>,
     /// The User-Agent HTTP header.
     pub user_agent: Annotated<String>,
+    /// The body of the NEL report.
     pub body: Annotated<NelBody>,
 }
 
 impl Nel {
-    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), serde_json::Error> {
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), NelError> {
         let raw_report: NelReportRaw = serde_json::from_slice::<NelReportRaw>(data)?;
 
         event.logentry = Annotated::new(LogEntry::from(format!(
@@ -135,12 +152,44 @@ impl Nel {
             raw_report.body.ty.as_ref().unwrap_or(&String::new())
         )));
 
-        event.nel = Annotated::from(raw_report.clone().into_protocol());
         event.request = Annotated::new(raw_report.get_request());
-        event.logger.get_or_insert_with(|| "nel".to_string());
+        event.logger = Annotated::from("nel".to_string());
         event.culprit = Annotated::new(String::from("hello culprit"));
 
-        // event.tags = Annotated::new(raw_csp.get_tags(effective_directive));
+        let user = event.user.get_or_insert_with(User::default);
+
+        // Exrtact common tags.
+        let tags = event.tags.get_or_insert_with(Tags::default);
+        if let Some(ref method) = raw_report.body.method {
+            tags.push(Annotated::new(TagEntry::from_pair((
+                Annotated::new("method".to_string()),
+                Annotated::new(method.to_string()),
+            ))));
+        }
+        if let Some(ref protocol) = raw_report.body.protocol {
+            tags.push(Annotated::new(TagEntry::from_pair((
+                Annotated::new("protocol".to_string()),
+                Annotated::new(protocol.to_string()),
+            ))));
+        }
+        if let Some(ref status_code) = raw_report.body.status_code {
+            tags.push(Annotated::new(TagEntry::from_pair((
+                Annotated::new("status_code".to_string()),
+                Annotated::new(status_code.to_string()),
+            ))));
+        }
+        if let Some(ref server_ip) = raw_report.body.server_ip {
+            // Also set the user IP address
+            user.ip_address =
+                Annotated::new(IpAddr::parse(server_ip).map_err(|_| NelError::InvalidNel)?);
+
+            tags.push(Annotated::new(TagEntry::from_pair((
+                Annotated::new("server_ip".to_string()),
+                Annotated::new(server_ip.to_string()),
+            ))));
+        }
+
+        event.nel = Annotated::from(raw_report.into_protocol());
 
         Ok(())
     }

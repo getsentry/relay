@@ -32,7 +32,7 @@ use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
 use relay_general::protocol::{
     self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, Nel, RelayInfo, Replay, ReplayError, SecurityReportType,
+    LenientString, Metrics, Nel, NelError, RelayInfo, Replay, ReplayError, SecurityReportType,
     SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext,
     UserReport, Values,
 };
@@ -116,7 +116,7 @@ pub enum ProcessingError {
     InvalidSecurityReport(#[source] serde_json::Error),
 
     #[error("invalid nel report")]
-    InvalidNelReport(#[source] serde_json::Error),
+    InvalidNelReport(#[source] NelError),
 
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
