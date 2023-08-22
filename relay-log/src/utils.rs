@@ -1,7 +1,13 @@
 use std::error::Error;
 use std::fmt;
 
+use once_cell::sync::Lazy;
+use tokio::sync::broadcast;
 use tracing::Level;
+
+/// Channel to deliver logs.
+pub static LOGS: Lazy<(broadcast::Sender<Vec<u8>>, broadcast::Receiver<Vec<u8>>)> =
+    Lazy::new(|| broadcast::channel(2000));
 
 /// Returns `true` if backtrace printing is enabled.
 ///

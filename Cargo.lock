@@ -3344,6 +3344,7 @@ dependencies = [
  "relay-server",
  "relay-statsd",
  "tikv-jemallocator",
+ "tokio",
 ]
 
 [[package]]
@@ -3576,11 +3577,13 @@ version = "23.8.0"
 dependencies = [
  "chrono",
  "console",
+ "once_cell",
  "relay-crash",
  "sentry",
  "sentry-core",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

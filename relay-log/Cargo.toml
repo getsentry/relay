@@ -13,15 +13,21 @@ build = "build.rs"
 [dependencies]
 chrono = { version = "0.4.24", optional = true, default-features = false, features = ["clock", "std", "serde"] }
 console = { version = "0.15.5", optional = true }
+once_cell = { version = "1.13.1", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
 sentry = { version = "0.31.3", features = ["debug-images", "tower-axum-matched-path", "tracing"], optional = true }
 sentry-core = { version = "0.31.3" }
 serde = { version = "1.0.114", features = ["derive"], optional = true }
 serde_json = { version = "1.0.55", optional = true }
+tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json", "time"], optional = true }
 
 [features]
+admin = [
+    "dep:once_cell",
+    "dep:tokio",
+]
 default = []
 test = [
     "dep:tracing-subscriber",

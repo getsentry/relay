@@ -1,22 +1,21 @@
-use std::time::Duration;
-
 use axum::{
     extract::ws::{WebSocket, WebSocketUpgrade},
     response::Response,
 };
 
-pub async fn handle(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(handle_socket)
-}
-
 async fn handle_socket(mut socket: WebSocket) {
-    let mut counter = 0;
-    loop {
-        let res = socket.send(format!("dummy message {counter}").into()).await;
+    let mut logs = relay_log::LOGS.1.resubscribe();
+
+    while let Ok(entry) = logs.recv().await {
+        let message = String::from_utf8_lossy(&entry).to_string();
+
+        let res = socket.send(message.into()).await;
         if res.is_err() {
             break;
         }
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        counter += 1;
     }
+}
+
+pub async fn handle(ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(handle_socket)
 }
