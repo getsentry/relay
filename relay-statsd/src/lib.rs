@@ -62,26 +62,13 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use cadence::{
-    BufferedUdpMetricSink, Metric, MetricBuilder, MetricSink, QueuingMetricSink, SpyMetricSink,
-    StatsdClient, UdpMetricSink,
+    BufferedUdpMetricSink, Metric, MetricBuilder, QueuingMetricSink, StatsdClient, UdpMetricSink,
 };
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
-
-struct CompositeSink<T: MetricSink, S: MetricSink> {
-    main: T,
-    secondary: S,
-}
-
-impl<T: MetricSink, S: MetricSink> MetricSink for CompositeSink<T, S> {
-    fn emit(&self, metric: &str) -> std::io::Result<usize> {
-        self.secondary.emit(metric).ok();
-        self.main.emit(metric)
-    }
-}
 
 /// Client configuration object to store globally.
 #[derive(Debug)]
@@ -92,10 +79,6 @@ pub struct MetricsClient {
     pub default_tags: BTreeMap<String, String>,
     /// Global sample rate.
     pub sample_rate: f32,
-    /// Clonable receiving end of the spy channel.
-    ///
-    /// Use this to observe emitted metrics.
-    pub rx: Option<crossbeam_channel::Receiver<Vec<u8>>>,
 }
 
 impl Deref for MetricsClient {
@@ -184,7 +167,6 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
         sample_rate: 1.0,
-        rx: None,
     };
 
     CURRENT_CLIENT.with(|cell| {
@@ -194,6 +176,23 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     });
 
     rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
+}
+
+// TODO: docs
+pub fn hijack_metrics() -> crossbeam_channel::Receiver<Vec<u8>> {
+    let (rx, sink) = cadence::SpyMetricSink::new();
+    let test_client = MetricsClient {
+        statsd_client: StatsdClient::from_sink("", sink),
+        default_tags: Default::default(),
+        sample_rate: 1.0,
+    };
+
+    CURRENT_CLIENT.with(|cell| {
+        cell.replace(Some(Arc::new(test_client)));
+    });
+
+    // TODO: Use two clients simultanuously.
+    rx
 }
 
 /// Disable the client again.
@@ -228,28 +227,14 @@ pub fn init<A: ToSocketAddrs>(
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     socket.set_nonblocking(true).unwrap();
 
-    let (rx, spy_sink) = SpyMetricSink::new();
     let statsd_client = if buffering {
         let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
         let queuing_sink = QueuingMetricSink::with_capacity(udp_sink, METRICS_MAX_QUEUE_SIZE);
-        StatsdClient::from_sink(
-            prefix,
-            CompositeSink {
-                main: queuing_sink,
-                secondary: spy_sink,
-            },
-        )
+        StatsdClient::from_sink(prefix, queuing_sink)
     } else {
         let simple_sink = UdpMetricSink::from(host, socket).unwrap();
-        StatsdClient::from_sink(
-            prefix,
-            CompositeSink {
-                main: simple_sink,
-                secondary: spy_sink,
-            },
-        )
+        StatsdClient::from_sink(prefix, simple_sink)
     };
-
     relay_log::debug!(
         "metrics buffering is {}",
         if buffering { "enabled" } else { "disabled" }
@@ -259,7 +244,6 @@ pub fn init<A: ToSocketAddrs>(
         statsd_client,
         default_tags,
         sample_rate,
-        rx: Some(rx),
     });
 }
 
@@ -492,7 +476,7 @@ pub trait SetMetric {
 /// impl GaugeMetric for QueueSize {
 ///     fn name(&self) -> &'static str {
 ///         "queue_size"
-///     }!
+///     }
 /// }
 ///
 /// # use std::collections::VecDeque;
@@ -651,7 +635,6 @@ mod tests {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
             sample_rate: 1.0,
-            rx: None,
         });
         let client2 = with_client(|c| format!("{c:?}"));
 
