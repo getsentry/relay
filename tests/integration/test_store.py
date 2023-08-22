@@ -6,7 +6,7 @@ import uuid
 import socket
 import threading
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -1191,7 +1191,7 @@ def test_spans(
     project_config = mini_sentry.add_basic_project_config(project_id)
     project_config["config"]["features"] = ["projects:extract-standalone-spans"]
 
-    event = make_transaction({})
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["spans"] = [
         {
             "description": "GET /api/0/organizations/?member=1",
@@ -1206,17 +1206,45 @@ def test_spans(
 
     relay.send_event(project_id, event)
 
-    msg = spans_consumer.get_message()
-    assert msg["type"] == "span"
-    span = msg["span"]
-    assert span == {
-        "description": "GET /api/0/organizations/?member=1",
-        "op": "http",
-        "parent_span_id": "aaaaaaaaaaaaaaaa",
-        "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp": 1000.0,
-        "timestamp": 3000.0,
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+    child_span = spans_consumer.get_message()
+    del child_span["start_time"]
+    assert child_span == {
+        "type": "span",
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "span": {
+            "description": "GET /api/0/organizations/?member=1",
+            "is_segment": False,
+            "op": "http",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "segment_id": "968cff94913ebb07",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": 1000.0,
+            "timestamp": 3000.0,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    }
+
+    transaction_span = spans_consumer.get_message()
+    del transaction_span["start_time"]
+    assert transaction_span == {
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "span": {
+            "is_segment": True,
+            "op": "hi",
+            "segment_id": "968cff94913ebb07",
+            "span_id": "968cff94913ebb07",
+            "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "status": "unknown",
+            "timestamp": datetime.fromisoformat(event["timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        },
+        "type": "span",
     }
 
     spans_consumer.assert_empty()

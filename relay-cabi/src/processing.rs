@@ -126,6 +126,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
+        transaction_range: None,   // only supported in relay
         measurements_config: None, // only supported in relay
         breakdowns_config: None,   // only supported in relay
         normalize_user_agent: config.normalize_user_agent,

@@ -1,25 +1,6 @@
 local STAGE_NAME = 'deploy-pops';
 local gocdtasks = import 'github.com/getsentry/gocd-jsonnet/libs/gocd-tasks.libsonnet';
 
-local manual_promotion_stage() =
-  {
-    'progress-to-pops': {
-      approval: {
-        type: 'manual',
-        allow_only_on_success: true,
-      },
-      jobs: {
-        'progress-to-pops': {
-          timeout: 1200,
-          elastic_profile_id: 'relay',
-          tasks: [
-            gocdtasks.noop,
-          ],
-        },
-      },
-    },
-  };
-
 // Create a gocd job that will run the deploy-pop script
 local deploy_pop_job(region) =
   {
@@ -89,7 +70,7 @@ local generic_pops_stage(region) =
 {
   stages(region)::
     if region == 'us' then
-      [manual_promotion_stage(), us_pops_stage()]
+      [us_pops_stage()]
     else
       [generic_pops_stage(region)],
 }

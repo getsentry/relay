@@ -1,5 +1,6 @@
 use crate::protocol::{
-    JsonLenientString, OperationType, OriginType, SpanId, SpanStatus, Timestamp, TraceId,
+    Event, JsonLenientString, OperationType, OriginType, SpanId, SpanStatus, Timestamp,
+    TraceContext, TraceId,
 };
 use crate::types::{Annotated, Object, Value};
 
@@ -38,7 +39,16 @@ pub struct Span {
     #[metastructure(required = "true")]
     pub trace_id: Annotated<TraceId>,
 
-    /// The status of a span
+    /// A unique identifier for a segment within a trace (8 byte hexadecimal string).
+    ///
+    /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
+    /// transaction.
+    pub segment_id: Annotated<SpanId>,
+
+    /// Whether or not the current span is the root of the segment.
+    pub is_segment: Annotated<bool>,
+
+    /// The status of a span.
     pub status: Annotated<SpanStatus>,
 
     /// Arbitrary tags on a span, like on the top-level event.
@@ -57,6 +67,29 @@ pub struct Span {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
+}
+
+impl From<&Event> for Span {
+    fn from(event: &Event) -> Self {
+        let mut span = Self {
+            timestamp: event.timestamp.clone(),
+            start_timestamp: event.start_timestamp.clone(),
+            is_segment: Some(true).into(),
+            ..Default::default()
+        };
+
+        if let Some(trace_context) = event.context::<TraceContext>().cloned() {
+            span.exclusive_time = trace_context.exclusive_time;
+            span.op = trace_context.op;
+            span.span_id = trace_context.span_id;
+            span.parent_span_id = trace_context.parent_span_id;
+            span.trace_id = trace_context.trace_id;
+            span.segment_id = span.span_id.clone(); // a transaction is a segment
+            span.status = trace_context.status;
+        }
+
+        span
+    }
 }
 
 #[cfg(test)]

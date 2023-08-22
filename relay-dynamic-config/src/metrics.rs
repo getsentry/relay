@@ -7,6 +7,8 @@ use relay_general::store::LazyGlob;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 
+use crate::project::ProjectConfig;
+
 /// Rule defining when a target tag should be set on a metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -145,16 +147,55 @@ pub struct MetricExtractionConfig {
     /// tag extracted, the existing tag is left unchanged.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<TagMapping>,
+
+    /// This config has been extended with fields from `conditional_tagging`.
+    ///
+    /// At the moment, Relay will parse `conditional_tagging` rules and insert them into the `tags`
+    /// mapping in this struct. If the flag is `true`, this has already happened and should not be
+    /// repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    #[serde(default)]
+    pub _conditional_tags_extended: bool,
+
+    /// This config has been extended with default span metrics.
+    ///
+    /// Relay checks for the span extraction flag and adds built-in metrics and tags to this struct.
+    /// If the flag is `true`, this has already happened and should not be repeated.
+    ///
+    /// This is a temporary flag that will be removed once the transaction metric extraction version
+    /// is bumped to `2`.
+    #[serde(default)]
+    pub _span_metrics_extended: bool,
 }
 
 impl MetricExtractionConfig {
     /// The latest version for this config struct.
     pub const VERSION: u16 = 1;
 
-    /// Returns `true` if metric extraction is configured.
+    /// Returns an empty `MetricExtractionConfig` with the latest version.
+    ///
+    /// As opposed to `default()`, this will be enabled once populated with specs.
+    pub fn empty() -> Self {
+        Self {
+            version: Self::VERSION,
+            metrics: Vec::new(),
+            tags: Vec::new(),
+            _conditional_tags_extended: false,
+            _span_metrics_extended: false,
+        }
+    }
+
+    /// Returns `true` if the version of this metric extraction config is supported.
+    pub fn is_supported(&self) -> bool {
+        self.version <= Self::VERSION
+    }
+
+    /// Returns `true` if metric extraction is configured and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
         self.version > 0
-            && self.version <= Self::VERSION
+            && self.is_supported()
             && !(self.metrics.is_empty() && self.tags.is_empty())
     }
 }
@@ -292,6 +333,72 @@ pub enum TagSource<'a> {
     Field(&'a str),
     /// An unsupported or unknown source.
     Unknown,
+}
+
+/// Converts the given tagging rules from `conditional_tagging` to the newer metric extraction
+/// config.
+pub fn convert_conditional_tagging(project_config: &mut ProjectConfig) {
+    // NOTE: This clones the rules so that they remain in the project state for old Relays that
+    // do not support generic metrics extraction. Once the migration is complete, this can be
+    // removed with a version bump of the transaction metrics config.
+    let rules = &project_config.metric_conditional_tagging;
+    if rules.is_empty() {
+        return;
+    }
+
+    let config = project_config
+        .metric_extraction
+        .get_or_insert_with(MetricExtractionConfig::empty);
+
+    if !config.is_supported() || config._conditional_tags_extended {
+        return;
+    }
+
+    config.tags.extend(TaggingRuleConverter {
+        rules: rules.iter().cloned().peekable(),
+        tags: Vec::new(),
+    });
+
+    config._conditional_tags_extended = true;
+    if config.version == 0 {
+        config.version = MetricExtractionConfig::VERSION;
+    }
+}
+
+struct TaggingRuleConverter<I: Iterator<Item = TaggingRule>> {
+    rules: std::iter::Peekable<I>,
+    tags: Vec<TagSpec>,
+}
+
+impl<I> Iterator for TaggingRuleConverter<I>
+where
+    I: Iterator<Item = TaggingRule>,
+{
+    type Item = TagMapping;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let old = self.rules.next()?;
+
+            self.tags.push(TagSpec {
+                key: old.target_tag,
+                field: None,
+                value: Some(old.tag_value),
+                condition: Some(old.condition),
+            });
+
+            // Optimization: Collect tags for consecutive tagging rules for the same set of metrics.
+            // Then, emit a single entry with all tag specs at once.
+            if self.rules.peek().map(|r| &r.target_metrics) == Some(&old.target_metrics) {
+                continue;
+            }
+
+            return Some(TagMapping {
+                metrics: old.target_metrics.into_iter().map(LazyGlob::new).collect(),
+                tags: std::mem::take(&mut self.tags),
+            });
+        }
+    }
 }
 
 #[cfg(test)]

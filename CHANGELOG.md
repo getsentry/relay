@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
+
+## 23.8.0
+
+**Features**:
+
+- Add `Cross-Origin-Resource-Policy` HTTP header to responses. ([#2394](https://github.com/getsentry/relay/pull/2394))
+
 ## 23.7.2
 
 **Features**:
@@ -12,6 +24,7 @@
 
 **Internal**:
 
+- Add new service for fetching global configs. ([#2320](https://github.com/getsentry/relay/pull/2320))
 - Feature-flagged extraction & publishing of spans from transactions. ([#2350](https://github.com/getsentry/relay/pull/2350))
 
 ## 23.7.1

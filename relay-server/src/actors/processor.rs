@@ -18,12 +18,15 @@ use relay_profiling::ProfileError;
 use serde_json::Value as SerdeValue;
 use tokio::sync::Semaphore;
 
+use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use relay_auth::RelayVersion;
 use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
 use relay_config::{Config, HttpEncoding};
-use relay_dynamic_config::{ErrorBoundary, Feature, ProjectConfig, SessionMetricsConfig};
+use relay_dynamic_config::{
+    ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
+};
 use relay_filter::FilterStatKey;
 use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_general::processor::{process_value, ProcessingState};
@@ -522,6 +525,7 @@ impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
 /// This service handles messages in a worker pool with configurable concurrency.
 #[derive(Clone)]
 pub struct EnvelopeProcessorService {
+    global_config: Arc<GlobalConfig>,
     inner: Arc<InnerProcessor>,
 }
 
@@ -529,6 +533,7 @@ struct InnerProcessor {
     config: Arc<Config>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
+    global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -544,6 +549,7 @@ impl EnvelopeProcessorService {
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
+        global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
@@ -563,12 +569,14 @@ impl EnvelopeProcessorService {
             config,
             envelope_manager,
             project_cache,
+            global_config,
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
         };
 
         Self {
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }
@@ -2066,24 +2074,29 @@ impl EnvelopeProcessorService {
     ///  - This functionality is incomplete. At this point, extraction is implemented only for
     ///    transaction events.
     fn extract_metrics(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
+        // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
+        // will upsert this configuration from transaction and conditional tagging fields, even if
+        // it is not present in the actual project config payload. Once transaction metric
+        // extraction is moved to generic metrics, this can be converted into an early return.
+        let config = match state.project_state.config.metric_extraction {
+            ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
+            _ => None,
+        };
+
         // TODO: Make span metrics extraction immutable
         if let Some(event) = state.event.value() {
             if state.event_metrics_extracted {
                 return Ok(());
             }
 
-            match state.project_state.config.metric_extraction {
-                ErrorBoundary::Ok(ref config) if config.is_enabled() => {
-                    let metrics =
-                        crate::metrics_extraction::generic::extract_metrics_from(event, config);
-                    state.event_metrics_extracted |= !metrics.is_empty();
-                    state.extracted_metrics.project_metrics.extend(metrics);
-                }
-                _ => (),
+            if let Some(config) = config {
+                let metrics = crate::metrics_extraction::event::extract_metrics(event, config);
+                state.event_metrics_extracted |= !metrics.is_empty();
+                state.extracted_metrics.project_metrics.extend(metrics);
             }
 
             match state.project_state.config.transaction_metrics {
-                Some(ErrorBoundary::Ok(ref config)) if config.is_enabled() => {
+                Some(ErrorBoundary::Ok(ref tx_config)) if tx_config.is_enabled() => {
                     let transaction_from_dsc = state
                         .managed_envelope
                         .envelope()
@@ -2091,35 +2104,17 @@ impl EnvelopeProcessorService {
                         .and_then(|dsc| dsc.transaction.as_deref());
 
                     let extractor = TransactionExtractor {
-                        aggregator_config: self.inner.config.aggregator_config(),
-                        config,
+                        config: tx_config,
+                        generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
                         sampling_result: &state.sampling_result,
                         has_profile: state.has_profile,
                     };
 
-                    let mut extracted = extractor.extract(event)?;
-
-                    // TODO: Move conditional tagging to generic metrics extraction
-                    let tagging_config = &state.project_state.config.metric_conditional_tagging;
-                    crate::metrics_extraction::conditional_tagging::run_conditional_tagging(
-                        event,
-                        tagging_config,
-                        &mut extracted.project_metrics,
-                    );
-
-                    state.extracted_metrics.extend(extracted);
+                    state.extracted_metrics.extend(extractor.extract(event)?);
                     state.event_metrics_extracted |= true;
                 }
                 _ => (),
-            }
-
-            if state
-                .project_state
-                .has_feature(Feature::SpanMetricsExtraction)
-            {
-                let metrics = crate::metrics_extraction::spans::extract_span_metrics(event)?;
-                state.extracted_metrics.project_metrics.extend(metrics);
             }
 
             if state.event_metrics_extracted {
@@ -2238,6 +2233,8 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
         // For now, drop any spans submitted by the SDK.
+
+        use relay_general::protocol::Span;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Span => ItemAction::DropSilently,
             _ => ItemAction::Keep,
@@ -2256,20 +2253,38 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        // Extract.
-        let Some(spans) = state.event.value().and_then(|e| e.spans.value()) else { return };
-        for span in spans {
+        // Extract transaction as a span.
+        let Some(event) = state.event.value() else { return };
+        let transaction_span: Span = event.into();
+
+        let mut add_span = |span: Annotated<Span>| {
             let span = match span.to_json() {
                 Ok(span) => span,
                 Err(e) => {
                     relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                    continue;
+                    return;
                 }
             };
             let mut item = Item::new(ItemType::Span);
             item.set_payload(ContentType::Json, span);
             state.managed_envelope.envelope_mut().add_item(item);
+        };
+
+        // Add child spans as envelope items.
+        if let Some(child_spans) = event.spans.value() {
+            for span in child_spans {
+                // HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                let mut span = span.clone();
+                let Some(inner_span) = span.value_mut() else { continue };
+                inner_span.segment_id = transaction_span.segment_id.clone();
+                inner_span.is_segment = Annotated::new(false);
+                add_span(span);
+            }
         }
+
+        // Add transaction span as an envelope item.
+        add_span(transaction_span.into());
     }
 
     /// Computes the sampling decision on the incoming event
@@ -2379,6 +2394,12 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+                transaction_range: Some(
+                    self.inner
+                        .config
+                        .aggregator_config_for(MetricNamespace::Transactions)
+                        .timestamp_range(),
+                ),
                 max_name_and_unit_len: Some(
                     self.inner
                         .config
@@ -2750,22 +2771,39 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let thread_count = self.inner.config.cpu_concurrency();
         relay_log::info!("starting {thread_count} envelope processing workers");
 
         tokio::spawn(async move {
             let semaphore = Arc::new(Semaphore::new(thread_count));
 
-            while let (Some(message), Ok(permit)) =
-                tokio::join!(rx.recv(), semaphore.clone().acquire_owned())
-            {
-                let service = self.clone();
+            let Ok(mut subscription) = self.inner.global_config.send(Subscribe).await else {
+                // TODO(iker): we accept this sub-optimal error handling. TBD
+                // the approach to deal with failures on the subscription
+                // mechanism.
+                relay_log::error!("failed to subscribe to GlobalConfigService");
+                return;
+            };
 
-                tokio::task::spawn_blocking(move || {
-                    service.handle_message(message);
-                    drop(permit);
-                });
+            loop {
+                let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
+
+                tokio::select! {
+                   biased;
+
+                    // TODO(iker): deal with the error when the sender of the channel is dropped.
+                    _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
+                    (Some(message), Ok(permit)) = next_msg => {
+                        let service = self.clone();
+                        tokio::task::spawn_blocking(move || {
+                            service.handle_message(message);
+                            drop(permit);
+                        });
+                    },
+
+                    else => break
+                }
             }
         });
     }
@@ -3204,6 +3242,7 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3213,9 +3252,11 @@ mod tests {
             #[cfg(feature = "processing")]
             rate_limiter: None,
             geoip_lookup: None,
+            global_config,
         };
 
         EnvelopeProcessorService {
+            global_config: Arc::default(),
             inner: Arc::new(inner),
         }
     }

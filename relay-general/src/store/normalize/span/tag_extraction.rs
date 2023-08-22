@@ -169,6 +169,11 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
 }
 
 /// Writes fields into [`Span::data`].
+///
+/// Generating new span data fields is based on a combination of looking at
+/// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
+/// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
+/// and rely on Sentry conventions and heuristics.
 pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
     let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
     if let Some(unsanitized_span_op) = span.op.value() {
@@ -200,15 +205,15 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             .and_then(|data| data.get("description.scrubbed"))
             .and_then(|value| value.as_str());
 
-        // TODO(iker): we're relying on the existance of `http.method`
-        // or `db.operation`. This is not guaranteed, and we'll need to
-        // parse the span description in that case.
         let action = match (span_module, span_op.as_str(), scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
-                // TODO(iker): some SDKs extract this as method
-                .and_then(|v| v.get("http.method"))
+                .and_then(|v| {
+                    v.get("http.request.method")
+                        .or(v.get("http.method"))
+                        .or(v.get("method"))
+                })
                 .and_then(|method| method.as_str())
                 .map(|s| s.to_uppercase()),
             (_, "db.redis", Some(desc)) => {
@@ -333,9 +338,10 @@ fn truncate_string(mut string: String, max_bytes: usize) -> String {
 
 /// Regex with a capture group to extract the database action from a query.
 ///
-/// Currently, we're only interested in `SELECT`, `INSERT`, `DELETE` and `UPDATE` statements.
-static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE))"#).unwrap());
+/// Currently we have an explicit allow-list of database actions considered important.
+static SQL_ACTION_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?i)(?P<action>(SELECT|INSERT|DELETE|UPDATE|SET|SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT))"#).unwrap()
+});
 
 fn sql_action_from_query(query: &str) -> Option<&str> {
     extract_captured_substring(query, &SQL_ACTION_EXTRACTOR_REGEX)
@@ -559,5 +565,35 @@ mod tests {
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a");
+    }
+
+    #[test]
+    fn extract_sql_action() {
+        let test_cases = vec![
+            (
+                r#"SELECT "sentry_organization"."id" FROM "sentry_organization" WHERE "sentry_organization"."id" = %s"#,
+                "SELECT",
+            ),
+            (
+                r#"INSERT INTO "sentry_groupseen" ("project_id", "group_id", "user_id", "last_seen") VALUES (%s, %s, %s, %s) RETURNING "sentry_groupseen"."id"#,
+                "INSERT",
+            ),
+            (
+                r#"UPDATE sentry_release SET date_released = %s WHERE id = %s"#,
+                "UPDATE",
+            ),
+            (
+                r#"DELETE FROM "sentry_groupinbox" WHERE "sentry_groupinbox"."id" IN (%s)"#,
+                "DELETE",
+            ),
+            (r#"SET search_path TO my_schema, public"#, "SET"),
+            (r#"SAVEPOINT %s"#, "SAVEPOINT"),
+            (r#"RELEASE SAVEPOINT %s"#, "RELEASE SAVEPOINT"),
+            (r#"ROLLBACK TO SAVEPOINT %s"#, "ROLLBACK TO SAVEPOINT"),
+        ];
+
+        for (query, expected) in test_cases {
+            assert_eq!(sql_action_from_query(query).unwrap(), expected)
+        }
     }
 }

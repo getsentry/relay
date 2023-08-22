@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
-use relay_dynamic_config::TransactionMetricsConfig;
+use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_general::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 use relay_general::store;
-use relay_metrics::{AggregatorConfig, Metric};
+use relay_metrics::Metric;
 
+use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
     TransactionMeasurementTags, TransactionMetric,
@@ -20,6 +21,10 @@ use relay_general::store::utils::{
 };
 
 pub mod types;
+
+/// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
+/// cardinality data such as raw URLs.
+const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
 /// Must be consistent with `process_trace_context` in [`relay_general::store`].
@@ -54,11 +59,7 @@ fn extract_geo_country_code(event: &Event) -> Option<String> {
     geo.country_code.value().cloned()
 }
 
-fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
-    // `None` is used to mark a legacy SDK that does not send the transaction name,
-    // and we assume sends high-cardinality data. See `is_high_cardinality_transaction`.
-    let Some(source) = source else { return false };
-
+fn is_low_cardinality(source: &TransactionSource) -> bool {
     match source {
         // For now, we hope that custom transaction names set by users are low-cardinality.
         TransactionSource::Custom => true,
@@ -90,36 +91,25 @@ fn is_low_cardinality(source: Option<&TransactionSource>) -> bool {
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
 fn get_transaction_name(event: &Event) -> Option<String> {
-    let original_transaction_name = match event.transaction.value() {
-        Some(name) => name,
-        None => {
-            return None;
-        }
-    };
+    let original = event.transaction.value()?;
 
     let source = event
         .transaction_info
         .value()
         .and_then(|info| info.source.value());
 
-    let use_original_name = is_low_cardinality(source);
+    match source {
+        Some(source) if is_low_cardinality(source) => Some(original.clone()),
+        Some(TransactionSource::Other(_)) | None => None,
+        Some(_) => Some(PLACEHOLDER_UNPARAMETERIZED.to_owned()),
+    }
+}
 
-    let name_used;
-    let name = if use_original_name {
-        name_used = "original";
-        Some(original_transaction_name.clone())
-    } else {
-        // Pick a sentinel based on the transaction source:
-        match source {
-            None | Some(TransactionSource::Other(_)) => {
-                name_used = "none";
-                None
-            }
-            _ => {
-                name_used = "placeholder";
-                Some("<< unparameterized >>".to_owned())
-            }
-        }
+fn track_transaction_name_stats(event: &Event) {
+    let name_used = match get_transaction_name(event).as_deref() {
+        Some(self::PLACEHOLDER_UNPARAMETERIZED) => "placeholder",
+        Some(_) => "original",
+        None => "none",
     };
 
     relay_statsd::metric!(
@@ -128,13 +118,10 @@ fn get_transaction_name(event: &Event) -> Option<String> {
         sdk_name = event
             .client_sdk
             .value()
-            .and_then(|c| c.name.value())
-            .map(std::string::String::as_str)
+            .and_then(|sdk| sdk.name.as_str())
             .unwrap_or_default(),
         name_used = name_used,
     );
-
-    name
 }
 
 /// These are the tags that are added to all extracted metrics.
@@ -235,8 +222,8 @@ impl ExtractedMetrics {
 
 /// A utility that extracts metrics from transactions.
 pub struct TransactionExtractor<'a> {
-    pub aggregator_config: &'a AggregatorConfig,
     pub config: &'a TransactionMetricsConfig,
+    pub generic_tags: &'a [TagMapping],
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
@@ -260,18 +247,7 @@ impl TransactionExtractor<'_> {
             return Err(ExtractMetricsError::InvalidTimestamp);
         };
 
-        // Validate the transaction event against the metrics timestamp limits. If the metric is too
-        // old or too new, we cannot extract the metric and also need to drop the transaction event
-        // for consistency between metrics and events.
-        if !self
-            .aggregator_config
-            .timestamp_range()
-            .contains(&timestamp)
-        {
-            relay_log::debug!("event timestamp is out of the valid range for metrics");
-            return Err(ExtractMetricsError::InvalidTimestamp);
-        }
-
+        track_transaction_name_stats(event);
         let tags = extract_universal_tags(event, self.config);
 
         // Measurements
@@ -383,6 +359,11 @@ impl TransactionExtractor<'_> {
             }
         }
 
+        // Apply shared tags from generic metric extraction. Transaction metrics will adopt generic
+        // metric extraction, after which this is done automatically.
+        generic::tmp_apply_tags(&mut metrics.project_metrics, event, self.generic_tags);
+        generic::tmp_apply_tags(&mut metrics.sampling_metrics, event, self.generic_tags);
+
         Ok(metrics)
     }
 }
@@ -412,7 +393,7 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
-    use relay_general::protocol::{Contexts, Timestamp, User};
+    use relay_general::protocol::User;
     use relay_general::store::{
         self, set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
         MeasurementsConfig,
@@ -421,15 +402,6 @@ mod tests {
     use relay_metrics::MetricValue;
 
     use super::*;
-
-    /// Returns an aggregator config that permits every timestamp.
-    fn aggregator_config() -> AggregatorConfig {
-        AggregatorConfig {
-            max_secs_in_past: u64::MAX,
-            max_secs_in_future: u64::MAX,
-            ..Default::default()
-        }
-    }
 
     #[test]
     fn test_extract_transaction_metrics() {
@@ -489,32 +461,20 @@ mod tests {
         }
         "#;
 
+        let mut event = Annotated::from_json(json).unwrap();
+
         let breakdowns_config: BreakdownsConfig = serde_json::from_str(
-            r#"
-            {
+            r#"{
                 "span_ops": {
                     "type": "spanOperations",
                     "matches": ["react.mount"]
                 }
-            }
-        "#,
-        )
-        .unwrap();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
-        let config: TransactionMetricsConfig = serde_json::from_str(
-            r#"
-            {
-                "version": 1,
-                "extractCustomTags": ["fOO"]
-            }
-            "#,
+            }"#,
         )
         .unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
@@ -522,13 +482,20 @@ mod tests {
                 light_normalize_spans: true,
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok());
+        )
+        .unwrap();
 
-        let aggregator_config = aggregator_config();
+        let config: TransactionMetricsConfig = serde_json::from_str(
+            r#"{
+                "version": 1,
+                "extractCustomTags": ["fOO"]
+            }"#,
+        )
+        .unwrap();
+
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -556,6 +523,8 @@ mod tests {
                 trace_id: TraceId(
                     "ff62a8b040f340bda5d830223def1d81",
                 ),
+                segment_id: ~,
+                is_segment: ~,
                 status: ~,
                 tags: ~,
                 origin: ~,
@@ -698,18 +667,14 @@ mod tests {
         }
         "#;
 
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
         // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert_eq!(res, Ok(()));
+        let mut event = Annotated::from_json(json).unwrap();
+        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
 
+        let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -789,18 +754,14 @@ mod tests {
             }
         }"#;
 
-        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
-
-        let mut event = Annotated::from_json(json).unwrap();
-
         // Normalize first, to make sure the units are correct:
-        let res = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
-        assert!(res.is_ok(), "{res:?}");
+        let mut event = Annotated::from_json(json).unwrap();
+        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
 
+        let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -873,10 +834,9 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -887,11 +847,7 @@ mod tests {
 
         let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        if let MetricValue::Distribution(value) = duration_metric.value {
-            assert_eq!(value, 59000.0); // millis
-        } else {
-            panic!(); // Duration must be set
-        }
+        assert_eq!(duration_metric.value, MetricValue::Distribution(59000.0));
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
@@ -932,20 +888,19 @@ mod tests {
             }
         ))
         .unwrap();
-        let res = store::light_normalize_event(
+        store::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 measurements_config: Some(&measurements_config),
                 ..Default::default()
             },
-        );
-        assert!(res.is_ok(), "{res:?}");
+        )
+        .unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1020,10 +975,9 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1056,10 +1010,9 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1120,10 +1073,9 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1146,39 +1098,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_expired_timestamp() {
-        let timestamp = Timestamp(chrono::Utc::now() - chrono::Duration::seconds(7200));
-
-        let event = Annotated::new(Event {
-            ty: Annotated::new(EventType::Transaction),
-            timestamp: Annotated::new(timestamp),
-            start_timestamp: Annotated::new(timestamp),
-            contexts: Annotated::new({
-                let mut contexts = Contexts::new();
-                contexts.add(TraceContext::default());
-                contexts
-            }),
-            ..Default::default()
-        });
-
-        let config = TransactionMetricsConfig::default();
-        let aggregator_config = AggregatorConfig {
-            max_secs_in_past: 3600,
-            ..Default::default()
-        };
-        let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
-            config: &config,
-            transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
-            has_profile: false,
-        };
-
-        let err = extractor.extract(event.value().unwrap()).unwrap_err();
-        assert_eq!(err, ExtractMetricsError::InvalidTimestamp);
-    }
-
     /// Helper function to check if the transaction name is set correctly
     fn extract_transaction_name(json: &str) -> Option<String> {
         let mut event = Annotated::<Event>::from_json(json).unwrap();
@@ -1188,10 +1107,9 @@ mod tests {
         set_default_transaction_source(event.value_mut().as_mut().unwrap());
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1225,10 +1143,9 @@ mod tests {
         let event = Annotated::from_json(json).unwrap();
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("root_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1485,10 +1402,9 @@ mod tests {
         let _ = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
 
         let config = TransactionMetricsConfig::default();
-        let aggregator_config = aggregator_config();
         let extractor = TransactionExtractor {
-            aggregator_config: &aggregator_config,
             config: &config,
+            generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
             sampling_result: &SamplingResult::Keep,
             has_profile: false,
@@ -1558,5 +1474,85 @@ mod tests {
         let user = User::default();
 
         assert!(get_eventuser_tag(&user).is_none());
+    }
+
+    #[test]
+    fn test_conditional_tagging() {
+        let event = Annotated::from_json(
+            r#"{
+                "type": "transaction",
+                "platform": "javascript",
+                "transaction": "foo",
+                "start_timestamp": "2021-04-26T08:00:00+0100",
+                "timestamp": "2021-04-26T08:00:02+0100",
+                "measurements": {
+                    "lcp": {"value": 41, "unit": "millisecond"}
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let config = TransactionMetricsConfig::new();
+        let generic_tags: Vec<TagMapping> = serde_json::from_str(
+            r#"[
+                {
+                    "metrics": ["d:transactions/duration@millisecond"],
+                    "tags": [
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 9001},
+                            "key": "satisfaction",
+                            "value": "frustrated"
+                        },
+                        {
+                            "condition": {"op": "gte", "name": "event.duration", "value": 666},
+                            "key": "satisfaction",
+                            "value": "tolerated"
+                        },
+                        {
+                            "condition": {"op": "and", "inner": []},
+                            "key": "satisfaction",
+                            "value": "satisfied"
+                        }
+                    ]
+                }
+            ]"#,
+        )
+        .unwrap();
+
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &generic_tags,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Keep,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
+        [
+            Metric {
+                name: "d:transactions/measurements.lcp@millisecond",
+                value: Distribution(
+                    41.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "measurement_rating": "good",
+                    "platform": "javascript",
+                },
+            },
+            Metric {
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    2000.0,
+                ),
+                timestamp: UnixTimestamp(1619420402),
+                tags: {
+                    "platform": "javascript",
+                    "satisfaction": "tolerated",
+                },
+            },
+        ]
+        "#);
     }
 }

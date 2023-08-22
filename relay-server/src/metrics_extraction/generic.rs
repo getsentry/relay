@@ -1,43 +1,17 @@
 use std::collections::BTreeMap;
 
 use relay_common::{DataCategory, UnixTimestamp};
-use relay_dynamic_config::{MetricExtractionConfig, TagSource, TagSpec};
-use relay_general::protocol::{Event, Span, Timestamp};
+use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
 use relay_sampling::FieldValueProvider;
 
 /// Item from which metrics can be extracted.
-pub trait Extractable {
+pub trait Extractable: FieldValueProvider {
     /// Data category for the metric spec to match on.
     fn category(&self) -> DataCategory;
 
     /// The timestamp to associate with the extracted metrics.
-    fn timestamp(&self) -> Option<Timestamp>;
-}
-
-impl Extractable for Event {
-    fn category(&self) -> DataCategory {
-        // Obtain the event's data category, but treat default events as error events for the purpose of
-        // metric tagging.
-        match DataCategory::from(self.ty.value().copied().unwrap_or_default()) {
-            DataCategory::Default => DataCategory::Error,
-            category => category,
-        }
-    }
-
-    fn timestamp(&self) -> Option<Timestamp> {
-        self.timestamp.value().copied()
-    }
-}
-
-impl Extractable for Span {
-    fn category(&self) -> DataCategory {
-        DataCategory::Span
-    }
-
-    fn timestamp(&self) -> Option<Timestamp> {
-        self.timestamp.value().copied()
-    }
+    fn timestamp(&self) -> Option<UnixTimestamp>;
 }
 
 /// Extract metrics from any type that implements both [`Extractable`] and [`FieldValueProvider`].
@@ -45,15 +19,14 @@ impl Extractable for Span {
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics_from<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
+pub fn extract_metrics<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
 where
-    T: Extractable + FieldValueProvider,
+    T: Extractable,
 {
     let mut metrics = Vec::new();
 
-    let ts = instance.timestamp();
-    let Some(timestamp) = ts.and_then(|d| UnixTimestamp::from_datetime(d.0)) else {
-        relay_log::error!(timestamp = ?ts, "invalid event timestamp for metric extraction");
+    let Some(timestamp) = instance.timestamp() else {
+        relay_log::error!("invalid event timestamp for metric extraction");
         return metrics
     };
 
@@ -87,18 +60,31 @@ where
         });
     }
 
-    for mapping in &config.tags {
+    // TODO: Inline this again once transaction metric extraction has been moved to generic metrics.
+    tmp_apply_tags(&mut metrics, instance, &config.tags);
+
+    metrics
+}
+
+pub fn tmp_apply_tags<T>(metrics: &mut [Metric], instance: &T, mappings: &[TagMapping])
+where
+    T: FieldValueProvider,
+{
+    for mapping in mappings {
         let mut lazy_tags = None;
 
-        for metric in &mut metrics {
+        for metric in &mut *metrics {
             if mapping.matches(&metric.name) {
                 let tags = lazy_tags.get_or_insert_with(|| extract_tags(instance, &mapping.tags));
-                metric.tags.extend(tags.clone());
+
+                for (key, val) in tags {
+                    if !metric.tags.contains_key(key) {
+                        metric.tags.insert(key.clone(), val.clone());
+                    }
+                }
             }
         }
     }
-
-    metrics
 }
 
 fn extract_tags<T>(instance: &T, tags: &[TagSpec]) -> BTreeMap<String, String>
@@ -149,6 +135,7 @@ fn read_metric_value(
 
 #[cfg(test)]
 mod tests {
+    use relay_general::protocol::Event;
     use relay_general::types::FromValue;
     use serde_json::json;
 
@@ -173,7 +160,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -209,7 +196,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -247,7 +234,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -297,7 +284,7 @@ mod tests {
         });
         let config = serde_json::from_value(config_json).unwrap();
 
-        let metrics = extract_metrics_from(event.value().unwrap(), &config);
+        let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics, @r#"
         [
             Metric {
@@ -310,6 +297,112 @@ mod tests {
                     "fast": "no",
                     "id": "4711",
                     "release": "myapp@1.0.0",
+                },
+            },
+        ]
+        "#);
+    }
+
+    #[test]
+    fn extract_tag_precedence() {
+        let event_json = json!({
+            "type": "transaction",
+            "start_timestamp": 1597976300.0,
+            "timestamp": 1597976302.0,
+            "release": "myapp@1.0.0",
+        });
+        let event = Event::from_value(event_json.into());
+
+        // NOTE: The first condition should match and therefore the second tag should be skipped.
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [
+                {
+                    "category": "transaction",
+                    "mri": "c:transactions/counter@none",
+                    "tags": [
+                        {
+                            "key": "fast",
+                            "value": "yes",
+                            "condition": {"op": "lte", "name": "event.duration", "value": 2000},
+                        },
+                        {
+                            "key": "fast",
+                            "value": "no",
+                        },
+                    ]
+                }
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r#"
+        [
+            Metric {
+                name: "c:transactions/counter@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {
+                    "fast": "yes",
+                },
+            },
+        ]
+        "#);
+    }
+
+    #[test]
+    fn extract_tag_precedence_multiple_rules() {
+        let event_json = json!({
+            "type": "transaction",
+            "start_timestamp": 1597976300.0,
+            "timestamp": 1597976302.0,
+            "release": "myapp@1.0.0",
+        });
+        let event = Event::from_value(event_json.into());
+
+        // NOTE: The first tagging condition should match and the second one should be skipped.
+
+        let config_json = json!({
+            "version": 1,
+            "metrics": [{
+                "category": "transaction",
+                "mri": "c:transactions/counter@none",
+            }],
+            "tags": [
+                {
+                    "metrics": ["c:transactions/counter@none"],
+                    "tags": [{
+                        "key": "fast",
+                        "value": "yes",
+                        "condition": {"op": "lte", "name": "event.duration", "value": 2000},
+                    }],
+                },
+                {
+                    "metrics": ["c:transactions/counter@none"],
+                    "tags": [{
+                        "key": "fast",
+                        "value": "no",
+                    }]
+                },
+            ]
+        });
+        let config = serde_json::from_value(config_json).unwrap();
+
+        let metrics = extract_metrics(event.value().unwrap(), &config);
+        insta::assert_debug_snapshot!(metrics, @r#"
+        [
+            Metric {
+                name: "c:transactions/counter@none",
+                value: Counter(
+                    1.0,
+                ),
+                timestamp: UnixTimestamp(1597976302),
+                tags: {
+                    "fast": "yes",
                 },
             },
         ]
