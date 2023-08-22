@@ -178,6 +178,23 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
 }
 
+// TODO: docs
+pub fn hijack_metrics() -> crossbeam_channel::Receiver<Vec<u8>> {
+    let (rx, sink) = cadence::SpyMetricSink::new();
+    let test_client = MetricsClient {
+        statsd_client: StatsdClient::from_sink("", sink),
+        default_tags: Default::default(),
+        sample_rate: 1.0,
+    };
+
+    CURRENT_CLIENT.with(|cell| {
+        cell.replace(Some(Arc::new(test_client)));
+    });
+
+    // TODO: Use two clients simultanuously.
+    rx
+}
+
 /// Disable the client again.
 pub fn disable() {
     *METRICS_CLIENT.write() = None;

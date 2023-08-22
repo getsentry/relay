@@ -18,6 +18,8 @@ mod project_configs;
 mod public_keys;
 mod security_report;
 mod statics;
+#[cfg(feature = "admin")]
+mod stats;
 mod store;
 mod unreal;
 
@@ -42,7 +44,8 @@ where
         .route("/api/relay/events/:event_id/", get(events::handle));
     #[cfg(feature = "admin")]
     let internal_routes = internal_routes
-        .route("/api/relay/logs/", get(logs::handle));
+        .route("/api/relay/logs/", get(logs::handle))
+        .route("/api/relay/stats/", get(stats::handle));
     let internal_routes = internal_routes
         // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/*not_found", any(statics::not_found));

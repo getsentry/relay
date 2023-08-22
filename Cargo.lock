@@ -3763,6 +3763,7 @@ name = "relay-statsd"
 version = "23.8.0"
 dependencies = [
  "cadence",
+ "crossbeam-channel",
  "parking_lot",
  "rand",
  "relay-log",
