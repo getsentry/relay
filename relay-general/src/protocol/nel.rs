@@ -157,7 +157,6 @@ impl Nel {
 
         event.request = Annotated::new(raw_report.get_request());
         event.logger = Annotated::from("nel".to_string());
-        event.culprit = Annotated::new(String::from("hello culprit"));
 
         // Exrtact common tags.
         let tags = event.tags.get_or_insert_with(Tags::default);
