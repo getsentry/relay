@@ -3,8 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::protocol::{
-    AsPair, Event, HeaderName, HeaderValue, Headers, IpAddr, LogEntry, PairList, Request, TagEntry,
-    Tags, User,
+    AsPair, Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
 };
 use crate::types::Annotated;
 use thiserror::Error;
@@ -156,8 +155,6 @@ impl Nel {
         event.logger = Annotated::from("nel".to_string());
         event.culprit = Annotated::new(String::from("hello culprit"));
 
-        let user = event.user.get_or_insert_with(User::default);
-
         // Exrtact common tags.
         let tags = event.tags.get_or_insert_with(Tags::default);
         if let Some(ref method) = raw_report.body.method {
@@ -179,10 +176,6 @@ impl Nel {
             ))));
         }
         if let Some(ref server_ip) = raw_report.body.server_ip {
-            // Also set the user IP address
-            user.ip_address =
-                Annotated::new(IpAddr::parse(server_ip).map_err(|_| NelError::InvalidNel)?);
-
             tags.push(Annotated::new(TagEntry::from_pair((
                 Annotated::new("server_ip".to_string()),
                 Annotated::new(server_ip.to_string()),
