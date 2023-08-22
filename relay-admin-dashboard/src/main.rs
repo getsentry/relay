@@ -1,8 +1,7 @@
-use std::ops::Deref;
+use std::borrow::BorrowMut;
 
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 use gloo_net::websocket::{futures::WebSocket, Message};
-use tokio::sync::watch;
 use yew::prelude::*;
 
 const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
@@ -23,28 +22,36 @@ fn main() {
 
 #[function_component(Logs)]
 fn logs() -> Html {
-    let raw_content = use_state(|| "Loading...".to_owned());
+    let log_entries = use_state(Vec::new);
+    let socket = use_mut_ref(|| {
+        Some(WebSocket::open(&format!("ws://{RELAY_URL}/api/relay/logs/")).unwrap())
+    });
     {
-        let raw_content = raw_content.clone();
-        let ws = WebSocket::open(&format!("ws://{RELAY_URL}/api/relay/logs/")).unwrap();
-        let (_, mut read) = ws.split();
-        use_effect_with_deps(
-            move |_| {
-                let raw_content = raw_content.clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    if let Some(Ok(Message::Text(message))) = read.next().await {
-                        raw_content.set(message);
+        let log_entries = log_entries.clone();
+        let socket = socket.clone();
+        use_effect(move || {
+            let mut socket = socket.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                // Take the socket so it will not be polled concurrently:
+                let inner_socket = socket.borrow_mut().take();
+                if let Some(mut inner_socket) = inner_socket {
+                    if let Some(Ok(Message::Text(message))) = inner_socket.next().await {
+                        let index = log_entries.len().saturating_sub(10);
+                        let mut new_vec = log_entries[index..].to_vec();
+                        new_vec.push(format!("{message}\n"));
+                        log_entries.set(new_vec);
                     }
-                });
-            },
-            (), // TODO: monitor web socket updates to reload.
-        );
+                    // Put the socket back
+                    socket.borrow_mut().replace(Some(inner_socket));
+                }
+            });
+        });
     }
 
     html! {
         <>
             <h2>{ "Logs" }</h2>
-            <pre>{raw_content.deref()}</pre>
+            <pre>{ log_entries.iter().collect::<Html>() }</pre>
         </>
     }
 }
