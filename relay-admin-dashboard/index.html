@@ -9,17 +9,25 @@
 <body>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    function show_chart(inamed, data) {
-      const canvas = document.getElementById("the-canvas");
+    function show_chart(name, data) { // TODO: move to separate file
+      console.log(name, data);
+      const canvas = document.getElementById("chart-" + name);
+      if( ! canvas ) {
+        console.log("Waiting for canvas");
+        return;
+      }
       const ctx = canvas.getContext('2d');
-        new Chart(ctx, {
-        type: 'bar',
+      const chart = Chart.getChart(ctx);
+      if(chart) chart.destroy(); // TODO: update chart instead of recreating
+      new Chart(ctx, {
+        type: 'line',
+
         data: {
-          // labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+          labels: [0,1,2,3,4,5,6,7,8,9],
           datasets: [{
             label: name,
             data: data,
-            borderWidth: 1
+            // borderWidth: 1
           }]
         },
         options: {

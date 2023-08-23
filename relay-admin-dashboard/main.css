@@ -14,6 +14,7 @@
   overflow: auto;
 }
 
-.chart-container {
+.graph-container {
   border: solid 1px #eee;
+  width: 400px;
 }
