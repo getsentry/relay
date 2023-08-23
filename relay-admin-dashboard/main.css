@@ -3,8 +3,16 @@
   white-space: pre;
   width: 100%;
   text-wrap: wrap;
-  max-height: 40em;
-  height: 40em;
+  max-height: 35em;
+  height: 35em;
+  overflow: scroll;
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.stats-container {
+  margin: 2em;
+  padding: 1em;
 }
 
 .logo {

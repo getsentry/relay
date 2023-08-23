@@ -15,7 +15,7 @@ fn app() -> Html {
         <>
             <MenuBar />
 
-            <div>
+            <div class="stats-container">
                 <Logs/>
                 <Stats/>
             </div>
@@ -82,10 +82,9 @@ fn logs() -> Html {
 
     html! {
         <div class="row">
+            <h3>{ "Logs" }</h3>
             <div class="card logs blue-grey darken-3">
                 <div class="card-content white-text">
-                    <span class="card-title"><h4>{ "Logs" }</h4></span>
-                    <hr />
                     <p>
                           {
                             (*log_entries).borrow().iter().filter_map(|entry| {
