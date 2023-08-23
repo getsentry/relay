@@ -1,6 +1,5 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 
 use futures::StreamExt;
@@ -49,7 +48,6 @@ fn logs() -> Html {
     });
     {
         let log_entries = log_entries.clone();
-        let socket = socket.clone();
         use_effect(move || {
             on_next_message(socket.clone(), move |message| {
                 if let Message::Text(message) = message {
@@ -74,38 +72,83 @@ fn logs() -> Html {
 
 #[function_component(Stats)]
 fn stats() -> Html {
-    let log_entries = use_state(Vec::new);
+    // name -> (tags -> values)
+    let time_series = use_mut_ref(BTreeMap::<String, BTreeMap<String, Vec<f32>>>::new);
+    let update_trigger = use_force_update();
+
     let socket = use_mut_ref(|| {
         Some(WebSocket::open(&format!("ws://{RELAY_URL}/api/relay/stats/")).unwrap())
     });
     {
-        let log_entries = log_entries.clone();
-        let socket = socket.clone();
+        let time_series = time_series.clone();
         use_effect(move || {
-            let mut socket = socket.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                // Take the socket so it will not be polled concurrently:
-                let inner_socket = socket.borrow_mut().take();
-                if let Some(mut inner_socket) = inner_socket {
-                    if let Some(Ok(Message::Bytes(message))) = inner_socket.next().await {
-                        if let Ok(s) = String::from_utf8(message) {
-                            let index = log_entries.len().saturating_sub(10);
-                            let mut new_vec = log_entries[index..].to_vec();
-                            new_vec.push(format!("{s}\n"));
-                            log_entries.set(new_vec);
-                        }
-                    }
-                    // Put the socket back
-                    socket.borrow_mut().replace(Some(inner_socket));
+            on_next_message(socket.clone(), move |message| {
+                if let Message::Bytes(message) = message {
+                    let message = String::from_utf8_lossy(&message);
+                    let (name, tags, value) = parse_metric(&message);
+                    let mut time_series = (*time_series).borrow_mut();
+                    time_series
+                        .entry(name.to_owned())
+                        .or_default()
+                        .entry(tags.to_owned())
+                        .or_default()
+                        .push(value);
+                    update_trigger.force_update();
                 }
-            });
+            })
         });
     }
 
     html! {
         <>
             <h2>{ "Stats" }</h2>
-            <pre>{ log_entries.iter().collect::<Html>() }</pre>
+            <ul>{
+                (*time_series).borrow_mut().iter().map(|(name, time_series)| {
+                    html! {
+                        <li key={name.clone()}><h3>{name}</h3>{
+                            time_series.iter().map(|(tags, values)| {
+                                html!{
+                                    <>
+                                        <b>{tags}</b>
+                                        <br/>
+                                        {values.iter().collect::<Html>()}
+                                        <br/>
+                                    </>
+                                }
+                            }).collect::<Html>()
+                        }</li>
+                    }
+                }).collect::<Html>() }
+            </ul>
         </>
+    }
+}
+
+fn parse_metric(metric: &str) -> (&str, &str, f32) {
+    let mut parts = metric.split('|');
+    let name_and_value = parts.next().unwrap_or("");
+    let _type = parts.next();
+    let tags = parts.next().unwrap_or("");
+
+    let (name, value) = name_and_value.split_once(':').unwrap_or(("", ""));
+    let value = value.parse::<f32>().unwrap_or_default();
+    (name, tags, value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_metric() {
+        let metric = "service.back_pressure:0|g|#service:relay_server::actors::processor::EnvelopeProcessorService";
+        assert_eq!(
+            parse_metric(metric),
+            (
+                "service.back_pressure",
+                "#service:relay_server::actors::processor::EnvelopeProcessorService",
+                0.0
+            )
+        )
     }
 }
