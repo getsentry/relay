@@ -6,8 +6,82 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
 
-    <title>Relay Dashboard</title>
-  </head>
-  <body>
-  </body>
+<head>
+  <link data-trunk rel="css" type="text/css" href="./main.css" />
+  <title>Relay Dashboard</title>
+</head>
+
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/date-fns/1.30.1/date_fns.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script>
+    const charts = [];
+    function update_chart(name, tags, value) { // TODO: move to separate file
+      const canvasId = "chart-" + name;
+
+      let canvas = document.getElementById(canvasId);
+      if(!canvas) {
+        const parent = document.getElementById("charts");
+        canvas = document.createElement("canvas");
+        canvas.id = canvasId;
+        let container = document.createElement("div");
+        container.className = "chart-container";
+        container.appendChild(canvas);
+        parent.appendChild(container);
+      }
+      const ctx = canvas.getContext('2d');
+      let chart = Chart.getChart(ctx);
+      if(!chart) {
+        chart = new Chart(ctx, {
+          type: 'line',
+          options: {
+
+            plugins: {
+              title: { display: true, text: name },
+              legend: {
+                display: false
+              },
+            },
+            scales: {
+              x: {
+                min: new Date() - 10 * 60 * 1000,
+                max: new Date(),
+                type: 'time',
+                time: {
+                  unit: 'minute'
+                },
+              }
+            }
+          }
+        });
+        charts.push(chart);
+      }
+      let dataset = chart.data.datasets.find((ds) => ds.label == tags);
+      if(!dataset) {
+        dataset = {
+          label: tags,
+          data: [],
+        };
+        chart.data.datasets.push(dataset);
+      }
+      dataset.data.push({
+        x: new Date(),
+        y: value,
+      });
+      chart.update();
+    }
+
+    setInterval(function () {
+      const now = new Date();
+      const then = new Date() - 10 * 60 * 1000;
+      charts.forEach(chart => {
+        chart.options.scales.x.min = then;
+        chart.options.scales.x.max = now;
+        chart.update();
+      });
+    }, 1000);
+  </script>
+</body>
 </html>
