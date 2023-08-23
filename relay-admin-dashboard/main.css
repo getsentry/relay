@@ -1,14 +1,25 @@
-.container {}
+@import url('https://fonts.googleapis.com/css?family=Roboto&display=swap');
+@import url('https://fonts.googleapis.com/css?family=Roboto+Mono&display=swap');
 
-.logs-container {
-  width: 100%;
-  display: block;
+body {
+  font-family: 'Roboto', sans-serif;
 }
 
 .logs {
-  font-family: monospace;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 11px;
   white-space: pre;
+
+  display: flex;
+  flex-direction: column-reverse;
+
   width: 100%;
+  max-height: 35em;
+  height: 35em;
+  overflow: scroll;
+}
+
+.logs span {
   text-wrap: wrap;
   height: 200px;  /* tmp, feel free to remove */
   overflow: auto;
@@ -17,4 +28,16 @@
 .graph-container {
   border: solid 1px #eee;
   width: 400px;
+}
+
+.stats-container {
+  margin: 2em;
+  padding: 1em;
+}
+
+.logo {
+  display: inline-block;
+  max-height:100%; 
+  max-width:100%;
+  height: 100%;
 }
