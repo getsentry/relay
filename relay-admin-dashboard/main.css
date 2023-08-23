@@ -10,4 +10,10 @@
   white-space: pre;
   width: 100%;
   text-wrap: wrap;
+  height: 200px;  /* tmp, feel free to remove */
+  overflow: auto;
+}
+
+.chart-container {
+  border: solid 1px #eee;
 }

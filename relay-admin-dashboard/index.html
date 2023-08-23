@@ -6,6 +6,32 @@
   <title>Relay Dashboard</title>
 </head>
 
-<body></body>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    function show_chart(inamed, data) {
+      const canvas = document.getElementById("the-canvas");
+      const ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+        type: 'bar',
+        data: {
+          // labels: ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Orange'],
+          datasets: [{
+            label: name,
+            data: data,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
 
 </html>
