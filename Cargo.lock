@@ -3344,7 +3344,6 @@ dependencies = [
  "relay-server",
  "relay-statsd",
  "tikv-jemallocator",
- "tokio",
 ]
 
 [[package]]
