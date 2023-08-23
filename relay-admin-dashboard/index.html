@@ -18,7 +18,8 @@
     src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script>
     const charts = [];
-    function update_chart(name, tags, value) { // TODO: move to separate file
+    function update_chart(type, name, tags, value) { // TODO: move to separate file
+      console.log(type, name, tags, value);
       const canvasId = "chart-" + name;
 
       let canvas = document.getElementById(canvasId);
@@ -27,7 +28,7 @@
         canvas = document.createElement("canvas");
         canvas.id = canvasId;
         let container = document.createElement("div");
-        container.className = "chart-container";
+        container.className = "card chart-container";
         container.appendChild(canvas);
         parent.appendChild(container);
       }
@@ -35,9 +36,13 @@
       let chart = Chart.getChart(ctx);
       if(!chart) {
         chart = new Chart(ctx, {
-          type: 'line',
+          type: {
+            g: 'line',
+            c: 'bar',
+            ms: 'scatter',
+            h: 'scatter',
+          }[type],
           options: {
-
             plugins: {
               title: { display: true, text: name },
               legend: {
@@ -52,6 +57,10 @@
                 time: {
                   unit: 'minute'
                 },
+                stacked: (type == "c")
+              },
+              y: {
+                stacked: (type == "c")
               }
             }
           }
@@ -66,10 +75,25 @@
         };
         chart.data.datasets.push(dataset);
       }
-      dataset.data.push({
-        x: new Date(),
-        y: value,
-      });
+      const data = dataset.data;
+      if(type == 'c') {
+        // Round timestamp and push to 10s bucket:
+        const bucket = 10000 * Math.floor((new Date()) / 10000);
+        const latest = data[data.length - 1]
+        if(latest && latest.x == bucket) {
+          latest.y += value;
+        } else {
+          data.push({
+            x: bucket,
+            y: value,
+          });
+        }
+      } else {
+        data.push({
+          x: new Date(),
+          y: value,
+        });
+      }
       chart.update();
     }
 
