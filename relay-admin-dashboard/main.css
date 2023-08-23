@@ -3,6 +3,8 @@
   white-space: pre;
   width: 100%;
   text-wrap: wrap;
+  max-height: 40em;
+  height: 40em;
 }
 
 .logo {
