@@ -1,10 +1,12 @@
 use std::borrow::BorrowMut;
+use std::collections::VecDeque;
 
 use futures::StreamExt;
 use gloo_net::websocket::{futures::WebSocket, Message};
 use yew::prelude::*;
 
 const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
+const MAX_LOG_SIZE: usize = 1000;
 
 #[function_component(App)]
 fn app() -> Html {
@@ -23,7 +25,8 @@ fn main() {
 
 #[function_component(Logs)]
 fn logs() -> Html {
-    let log_entries = use_state(Vec::new);
+    let update_trigger = use_force_update();
+    let log_entries = use_mut_ref(VecDeque::new);
     let socket = use_mut_ref(|| {
         Some(WebSocket::open(&format!("ws://{RELAY_URL}/api/relay/logs/")).unwrap())
     });
@@ -37,10 +40,12 @@ fn logs() -> Html {
                 let inner_socket = socket.borrow_mut().take();
                 if let Some(mut inner_socket) = inner_socket {
                     if let Some(Ok(Message::Text(message))) = inner_socket.next().await {
-                        let index = log_entries.len().saturating_sub(10);
-                        let mut new_vec = log_entries[index..].to_vec();
-                        new_vec.push(format!("{message}\n"));
-                        log_entries.set(new_vec);
+                        let mut log_entries = (*log_entries).borrow_mut();
+                        while log_entries.len() >= MAX_LOG_SIZE {
+                            log_entries.pop_front();
+                        }
+                        log_entries.push_back(message);
+                        update_trigger.force_update();
                     }
                     // Put the socket back
                     socket.borrow_mut().replace(Some(inner_socket));
@@ -52,7 +57,7 @@ fn logs() -> Html {
     html! {
         <div class="logs-container">
             <h2>{ "Logs" }</h2>
-            <div class="logs">{ log_entries.iter().collect::<Html>() }</div>
+            <div class="logs">{ (*log_entries).borrow().iter().collect::<Html>() }</div>
         </div>
     }
 }
