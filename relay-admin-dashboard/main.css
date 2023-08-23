@@ -8,7 +8,7 @@ body {
 .logs {
   font-family: 'Roboto Mono', monospace;
   font-size: 11px;
-  text-wrap: wrap;
+  white-space: pre;
 
   display: flex;
   flex-direction: column-reverse;
@@ -17,7 +17,10 @@ body {
   max-height: 35em;
   height: 35em;
   overflow: scroll;
-  white-space: pre;
+}
+
+.logs span {
+  text-wrap: wrap;
 }
 
 .stats-container {
