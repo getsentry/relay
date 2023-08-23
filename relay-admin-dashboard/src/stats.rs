@@ -1,0 +1,90 @@
+use std::collections::BTreeMap;
+
+use gloo_net::websocket::{futures::WebSocket, Message};
+use yew::prelude::*;
+
+use crate::{on_next_message, RELAY_URL};
+
+#[function_component(Stats)]
+pub(crate) fn stats() -> Html {
+    // name -> (tags -> values)
+    let time_series = use_mut_ref(BTreeMap::<String, BTreeMap<String, Vec<f32>>>::new);
+    let update_trigger = use_force_update();
+
+    let socket = use_mut_ref(|| {
+        Some(WebSocket::open(&format!("ws://{RELAY_URL}/api/relay/stats/")).unwrap())
+    });
+    {
+        let time_series = time_series.clone();
+        use_effect(move || {
+            on_next_message(socket.clone(), move |message| {
+                if let Message::Bytes(message) = message {
+                    let message = String::from_utf8_lossy(&message);
+                    let (name, tags, value) = parse_metric(&message);
+                    let mut time_series = (*time_series).borrow_mut();
+                    time_series
+                        .entry(name.to_owned())
+                        .or_default()
+                        .entry(tags.to_owned())
+                        .or_default()
+                        .push(value);
+                    // TODO: limit number of entries
+                    update_trigger.force_update();
+                }
+            })
+        });
+    }
+
+    html! {
+        <>
+            <h2>{ "Stats" }</h2>
+            <ul>{
+                (*time_series).borrow_mut().iter().map(|(name, time_series)| {
+                    html! {
+                        <li key={name.clone()}><h3>{name}</h3>{
+                            time_series.iter().map(|(tags, values)| {
+                                html!{
+                                    <>
+                                        <b>{tags}</b>
+                                        <br/>
+                                        {values.iter().collect::<Html>()}
+                                        <br/>
+                                    </>
+                                }
+                            }).collect::<Html>()
+                        }</li>
+                    }
+                }).collect::<Html>() }
+            </ul>
+        </>
+    }
+}
+
+fn parse_metric(metric: &str) -> (&str, &str, f32) {
+    let mut parts = metric.split('|');
+    let name_and_value = parts.next().unwrap_or("");
+    let _type = parts.next();
+    let tags = parts.next().unwrap_or("");
+
+    let (name, value) = name_and_value.split_once(':').unwrap_or(("", ""));
+    let value = value.parse::<f32>().unwrap_or_default();
+    (name, tags, value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_metric() {
+        let metric = "service.back_pressure:0|g|#service:relay_server::actors::processor::EnvelopeProcessorService";
+        assert_eq!(
+            parse_metric(metric),
+            (
+                "service.back_pressure",
+                "#service:relay_server::actors::processor::EnvelopeProcessorService",
+                0.0
+            )
+        )
+    }
+}
