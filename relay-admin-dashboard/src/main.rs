@@ -12,11 +12,14 @@ const MAX_LOG_SIZE: usize = 1000;
 #[function_component(App)]
 fn app() -> Html {
     html! {
-        <div class="container">
-            <h1>{ "Relay Admin Dashboard" }</h1>
-            <Logs/>
-            <Stats/>
-        </div>
+        <>
+            <MenuBar />
+
+            <div>
+                <Logs/>
+                <Stats/>
+            </div>
+        </>
     }
 }
 
@@ -36,6 +39,21 @@ fn on_next_message(socket: Rc<RefCell<Option<WebSocket>>>, f: impl Fn(Message) +
             (*socket).borrow_mut().replace(inner_socket);
         }
     });
+}
+
+#[function_component(MenuBar)]
+fn menu_bar() -> Html {
+    html! {
+        <nav class="deep-purple darken-1 grey-text text-darken-3">
+            <div class="nav-wrapper">
+                <img class="logo" src="img/relay-logo.png"/>
+                <ul id="nav-mobile" class="right hide-on-med-and-down">
+                    <li><a href="#">{ "Stats" }</a></li>
+                    <li><a href="#">{ "Tools" }</a></li>
+                </ul>
+            </div>
+        </nav>
+    }
 }
 
 #[function_component(Logs)]
@@ -63,9 +81,20 @@ fn logs() -> Html {
     }
 
     html! {
-        <div class="logs-container">
-            <h2>{ "Logs" }</h2>
-            <div class="logs">{ (*log_entries).borrow().iter().collect::<Html>() }</div>
+        <div class="row">
+            <div class="card logs blue-grey darken-3">
+                <div class="card-content white-text">
+                    <span class="card-title"><h4>{ "Logs" }</h4></span>
+                    <hr />
+                    <p>
+                          {
+                            (*log_entries).borrow().iter().filter_map(|entry| {
+                                ansi_to_html::convert_escaped(entry).ok()
+                            }).map(|e| Html::from_html_unchecked(AttrValue::from(format!("<span>{}</span>",e)))).collect::<Html>()
+                          }
+                    </p>
+                </div>
+            </div>
         </div>
     }
 }

@@ -249,7 +249,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
     let dashboard_subscriber = tracing_subscriber::fmt::layer()
         .with_writer(make_logs_writer)
         .with_target(true)
-        .with_ansi(false)
+        .with_ansi(true)
         .compact();
 
     let format = match (config.format, console::user_attended()) {

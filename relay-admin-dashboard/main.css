@@ -1,13 +1,13 @@
-.container {}
-
-.logs-container {
-  width: 100%;
-  display: block;
-}
-
 .logs {
   font-family: monospace;
   white-space: pre;
   width: 100%;
   text-wrap: wrap;
+}
+
+.logo {
+  display: inline-block;
+  max-height:100%; 
+  max-width:100%;
+  height: 100%;
 }
