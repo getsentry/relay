@@ -44,7 +44,7 @@ fn on_next_message(socket: Rc<RefCell<Option<WebSocket>>>, f: impl Fn(Message) +
 #[function_component(MenuBar)]
 fn menu_bar() -> Html {
     html! {
-        <nav class="deep-purple darken-1 grey-text text-darken-3">
+        <nav class="deep-purple darken-1 grey-text text-darken-3 z-depth-3">
             <div class="nav-wrapper">
                 <img class="logo" src="img/relay-logo.png"/>
                 <ul id="nav-mobile" class="right hide-on-med-and-down">
@@ -83,7 +83,7 @@ fn logs() -> Html {
     html! {
         <div class="row">
             <h3>{ "Logs" }</h3>
-            <div class="card logs blue-grey darken-3">
+            <div class="card logs blue-grey darken-3 z-depth-3">
                 <div class="card-content white-text">
                     <p>
                           {
@@ -129,11 +129,11 @@ fn stats() -> Html {
 
     html! {
         <>
-            <h2>{ "Stats" }</h2>
+            <h3>{ "Stats" }</h3>
             <ul>{
                 (*time_series).borrow_mut().iter().map(|(name, time_series)| {
                     html! {
-                        <li key={name.clone()}><h3>{name}</h3>{
+                        <li key={name.clone()}><h4>{name}</h4>{
                             time_series.iter().map(|(tags, values)| {
                                 html!{
                                     <>

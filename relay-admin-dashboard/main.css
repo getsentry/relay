@@ -1,13 +1,23 @@
+@import url('https://fonts.googleapis.com/css?family=Roboto&display=swap');
+@import url('https://fonts.googleapis.com/css?family=Roboto+Mono&display=swap');
+
+body {
+  font-family: 'Roboto', sans-serif;
+}
+
 .logs {
-  font-family: monospace;
-  white-space: pre;
-  width: 100%;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 11px;
   text-wrap: wrap;
+
+  display: flex;
+  flex-direction: column-reverse;
+
+  width: 100%;
   max-height: 35em;
   height: 35em;
   overflow: scroll;
-  display: flex;
-  flex-direction: column-reverse;
+  white-space: pre;
 }
 
 .stats-container {
