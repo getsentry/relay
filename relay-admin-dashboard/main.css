@@ -1,0 +1,13 @@
+.container {}
+
+.logs-container {
+  width: 100%;
+  display: block;
+}
+
+.logs {
+  font-family: monospace;
+  white-space: pre;
+  width: 100%;
+  text-wrap: wrap;
+}

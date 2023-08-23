@@ -9,11 +9,11 @@ const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
 #[function_component(App)]
 fn app() -> Html {
     html! {
-        <>
+        <div class="container">
             <h1>{ "Relay Admin Dashboard" }</h1>
             <Logs/>
             <Stats/>
-        </>
+        </div>
     }
 }
 
@@ -50,10 +50,10 @@ fn logs() -> Html {
     }
 
     html! {
-        <>
+        <div class="logs-container">
             <h2>{ "Logs" }</h2>
-            <pre>{ log_entries.iter().collect::<Html>() }</pre>
-        </>
+            <div class="logs">{ log_entries.iter().collect::<Html>() }</div>
+        </div>
     }
 }
 
