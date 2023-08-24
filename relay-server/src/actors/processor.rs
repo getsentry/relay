@@ -3941,7 +3941,7 @@ mod tests {
 
     /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
     /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
-    /// cannot be called from relay-general.
+    /// cannot be called from relay-metrics.
     #[test]
     fn test_mri_overhead_constant() {
         let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;

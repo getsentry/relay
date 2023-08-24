@@ -586,7 +586,7 @@ fn get_measurement(event: &Event, name: &str) -> Option<f64> {
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
-// TODO: This trait is used for more than dynamic sampling now. Move it to relay-general.
+// TODO: This trait is used for more than dynamic sampling now. Move it to relay-protocol.
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
