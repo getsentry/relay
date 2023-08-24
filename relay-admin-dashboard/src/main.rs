@@ -1,12 +1,17 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::error::Error;
 use std::rc::Rc;
+use std::time::Duration;
 
 use futures::StreamExt;
+use gloo_console::log;
+use gloo_net::websocket::State;
 use gloo_net::websocket::{futures::WebSocket, Message};
+use yew::platform::time::sleep;
 use yew::prelude::*;
 
-mod stats;
+// mod stats;
 
 const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
 const MAX_LOG_SIZE: usize = 1000;
@@ -19,7 +24,7 @@ fn app() -> Html {
 
             <div class="stats-container">
                 <Logs/>
-                <stats::Stats/>
+                // <stats::Stats/>
             </div>
         </>
     }
@@ -29,18 +34,56 @@ fn main() {
     yew::Renderer::<App>::new().render();
 }
 
-fn on_next_message(socket: Rc<RefCell<Option<WebSocket>>>, f: impl Fn(String) + 'static) {
-    wasm_bindgen_futures::spawn_local(async move {
-        // Take the socket so it will not be polled concurrently:
-        let inner_socket = (*socket).borrow_mut().take();
-        if let Some(mut inner_socket) = inner_socket {
-            if let Some(Ok(Message::Text(message))) = inner_socket.next().await {
+struct Socket {
+    url: String,
+    socket: Result<WebSocket, ()>,
+}
+
+impl Socket {
+    fn open(url: String) -> Self {
+        let socket = WebSocket::open(&url).map_err(|_| ());
+        Self { url, socket }
+    }
+
+    async fn reconnect(&mut self) {
+        log!("Attempting reconnect...");
+        sleep(Duration::from_millis(1000)).await;
+        if !matches!(self.socket.as_ref().map(|s| s.state()), Ok(State::Open)) {
+            self.socket = WebSocket::open(&self.url).map_err(|_| ());
+        }
+    }
+
+    async fn try_next(&mut self) -> Result<String, ()> {
+        if let Ok(socket) = self.socket.as_mut() {
+            if !matches!(socket.state(), State::Closed) {
+                if let Some(Ok(Message::Text(message))) = socket.next().await {
+                    return Ok(message);
+                }
+            }
+        }
+        self.reconnect().await;
+        Err(())
+    }
+}
+
+fn on_next_message(
+    socket: Rc<RefCell<Option<Socket>>>,
+    update_trigger: UseForceUpdateHandle,
+    f: impl Fn(String) + 'static,
+) {
+    let inner_socket = (*socket).borrow_mut().take();
+    if let Some(mut inner_socket) = inner_socket {
+        wasm_bindgen_futures::spawn_local(async move {
+            if let Ok(message) = inner_socket.try_next().await {
                 f(message);
             }
             // Put the socket back
             (*socket).borrow_mut().replace(inner_socket);
-        }
-    });
+
+            // Update component
+            update_trigger.force_update();
+        });
+    }
 }
 
 #[function_component(MenuBar)]
@@ -63,19 +106,16 @@ fn logs() -> Html {
     let update_trigger = use_force_update();
     let log_entries = use_mut_ref(VecDeque::new);
 
-    let socket = use_mut_ref(|| {
-        Some(WebSocket::open(&format!("ws://{RELAY_URL}/api/relay/logs/")).unwrap())
-    });
+    let socket = use_mut_ref(|| Some(Socket::open(format!("ws://{RELAY_URL}/api/relay/logs/"))));
     {
         let log_entries = log_entries.clone();
         use_effect(move || {
-            on_next_message(socket.clone(), move |message| {
+            on_next_message(socket.clone(), update_trigger, move |message| {
                 let mut log_entries = (*log_entries).borrow_mut();
                 while log_entries.len() >= MAX_LOG_SIZE {
                     log_entries.pop_front();
                 }
                 log_entries.push_back(message);
-                update_trigger.force_update();
             })
         });
     }
