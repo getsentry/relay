@@ -28,7 +28,6 @@ pub mod replay;
 mod schema;
 mod transactions;
 mod trimming;
-mod user_agent;
 
 pub use normalize::breakdowns::*;
 pub use normalize::*;
