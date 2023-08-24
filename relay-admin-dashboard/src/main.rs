@@ -9,28 +9,82 @@ use gloo_net::websocket::State;
 use gloo_net::websocket::{futures::WebSocket, Message};
 use yew::platform::time::sleep;
 use yew::prelude::*;
+use yew_router::prelude::*;
 
 mod stats;
 
 const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
 const MAX_LOG_SIZE: usize = 1000;
 
-#[function_component(App)]
+#[derive(Clone, Routable, PartialEq)]
+enum Route {
+    #[at("/")]
+    Stats,
+    #[at("/tools")]
+    Tools,
+    #[not_found]
+    #[at("/404")]
+    NotFound,
+}
+
+fn switch(routes: Route) -> Html {
+    match routes {
+        Route::Stats => html! { <Stats /> },
+        Route::Tools => html! {
+            <Tools />
+        },
+        Route::NotFound => html! { <h1>{ "404" }</h1> },
+    }
+}
+
+#[function_component(MenuBar)]
+fn menu_bar() -> Html {
+    html! {
+        <nav class="deep-purple darken-1 grey-text text-darken-3 z-depth-3">
+            <div class="nav-wrapper">
+                <img class="logo" src="img/relay-logo.png"/>
+                <ul id="nav-mobile" class="right hide-on-med-and-down">
+                    <li> <Link<Route> to={ Route::Stats }> { "Stats" } </Link<Route>> </li>
+                    <li> <Link<Route> to={ Route::Tools }> { "Tools" } </Link<Route>> </li>
+                </ul>
+            </div>
+        </nav>
+    }
+}
+
+#[function_component(Tools)]
+fn tools() -> Html {
+    html! {
+        <div class="padding">
+            <h1>{ "TOOLS" }</h1>
+        </div>
+    }
+}
+
+#[function_component(Main)]
 fn app() -> Html {
     html! {
         <>
+            <BrowserRouter>
             <MenuBar />
-
-            <div class="stats-container">
-                <Logs/>
-                <stats::Stats/>
-            </div>
+                <Switch<Route> render={switch} /> // <- must be child of <BrowserRouter>
+            </BrowserRouter>
         </>
     }
 }
 
+#[function_component(Stats)]
+fn app() -> Html {
+    html! {
+        <div class="padding">
+            <Logs/>
+            <stats::Stats/>
+        </div>
+    }
+}
+
 fn main() {
-    yew::Renderer::<App>::new().render();
+    yew::Renderer::<Main>::new().render();
 }
 
 struct Socket {
@@ -82,21 +136,6 @@ fn on_next_message(
             // Update component
             update_trigger.force_update();
         });
-    }
-}
-
-#[function_component(MenuBar)]
-fn menu_bar() -> Html {
-    html! {
-        <nav class="deep-purple darken-1 grey-text text-darken-3 z-depth-3">
-            <div class="nav-wrapper">
-                <img class="logo" src="img/relay-logo.png"/>
-                <ul id="nav-mobile" class="right hide-on-med-and-down">
-                    <li><a href="#">{ "Stats" }</a></li>
-                    <li><a href="#">{ "Tools" }</a></li>
-                </ul>
-            </div>
-        </nav>
     }
 }
 
