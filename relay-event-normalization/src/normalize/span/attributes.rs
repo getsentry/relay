@@ -49,11 +49,11 @@ fn set_event_exclusive_time(
     span_map: &HashMap<SpanId, Vec<TimeWindowSpan>>,
 ) {
     let Some(trace_context) = contexts.get_mut::<TraceContext>() else {
-        return
+        return;
     };
 
     let Some(span_id) = trace_context.span_id.value() else {
-        return
+        return;
     };
 
     let child_intervals = span_map

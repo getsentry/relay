@@ -188,7 +188,9 @@ impl<'r> TransactionsProcessor<'r> {
 
                 if let Some(ref range) = self.timestamp_range {
                     let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-                        return Err(ProcessingAction::InvalidTransaction("invalid unix timestamp"));
+                        return Err(ProcessingAction::InvalidTransaction(
+                            "invalid unix timestamp",
+                        ));
                     };
                     if !range.contains(&timestamp) {
                         return Err(ProcessingAction::InvalidTransaction(

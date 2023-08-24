@@ -28,7 +28,7 @@ where
 
     let Some(timestamp) = instance.timestamp() else {
         relay_log::error!("invalid event timestamp for metric extraction");
-        return metrics
+        return metrics;
     };
 
     for metric_spec in &config.metrics {
@@ -45,7 +45,7 @@ where
         // Parse the MRI so that we can obtain the type, but subsequently re-serialize it into the
         // generated metric to ensure the MRI is normalized.
         let Ok(mri) = MetricResourceIdentifier::parse(&metric_spec.mri) else {
-            relay_log::error!(mri=metric_spec.mri, "invalid MRI for metric extraction");
+            relay_log::error!(mri = metric_spec.mri, "invalid MRI for metric extraction");
             continue;
         };
 

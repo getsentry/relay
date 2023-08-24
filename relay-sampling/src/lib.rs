@@ -830,7 +830,7 @@ impl FieldValueProvider for DynamicSamplingContext {
 impl FieldValueProvider for Span {
     fn get_value(&self, path: &str) -> Value {
         let Some(path) = path.strip_prefix("span.") else {
-            return Value::Null
+            return Value::Null;
         };
 
         match path {
@@ -871,12 +871,25 @@ impl FieldValueProvider for Span {
                 if let Some(key) = path.strip_prefix("data.") {
                     let escaped = key.replace("\\.", "\0");
                     let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
-                    let Some(root) = path.next() else { return Value::Null };
-                    let Some(mut val) = self.data.value().and_then(|data| data.get(&root)).and_then(Annotated::value) else { return Value::Null };
+                    let Some(root) = path.next() else {
+                        return Value::Null;
+                    };
+                    let Some(mut val) = self
+                        .data
+                        .value()
+                        .and_then(|data| data.get(&root))
+                        .and_then(Annotated::value)
+                    else {
+                        return Value::Null;
+                    };
                     for part in path {
                         // While there is path segments left, `val` has to be an Object.
-                        let relay_protocol::Value::Object(map) = val else { return Value::Null };
-                        let Some(child) = map.get(&part).and_then(Annotated::value) else { return Value::Null };
+                        let relay_protocol::Value::Object(map) = val else {
+                            return Value::Null;
+                        };
+                        let Some(child) = map.get(&part).and_then(Annotated::value) else {
+                            return Value::Null;
+                        };
                         val = child;
                     }
                     return Value::from(val.clone());
@@ -1375,7 +1388,9 @@ impl DynamicSamplingContext {
             return None;
         }
 
-        let Some(trace) = event.context::<TraceContext>() else { return None };
+        let Some(trace) = event.context::<TraceContext>() else {
+            return None;
+        };
         let trace_id = trace.trace_id.value()?.0.parse().ok()?;
         let user = event.user.value();
 

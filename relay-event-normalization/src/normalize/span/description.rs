@@ -94,7 +94,9 @@ static SQL_ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?
 /// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
 /// for the span group hash.
 pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptionRule>) {
-    let Some(description) = span.description.as_str() else { return };
+    let Some(description) = span.description.as_str() else {
+        return;
+    };
 
     let scrubbed = span
         .op

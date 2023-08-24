@@ -1987,8 +1987,12 @@ impl EnvelopeProcessorService {
 
         // The DSC can only be computed if there's a transaction event. Note that `from_transaction`
         // below already checks for the event type.
-        let Some(event) = state.event.value() else { return };
-        let Some(key_config) = state.project_state.get_public_key_config() else { return };
+        let Some(event) = state.event.value() else {
+            return;
+        };
+        let Some(key_config) = state.project_state.get_public_key_config() else {
+            return;
+        };
 
         if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
             state.envelope_mut().set_dsc(dsc);
@@ -2254,7 +2258,9 @@ impl EnvelopeProcessorService {
         };
 
         // Extract transaction as a span.
-        let Some(event) = state.event.value() else { return };
+        let Some(event) = state.event.value() else {
+            return;
+        };
         let transaction_span: Span = event.into();
 
         let mut add_span = |span: Annotated<Span>| {
@@ -2276,7 +2282,9 @@ impl EnvelopeProcessorService {
                 // HACK: clone the span to set the segment_id. This should happen
                 // as part of normalization once standalone spans reach wider adoption.
                 let mut span = span.clone();
-                let Some(inner_span) = span.value_mut() else { continue };
+                let Some(inner_span) = span.value_mut() else {
+                    continue;
+                };
                 inner_span.segment_id = transaction_span.segment_id.clone();
                 inner_span.is_segment = Annotated::new(false);
                 add_span(span);

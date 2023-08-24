@@ -828,7 +828,10 @@ impl Project {
         };
 
         let Some(scoping) = self.scoping() else {
-            relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
+            relay_log::trace!(
+                "there is no scoping: merging back {} buckets",
+                buckets.len()
+            );
             aggregator.send(MergeBuckets::new(self.project_key, buckets));
             return;
         };

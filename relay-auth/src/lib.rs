@@ -375,7 +375,7 @@ impl FromStr for PublicKey {
 
     fn from_str(s: &str) -> Result<PublicKey, KeyParseError> {
         let Ok(bytes) = BASE64URL_NOPAD.decode(s.as_bytes()) else {
-            return Err(KeyParseError::BadEncoding)
+            return Err(KeyParseError::BadEncoding);
         };
 
         let inner = match bytes.try_into() {

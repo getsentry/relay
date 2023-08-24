@@ -870,7 +870,13 @@ impl BufferService {
     /// Tries to spool to disk if the current buffer state is `BufferState::MemoryDiskStandby`,
     /// which means we use the in-memory buffer active and disk still free or not used before.
     async fn handle_shutdown(&mut self) -> Result<(), BufferError> {
-        let BufferState::MemoryFileStandby{ref mut ram, ref mut disk} = self.state else { return Ok(()) };
+        let BufferState::MemoryFileStandby {
+            ref mut ram,
+            ref mut disk,
+        } = self.state
+        else {
+            return Ok(());
+        };
 
         let count: usize = ram.count();
         if count == 0 {
