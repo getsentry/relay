@@ -77,7 +77,7 @@ pub struct StoreConfig {
     /// The user agent is used to infer device, operating system, and browser information should the
     /// event payload contain no such data.
     ///
-    /// Newer browsers have frozen their user agents and send [`client_hints`])(Self::client_hints)
+    /// Newer browsers have frozen their user agents and send [`client_hints`](Self::client_hints)
     /// instead. If both a user agent and client hints are present, normalization uses client hints.
     pub user_agent: Option<String>,
 

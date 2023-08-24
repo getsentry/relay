@@ -146,7 +146,12 @@ impl SelectorPathItem {
     }
 }
 
-/// A composit selector for paths into a nested structure.
+/// A selector that can match paths of processing states.
+///
+/// To use a a selector, you most likely want to check whether it matches the path of a
+/// [`ProcessingState`].  For this you turn the state into a [`Path`] using
+/// [`ProcessingState::path`] and call [`SelectorSpec::matches_path`], which will iterate through
+/// the path items in the processing state and check whether the selector matches.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SelectorSpec {
     /// A selector that matches both of two sub-selectors.

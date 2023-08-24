@@ -401,11 +401,6 @@ impl<T> Deref for BoxCow<'_, T> {
 /// to the root item.  You can think of processing an event as a visitor pattern visiting
 /// all items in the event and the processing state is a stack describing the currently
 /// visited item and all it's parents.
-///
-/// To use a processing state you most likely want to check whether a selector matches the
-/// current state.  For this you turn the state into a [`Path`] using
-/// [`ProcessingState::path`] and call [`Path::matches_selector`] which will iterate through
-/// the path items in the processing state and check whether a selector matches.
 #[derive(Debug, Clone)]
 pub struct ProcessingState<'a> {
     // In event scrubbing, every state holds a reference to its parent.
@@ -632,8 +627,7 @@ impl<'a> Default for ProcessingState<'a> {
 
 /// Represents the [`ProcessingState`] as a path.
 ///
-/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.  In
-/// particular the [`Path::matches_selector`] method allows if a selector matches this path.
+/// This is a view of a [`ProcessingState`] which treats the stack of states as a path.
 #[derive(Debug)]
 pub struct Path<'a>(&'a ProcessingState<'a>);
 

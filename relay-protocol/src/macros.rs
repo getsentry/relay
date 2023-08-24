@@ -100,7 +100,7 @@ macro_rules! derive_string_meta_structure {
 
 pub use derive_string_meta_structure;
 
-/// Asserts the snapshot of an annotated structure using [`insta`].
+/// Asserts the snapshot of an annotated structure using `insta`.
 #[cfg(feature = "test")]
 #[macro_export]
 macro_rules! assert_annotated_snapshot {

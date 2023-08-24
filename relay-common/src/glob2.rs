@@ -240,7 +240,7 @@ impl<T: Clone> GlobMatcher<T> {
     }
 }
 
-/// Wrapper type around the raw string pattern and the [`crate::utils::Glob`].
+/// Wrapper type around the raw string pattern and the [`Glob`].
 ///
 /// This allows to compile the Glob with internal regexes only then whent they are used.
 #[derive(Clone, Eq, PartialEq)]
@@ -258,7 +258,7 @@ impl LazyGlob {
         }
     }
 
-    /// Returns the compiled version of the [`crate::utils::Glob`].
+    /// Returns the compiled version of the [`Glob`].
     pub fn compiled(&self) -> &Glob {
         self.glob.get_or_init(|| {
             Glob::builder(&self.raw)

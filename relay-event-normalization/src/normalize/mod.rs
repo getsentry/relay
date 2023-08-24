@@ -795,13 +795,11 @@ pub struct LightNormalizationConfig<'a> {
     /// `request` context, this IP address gets added to the `user` context.
     pub client_ip: Option<&'a IpAddr>,
 
-    /// The raw user-agent string obtained from the submission request headers.
+    /// The user-agent and client hints obtained from the submission request headers.
     ///
-    /// The user agent is used to infer device, operating system, and browser information should the
-    /// event payload contain no such data.
-    ///
-    /// Newer browsers have frozen their user agents and send [`client_hints`])(Self::client_hints)
-    /// instead. If both a user agent and client hints are present, normalization uses client hints.
+    /// Client hints are the preferred way to infer device, operating system, and browser
+    /// information should the event payload contain no such data. If no client hints are present,
+    /// normalization falls back to the user agent.
     pub user_agent: RawUserAgentInfo<&'a str>,
 
     /// The time at which the event was received in this Relay.
@@ -912,7 +910,7 @@ impl Default for LightNormalizationConfig<'_> {
 ///
 /// This function applies a series of transaformations on the event payload based on the passed
 /// configuration. See the config fields for a description of the normalization steps. There is
-/// extended normalization available in the [`StoreProcessor`].
+/// extended normalization available in the [`StoreProcessor`](crate::StoreProcessor).
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should be ingested or
 /// dropped.
