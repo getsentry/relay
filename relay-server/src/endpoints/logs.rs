@@ -11,7 +11,8 @@ async fn handle_socket(mut socket: WebSocket) {
 
         let res = socket.send(message.into()).await;
         if res.is_err() {
-            break;
+            // Client disconnected.
+            return;
         }
     }
 }
