@@ -3365,14 +3365,11 @@ mod tests {
 
     #[test]
     fn test_normalize_app_start_cold_measurements() {
-        let mut measurements = Annotated::<Measurements>::from_json(
-            r###"{
-                "app.start.cold": {"value": 1.1}
-            }"###,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app.start.cold": {"value": 1.1}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
         insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {
@@ -3398,14 +3395,11 @@ mod tests {
 
     #[test]
     fn test_normalize_app_start_warm_measurements() {
-        let mut measurements = Annotated::<Measurements>::from_json(
-            r###"{
-                "app.start.warm": {"value": 1.1}
-            }"###,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app.start.warm": {"value": 1.1}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
         insta::assert_debug_snapshot!(measurements, @r###"
         Measurements(
             {

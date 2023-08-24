@@ -24,7 +24,7 @@ serde-transcode = "1.1.1"
 [dev-dependencies]
 assert-json-diff = "2.0.2"
 criterion = "0.5"
-insta = { version = "1.1.0", features = ["ron"] }
+insta = { version = "1.31.0", features = ["ron"] }
 
 [[bench]]
 name = "benchmarks"

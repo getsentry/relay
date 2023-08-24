@@ -113,7 +113,7 @@ url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
-insta = { version = "1.19.0", features = ["json", "yaml"] }
+insta = { version = "1.31.0", features = ["json", "yaml"] }
 relay-event-schema = { path = "../relay-event-schema", features = [
     "jsonschema",
 ] }
