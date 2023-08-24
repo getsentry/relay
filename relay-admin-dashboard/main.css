@@ -21,7 +21,6 @@ body {
 
 .logs span {
   text-wrap: wrap;
-  height: 200px;  /* tmp, feel free to remove */
   overflow: auto;
 }
 
