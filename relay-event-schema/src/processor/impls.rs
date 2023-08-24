@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use enumset::EnumSet;
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use relay_protocol::{Annotated, Array, Meta, Object, Value};
 
 use crate::processor::{

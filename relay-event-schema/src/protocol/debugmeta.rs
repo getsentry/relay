@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 use enumset::EnumSet;
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{

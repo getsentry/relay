@@ -2819,7 +2819,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
-    use relay_common::Uuid;
+    use relay_common::uuid::Uuid;
     use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;

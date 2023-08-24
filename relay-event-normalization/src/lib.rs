@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use relay_event_schema::processor::{ProcessingResult, ProcessingState, Processor};
 use relay_event_schema::protocol::{Event, IpAddr, SpanAttribute};
 use relay_protocol::Meta;

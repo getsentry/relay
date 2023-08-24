@@ -87,7 +87,8 @@ use serde_json::{Number, Value};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
 use relay_common::glob3::GlobPatterns;
-use relay_common::{time, Uuid};
+use relay_common::time;
+use relay_common::uuid::Uuid;
 use relay_event_schema::protocol::{
     BrowserContext, DeviceContext, Event, OsContext, ResponseContext, Span, TraceContext,
 };

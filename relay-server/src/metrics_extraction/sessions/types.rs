@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
 use relay_common::time::UnixTimestamp;
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use relay_event_schema::protocol::SessionStatus;
 use relay_metrics::{CounterType, Metric, MetricNamespace, MetricUnit, MetricValue};
 

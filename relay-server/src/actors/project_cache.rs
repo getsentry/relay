@@ -939,7 +939,7 @@ impl FetchOptionalProjectState {
 mod tests {
     use std::time::Duration;
 
-    use relay_common::Uuid;
+    use relay_common::uuid::Uuid;
     use relay_test::mock_service;
 
     use crate::testutils::empty_envelope;

@@ -11,12 +11,12 @@ publish = false
 
 [dependencies]
 num-traits = "0.2.12"
+relay-common = { path = "../relay-common" }
 relay-protocol-derive = { path = "../relay-protocol-derive", optional = true }
 schemars = { version = "=0.8.10", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 smallvec = { version = "1.4.0", features = ["serde"] }
-uuid = { version = "1.3.0", features = ["serde", "v4", "v5"] }
 
 [dev-dependencies]
 similar-asserts = "1.4.2"

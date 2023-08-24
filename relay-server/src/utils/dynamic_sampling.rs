@@ -153,7 +153,7 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
-    use relay_common::Uuid;
+    use relay_common::uuid::Uuid;
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_sampling::{

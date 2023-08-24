@@ -14,5 +14,6 @@ pub mod glob3;
 pub mod time;
 
 pub use sentry_types::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
+
 #[doc(inline)]
-pub use uuid::Uuid;
+pub use uuid;

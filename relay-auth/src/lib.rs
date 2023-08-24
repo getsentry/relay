@@ -32,7 +32,7 @@ use hmac::{Hmac, Mac};
 use rand::rngs::OsRng;
 use rand::{thread_rng, RngCore};
 use relay_common::time::UnixTimestamp;
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;

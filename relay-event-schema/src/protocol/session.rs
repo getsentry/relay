@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 use std::time::SystemTime;
 
 use chrono::{DateTime, Utc};
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
 use crate::protocol::utils::null_to_default;

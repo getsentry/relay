@@ -3385,13 +3385,13 @@ name = "relay-protocol"
 version = "23.8.0"
 dependencies = [
  "num-traits",
+ "relay-common",
  "relay-protocol-derive",
  "schemars",
  "serde",
  "serde_json",
  "similar-asserts",
  "smallvec",
- "uuid",
 ]
 
 [[package]]

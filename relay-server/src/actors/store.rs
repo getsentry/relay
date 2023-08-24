@@ -9,7 +9,7 @@ use bytes::Bytes;
 use once_cell::sync::OnceCell;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use relay_config::Config;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
