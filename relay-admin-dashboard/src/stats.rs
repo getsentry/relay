@@ -1,6 +1,6 @@
 #![allow(non_camel_case_types)]
 
-use gloo_net::websocket::{futures::WebSocket, Message};
+use gloo_net::websocket::futures::WebSocket;
 use yew::prelude::*;
 
 use crate::{on_next_message, RELAY_URL};
@@ -15,19 +15,16 @@ pub(crate) fn stats() -> Html {
     {
         use_effect(move || {
             on_next_message(socket.clone(), move |message| {
-                if let Message::Bytes(message) = message {
-                    let message = String::from_utf8_lossy(&message);
-                    let Metric {
-                        ty,
-                        name,
-                        tags,
-                        value,
-                    } = parse_metric(&message);
-                    // I gave up on the hole reactive framework here and decided
-                    // to just pass the data to javascript.
-                    js::update_chart(ty, name, tags, value);
-                    update_trigger.force_update();
-                }
+                let Metric {
+                    ty,
+                    name,
+                    tags,
+                    value,
+                } = parse_metric(&message);
+                // I gave up on the hole reactive framework here and decided
+                // to just pass the data to javascript.
+                js::update_chart(ty, name, tags, value);
+                update_trigger.force_update();
             });
         });
     }

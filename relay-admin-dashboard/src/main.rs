@@ -29,12 +29,12 @@ fn main() {
     yew::Renderer::<App>::new().render();
 }
 
-fn on_next_message(socket: Rc<RefCell<Option<WebSocket>>>, f: impl Fn(Message) + 'static) {
+fn on_next_message(socket: Rc<RefCell<Option<WebSocket>>>, f: impl Fn(String) + 'static) {
     wasm_bindgen_futures::spawn_local(async move {
         // Take the socket so it will not be polled concurrently:
         let inner_socket = (*socket).borrow_mut().take();
         if let Some(mut inner_socket) = inner_socket {
-            if let Some(Ok(message)) = inner_socket.next().await {
+            if let Some(Ok(Message::Text(message))) = inner_socket.next().await {
                 f(message);
             }
             // Put the socket back
@@ -70,14 +70,12 @@ fn logs() -> Html {
         let log_entries = log_entries.clone();
         use_effect(move || {
             on_next_message(socket.clone(), move |message| {
-                if let Message::Text(message) = message {
-                    let mut log_entries = (*log_entries).borrow_mut();
-                    while log_entries.len() >= MAX_LOG_SIZE {
-                        log_entries.pop_front();
-                    }
-                    log_entries.push_back(message);
-                    update_trigger.force_update();
+                let mut log_entries = (*log_entries).borrow_mut();
+                while log_entries.len() >= MAX_LOG_SIZE {
+                    log_entries.pop_front();
                 }
+                log_entries.push_back(message);
+                update_trigger.force_update();
             })
         });
     }
