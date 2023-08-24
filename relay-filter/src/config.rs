@@ -5,9 +5,8 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::str::FromStr;
 
+use relay_common::glob3::GlobPatterns;
 use serde::{Deserialize, Serialize};
-
-use crate::common::GlobPatterns;
 
 /// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

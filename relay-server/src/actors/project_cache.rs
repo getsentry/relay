@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::sync::Arc;
 
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
 use relay_quotas::RateLimits;

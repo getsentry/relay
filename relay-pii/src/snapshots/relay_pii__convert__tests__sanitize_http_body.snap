@@ -1,0 +1,27 @@
+---
+source: relay-general/src/pii/convert.rs
+expression: data.value().unwrap().request
+---
+{
+  "data": {
+    "email": "zzzz@gmail.com",
+    "password": "[Filtered]"
+  },
+  "_meta": {
+    "data": {
+      "password": {
+        "": {
+          "rem": [
+            [
+              "@password:filter",
+              "s",
+              0,
+              10
+            ]
+          ],
+          "len": 5
+        }
+      }
+    }
+  }
+}

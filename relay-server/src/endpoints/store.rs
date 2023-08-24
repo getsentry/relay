@@ -10,7 +10,7 @@ use bytes::Bytes;
 use data_encoding::BASE64;
 use flate2::bufread::ZlibDecoder;
 use relay_config::Config;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
 use crate::endpoints::common::{self, BadStoreRequest};

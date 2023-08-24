@@ -11,13 +11,10 @@ publish = false
 
 [features]
 default = []
-redis = [
-    "dep:thiserror",
-    "dep:relay-log",
-    "relay-redis/impl",
-]
+redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
 
 [dependencies]
+relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log", optional = true }
 relay-redis = { path = "../relay-redis", optional = true }

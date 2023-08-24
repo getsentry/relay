@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
 
 use chrono::{DateTime, Utc};
-use relay_general::protocol::{Addr, EventId};
+use relay_event_schema::protocol::{Addr, EventId};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;

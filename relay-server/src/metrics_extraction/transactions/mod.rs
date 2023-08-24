@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DurationUnit, EventType, SpanStatus, UnixTimestamp};
+use relay_base_schema::events::EventType;
+use relay_base_schema::spans::SpanStatus;
+use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
-use relay_general::protocol::{
+use relay_event_normalization::utils as normalize_utils;
+use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
-use relay_general::store;
-use relay_metrics::Metric;
+use relay_metrics::{DurationUnit, Metric};
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -15,10 +17,7 @@ use crate::metrics_extraction::transactions::types::{
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
-use crate::utils::{transaction_source_tag, SamplingResult};
-use relay_general::store::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
-};
+use crate::utils::{self, SamplingResult};
 
 pub mod types;
 
@@ -27,7 +26,8 @@ pub mod types;
 const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-/// Must be consistent with `process_trace_context` in [`relay_general::store`].
+///
+/// Must be consistent with `process_trace_context` in [`relay_event_normalization`].
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
     *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
 }
@@ -52,7 +52,7 @@ fn extract_os_name(event: &Event) -> Option<String> {
     os.name.value().cloned()
 }
 
-/// Extract the GEO country code from the [`relay_general::protocol::User`] context.
+/// Extract the GEO country code from the [`relay_event_schema::protocol::User`] context.
 fn extract_geo_country_code(event: &Event) -> Option<String> {
     let user = event.user.value()?;
     let geo = user.geo.value()?;
@@ -114,7 +114,7 @@ fn track_transaction_name_stats(event: &Event) {
 
     relay_statsd::metric!(
         counter(RelayCounters::MetricsTransactionNameExtracted) += 1,
-        source = transaction_source_tag(event),
+        source = utils::transaction_source_tag(event),
         sdk_name = event
             .client_sdk
             .value()
@@ -143,9 +143,9 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     // The platform tag should not increase dimensionality in most cases, because most
     // transactions are specific to one platform.
     // NOTE: we might want to reconsider light normalization a little and include the
-    // `store::is_valid_platform` into light normalization.
+    // `relay_event_normalization::is_valid_platform` into light normalization.
     let platform = match event.platform.as_str() {
-        Some(platform) if store::is_valid_platform(platform) => platform,
+        Some(platform) if relay_event_normalization::is_valid_platform(platform) => platform,
         _ => "other",
     };
 
@@ -156,7 +156,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 
         tags.insert(CommonTag::TransactionStatus, status.to_string());
 
-        if let Some(op) = extract_transaction_op(trace_context) {
+        if let Some(op) = normalize_utils::extract_transaction_op(trace_context) {
             tags.insert(CommonTag::TransactionOp, op);
         }
     }
@@ -177,7 +177,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::GeoCountryCode, geo_country_code);
     }
 
-    if let Some(status_code) = extract_http_status_code(event) {
+    if let Some(status_code) = normalize_utils::extract_http_status_code(event) {
         tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
@@ -201,14 +201,17 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     CommonTags(tags)
 }
 
-/// TODO(ja): Doc
+/// Metrics extracted from an envelope.
+///
+/// Metric extraction derives pre-computed metrics (time series data) from payload items in
+/// envelopes. Depending on their semantics, these metrics can be ingested into the same project as
+/// the envelope or a different project.
 #[derive(Debug, Default)]
 pub struct ExtractedMetrics {
-    /// Metrics associated with the project that the transaction belongs to.
+    /// Metrics associated with the project of the envelope.
     pub project_metrics: Vec<Metric>,
 
-    /// Metrics associated with the sampling project (a.k.a. root or head project)
-    /// which started the trace. `ProcessEnvelopeState::sampling_project_state`.
+    /// Metrics associated with the project of the trace parent.
     pub sampling_metrics: Vec<Metric>,
 }
 
@@ -317,7 +320,7 @@ impl TransactionExtractor<'_> {
         metrics.project_metrics.push(
             TransactionMetric::Duration {
                 unit: DurationUnit::MilliSecond,
-                value: relay_common::chrono_to_positive_millis(end - start),
+                value: relay_common::time::chrono_to_positive_millis(end - start),
                 tags: TransactionDurationTags {
                     has_profile: self.has_profile,
                     universal_tags: tags.clone(),
@@ -352,7 +355,7 @@ impl TransactionExtractor<'_> {
 
         // User
         if let Some(user) = event.user.value() {
-            if let Some(value) = get_eventuser_tag(user) {
+            if let Some(value) = normalize_utils::get_eventuser_tag(user) {
                 metrics
                     .project_metrics
                     .push(TransactionMetric::User { value, tags }.into_metric(timestamp));
@@ -393,13 +396,13 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
-    use relay_general::protocol::User;
-    use relay_general::store::{
-        self, set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
+    use relay_event_normalization::{
+        set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
         MeasurementsConfig,
     };
-    use relay_general::types::Annotated;
+    use relay_event_schema::protocol::User;
     use relay_metrics::MetricValue;
+    use relay_protocol::Annotated;
 
     use super::*;
 
@@ -474,7 +477,7 @@ mod tests {
         .unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        store::light_normalize_event(
+        relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 breakdowns_config: Some(&breakdowns_config),
@@ -669,7 +672,11 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
+        relay_event_normalization::light_normalize_event(
+            &mut event,
+            LightNormalizationConfig::default(),
+        )
+        .unwrap();
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -756,7 +763,11 @@ mod tests {
 
         // Normalize first, to make sure the units are correct:
         let mut event = Annotated::from_json(json).unwrap();
-        store::light_normalize_event(&mut event, LightNormalizationConfig::default()).unwrap();
+        relay_event_normalization::light_normalize_event(
+            &mut event,
+            LightNormalizationConfig::default(),
+        )
+        .unwrap();
 
         let config: TransactionMetricsConfig = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -888,7 +899,7 @@ mod tests {
             }
         ))
         .unwrap();
-        store::light_normalize_event(
+        relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 measurements_config: Some(&measurements_config),
@@ -1399,7 +1410,10 @@ mod tests {
 
         let mut event = Annotated::from_json(json).unwrap();
         // Normalize first, to make sure that the metrics were computed:
-        let _ = store::light_normalize_event(&mut event, LightNormalizationConfig::default());
+        let _ = relay_event_normalization::light_normalize_event(
+            &mut event,
+            LightNormalizationConfig::default(),
+        );
 
         let config = TransactionMetricsConfig::default();
         let extractor = TransactionExtractor {
@@ -1445,7 +1459,10 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "id:ident");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "id:ident"
+        );
 
         let user = User {
             username: Annotated::new("username".to_owned()),
@@ -1454,7 +1471,10 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "username:username");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "username:username"
+        );
 
         let user = User {
             email: Annotated::new("email".to_owned()),
@@ -1462,18 +1482,24 @@ mod tests {
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "email:email");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "email:email"
+        );
 
         let user = User {
             ip_address: Annotated::new("127.0.0.1".parse().unwrap()),
             ..User::default()
         };
 
-        assert_eq!(get_eventuser_tag(&user).unwrap(), "ip:127.0.0.1");
+        assert_eq!(
+            normalize_utils::get_eventuser_tag(&user).unwrap(),
+            "ip:127.0.0.1"
+        );
 
         let user = User::default();
 
-        assert!(get_eventuser_tag(&user).is_none());
+        assert!(normalize_utils::get_eventuser_tag(&user).is_none());
     }
 
     #[test]

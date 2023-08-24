@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
@@ -877,12 +877,12 @@ impl Project {
 mod tests {
     use std::sync::Arc;
 
-    use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
-    use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use relay_common::time::UnixTimestamp;
+    use relay_metrics::{BucketValue, MetricValue};
     use relay_test::mock_service;
     use serde_json::json;
 
-    use super::{Config, Project, ProjectState, StateChannel};
+    use super::*;
 
     #[test]
     fn get_state_expired() {

@@ -36,7 +36,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;

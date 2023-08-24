@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use relay_sampling::{
     DynamicSamplingContext, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,
     SamplingRule, SamplingValue,

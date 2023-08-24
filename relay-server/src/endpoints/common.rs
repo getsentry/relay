@@ -2,7 +2,7 @@
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use relay_general::protocol::{EventId, EventType};
+use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;

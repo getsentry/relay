@@ -14,53 +14,52 @@ use chrono::{DateTime, Duration as SignedDuration, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use once_cell::sync::OnceCell;
-use relay_profiling::ProfileError;
-use serde_json::Value as SerdeValue;
-use tokio::sync::Semaphore;
-
-use crate::actors::global_config::{GlobalConfigManager, Subscribe};
-use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
-use crate::service::ServiceError;
 use relay_auth::RelayVersion;
-use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
+use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{
     ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
 };
-use relay_filter::FilterStatKey;
-use relay_general::pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
-use relay_general::processor::{process_value, ProcessingState};
-use relay_general::protocol::{
-    self, Breadcrumb, ClientReport, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp, IpAddr,
-    LenientString, Metrics, RelayInfo, Replay, ReplayError, SecurityReportType, SessionAggregates,
-    SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
-};
-use relay_general::protocol::{Contexts, OtelContext};
-use relay_general::store::GeoIpLookup;
-use relay_general::store::{
+use relay_event_normalization::replay::{self, ReplayError};
+use relay_event_normalization::{
     ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
 };
-use relay_general::types::{Annotated, Array, Empty, FromValue, Object, ProcessingAction, Value};
-use relay_general::user_agent::RawUserAgentInfo;
+use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
+use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
+use relay_event_schema::protocol::{
+    Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
+    IpAddr, LenientString, Metrics, OtelContext, RelayInfo, Replay, SecurityReportType,
+    SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext,
+    UserReport, Values,
+};
+use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace};
+use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
+use relay_profiling::ProfileError;
+use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
+use serde_json::Value as SerdeValue;
+use tokio::sync::Semaphore;
+
 #[cfg(feature = "processing")]
 use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_general::protocol::ProfileContext,
-    relay_general::store::{StoreConfig, StoreProcessor},
+    relay_event_normalization::{StoreConfig, StoreProcessor},
+    relay_event_schema::protocol::ProfileContext,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
+use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::ProjectCache;
@@ -68,10 +67,11 @@ use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::metrics_extraction::transactions::types::ExtractMetricsError;
+use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
+use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, get_sampling_key, log_transaction_name_metrics, transaction_source_tag,
-    ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
+    self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
 };
 
 /// The minimum clock drift for correction to apply.
@@ -239,7 +239,7 @@ impl ExtractedMetrics {
             // project_without_tracing         -> metrics goes to self
             // dependent_project_with_tracing  -> metrics goes to root
             // root_project_with_tracing       -> metrics goes to root == self
-            let sampling_project_key = get_sampling_key(envelope).unwrap_or(project_key);
+            let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
             project_cache.send(InsertMetrics::new(
                 sampling_project_key,
                 self.sampling_metrics,
@@ -591,7 +591,7 @@ impl EnvelopeProcessorService {
         let mut changed = false;
 
         let release = &attributes.release;
-        if let Err(e) = protocol::validate_release(release) {
+        if let Err(e) = relay_event_normalization::validate_release(release) {
             relay_log::trace!(
                 error = &e as &dyn Error,
                 release,
@@ -601,7 +601,7 @@ impl EnvelopeProcessorService {
         }
 
         if let Some(ref env) = attributes.environment {
-            if let Err(e) = protocol::validate_environment(env) {
+            if let Err(e) = relay_event_normalization::validate_environment(env) {
                 relay_log::trace!(
                     error = &e as &dyn Error,
                     env,
@@ -1287,15 +1287,15 @@ impl EnvelopeProcessorService {
             Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
 
         if let Some(replay_value) = replay.value_mut() {
-            replay_value.validate()?;
-            replay_value.normalize(client_ip, user_agent);
+            replay::validate(replay_value)?;
+            replay::normalize(replay_value, client_ip, user_agent);
         } else {
             return Err(ReplayError::NoContent);
         }
 
         if let Some(ref config) = config.pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            process_value(&mut replay, &mut processor, ProcessingState::root())
+            processor::process_value(&mut replay, &mut processor, ProcessingState::root())
                 .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
         }
 
@@ -1305,7 +1305,7 @@ impl EnvelopeProcessorService {
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            process_value(&mut replay, &mut processor, ProcessingState::root())
+            processor::process_value(&mut replay, &mut processor, ProcessingState::root())
                 .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
         }
 
@@ -1838,7 +1838,7 @@ impl EnvelopeProcessorService {
             if event.ty.value() == Some(&EventType::Transaction) {
                 metric!(
                     counter(RelayCounters::EventTransaction) += 1,
-                    source = transaction_source_tag(event),
+                    source = utils::transaction_source_tag(event),
                     platform =
                         PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
                     contains_slashes =
@@ -1882,7 +1882,7 @@ impl EnvelopeProcessorService {
 
         let mut processor = ClockDriftProcessor::new(sent_at, state.managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
-        process_value(&mut state.event, &mut processor, ProcessingState::root())
+        processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
             .map_err(|_| ProcessingError::InvalidTransaction)?;
 
         // Log timestamp delays for all events after clock drift correction. This happens before
@@ -1950,7 +1950,7 @@ impl EnvelopeProcessorService {
         let mut store_processor =
             StoreProcessor::new(store_config, self.inner.geoip_lookup.as_ref());
         metric!(timer(RelayTimers::EventProcessingProcess), {
-            process_value(event, &mut store_processor, ProcessingState::root())
+            processor::process_value(event, &mut store_processor, ProcessingState::root())
                 .map_err(|_| ProcessingError::InvalidTransaction)?;
             if has_unprintable_fields(event) {
                 metric!(counter(RelayCounters::EventCorrupted) += 1);
@@ -2136,7 +2136,7 @@ impl EnvelopeProcessorService {
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())?;
+                processor::process_value(event, &mut processor, ProcessingState::root())?;
             }
             let pii_config = config
                 .datascrubbing_settings
@@ -2144,7 +2144,7 @@ impl EnvelopeProcessorService {
                 .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
             if let Some(config) = pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
-                process_value(event, &mut processor, ProcessingState::root())?;
+                processor::process_value(event, &mut processor, ProcessingState::root())?;
             }
         });
 
@@ -2384,7 +2384,7 @@ impl EnvelopeProcessorService {
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
-        log_transaction_name_metrics(&mut state.event, |event| {
+        utils::log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
@@ -2432,7 +2432,7 @@ impl EnvelopeProcessorService {
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                relay_general::store::light_normalize_event(event, config)
+                relay_event_normalization::light_normalize_event(event, config)
                     .map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
@@ -2611,7 +2611,7 @@ impl EnvelopeProcessorService {
             sent_at,
         } = message;
 
-        let received = relay_common::instant_to_date_time(start_time);
+        let received = relay_common::time::instant_to_date_time(start_time);
         let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
 
         let clock_drift_processor =
@@ -2815,12 +2815,14 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_common::glob2::LazyGlob;
     use similar_asserts::assert_eq;
 
-    use relay_common::{DurationUnit, MetricUnit, Uuid};
-    use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-    use relay_general::protocol::{EventId, TransactionSource};
-    use relay_general::store::{LazyGlob, MeasurementsConfig, RedactionRule, TransactionNameRule};
+    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
+    use relay_common::Uuid;
+    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
+    use relay_event_schema::protocol::{EventId, TransactionSource};
+    use relay_pii::DataScrubbingConfig;
     use relay_sampling::{
         RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -3265,7 +3267,7 @@ mod tests {
     async fn test_user_report_invalid() {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = services();
-        let event_id = protocol::EventId::new();
+        let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -3474,7 +3476,7 @@ mod tests {
     async fn test_browser_version_extraction_with_pii_like_data() {
         let processor = create_test_processor(Default::default());
         let (outcome_aggregator, test_store) = services();
-        let event_id = protocol::EventId::new();
+        let event_id = EventId::new();
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -3507,16 +3509,7 @@ mod tests {
         datascrubbing_settings.scrub_ip_addresses = true;
 
         // Make sure to mask any IP-like looking data
-        let pii_config = PiiConfig::from_json(
-            r#"
-                {
-                    "applications": {
-                        "**": ["@ip:mask"]
-                    }
-                }
-                "#,
-        )
-        .unwrap();
+        let pii_config = serde_json::from_str(r#"{"applications": {"**": ["@ip:mask"]}}"#).unwrap();
 
         let config = ProjectConfig {
             datascrubbing_settings,
@@ -3844,7 +3837,7 @@ mod tests {
             .set_value(Some(source));
 
         relay_statsd::with_capturing_test_client(|| {
-            log_transaction_name_metrics(&mut event, |event| {
+            utils::log_transaction_name_metrics(&mut event, |event| {
                 let config = LightNormalizationConfig {
                     transaction_name_config: TransactionNameConfig {
                         rules: &[TransactionNameRule {
@@ -3857,7 +3850,7 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                relay_general::store::light_normalize_event(event, config)
+                relay_event_normalization::light_normalize_event(event, config)
             })
             .unwrap();
         })
@@ -3977,63 +3970,5 @@ mod tests {
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         );
-    }
-
-    #[test]
-    fn test_geo_in_light_normalize() {
-        let mut event = Annotated::<Event>::from_json(
-            r#"
-            {
-                "type": "transaction",
-                "transaction": "/foo/",
-                "timestamp": 946684810.0,
-                "start_timestamp": 946684800.0,
-                "contexts": {
-                    "trace": {
-                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-                        "span_id": "fa90fdead5f74053",
-                        "op": "http.server",
-                        "type": "trace"
-                    }
-                },
-                "transaction_info": {
-                    "source": "url"
-                },
-                "user": {
-                    "ip_address": "2.125.160.216"
-                }
-            }
-            "#,
-        )
-        .unwrap();
-
-        let lookup =
-            GeoIpLookup::open("../relay-general/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
-                .unwrap();
-        let config = LightNormalizationConfig {
-            geoip_lookup: Some(&lookup),
-            ..Default::default()
-        };
-
-        // Extract user's geo information before normalization.
-        let user_geo = event.value().unwrap().user.value().unwrap().geo.value();
-
-        assert!(user_geo.is_none());
-
-        relay_general::store::light_normalize_event(&mut event, config).unwrap();
-
-        // Extract user's geo information after normalization.
-        let user_geo = event
-            .value()
-            .unwrap()
-            .user
-            .value()
-            .unwrap()
-            .geo
-            .value()
-            .unwrap();
-
-        assert_eq!(user_geo.country_code.value().unwrap(), "GB");
-        assert_eq!(user_geo.city.value().unwrap(), "Boxford");
     }
 }

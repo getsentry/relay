@@ -107,7 +107,7 @@ mod sample;
 mod transaction_metadata;
 mod utils;
 
-use relay_general::protocol::{Event, EventId};
+use relay_event_schema::protocol::{Event, EventId};
 
 use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
 

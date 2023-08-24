@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter, MethodRouter};
 use relay_common::Uuid;
 use relay_config::Config;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use relay_monitors::{CheckIn, CheckInStatus};
 use serde::Deserialize;
 

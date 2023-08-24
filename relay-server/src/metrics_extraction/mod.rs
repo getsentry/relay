@@ -1,4 +1,4 @@
-use relay_common::UnixTimestamp;
+use relay_common::time::UnixTimestamp;
 use relay_metrics::Metric;
 
 mod generic;

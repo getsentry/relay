@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DataCategory, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
+use relay_quotas::DataCategory;
 use relay_sampling::FieldValueProvider;
 
 /// Item from which metrics can be extracted.
@@ -135,8 +136,8 @@ fn read_metric_value(
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::Event;
-    use relay_general::types::FromValue;
+    use relay_event_schema::protocol::Event;
+    use relay_protocol::FromValue;
     use serde_json::json;
 
     use super::*;

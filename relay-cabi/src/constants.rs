@@ -1,4 +1,5 @@
-pub use relay_common::{DataCategory, EventType, SpanStatus};
+use relay_base_schema::data_category::DataCategory;
+use relay_base_schema::events::EventType;
 
 use crate::core::RelayStr;
 

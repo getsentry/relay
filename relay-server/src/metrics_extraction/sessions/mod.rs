@@ -1,5 +1,6 @@
-use relay_common::{UnixTimestamp, Uuid};
-use relay_general::protocol::{
+use relay_common::time::UnixTimestamp;
+use relay_common::Uuid;
+use relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
 use relay_metrics::Metric;
@@ -177,7 +178,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
+    use relay_event_schema::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
     use relay_metrics::MetricValue;
 
     use super::*;

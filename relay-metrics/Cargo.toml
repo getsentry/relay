@@ -15,6 +15,7 @@ float-ord = "0.3.1"
 fnv = "1.0.7"
 hash32 = "0.3.1"
 itertools = "0.10.5"
+relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log" }
 relay-statsd = { path = "../relay-statsd" }
