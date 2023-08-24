@@ -74,7 +74,7 @@ fn app() -> Html {
 }
 
 #[function_component(Stats)]
-fn app() -> Html {
+fn stats() -> Html {
     html! {
         <div class="padding">
             <Logs/>
