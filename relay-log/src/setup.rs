@@ -205,7 +205,7 @@ struct LogsWriter;
 #[cfg(feature = "admin")]
 impl std::io::Write for LogsWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let (ref tx, _) = *LOGS;
+        let tx = &*LOGS;
         let buf_len = buf.len();
         tx.send(buf.to_vec()).ok();
         Ok(buf_len)

@@ -7,13 +7,12 @@ use once_cell::sync::Lazy;
 use tokio::sync::broadcast;
 use tracing::Level;
 
-/// Broadcast channel type.
-#[cfg(feature = "admin")]
-pub type BroadcastChannel<T> = (broadcast::Sender<T>, broadcast::Receiver<T>);
-
 /// Channel to deliver logs.
 #[cfg(feature = "admin")]
-pub static LOGS: Lazy<BroadcastChannel<Vec<u8>>> = Lazy::new(|| broadcast::channel(2000));
+pub static LOGS: Lazy<broadcast::Sender<Vec<u8>>> = Lazy::new(|| {
+    let (tx, _) = broadcast::channel(2000);
+    tx
+});
 
 /// Returns `true` if backtrace printing is enabled.
 ///
