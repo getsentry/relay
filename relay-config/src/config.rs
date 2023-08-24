@@ -488,6 +488,10 @@ struct Metrics {
     ///
     /// Defaults to `true`.
     buffering: bool,
+    /// Emitted metrics will be aggregated to optimize bandwidth.
+    ///
+    /// Defaults to `false`.
+    aggregation: bool,
     /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
@@ -503,6 +507,7 @@ impl Default for Metrics {
             default_tags: BTreeMap::new(),
             hostname_tag: None,
             buffering: true,
+            aggregation: false,
             sample_rate: 1.0,
         }
     }
@@ -1688,6 +1693,11 @@ impl Config {
     /// Returns true if metrics buffering is enabled, false otherwise.
     pub fn metrics_buffering(&self) -> bool {
         self.values.metrics.buffering
+    }
+
+    /// Returns true if metrics aggregation is enabled, false otherwise.
+    pub fn metrics_aggregation(&self) -> bool {
+        self.values.metrics.aggregation
     }
 
     /// Returns the global sample rate for all metrics.

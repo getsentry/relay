@@ -14,6 +14,7 @@ cadence = "0.29.0"
 parking_lot = "0.12.1"
 rand = "0.8.5"
 relay-log = { path = "../relay-log" }
+statsdproxy = { git = "https://github.com/getsentry/statsdproxy", default-features = false, features = ["cadence"] }
 
 [features]
 default = []
