@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::error::Error;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -11,7 +10,7 @@ use gloo_net::websocket::{futures::WebSocket, Message};
 use yew::platform::time::sleep;
 use yew::prelude::*;
 
-// mod stats;
+mod stats;
 
 const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
 const MAX_LOG_SIZE: usize = 1000;
@@ -24,7 +23,7 @@ fn app() -> Html {
 
             <div class="stats-container">
                 <Logs/>
-                // <stats::Stats/>
+                <stats::Stats/>
             </div>
         </>
     }
