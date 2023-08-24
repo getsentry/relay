@@ -341,8 +341,13 @@ pub struct PiiAttachmentsProcessor<'a> {
 
 /// Which encodings to scrub for `scrub_bytes`.
 pub enum ScrubEncodings {
+    /// Scrub UTF-8.
     Utf8,
+
+    /// Scrub UTF-16LE (little endian).
     Utf16Le,
+
+    /// Attempt to scrub in all available encodings.
     All,
 }
 

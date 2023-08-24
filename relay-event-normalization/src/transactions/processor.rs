@@ -34,6 +34,7 @@ pub struct TransactionsProcessor<'r> {
 }
 
 impl<'r> TransactionsProcessor<'r> {
+    /// Creates a new `TransactionsProcessor` instance.
     pub fn new(
         name_config: TransactionNameConfig<'r>,
         enrich_spans: bool,
@@ -376,7 +377,7 @@ fn scrub_identifiers_with_regex(
 }
 
 fn end_all_spans(event: &mut Event) -> ProcessingResult {
-    let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+    let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     for span in spans {
         if let Some(span) = span.value_mut() {
             if span.timestamp.value().is_none() {

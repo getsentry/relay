@@ -132,6 +132,7 @@ pub fn get_eventuser_tag(user: &User) -> Option<String> {
     None
 }
 
+/// Returns a normalized `op` from the given trace context.
 pub fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
     let op = trace_context.op.value()?;
     if op == "default" {

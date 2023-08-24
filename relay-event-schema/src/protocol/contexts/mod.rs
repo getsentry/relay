@@ -34,8 +34,10 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 
-/// Operation type such as `db.statement` for database queries or `http` for external HTTP calls.
-/// Tries to follow OpenCensus/OpenTracing's span types.
+/// A span's operation type.
+///
+/// Tries to follow OpenCensus/OpenTracing's span types. Examples are `db.statement` for database
+/// queries or `http` for external HTTP calls.
 pub type OperationType = String;
 
 /// Origin type such as `auto.http`.

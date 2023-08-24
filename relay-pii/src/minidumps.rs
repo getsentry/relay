@@ -18,17 +18,22 @@ use utf16string::{Utf16Error, WStr};
 
 use crate::{PiiAttachmentsProcessor, ScrubEncodings};
 
+/// An error returned from [`PiiAttachmentsProcessor::scrub_minidump`].
 #[derive(Debug, thiserror::Error)]
 pub enum ScrubMinidumpError {
+    /// Failed to parse open or parse the minidump.
     #[error("failed to parse minidump")]
     InvalidMinidump(#[from] MinidumpError),
 
+    /// The minidump contains an invalid memory address.
     #[error("invalid memory address")]
     InvalidAddress,
 
+    /// Minidump offsets out of usize range.
     #[error("minidump offsets out of usize range")]
     OutOfRange,
 
+    /// A UTF-8 or prefix string in the minidump could not be decoded.
     #[error("string decoding error")]
     Decoding,
 }

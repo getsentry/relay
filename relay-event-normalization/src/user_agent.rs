@@ -67,14 +67,17 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
         );
     }
 
+    /// Returns `true`, if neither a user agent nor client hints are available.
     pub fn is_empty(&self) -> bool {
         self.user_agent.is_none() && self.client_hints.is_empty()
     }
 }
 
 impl RawUserAgentInfo<String> {
+    /// The name of the user agent HTTP header.
     pub const USER_AGENT: &str = "User-Agent";
 
+    /// Converts to a borrowed `RawUserAgentInfo`.
     pub fn as_deref(&self) -> RawUserAgentInfo<&str> {
         RawUserAgentInfo::<&str> {
             user_agent: self.user_agent.as_deref(),
@@ -84,6 +87,10 @@ impl RawUserAgentInfo<String> {
 }
 
 impl<'a> RawUserAgentInfo<&'a str> {
+    /// Computes a borrowed `RawUserAgentInfo` from the given HTTP headers.
+    ///
+    /// This extracts both the user agent as well as client hints if available. Use
+    /// [`is_empty`](Self::is_empty) to check whether information could be extracted.
     pub fn from_headers(headers: &'a Headers) -> Self {
         let mut contexts: RawUserAgentInfo<&str> = Self::default();
 
@@ -148,9 +155,37 @@ where
 }
 
 impl ClientHints<String> {
+    /// Provides the platform or operating system on which the user agent is running.
+    ///
+    /// For example: `"Windows"` or `"Android"`.
+    ///
+    /// `Sec-CH-UA-Platform` is a low entropy hint. Unless blocked by a user agent permission
+    /// policy, it is sent by default (without the server opting in by sending `Accept-CH`).
     pub const SEC_CH_UA_PLATFORM: &str = "SEC-CH-UA-Platform";
+
+    /// Provides the version of the operating system on which the user agent is running.
     pub const SEC_CH_UA_PLATFORM_VERSION: &str = "SEC-CH-UA-Platform-Version";
+
+    /// Provides the user agent's branding and significant version information.
+    ///
+    /// A brand is a commercial name for the user agent like: Chromium, Opera, Google Chrome,
+    /// Microsoft Edge, Firefox, and Safari. A user agent might have several associated brands. For
+    /// example, Opera, Chrome, and Edge are all based on Chromium, and will provide both brands in
+    /// the `Sec-CH-UA` header.
+    ///
+    /// The significant version is the "marketing" version identifier that is used to distinguish
+    /// between major releases of the brand. For example a Chromium build with full version number
+    /// "96.0.4664.45" has a significant version number of "96".
+    ///
+    /// The header may include "fake" brands in any position and with any name. This is a feature
+    /// designed to prevent servers from rejecting unknown user agents outright, forcing user agents
+    /// to lie about their brand identity.
+    ///
+    /// `Sec-CH-UA` is a low entropy hint. Unless blocked by a user agent permission policy, it is
+    /// sent by default (without the server opting in by sending `Accept-CH`).
     pub const SEC_CH_UA: &str = "SEC-CH-UA";
+
+    /// Indicates the device model on which the browser is running.
     pub const SEC_CH_UA_MODEL: &str = "SEC-CH-UA-Model";
 
     /// Returns an instance of `ClientHints` that borrows from the original data.

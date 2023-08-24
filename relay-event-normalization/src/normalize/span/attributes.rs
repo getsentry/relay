@@ -105,7 +105,7 @@ fn compute_span_exclusive_time(event: &mut Event) {
         _ => return,
     };
 
-    let spans = event.spans.value_mut().get_or_insert_with(|| Vec::new());
+    let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
 
     let mut span_map = HashMap::new();
     for span in spans.iter() {

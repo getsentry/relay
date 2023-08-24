@@ -5,8 +5,12 @@ use relay_common::glob2::LazyGlob;
 use relay_event_schema::protocol::OperationType;
 use serde::{Deserialize, Serialize};
 
+/// Object containing transaction attributes the rules must only be applied to.
+///
+/// This is part of [`SpanDescriptionRule`].
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Eq, PartialEq)]
 pub struct SpanDescriptionRuleScope {
+    /// The span operation type to match on.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub op: OperationType,
 }
@@ -20,10 +24,16 @@ fn default_substitution() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum RedactionRule {
+    /// Replaces the matched pattern with a placeholder.
     Replace {
+        /// The string to substitute with.
+        ///
+        /// Defaults to `"*"`.
         #[serde(default = "default_substitution")]
         substitution: String,
     },
+
+    /// Unsupported redaction rule for forward compatibility.
     #[serde(other)]
     Unknown,
 }

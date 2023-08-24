@@ -2234,7 +2234,7 @@ impl EnvelopeProcessorService {
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
         // For now, drop any spans submitted by the SDK.
 
-        use relay_general::protocol::Span;
+        use relay_event_schema::protocol::Span;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Span => ItemAction::DropSilently,
             _ => ItemAction::Keep,

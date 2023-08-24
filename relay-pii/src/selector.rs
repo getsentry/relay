@@ -9,24 +9,30 @@ use smallvec::SmallVec;
 
 use relay_event_schema::processor::{Pii, ProcessingState, ValueType};
 
-/// Error for invalid selectors
+/// Error for invalid PII selectors.
 #[derive(Debug, thiserror::Error)]
 pub enum InvalidSelectorError {
-    #[error("invalid selector: deep wildcard used more than once")]
+    /// Deep wildcard used more than once.
+    #[error("deep wildcard used more than once")]
     InvalidDeepWildcard,
 
-    #[error("invalid selector: wildcard must be part of a path")]
+    /// Wildcard must be part of a path.
+    #[error("wildcard must be part of a path")]
     InvalidWildcard,
 
-    #[error("invalid selector: {0}")]
+    /// Invalid selector syntax.
+    #[error("{0}")]
     ParseError(Box<Error<Rule>>),
 
-    #[error("invalid selector: invalid index")]
+    /// Invalid index.
+    #[error("invalid index")]
     InvalidIndex,
 
-    #[error("invalid selector: unknown value")]
+    /// Unknown value.
+    #[error("unknown value")]
     UnknownType,
 
+    /// Internal parser bug: An unexpected item was consumed.
     #[error("parser bug: consumed {0} (expected {1})")]
     UnexpectedToken(String, &'static str),
 }
@@ -42,12 +48,18 @@ mod parser {
 
 use self::parser::{Rule, SelectorParser};
 
+/// A path component in a composit [`SelectorSpec`].
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SelectorPathItem {
+    /// The component refers to a value type.
     Type(ValueType),
+    /// The component refers to an array index.
     Index(usize),
+    /// The component refers to a key in an object.
     Key(String),
+    /// The component is a shallow wildcard (`*`).
     Wildcard,
+    /// The component is a deep wildcard (`**`).
     DeepWildcard,
 }
 
@@ -134,11 +146,16 @@ impl SelectorPathItem {
     }
 }
 
+/// A composit selector for paths into a nested structure.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum SelectorSpec {
+    /// A selector that matches both of two sub-selectors.
     And(Vec<SelectorSpec>),
+    /// A selector that matches either of two sub-selectors.
     Or(Vec<SelectorSpec>),
+    /// A selector that matches all paths that do not match the sub-selector.
     Not(Box<SelectorSpec>),
+    /// A direct path to an item.
     Path(Vec<SelectorPathItem>),
 }
 

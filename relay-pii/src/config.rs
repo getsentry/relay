@@ -15,8 +15,10 @@ pub(crate) fn is_flag_default(flag: &bool) -> bool {
     !*flag
 }
 
+/// An error returned when parsing [`PiiConfig`].
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum PiiConfigError {
+    /// A match pattern in a PII rule config could not be parsed.
     #[error("could not parse pattern")]
     RegexError(#[source] regex::Error),
 }
@@ -150,7 +152,7 @@ pub struct RedactPairRule {
     pub key_pattern: LazyPattern,
 }
 
-/// Supported stripping rules.
+/// Supported scrubbing rules.
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RuleType {
@@ -196,8 +198,11 @@ pub enum RuleType {
 /// A single rule configuration.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct RuleSpec {
+    /// The matching rule to apply on fields.
     #[serde(flatten)]
     pub ty: RuleType,
+
+    /// The redaction to apply on matched fields.
     #[serde(default)]
     pub redaction: Redaction,
 }

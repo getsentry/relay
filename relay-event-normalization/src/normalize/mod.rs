@@ -859,11 +859,21 @@ pub struct LightNormalizationConfig<'a> {
     /// When `true`, infers the device class from CPU and model.
     pub device_class_synthesis_config: bool,
 
+    /// When `true`, extracts tags from event and spans and materializes them into `span.data`.
     pub enrich_spans: bool,
+
+    /// When `true`, computes and materializes attributes in spans based on the given configuration.
     pub light_normalize_spans: bool,
+
+    /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
     pub max_tag_value_length: usize, // TODO: move span related fields into separate config.
+
+    /// Configuration for replacing identifiers in the span description with placeholders.
+    ///
+    /// This is similar to `transaction_name_config`, but applies to span descriptions.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 
+    /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 
     /// When `Some(true)`, individual parts of the event payload is trimmed to a maximum size.

@@ -20,7 +20,9 @@ const MOBILE_SDKS: [&str; 4] = [
     "sentry.javascript.react-native",
 ];
 
+/// A list of supported span tags for tag extraction.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[allow(missing_docs)]
 pub enum SpanTagKey {
     // Specific to a transaction
     Release,

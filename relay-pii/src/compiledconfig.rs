@@ -4,15 +4,17 @@ use std::collections::BTreeSet;
 use crate::builtin::BUILTIN_RULES_MAP;
 use crate::{PiiConfig, PiiConfigError, Redaction, RuleSpec, RuleType, SelectorSpec};
 
-/// A representation of `PiiConfig` that is more (CPU-)efficient for use in `PiiProcessor`. It is
-/// lossy in the sense that it cannot be consumed by downstream relays, so both versions have to be
-/// kept around.
+/// A representation of `PiiConfig` that is more (CPU-)efficient for use in `PiiProcessor`.
+///
+/// It is lossy in the sense that it cannot be consumed by downstream Relays, so both versions have
+/// to be kept around.
 #[derive(Debug, Clone)]
 pub struct CompiledPiiConfig {
     pub(super) applications: Vec<(SelectorSpec, BTreeSet<RuleRef>)>,
 }
 
 impl CompiledPiiConfig {
+    /// Computes the compiled PII config.
     pub fn new(config: &PiiConfig) -> Self {
         let mut applications = Vec::new();
         for (selector, rules) in &config.applications {
