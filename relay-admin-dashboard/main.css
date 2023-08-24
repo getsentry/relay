@@ -24,12 +24,12 @@ body {
   overflow: auto;
 }
 
-.chart-container {
+.card.chart-container {
   border: solid 1px #eee;
   width: 400px;
   float: left;
   margin-right: 1em;
-  margin-left: 1ex;
+  margin-bottom: 1ex;
 }
 
 .stats-container {
