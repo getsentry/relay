@@ -1,7 +1,7 @@
 use relay_auth::{KeyParseError, UnpackError};
+use relay_event_normalization::GeoIpError;
+use relay_event_schema::processor::ProcessingAction;
 use relay_ffi::Panic;
-use relay_general::store::GeoIpError;
-use relay_general::types::ProcessingAction;
 use sentry_release_parser::InvalidRelease;
 
 use crate::core::RelayStr;
@@ -26,7 +26,7 @@ pub enum RelayErrorCode {
     UnpackErrorSignatureExpired = 1005,
     UnpackErrorBadEncoding = 1006,
 
-    // relay_general::types::annotated::ProcessingAction
+    // relay_protocol::annotated::ProcessingAction
     ProcessingErrorInvalidTransaction = 2001,
     ProcessingErrorInvalidGeoIp = 2002,
 

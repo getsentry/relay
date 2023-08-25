@@ -11,11 +11,10 @@
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::net::IpAddr;
 
-use relay_general::protocol::Event;
+use relay_event_schema::protocol::Event;
 
 pub mod browser_extensions;
 pub mod client_ips;

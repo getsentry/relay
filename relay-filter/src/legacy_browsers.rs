@@ -2,15 +2,15 @@
 
 use std::collections::BTreeSet;
 
-use relay_general::protocol::Event;
-use relay_general::user_agent::{self, UserAgent};
+use relay_event_schema::protocol::Event;
+use relay_ua::UserAgent;
 
 use crate::{FilterStatKey, LegacyBrowser, LegacyBrowsersFilterConfig};
 
 /// Checks if the event originates from legacy browsers.
 pub fn matches(event: &Event, browsers: &BTreeSet<LegacyBrowser>) -> bool {
-    if let Some(user_agent_string) = user_agent::get_user_agent(&event.request) {
-        let user_agent = user_agent::parse_user_agent(user_agent_string);
+    if let Some(user_agent_string) = event.user_agent() {
+        let user_agent = relay_ua::parse_user_agent(user_agent_string);
 
         // remap IE Mobile to IE (sentry python, filter compatibility)
         let family = match user_agent.family.as_ref() {

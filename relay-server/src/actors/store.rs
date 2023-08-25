@@ -7,9 +7,13 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
-use relay_common::{ProjectId, UnixTimestamp, Uuid};
+use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
+use relay_common::uuid::Uuid;
 use relay_config::Config;
-use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
+use relay_event_schema::protocol::{
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
@@ -1030,7 +1034,7 @@ struct CheckInKafkaMessage {
 
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage {
-    /// Raw span data. See [`relay_general::protocol::Span`] for schema.
+    /// Raw span data. See [`relay_event_schema::protocol::Span`] for schema.
     span: serde_json::Value,
     /// Time at which the span was received by Relay.
     start_time: u64,
@@ -1141,7 +1145,7 @@ fn is_slow_item(item: &Item) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::ProjectKey;
+    use relay_base_schema::project::ProjectKey;
 
     use super::*;
 

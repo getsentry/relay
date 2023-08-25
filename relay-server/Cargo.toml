@@ -26,13 +26,23 @@ processing = [
 
 [dependencies]
 anyhow = "1.0.66"
-axum = { version = "0.6.15", features = ["headers", "macros", "matched-path", "multipart", "tracing"] }
+axum = { version = "0.6.15", features = [
+    "headers",
+    "macros",
+    "matched-path",
+    "multipart",
+    "tracing",
+] }
 axum-server = "0.4.7"
 backoff = "0.4.0"
 brotli = "3.3.4"
 bytecount = "0.6.0"
 bytes = { version = "1.4.0" }
-chrono = { version = "0.4.24", default-features = false, features = ["clock", "std", "serde"] }
+chrono = { version = "0.4.24", default-features = false, features = [
+    "clock",
+    "std",
+    "serde",
+] }
 data-encoding = "2.3.3"
 flate2 = "1.0.19"
 futures = "0.3"
@@ -47,39 +57,67 @@ parking_lot = "0.12.1"
 regex = "1.9.1"
 relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
+relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
-relay-dynamic-config = { path = "../relay-dynamic-config"}
+relay-dynamic-config = { path = "../relay-dynamic-config" }
+relay-event-normalization = { path = "../relay-event-normalization" }
+relay-event-schema = { path = "../relay-event-schema" }
 relay-filter = { path = "../relay-filter" }
-relay-general = { path = "../relay-general" }
 relay-kafka = { path = "../relay-kafka", optional = true }
 relay-log = { path = "../relay-log", features = ["sentry"] }
 relay-metrics = { path = "../relay-metrics" }
 relay-monitors = { path = "../relay-monitors" }
+relay-pii = { path = "../relay-pii" }
 relay-profiling = { path = "../relay-profiling" }
+relay-protocol = { path = "../relay-protocol" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 relay-replays = { path = "../relay-replays" }
 relay-sampling = { path = "../relay-sampling" }
 relay-statsd = { path = "../relay-statsd" }
 relay-system = { path = "../relay-system" }
-reqwest = { version = "0.11.1", features = ["gzip", "stream", "trust-dns", "native-tls-vendored"] }
+reqwest = { version = "0.11.1", features = [
+    "gzip",
+    "stream",
+    "trust-dns",
+    "native-tls-vendored",
+] }
 rmp-serde = "1.1.1"
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 smallvec = { version = "1.4.0", features = ["serde"] }
-sqlx = { version = "0.7.0", features = ["macros", "migrate", "sqlite", "runtime-tokio"], default-features=false }
-symbolic-common = { version = "12.1.2", optional = true, default-features=false }
-symbolic-unreal = { version = "12.1.2", optional = true, default-features=false, features=["serde"] }
+sqlx = { version = "0.7.0", features = [
+    "macros",
+    "migrate",
+    "sqlite",
+    "runtime-tokio",
+], default-features = false }
+symbolic-common = { version = "12.1.2", optional = true, default-features = false }
+symbolic-unreal = { version = "12.1.2", optional = true, default-features = false, features = [
+    "serde",
+] }
 thiserror = "1.0.38"
 tokio = { version = "1.28.0", features = ["rt-multi-thread", "sync", "macros"] }
 tower = { version = "0.4.13", default-features = false }
-tower-http = { version = "0.4.0", default-features = false, features = ["catch-panic", "cors", "decompression-br", "decompression-deflate", "decompression-gzip", "set-header", "trace"] }
+tower-http = { version = "0.4.0", default-features = false, features = [
+    "catch-panic",
+    "cors",
+    "decompression-br",
+    "decompression-deflate",
+    "decompression-gzip",
+    "set-header",
+    "trace",
+] }
 url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
-insta = { version = "1.19.0", features = ["json"] }
+insta = { version = "1.31.0", features = ["json", "yaml"] }
+relay-event-schema = { path = "../relay-event-schema", features = [
+    "jsonschema",
+] }
+relay-protocol = { path = "../relay-protocol", features = ["test"] }
 relay-test = { path = "../relay-test" }
 similar-asserts = "1.4.2"
 tempfile = "3.5.0"

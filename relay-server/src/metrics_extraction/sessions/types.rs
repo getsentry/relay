@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
-use relay_common::{MetricUnit, UnixTimestamp, Uuid};
-use relay_general::protocol::SessionStatus;
-use relay_metrics::{CounterType, Metric, MetricNamespace, MetricValue};
+use relay_common::time::UnixTimestamp;
+use relay_common::uuid::Uuid;
+use relay_event_schema::protocol::SessionStatus;
+use relay_metrics::{CounterType, Metric, MetricNamespace, MetricUnit, MetricValue};
 
 use crate::metrics_extraction::IntoMetric;
 

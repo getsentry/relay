@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_system::{Addr, FromMessage, NoResponse, Recipient, Service};
 use serde::{Deserialize, Serialize};
 

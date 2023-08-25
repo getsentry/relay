@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::sync::Arc;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
 use tokio::sync::mpsc;
@@ -192,9 +192,7 @@ impl Service for LocalProjectSourceService {
 mod tests {
     use std::str::FromStr;
 
-    use relay_common::{ProjectId, ProjectKey};
-
-    use super::load_local_states;
+    use super::*;
     use crate::actors::project::{ProjectState, PublicKeyConfig};
 
     /// Tests that we can follow the symlinks and read the project file properly.

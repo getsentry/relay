@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
