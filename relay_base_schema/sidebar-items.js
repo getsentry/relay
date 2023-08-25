@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["data_category","events","metrics","project","spans"]};

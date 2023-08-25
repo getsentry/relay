@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["glob_match","glob_match_bytes"],"struct":["GlobOptions"]};

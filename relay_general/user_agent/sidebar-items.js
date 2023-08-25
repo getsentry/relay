@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["get_user_agent","init_parser","parse_device","parse_os","parse_user_agent"],"struct":["ClientHints","Device","OS","RawUserAgentInfo","UserAgent"]};

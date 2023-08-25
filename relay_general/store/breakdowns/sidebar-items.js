@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["BreakdownConfig"],"fn":["get_breakdown_measurements","normalize_breakdowns"],"struct":["BreakdownsConfig","SpanOperationsConfig","TimeWindowSpan"],"trait":["EmitBreakdowns"]};

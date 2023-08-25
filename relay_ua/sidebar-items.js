@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["init_parser","parse_device","parse_os","parse_user_agent"],"struct":["Device","OS","UserAgent"]};

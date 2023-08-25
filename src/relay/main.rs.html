@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-f3501f0f5ae15dfb.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay" data-themes="" data-resource-suffix="" data-rustdoc-version="1.71.1 (eb26296b5 2023-08-03)" data-search-js="search-4926e5fc22a5646a.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-f0540c1d82cde29b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9bb858ba049f1f21.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0 (5680fa18f 2023-08-23)" data-channel="1.72.0" data-search-js="search-f6292fe389d70017.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ><script src="../../static.files/storage-59fd9b8ccb335783.js"></script><script defer src="../../static.files/source-script-106908c7a7964ba4.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../relay/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -127,6 +127,22 @@
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! &lt;p align=&quot;center&quot;&gt;
 //!   &lt;img src=&quot;https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true&quot; alt=&quot;Relay&quot; width=&quot;480&quot;&gt;
 //! &lt;/p&gt;
@@ -162,28 +178,36 @@
 //!  - `relay`: Main entry point and command line interface.
 //!  - [`relay-auth`]: Authentication and crypto.
 //!  - [`relay-aws-extension`]: AWS extension implementation for Sentry&#39;s AWS Lambda layer.
+//!  - [`relay-base-schema`]: Basic types for Relay&#39;s API schema used across multiple services.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
 //!  - [`relay-crash`]: Crash reporting for the Relay server.
-//!  - [`relay-monitors`]: Monitors protocol and processing for Sentry.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
+//!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
+//!  - [`relay-event-normalization`]: Event normalization and processing.
+//!  - [`relay-event-schema`]: Event schema (Error, Transaction, Security) and types for event processing.
 //!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
 //!  - [`relay-filter`]: Inbound data filters.
-//!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
+//!  - [`relay-jsonschema-derive`]: Derive for JSON schema on Relay protocol types.
 //!  - [`relay-kafka`]: Kafka-related functionality.
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-metrics`]: Metrics protocol and processing.
+//!  - [`relay-monitors`]: Monitors protocol and processing for Sentry.
+//!  - [`relay-pii`]: Scrubbing of personally identifiable information (PII) from events
 //!  - [`relay-profiling`]: Profiling protocol and processing.
+//!  - [`relay-protocol`]: Types and traits for building JSON-based protocols and schemas.
+//!  - [`relay-protocol-derive`]: Derives for Relay&#39;s protocol traits.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
 //!  - [`relay-replays`]: Session replay protocol and processing.
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
-//!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-server`]: Endpoints and services.
+//!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-system`]: Foundational system components for Relay&#39;s services.
 //!  - [`relay-test`]: Helpers for testing the web server and services.
+//!  - [`relay-ua`]: User agent parser with built-in rules.
 //!
 //! # Tools
 //!
@@ -198,28 +222,36 @@
 //! [relay documentation]: https://docs.sentry.io/product/relay/
 //! [`relay-auth`]: ../relay_auth/index.html
 //! [`relay-aws-extension`]: ../relay_aws_extension/index.html
+//! [`relay-base-schema`]: ../relay_base_schema/index.html
 //! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-crash`]: ../relay_crash/index.html
-//! [`relay-monitors`]: ../relay_monitors/index.html
 //! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
+//! [`relay-event-derive`]: ../relay_event_derive/index.html
+//! [`relay-event-normalization`]: ../relay_event_normalization/index.html
+//! [`relay-event-schema`]: ../relay_event_schema/index.html
 //! [`relay-ffi`]: ../relay_ffi/index.html
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html
-//! [`relay-general`]: ../relay_general/index.html
+//! [`relay-jsonschema-derive`]: ../relay_jsonschema_derive/index.html
 //! [`relay-kafka`]: ../relay_kafka/index.html
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-metrics`]: ../relay_metrics/index.html
+//! [`relay-monitors`]: ../relay_monitors/index.html
+//! [`relay-pii`]: ../relay_pii/index.html
 //! [`relay-profiling`]: ../relay_profiling/index.html
+//! [`relay-protocol`]: ../relay_protocol/index.html
+//! [`relay-protocol-derive`]: ../relay_protocol_derive/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
 //! [`relay-replays`]: ../relay_replays/index.html
 //! [`relay-sampling`]: ../relay_sampling/index.html
-//! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-server`]: ../relay_server/index.html
+//! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-system`]: ../relay_system/index.html
 //! [`relay-test`]: ../relay_test/index.html
+//! [`relay-ua`]: ../relay_ua/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
 //! [`process-event`]: ../process_event/index.html
