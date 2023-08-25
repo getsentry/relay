@@ -11,4 +11,5 @@ publish = false
 [dependencies]
 anyhow = "1.0.32"
 clap = { version = "4.1.4", features = ["derive"] }
-relay-general = { path = "../../relay-general" }
+relay-pii = { path = "../../relay-pii" }
+serde_json = "1.0.55"

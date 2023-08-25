@@ -8,7 +8,8 @@ use std::{fmt, mem};
 
 use float_ord::FloatOrd;
 use fnv::FnvHasher;
-use relay_common::{MonotonicResult, ProjectKey, UnixTimestamp};
+use relay_base_schema::project::ProjectKey;
+use relay_common::time::{MonotonicResult, UnixTimestamp};
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,

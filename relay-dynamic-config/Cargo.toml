@@ -16,9 +16,11 @@ default = []
 anyhow = "1.0.66"
 assert-json-diff = "2.0.2"
 relay-auth = { path = "../relay-auth" }
+relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-filter = { path = "../relay-filter" }
-relay-general = { path = "../relay-general" }
+relay-event-normalization = { path = "../relay-event-normalization" }
+relay-pii = { path = "../relay-pii" }
 relay-quotas = { path = "../relay-quotas" }
 relay-sampling = { path = "../relay-sampling" }
 serde = { version = "1.0.114", features = ["derive"] }
@@ -26,5 +28,5 @@ serde_json = "1.0.55"
 smallvec = "1.10.0"
 
 [dev-dependencies]
-insta = "1.26.0"
+insta = "1.31.0"
 similar-asserts = "1.4.2"

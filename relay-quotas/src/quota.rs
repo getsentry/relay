@@ -1,9 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+#[doc(inline)]
+pub use relay_base_schema::data_category::DataCategory;
 
 /// Data scoping information.
 ///
@@ -84,9 +87,6 @@ impl ItemScoping<'_> {
         categories.is_empty() || categories.iter().any(|cat| *cat == self.category)
     }
 }
-
-#[doc(inline)]
-pub use relay_common::DataCategory;
 
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,8 +1,8 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::{DateTime, Utc};
-use relay_common::{DataCategory, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
-use relay_quotas::{ItemScoping, Quota, RateLimits, Scoping};
+use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -242,7 +242,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::{Metric, MetricValue};
     use relay_quotas::{Quota, QuotaScope};
     use smallvec::smallvec;

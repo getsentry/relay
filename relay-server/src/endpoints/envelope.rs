@@ -10,7 +10,7 @@ use axum::routing::{post, MethodRouter};
 use axum::{Json, RequestExt};
 use bytes::Bytes;
 use relay_config::Config;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use serde::Serialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};

@@ -4,8 +4,7 @@ use std::mem::size_of;
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
-use relay_common::DataCategory;
-use relay_quotas::Scoping;
+use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -374,7 +373,7 @@ impl ManagedEnvelope {
     ///
     /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
-        relay_common::instant_to_date_time(self.envelope().meta().start_time())
+        relay_common::time::instant_to_date_time(self.envelope().meta().start_time())
     }
 
     /// Resets inner state to ensure there's no more logging.
