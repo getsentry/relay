@@ -8,10 +8,10 @@ use std::error::Error;
 
 use chrono::{TimeZone, Utc};
 use minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
-use relay_general::protocol::{
+use relay_event_schema::protocol::{
     Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
 };
-use relay_general::types::{Annotated, Value};
+use relay_protocol::{Annotated, Value};
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 

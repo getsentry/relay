@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_redis::{RedisError, RedisPool};
 use relay_statsd::metric;

@@ -169,7 +169,7 @@ checksum = "b9ccdd8f2a161be9bd5c023df56f1b2a0bd1d83872ae53b71a84a12c9bf6e842"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -253,7 +253,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -851,7 +851,7 @@ checksum = "83fdaf97f4804dcebfa5862639bc9ce4121e82140bec2a987ac5140294865b5b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -900,9 +900,9 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.14.3"
+version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0808e1bd8671fb44a113a14e13497557533369847788fa2ae912b6ebfce9fa8"
+checksum = "0209d94da627ab5605dcccf08bb18afa5009cfbef48d8a8b7d7bdbc79be25c5e"
 dependencies = [
  "darling_core",
  "darling_macro",
@@ -910,26 +910,26 @@ dependencies = [
 
 [[package]]
 name = "darling_core"
-version = "0.14.3"
+version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "001d80444f28e193f30c2f293455da62dcf9a6b29918a4253152ae2b1de592cb"
+checksum = "177e3443818124b357d8e76f53be906d60937f0d3a90773a664fa63fa253e621"
 dependencies = [
  "fnv",
  "ident_case",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.16",
 ]
 
 [[package]]
 name = "darling_macro"
-version = "0.14.3"
+version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b36230598a2d5de7ec1c6f51f72d8a99a9208daff41de2084d06e3fd3ea56685"
+checksum = "836a9bbc7ad63342d6d6e7b815ccab164bc77a2d95d84bc3117a8c0d5c98e2d5"
 dependencies = [
  "darling_core",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -1022,7 +1022,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.17",
- "syn 2.0.11",
+ "syn 2.0.16",
  "walkdir",
 ]
 
@@ -1198,23 +1198,23 @@ dependencies = [
 
 [[package]]
 name = "enumset"
-version = "1.0.12"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19be8061a06ab6f3a6cf21106c873578bf01bd42ad15e0311a9c76161cb1c753"
+checksum = "e875f1719c16de097dee81ed675e2d9bb63096823ed3f0ca827b7dea3028bbbb"
 dependencies = [
  "enumset_derive",
 ]
 
 [[package]]
 name = "enumset_derive"
-version = "0.6.1"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03e7b551eba279bf0fa88b83a46330168c1560a52a94f5126f892f0b364ab3e0"
+checksum = "e08b6c6ab82d70f08844964ba10c7babb716de2ecaeab9be5717918a5177d3af"
 dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -1225,9 +1225,9 @@ checksum = "88bffebc5d80432c9b140ee17875ff173a8ab62faad5b257da912bd2f6c1c0a1"
 
 [[package]]
 name = "erased-serde"
-version = "0.3.24"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4ca605381c017ec7a5fef5e548f1cfaa419ed0f6df6367339300db74c92aa7d"
+checksum = "c6984864d65d092d9e9ada107007a846a09f75d2e24046bcce9a38d14aa52052"
 dependencies = [
  "serde",
 ]
@@ -1442,7 +1442,7 @@ checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -1481,7 +1481,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "relay-general",
+ "relay-event-schema",
  "serde_json",
 ]
 
@@ -2094,9 +2094,9 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "1.29.0"
+version = "1.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a28d25139df397cbca21408bb742cf6837e04cdbebf1b07b760caf971d6a972"
+checksum = "a0770b0a3d4c70567f0d58331f3088b0e4c4f56c9b8d764efe654b4a5d46de3a"
 dependencies = [
  "console",
  "lazy_static",
@@ -2883,9 +2883,9 @@ checksum = "478c572c3d73181ff3c2539045f6eb99e5491218eae919370993b890cdbdd98e"
 
 [[package]]
 name = "pest"
-version = "2.5.5"
+version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "028accff104c4e513bad663bbcd2ad7cfd5304144404c31ed0a77ac103d00660"
+checksum = "1acb4a4365a13f749a93f1a094a7805e5cfa0955373a9de860d962eaa3a5fe5a"
 dependencies = [
  "thiserror",
  "ucd-trie",
@@ -2893,9 +2893,9 @@ dependencies = [
 
 [[package]]
 name = "pest_derive"
-version = "2.5.5"
+version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ac3922aac69a40733080f53c1ce7f91dcf57e1a5f6c52f421fadec7fbdc4b69"
+checksum = "666d00490d4ac815001da55838c500eafb0320019bbaa44444137c48b443a853"
 dependencies = [
  "pest",
  "pest_generator",
@@ -2903,22 +2903,22 @@ dependencies = [
 
 [[package]]
 name = "pest_generator"
-version = "2.5.5"
+version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d06646e185566b5961b4058dd107e0a7f56e77c3f484549fb119867773c0f202"
+checksum = "68ca01446f50dbda87c1786af8770d535423fa8a53aec03b8f4e3d7eb10e0929"
 dependencies = [
  "pest",
  "pest_meta",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.16",
 ]
 
 [[package]]
 name = "pest_meta"
-version = "2.5.5"
+version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6f60b2ba541577e2a0c307c8f39d1439108120eb7903adeb6497fa880c59616"
+checksum = "56af0a30af74d0445c0bf6d9d051c979b516a1a5af790d251daee76005420a48"
 dependencies = [
  "once_cell",
  "pest",
@@ -3102,9 +3102,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.54"
+version = "1.0.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e472a104799c74b514a57226160104aa483546de37e839ec50e3c2e41dd87534"
+checksum = "18fb31db3f9bddb2ea821cde30a9f70117e3f119938b5ee630b7403aa6e2ead9"
 dependencies = [
  "unicode-ident",
 ]
@@ -3115,7 +3115,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "relay-general",
+ "relay-event-normalization",
+ "relay-event-schema",
+ "relay-pii",
+ "relay-protocol",
+ "serde_json",
 ]
 
 [[package]]
@@ -3408,18 +3412,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-base-schema"
+version = "23.8.0"
+dependencies = [
+ "relay-common",
+ "relay-protocol",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "relay-cabi"
 version = "0.8.29"
 dependencies = [
  "anyhow",
  "chrono",
  "json-forensics",
+ "lru",
  "once_cell",
+ "regex",
  "relay-auth",
+ "relay-base-schema",
  "relay-common",
  "relay-dynamic-config",
+ "relay-event-normalization",
+ "relay-event-schema",
  "relay-ffi",
- "relay-general",
+ "relay-pii",
+ "relay-protocol",
  "relay-sampling",
  "sentry-release-parser",
  "serde",
@@ -3436,11 +3456,9 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "regex",
- "schemars",
  "sentry-types",
  "serde",
  "serde_test",
- "thiserror",
  "uuid",
 ]
 
@@ -3480,15 +3498,79 @@ dependencies = [
  "assert-json-diff",
  "insta",
  "relay-auth",
+ "relay-base-schema",
  "relay-common",
+ "relay-event-normalization",
  "relay-filter",
- "relay-general",
+ "relay-pii",
  "relay-quotas",
  "relay-sampling",
  "serde",
  "serde_json",
  "similar-asserts",
  "smallvec",
+]
+
+[[package]]
+name = "relay-event-derive"
+version = "23.8.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "synstructure",
+]
+
+[[package]]
+name = "relay-event-normalization"
+version = "23.8.0"
+dependencies = [
+ "bytecount",
+ "chrono",
+ "dynfmt",
+ "insta",
+ "itertools",
+ "maxminddb",
+ "md5",
+ "once_cell",
+ "regex",
+ "relay-base-schema",
+ "relay-common",
+ "relay-event-schema",
+ "relay-log",
+ "relay-protocol",
+ "relay-ua",
+ "sentry-release-parser",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "similar-asserts",
+ "smallvec",
+ "thiserror",
+ "url",
+]
+
+[[package]]
+name = "relay-event-schema"
+version = "23.8.0"
+dependencies = [
+ "bytecount",
+ "chrono",
+ "cookie",
+ "debugid",
+ "enumset",
+ "insta",
+ "relay-base-schema",
+ "relay-common",
+ "relay-event-derive",
+ "relay-jsonschema-derive",
+ "relay-protocol",
+ "schemars",
+ "serde",
+ "serde_json",
+ "similar-asserts",
+ "thiserror",
+ "url",
 ]
 
 [[package]]
@@ -3511,60 +3593,21 @@ dependencies = [
 name = "relay-filter"
 version = "23.8.0"
 dependencies = [
- "globset",
  "insta",
  "ipnetwork 0.20.0",
  "once_cell",
  "regex",
  "relay-common",
- "relay-general",
+ "relay-event-schema",
+ "relay-protocol",
+ "relay-ua",
  "serde",
  "serde_json",
  "url",
 ]
 
 [[package]]
-name = "relay-general"
-version = "23.8.0"
-dependencies = [
- "bytecount",
- "chrono",
- "cookie",
- "criterion",
- "debugid",
- "dynfmt",
- "enumset",
- "hmac",
- "insta",
- "itertools",
- "maxminddb",
- "md5",
- "minidump",
- "num-traits",
- "once_cell",
- "pest",
- "pest_derive",
- "pretty-hex",
- "regex",
- "relay-common",
- "relay-general-derive",
- "relay-log",
- "schemars",
- "sentry-release-parser",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sha1",
- "similar-asserts",
- "smallvec",
- "thiserror",
- "uaparser",
- "url",
- "utf16string",
-]
-
-[[package]]
-name = "relay-general-derive"
+name = "relay-jsonschema-derive"
 version = "23.8.0"
 dependencies = [
  "proc-macro2",
@@ -3618,6 +3661,7 @@ dependencies = [
  "hash32",
  "insta",
  "itertools",
+ "relay-base-schema",
  "relay-common",
  "relay-log",
  "relay-statsd",
@@ -3643,6 +3687,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-pii"
+version = "23.8.0"
+dependencies = [
+ "hmac",
+ "insta",
+ "itertools",
+ "minidump",
+ "once_cell",
+ "pest",
+ "pest_derive",
+ "pretty-hex",
+ "regex",
+ "relay-common",
+ "relay-event-schema",
+ "relay-log",
+ "relay-protocol",
+ "serde",
+ "serde_json",
+ "sha1",
+ "similar-asserts",
+ "smallvec",
+ "thiserror",
+ "utf16string",
+]
+
+[[package]]
 name = "relay-profiling"
 version = "23.8.0"
 dependencies = [
@@ -3650,8 +3720,8 @@ dependencies = [
  "chrono",
  "data-encoding",
  "insta",
- "relay-common",
- "relay-general",
+ "relay-event-schema",
+ "relay-protocol",
  "serde",
  "serde_json",
  "serde_test",
@@ -3659,10 +3729,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-protocol"
+version = "23.8.0"
+dependencies = [
+ "num-traits",
+ "relay-common",
+ "relay-protocol-derive",
+ "schemars",
+ "serde",
+ "serde_json",
+ "similar-asserts",
+ "smallvec",
+]
+
+[[package]]
+name = "relay-protocol-derive"
+version = "23.8.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+ "synstructure",
+]
+
+[[package]]
 name = "relay-quotas"
 version = "23.8.0"
 dependencies = [
  "insta",
+ "relay-base-schema",
  "relay-common",
  "relay-log",
  "relay-redis",
@@ -3693,8 +3788,10 @@ dependencies = [
  "insta",
  "once_cell",
  "relay-common",
- "relay-general",
+ "relay-event-schema",
  "relay-log",
+ "relay-pii",
+ "relay-protocol",
  "serde",
  "serde-transcode",
  "serde_json",
@@ -3708,10 +3805,12 @@ dependencies = [
  "insta",
  "rand",
  "rand_pcg",
+ "relay-base-schema",
  "relay-common",
- "relay-filter",
- "relay-general",
+ "relay-event-schema",
  "relay-log",
+ "relay-protocol",
+ "sentry-release-parser",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -3745,16 +3844,20 @@ dependencies = [
  "regex",
  "relay-auth",
  "relay-aws-extension",
+ "relay-base-schema",
  "relay-common",
  "relay-config",
  "relay-dynamic-config",
+ "relay-event-normalization",
+ "relay-event-schema",
  "relay-filter",
- "relay-general",
  "relay-kafka",
  "relay-log",
  "relay-metrics",
  "relay-monitors",
+ "relay-pii",
  "relay-profiling",
+ "relay-protocol",
  "relay-quotas",
  "relay-redis",
  "relay-replays",
@@ -3809,6 +3912,14 @@ dependencies = [
  "relay-log",
  "relay-system",
  "tokio",
+]
+
+[[package]]
+name = "relay-ua"
+version = "23.8.0"
+dependencies = [
+ "once_cell",
+ "uaparser",
 ]
 
 [[package]]
@@ -4083,7 +4194,8 @@ version = "20.8.0"
 dependencies = [
  "anyhow",
  "clap",
- "relay-general",
+ "relay-pii",
+ "serde_json",
 ]
 
 [[package]]
@@ -4298,7 +4410,7 @@ checksum = "4c614d17805b093df4b147b51339e7e44bf05ef59fba1e45d83500bcfb4d8585"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -4835,9 +4947,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.11"
+version = "2.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21e3787bb71465627110e7d87ed4faaa36c1f61042ee67badb9e2ef173accc40"
+checksum = "a6f671d4b5ffdb8eadec19c0ae67fe2639df8684bd7bc4b83d986b8db549cf01"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4911,7 +5023,7 @@ checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -5023,7 +5135,7 @@ checksum = "630bdcf245f78637c13ec01ffae6187cca34625e8c63150d424b59e55af2675e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -5295,9 +5407,9 @@ checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
 
 [[package]]
 name = "uaparser"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d705ae455d32248d299de9af5316a79ce9dc502c0b533aaeaf5f1c2fc02cc5"
+checksum = "cf694e7b0434d4fad6c879e984e8fdc3a62f5533c3d421762244f9e9d03f6927"
 dependencies = [
  "derive_more",
  "lazy_static",
@@ -5309,9 +5421,9 @@ dependencies = [
 
 [[package]]
 name = "ucd-trie"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e79c4d996edb816c91e4308506774452e55e95c3c9de07b6729e17e15a5ef81"
+checksum = "ed646292ffc8188ef8ea4d1e0e0150fb15a5c2e12ad9b8fc191ae7a8a7f3c4b9"
 
 [[package]]
 name = "uname"
@@ -5501,7 +5613,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
  "wasm-bindgen-shared",
 ]
 
@@ -5535,7 +5647,7 @@ checksum = "54681b18a46765f095758388f2d0cf16eb8d4169b639ab575a8f5693af210c7b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.11",
+ "syn 2.0.16",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]

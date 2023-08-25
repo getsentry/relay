@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
 use data_encoding::BASE64_NOPAD;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;

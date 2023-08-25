@@ -1,7 +1,7 @@
-use relay_general::protocol::{Addr, DebugId, NativeImagePath};
+use relay_event_schema::protocol::{Addr, DebugId, NativeImagePath};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::{deserialize_number_from_string, is_zero};
+use crate::utils;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -28,16 +28,16 @@ pub struct NativeDebugImage {
 
     #[serde(
         default,
-        deserialize_with = "deserialize_number_from_string",
-        skip_serializing_if = "is_zero"
+        deserialize_with = "utils::deserialize_number_from_string",
+        skip_serializing_if = "utils::is_zero"
     )]
     image_size: u64,
 }
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{Addr, DebugImage, NativeDebugImage as RelayNativeDebugImage};
-    use relay_general::types::{Annotated, Map};
+    use relay_event_schema::protocol::{Addr, DebugImage, NativeDebugImage as SchemaImage};
+    use relay_protocol::{Annotated, Map};
 
     use super::NativeDebugImage;
 
@@ -48,7 +48,7 @@ mod tests {
         let json = serde_json::to_string(&image).unwrap();
         let annotated = Annotated::from_json(&json[..]).unwrap();
         assert_eq!(
-            Annotated::new(DebugImage::MachO(Box::new(RelayNativeDebugImage {
+            Annotated::new(DebugImage::MachO(Box::new(SchemaImage {
                 arch: Annotated::empty(),
                 code_file: Annotated::new("/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies".into()),
                 code_id: Annotated::empty(),

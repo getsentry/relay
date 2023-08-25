@@ -391,7 +391,7 @@ jobs:
   sentry-relay-integration-tests:
     name: Sentry-Relay Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     needs: build
 
     # Skip redundant checks for library releases

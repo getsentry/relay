@@ -58,16 +58,20 @@ parking_lot = "0.12.1"
 regex = "1.9.1"
 relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
+relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-config = { path = "../relay-config" }
 relay-dynamic-config = { path = "../relay-dynamic-config" }
+relay-event-normalization = { path = "../relay-event-normalization" }
+relay-event-schema = { path = "../relay-event-schema" }
 relay-filter = { path = "../relay-filter" }
-relay-general = { path = "../relay-general" }
 relay-kafka = { path = "../relay-kafka", optional = true }
 relay-log = { path = "../relay-log", features = ["sentry"] }
 relay-metrics = { path = "../relay-metrics" }
 relay-monitors = { path = "../relay-monitors" }
+relay-pii = { path = "../relay-pii" }
 relay-profiling = { path = "../relay-profiling" }
+relay-protocol = { path = "../relay-protocol" }
 relay-quotas = { path = "../relay-quotas" }
 relay-redis = { path = "../relay-redis" }
 relay-replays = { path = "../relay-replays" }
@@ -110,7 +114,11 @@ url = { version = "2.1.1", features = ["serde"] }
 zstd = { version = "0.12.3", optional = true }
 
 [dev-dependencies]
-insta = { version = "1.19.0", features = ["json"] }
+insta = { version = "1.31.0", features = ["json", "yaml"] }
+relay-event-schema = { path = "../relay-event-schema", features = [
+    "jsonschema",
+] }
+relay-protocol = { path = "../relay-protocol", features = ["test"] }
 relay-test = { path = "../relay-test" }
 similar-asserts = "1.4.2"
 tempfile = "3.5.0"

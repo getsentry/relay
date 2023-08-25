@@ -4,12 +4,14 @@ use std::hash::Hasher as _;
 use std::iter::FusedIterator;
 
 use hash32::{FnvHasher, Hasher as _};
-#[doc(inline)]
-pub use relay_common::{
-    is_valid_metric_name, CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit,
-    ParseMetricUnitError, UnixTimestamp,
-};
 use serde::{Deserialize, Serialize};
+
+#[doc(inline)]
+pub use relay_base_schema::metrics::{
+    CustomUnit, DurationUnit, FractionUnit, InformationUnit, MetricUnit, ParseMetricUnitError,
+};
+#[doc(inline)]
+pub use relay_common::time::UnixTimestamp;
 
 /// Type used for Counter metric
 pub type CounterType = f64;
@@ -278,7 +280,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
-    if !is_valid_metric_name(name) {
+    if !relay_base_schema::metrics::is_valid_metric_name(name) {
         return None;
     }
 
