@@ -99,7 +99,11 @@ fn logs() -> Html {
                     while log_entries.len() > shrink_to {
                         log_entries.pop_front();
                     }
-                    log_entries.extend(messages);
+                    log_entries.extend(
+                        messages
+                            .into_iter()
+                            .filter_map(|entry| ansi_to_html::convert_escaped(&entry).ok()),
+                    );
                     update_trigger.force_update();
                 });
             },
@@ -114,9 +118,9 @@ fn logs() -> Html {
                 <div class="card-content white-text">
                     <p>
                           {
-                            (*log_entries).borrow().iter().filter_map(|entry| {
-                                ansi_to_html::convert_escaped(entry).ok()
-                            }).map(|e| Html::from_html_unchecked(AttrValue::from(format!("<span>{}</span>",e)))).collect::<Html>()
+                            (*log_entries).borrow().iter().map(|e|
+                                Html::from_html_unchecked(AttrValue::from(format!("<span>{}</span>",e)))
+                            ).collect::<Html>()
                           }
                     </p>
                 </div>
