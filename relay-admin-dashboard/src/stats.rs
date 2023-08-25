@@ -1,29 +1,33 @@
 #![allow(non_camel_case_types)]
 
+use instant::Duration;
 use yew::prelude::*;
 
-use crate::{on_next_message, Socket, RELAY_URL};
+use crate::utils::buffering_socket;
+use crate::RELAY_URL;
 
 #[function_component(Stats)]
 pub(crate) fn stats() -> Html {
-    let update_trigger = use_force_update();
-
-    let socket = use_mut_ref(|| Some(Socket::open(format!("ws://{RELAY_URL}/api/relay/stats/"))));
-    {
-        use_effect(move || {
-            on_next_message(socket.clone(), update_trigger, move |message| {
-                let Metric {
-                    ty,
-                    name,
-                    tags,
-                    value,
-                } = parse_metric(&message);
-                // I gave up on the hole reactive framework here and decided
-                // to just pass the data to javascript.
-                js::update_chart(ty, name, tags, value);
+    use_effect_with_deps(
+        move |_| {
+            let url = format!("ws://{RELAY_URL}/api/relay/stats/");
+            let interval = Duration::from_millis(100);
+            buffering_socket(url, interval, move |messages| {
+                for message in messages {
+                    let Metric {
+                        ty,
+                        name,
+                        tags,
+                        value,
+                    } = parse_metric(&message);
+                    // I gave up on the hole reactive framework here and decided
+                    // to just pass the data to javascript.
+                    js::update_chart(ty, name, tags, value);
+                }
             });
-        });
-    }
+        },
+        (),
+    );
 
     html! {
         <>

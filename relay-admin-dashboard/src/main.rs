@@ -6,7 +6,7 @@ use yew_router::prelude::*;
 
 use crate::utils::buffering_socket;
 
-// mod stats;
+mod stats;
 mod utils;
 
 const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
@@ -74,7 +74,7 @@ fn stats() -> Html {
     html! {
         <div class="padding">
             <Logs/>
-            // <stats::Stats/>
+            <stats::Stats/>
         </div>
     }
 }
