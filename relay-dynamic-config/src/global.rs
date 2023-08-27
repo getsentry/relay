@@ -1,4 +1,4 @@
-use relay_general::store::MeasurementsConfig;
+use relay_event_normalization::MeasurementsConfig;
 use serde::{Deserialize, Serialize};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
