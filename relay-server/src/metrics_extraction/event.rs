@@ -455,7 +455,6 @@ mod tests {
             features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
-
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
@@ -514,7 +513,6 @@ mod tests {
             features: [Feature::SpanMetricsExtraction].into_iter().collect(),
             ..ProjectConfig::default()
         };
-
         project.sanitize();
 
         let config = project.metric_extraction.ok().unwrap();
