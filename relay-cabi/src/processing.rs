@@ -10,18 +10,18 @@ use std::slice;
 
 use chrono::Utc;
 use once_cell::sync::OnceCell;
-use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
+use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{validate_json, ProjectConfig};
-use relay_general::pii::{
+use relay_event_normalization::{
+    light_normalize_event, GeoIpLookup, LightNormalizationConfig, RawUserAgentInfo, StoreConfig,
+    StoreProcessor,
+};
+use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
+use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
+use relay_pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
-use relay_general::processor::{process_value, split_chunks, ProcessingState};
-use relay_general::protocol::{Event, VALID_PLATFORMS};
-use relay_general::store::{
-    light_normalize_event, GeoIpLookup, LightNormalizationConfig, StoreConfig, StoreProcessor,
-};
-use relay_general::types::{Annotated, Remark};
-use relay_general::user_agent::RawUserAgentInfo;
+use relay_protocol::{Annotated, Remark};
 use relay_sampling::{
     merge_rules_from_configs, DynamicSamplingContext, RuleCondition, SamplingConfig, SamplingMatch,
     SamplingRule,
@@ -126,6 +126,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
+        transaction_range: None,   // only supported in relay
         measurements_config: None, // only supported in relay
         breakdowns_config: None,   // only supported in relay
         normalize_user_agent: config.normalize_user_agent,
@@ -172,7 +173,7 @@ pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> Re
 pub unsafe extern "C" fn relay_convert_datascrubbing_config(config: *const RelayStr) -> RelayStr {
     let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
     match config.pii_config() {
-        Ok(Some(config)) => RelayStr::from_string(config.to_json()?),
+        Ok(Some(config)) => RelayStr::from_string(serde_json::to_string(config)?),
         Ok(None) => RelayStr::new("{}"),
         // NOTE: Callers of this function must be able to handle this error.
         Err(e) => RelayStr::from_string(e.to_string()),
@@ -253,16 +254,6 @@ pub unsafe extern "C" fn relay_is_glob_match(
         options.allow_newline = true;
     }
     glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options)
-}
-
-/// Returns `true` if the codeowners path matches the value, `false` otherwise.
-#[no_mangle]
-#[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_is_codeowners_path_match(
-    value: *const RelayBuf,
-    pattern: *const RelayStr,
-) -> bool {
-    codeowners_match_bytes((*value).as_bytes(), (*pattern).as_str())
 }
 
 /// Parse a sentry release structure from a string.

@@ -33,7 +33,7 @@ impl Cli {
     pub fn run(self) -> Result<()> {
         match self.format {
             SchemaFormat::JsonSchema => {
-                let schema = relay_general::protocol::event_json_schema();
+                let schema = relay_event_schema::protocol::event_json_schema();
 
                 match self.output {
                     Some(path) => serde_json::to_writer_pretty(File::create(path)?, &schema)?,

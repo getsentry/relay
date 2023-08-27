@@ -1,5 +1,5 @@
 ---
-source: relay-server/src/metrics_extraction/spans/mod.rs
+source: relay-server/src/metrics_extraction/event.rs
 expression: "(&event.value().unwrap().spans, metrics)"
 ---
 (
@@ -21,6 +21,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
             trace_id: TraceId(
                 "ff62a8b040f340bda5d830223def1d81",
             ),
+            segment_id: ~,
+            is_segment: ~,
             status: ~,
             tags: ~,
             origin: ~,

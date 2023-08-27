@@ -2,12 +2,12 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use relay_auth::PublicKey;
-use relay_filter::FiltersConfig;
-use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::{
+use relay_base_schema::spans::SpanAttribute;
+use relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, SpanDescriptionRule, TransactionNameRule,
 };
-use relay_general::types::SpanAttribute;
+use relay_filter::FiltersConfig;
+use relay_pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};

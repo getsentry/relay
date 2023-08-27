@@ -21,4 +21,4 @@ serde_yaml = "0.9.17"
 path-slash = "0.2.1"
 
 [dev-dependencies]
-insta = { version = "1.19.0", features = ["ron"] }
+insta = { version = "1.31.0", features = ["ron"] }

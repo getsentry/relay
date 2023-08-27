@@ -5,9 +5,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, HttpEncoding};
-use relay_general::protocol::ClientReport;
+use relay_event_schema::protocol::ClientReport;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;

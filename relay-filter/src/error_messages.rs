@@ -5,9 +5,10 @@
 
 use std::borrow::Cow;
 
-use relay_general::protocol::Event;
+use relay_common::glob3::GlobPatterns;
+use relay_event_schema::protocol::Event;
 
-use crate::{ErrorMessagesFilterConfig, FilterStatKey, GlobPatterns};
+use crate::{ErrorMessagesFilterConfig, FilterStatKey};
 
 /// Checks events by patterns in their error messages.
 pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
@@ -58,11 +59,10 @@ pub fn should_filter(
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{Exception, LogEntry, Values};
-    use relay_general::types::Annotated;
+    use relay_event_schema::protocol::{Exception, LogEntry, Values};
+    use relay_protocol::Annotated;
 
     use super::*;
-    use crate::GlobPatterns;
 
     #[test]
     fn test_should_filter_exception() {

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
 use crate::actors::outcome::Outcome;

@@ -10,7 +10,8 @@ use std::{env, fmt, fs, io};
 
 use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::{Dsn, Uuid};
+use relay_common::uuid::Uuid;
+use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
