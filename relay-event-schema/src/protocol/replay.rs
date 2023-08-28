@@ -97,7 +97,7 @@ pub struct Replay {
     ///   "segment_id": 10
     /// }
     /// ```
-    pub segment_id: Annotated<u64>,
+    pub segment_id: Annotated<u16>,
 
     /// Timestamp when the event was created.
     ///
