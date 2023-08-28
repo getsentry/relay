@@ -5,12 +5,20 @@ use serde::{Deserialize, Serialize};
 ///
 /// Values shared across all projects may also be included here, to keep
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GlobalConfig {
     /// Configuration for measurements normalization.
-    pub measurements: MeasurementsConfig,
+    pub measurements: Option<MeasurementsConfig>,
+}
+
+impl Default for GlobalConfig {
+    fn default() -> Self {
+        Self {
+            measurements: Some(MeasurementsConfig::default()),
+        }
+    }
 }
 
 #[cfg(test)]

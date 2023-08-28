@@ -2415,9 +2415,7 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: Some(
-                    state.project_state.config.measurements(&self.global_config),
-                ),
+                measurements_config: state.project_state.config.measurements(&self.global_config),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {

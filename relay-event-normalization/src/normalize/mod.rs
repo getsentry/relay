@@ -61,7 +61,7 @@ impl BuiltinMeasurementKey {
 }
 
 /// Configuration for measurements normalization.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
@@ -72,7 +72,6 @@ pub struct MeasurementsConfig {
     max_custom_measurements: usize,
 }
 
-/*
 impl Default for MeasurementsConfig {
     fn default() -> Self {
         use MetricUnit::*;
@@ -112,8 +111,6 @@ impl Default for MeasurementsConfig {
         }
     }
 }
-
-*/
 
 impl MeasurementsConfig {
     /// The length of a full measurement MRI, minus the name and the unit. This length is the same
