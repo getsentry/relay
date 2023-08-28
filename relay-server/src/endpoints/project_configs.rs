@@ -7,7 +7,7 @@ use axum::http::Request;
 use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 

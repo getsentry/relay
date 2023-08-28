@@ -38,10 +38,11 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_common::{DataCategory, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::ErrorBoundary;
-use relay_general::protocol::{EventId, EventType};
-use relay_general::types::Value;
+use relay_event_schema::protocol::{EventId, EventType};
+use relay_protocol::Value;
+use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -1214,7 +1215,7 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::ProjectId;
+    use relay_base_schema::project::ProjectId;
 
     use super::*;
 

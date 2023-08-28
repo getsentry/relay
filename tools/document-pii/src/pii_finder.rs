@@ -75,8 +75,9 @@ fn get_type_paths_from_type(ty: &Type, type_paths: &mut Vec<TypePath>) {
 /// because it using the Visit trait from syn-crate means I cannot add data as arguments.
 /// The 'pii_types' field can be regarded as the output.
 pub struct PiiFinder<'a> {
-    // Module path of a type is the full path up to the type itself.
-    // E.g. relay_general::protocol::Event -> relay_general::protocol
+    /// Module path of a type is the full path up to the type itself.
+    ///
+    /// Example: `relay_event_schema::protocol::Event` -> `relay_event_schema::protocol`
     pub module_path: String,
     pub current_type: String,
     pub all_types: &'a HashMap<String, EnumOrStruct>,

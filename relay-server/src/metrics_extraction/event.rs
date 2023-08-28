@@ -1,7 +1,8 @@
-use relay_common::{DataCategory, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::MetricExtractionConfig;
-use relay_general::protocol::{Event, Span};
+use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Metric;
+use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
 use crate::statsd::RelayTimers;
@@ -61,8 +62,8 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Me
 #[cfg(test)]
 mod tests {
     use relay_dynamic_config::{Feature, ProjectConfig};
-    use relay_general::store::{self, LightNormalizationConfig};
-    use relay_general::types::Annotated;
+    use relay_event_normalization::LightNormalizationConfig;
+    use relay_protocol::Annotated;
 
     use super::*;
 
@@ -440,7 +441,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        store::light_normalize_event(
+        relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
@@ -497,7 +498,7 @@ mod tests {
         let mut event = Annotated::from_json(json).unwrap();
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
-        store::light_normalize_event(
+        relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
                 enrich_spans: true,
