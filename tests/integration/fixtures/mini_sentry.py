@@ -13,7 +13,7 @@ from werkzeug.serving import WSGIRequestHandler
 from pytest_localserver.http import WSGIServer
 from sentry_sdk.envelope import Envelope
 
-from tests.integration.fixtures.config import GLOBAL_CONFIG
+from tests.integration.fixtures.global_config import GLOBAL_CONFIG
 
 
 from . import SentryLike
