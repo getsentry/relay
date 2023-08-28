@@ -44,7 +44,7 @@ mod request;
 mod stacktrace;
 
 /// Defines a builtin measurement.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BuiltinMeasurementKey {
     name: String,
@@ -61,15 +61,15 @@ impl BuiltinMeasurementKey {
 }
 
 /// Configuration for measurements normalization.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    builtin_measurements: Vec<BuiltinMeasurementKey>,
+    pub builtin_measurements: Vec<BuiltinMeasurementKey>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
-    max_custom_measurements: usize,
+    pub max_custom_measurements: usize,
 }
 
 impl Default for MeasurementsConfig {
@@ -882,7 +882,7 @@ pub struct LightNormalizationConfig<'a> {
     ///
     /// If provided, normalization truncates custom measurements and adds units of known built-in
     /// measurements.
-    pub measurements_config: Option<&'a MeasurementsConfig>,
+    pub measurements_config: Option<MeasurementsConfig>,
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -1043,7 +1043,7 @@ pub fn light_normalize_event(
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(
             event,
-            config.measurements_config,
+            config.measurements_config.as_ref(),
             config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too

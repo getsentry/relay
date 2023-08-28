@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use itertools::Itertools;
 use relay_auth::PublicKey;
 use relay_base_schema::spans::SpanAttribute;
 use relay_event_normalization::{
@@ -97,10 +98,29 @@ impl ProjectConfig {
     pub fn measurements<'a>(
         &'a self,
         global_config: &'a Arc<GlobalConfig>,
-    ) -> Option<&MeasurementsConfig> {
-        self.measurements
-            .as_ref()
-            .or(global_config.measurements.as_ref())
+    ) -> Option<MeasurementsConfig> {
+        match (
+            self.measurements.as_ref(),
+            global_config.measurements.as_ref(),
+        ) {
+            (None, None) => None,
+            (None, Some(glob_measurements_config)) => Some(glob_measurements_config.clone()),
+            (Some(proj_measurements_config), None) => Some(proj_measurements_config.clone()),
+            (Some(proj_measurements_config), Some(glob_measurements_config)) => {
+                let merged_measurements: Vec<_> = proj_measurements_config
+                    .builtin_measurements
+                    .iter()
+                    .chain(glob_measurements_config.builtin_measurements.iter())
+                    .unique()
+                    .cloned()
+                    .collect();
+
+                Some(MeasurementsConfig {
+                    builtin_measurements: merged_measurements,
+                    max_custom_measurements: proj_measurements_config.max_custom_measurements,
+                })
+            }
+        }
     }
 }
 
