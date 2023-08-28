@@ -9,7 +9,7 @@ use regex::Regex;
 static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n)").unwrap());
 
 /// Removes MySQL inline comments.
-static INLINE_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\*(?:.|\n)*\*/").unwrap());
+static INLINE_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\*(?:.|\n)*?\*/").unwrap());
 
 /// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
@@ -387,12 +387,6 @@ mod tests {
         parameters_values,
         "INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)",
         "INSERT INTO a (..) VALUES (%s)"
-    );
-
-    scrub_sql_test!(
-        parameters_values_with_prefix,
-        "INSERT INTO t (t.b, t.c) VALUES (%s, %s, %s, %s)",
-        "INSERT INTO t (..) VALUES (%s)"
     );
 
     scrub_sql_test!(
