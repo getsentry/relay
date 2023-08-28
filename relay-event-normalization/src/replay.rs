@@ -44,6 +44,17 @@ pub fn validate(replay: &mut Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing replay_id".to_string()))?;
 
+    let segment_id = replay
+        .segment_id
+        .value()
+        .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
+
+    if segment_id > 65535 {
+        return Err(ReplayError::InvalidPayload(
+            "Segment_id is too large.".to_string(),
+        ));
+    }
+
     Ok(())
 }
 
