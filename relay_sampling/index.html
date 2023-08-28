@@ -4,9 +4,9 @@ all transactions, but only forwards a random sample of raw transaction payloads 
 What exact percentage is sampled is determined by <code>dynamic sampling rules</code>, and depends on
 the project, the environment, the transaction name, etc.</p>
 <p>In order to determine the sample rate, Relay uses a <a href="struct.SamplingConfig.html" title="struct relay_sampling::SamplingConfig"><code>SamplingConfig</code></a> which contains a set of
-<a href="struct.SamplingRule.html" title="struct relay_sampling::SamplingRule"><code>SamplingRule</code></a>s that are matched against the incoming [<code>Event</code>] or <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a>.</p>
+<a href="struct.SamplingRule.html" title="struct relay_sampling::SamplingRule"><code>SamplingRule</code></a>s that are matched against the incoming <a href="../relay_event_schema/protocol/event/struct.Event.html" title="struct relay_event_schema::protocol::event::Event"><code>Event</code></a> or <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a>.</p>
 <h2 id="trace-and-transaction-sampling"><a href="#trace-and-transaction-sampling">Trace and Transaction Sampling</a></h2>
-<p>Relay samples both transactions looking at [<code>Event</code>] and traces looking at <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a>:</p>
+<p>Relay samples both transactions looking at <a href="../relay_event_schema/protocol/event/struct.Event.html" title="struct relay_event_schema::protocol::event::Event"><code>Event</code></a> and traces looking at <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a>:</p>
 <ul>
 <li><strong>Trace sampling</strong>: ensures that either all transactions of a trace are sampled or none.</li>
 <li><strong>Transaction sampling</strong>: does not guarantee complete traces and instead applies to individual transactions.</li>
@@ -15,16 +15,16 @@ the project, the environment, the transaction name, etc.</p>
 <p>The sampling system implemented in Relay is composed of the following components:</p>
 <ul>
 <li><a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a>: a struct that contains the trace information.</li>
-<li><a href="trait.FieldValueProvider.html" title="trait relay_sampling::FieldValueProvider"><code>FieldValueProvider</code></a>: an abstraction implemented by [<code>Event</code>] and <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a> to
+<li><a href="trait.FieldValueProvider.html" title="trait relay_sampling::FieldValueProvider"><code>FieldValueProvider</code></a>: an abstraction implemented by <a href="../relay_event_schema/protocol/event/struct.Event.html" title="struct relay_event_schema::protocol::event::Event"><code>Event</code></a> and <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a> to
 expose fields that are read during matching.</li>
-<li><a href="struct.SamplingRule.html" title="struct relay_sampling::SamplingRule"><code>SamplingRule</code></a>: a rule that is matched against [<code>Event</code>] or <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a> that
+<li><a href="struct.SamplingRule.html" title="struct relay_sampling::SamplingRule"><code>SamplingRule</code></a>: a rule that is matched against <a href="../relay_event_schema/protocol/event/struct.Event.html" title="struct relay_event_schema::protocol::event::Event"><code>Event</code></a> or <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a> that
 can contain a <a href="enum.RuleCondition.html" title="enum relay_sampling::RuleCondition"><code>RuleCondition</code></a> for expressing predicates on the incoming payload.</li>
 <li><a href="struct.SamplingMatch.html" title="struct relay_sampling::SamplingMatch"><code>SamplingMatch</code></a>: the result of the matching of one or more <a href="struct.SamplingRule.html" title="struct relay_sampling::SamplingRule"><code>SamplingRule</code></a>.</li>
 </ul>
 <h2 id="how-it-works"><a href="#how-it-works">How It Works</a></h2>
 <ul>
-<li>The incoming [<code>Event</code>] and optionally <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a> are received by Relay.</li>
-<li>Relay fetches the <a href="struct.SamplingConfig.html" title="struct relay_sampling::SamplingConfig"><code>SamplingConfig</code></a> of the project to which the [<code>Event</code>] belongs and (if exists) the
+<li>The incoming <a href="../relay_event_schema/protocol/event/struct.Event.html" title="struct relay_event_schema::protocol::event::Event"><code>Event</code></a> and optionally <a href="struct.DynamicSamplingContext.html" title="struct relay_sampling::DynamicSamplingContext"><code>DynamicSamplingContext</code></a> are received by Relay.</li>
+<li>Relay fetches the <a href="struct.SamplingConfig.html" title="struct relay_sampling::SamplingConfig"><code>SamplingConfig</code></a> of the project to which the <a href="../relay_event_schema/protocol/event/struct.Event.html" title="struct relay_event_schema::protocol::event::Event"><code>Event</code></a> belongs and (if exists) the
 <a href="struct.SamplingConfig.html" title="struct relay_sampling::SamplingConfig"><code>SamplingConfig</code></a> of the root project of the trace.</li>
 <li>The <a href="struct.SamplingConfig.html" title="struct relay_sampling::SamplingConfig"><code>SamplingConfig</code></a>s are merged together and the matching algorithm in
 <a href="struct.SamplingMatch.html#method.match_against_rules" title="associated function relay_sampling::SamplingMatch::match_against_rules"><code>SamplingMatch::match_against_rules</code></a> is executed.</li>
