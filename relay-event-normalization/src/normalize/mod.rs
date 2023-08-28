@@ -52,7 +52,7 @@ pub struct BuiltinMeasurementKey {
 }
 
 impl BuiltinMeasurementKey {
-    pub fn new(name: &str, unit: MetricUnit) -> Self {
+    fn new(name: &str, unit: MetricUnit) -> Self {
         Self {
             name: name.to_string(),
             unit,
