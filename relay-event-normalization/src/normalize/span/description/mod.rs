@@ -5,8 +5,6 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use relay_event_schema::processor::{self, ProcessingResult};
 use relay_event_schema::protocol::Span;
 use relay_protocol::{Annotated, Remark, RemarkType, Value};
