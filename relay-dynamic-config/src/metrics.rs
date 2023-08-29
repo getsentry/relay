@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::RuleCondition;
+use relay_sampling::condition::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
