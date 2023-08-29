@@ -95,6 +95,39 @@ impl ProjectConfig {
         defaults::add_span_metrics(self);
     }
 
+    // TODO: docs. mention first project config, then global
+    pub fn builtin_measurements<'a>(
+        &'a self,
+        global_config: &'a Arc<GlobalConfig>,
+    ) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
+        let from_project = self
+            .measurements
+            .iter()
+            .flat_map(|c| c.builtin_measurements);
+        let from_global = global_config
+            .measurements
+            .iter()
+            .flat_map(|c| c.builtin_measurements);
+
+        from_project.chain(from_global).unique()
+    }
+
+    // TODO: docs. mention it's the most restrictive among the two
+    pub fn max_custom_measurements<'a>(
+        &'a self,
+        global_config: &'a Arc<GlobalConfig>,
+    ) -> &'a usize {
+        match (self.measurements, global_config.measurements) {
+            (None, None) => 0,
+            (None, Some(global)) => &global.max_custom_measurements,
+            (Some(project), None) => &project.max_custom_measurements,
+            (Some(project), Some(global)) => cmp::min(
+                &project.max_custom_measurements,
+                &global.max_custom_measurements,
+            ),
+        }
+    }
+
     /// Combines the [`MeasurementsConfig`] from [`GlobalConfig`] and [`ProjectConfig`].
     pub fn measurements<'a>(
         &'a self,
