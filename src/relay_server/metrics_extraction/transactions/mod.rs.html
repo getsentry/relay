@@ -1583,10 +1583,12 @@
 <a href="#1583" id="1583">1583</a>
 <a href="#1584" id="1584">1584</a>
 <a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
-<span class="kw">use </span>relay_base_schema::spans::SpanStatus;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 <span class="kw">use </span>relay_event_normalization::utils <span class="kw">as </span>normalize_utils;
@@ -1609,13 +1611,6 @@
 <span class="doccomment">/// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
 /// cardinality data such as raw URLs.
 </span><span class="kw">const </span>PLACEHOLDER_UNPARAMETERIZED: <span class="kw-2">&amp;</span>str = <span class="string">&quot;&lt;&lt; unparameterized &gt;&gt;&quot;</span>;
-
-<span class="doccomment">/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-///
-/// Must be consistent with `process_trace_context` in [`relay_event_normalization`].
-</span><span class="kw">fn </span>extract_transaction_status(trace_context: <span class="kw-2">&amp;</span>TraceContext) -&gt; SpanStatus {
-    <span class="kw-2">*</span>trace_context.status.value().unwrap_or(<span class="kw-2">&amp;</span>SpanStatus::Unknown)
-}
 
 <span class="doccomment">/// Extract HTTP method
 /// See &lt;https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67&gt;.
@@ -1737,9 +1732,11 @@
     tags.insert(CommonTag::Platform, platform.to_string());
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
-        <span class="kw">let </span>status = extract_transaction_status(trace_context);
-
-        tags.insert(CommonTag::TransactionStatus, status.to_string());
+        <span class="comment">// We assume that the trace context status is automatically set to unknown inside of the
+        // light event normalization step.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(status) = trace_context.status.value() {
+            tags.insert(CommonTag::TransactionStatus, status.to_string());
+        }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = normalize_utils::extract_transaction_op(trace_context) {
             tags.insert(CommonTag::TransactionOp, op);
@@ -2600,7 +2597,11 @@
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
             &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}}
+            &quot;contexts&quot;: {
+                &quot;trace&quot;: {
+                    &quot;status&quot;: &quot;ok&quot;
+                }
+            }
         }
         &quot;#</span>;
 
@@ -2625,7 +2626,7 @@
         <span class="macro">assert_eq!</span>(
             extracted.project_metrics[<span class="number">0</span>].tags,
             BTreeMap::from([
-                (<span class="string">&quot;transaction.status&quot;</span>.to_string(), <span class="string">&quot;unknown&quot;</span>.to_string()),
+                (<span class="string">&quot;transaction.status&quot;</span>.to_string(), <span class="string">&quot;ok&quot;</span>.to_string()),
                 (<span class="string">&quot;platform&quot;</span>.to_string(), <span class="string">&quot;other&quot;</span>.to_string())
             ])
         );
@@ -2633,12 +2634,17 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_span_tags() {
-        <span class="kw">let </span>json = <span class="string">r#&quot;
+        <span class="comment">// Status is normalized upstream in the light normalization step.
+        </span><span class="kw">let </span>json = <span class="string">r#&quot;
         {
             &quot;type&quot;: &quot;transaction&quot;,
             &quot;timestamp&quot;: &quot;2021-04-26T08:00:00+0100&quot;,
             &quot;start_timestamp&quot;: &quot;2021-04-26T07:59:01+0100&quot;,
-            &quot;contexts&quot;: {&quot;trace&quot;: {}},
+            &quot;contexts&quot;: {
+                &quot;trace&quot;: {
+                    &quot;status&quot;: &quot;ok&quot;
+                }
+            },
             &quot;spans&quot;: [
                 {
                     &quot;description&quot;: &quot;&lt;OrganizationContext&gt;&quot;,
@@ -2688,7 +2694,7 @@
         <span class="macro">assert_eq!</span>(
             extracted.project_metrics[<span class="number">0</span>].tags,
             BTreeMap::from([
-                (<span class="string">&quot;transaction.status&quot;</span>.to_string(), <span class="string">&quot;unknown&quot;</span>.to_string()),
+                (<span class="string">&quot;transaction.status&quot;</span>.to_string(), <span class="string">&quot;ok&quot;</span>.to_string()),
                 (<span class="string">&quot;platform&quot;</span>.to_string(), <span class="string">&quot;other&quot;</span>.to_string()),
                 (<span class="string">&quot;http.status_code&quot;</span>.to_string(), <span class="string">&quot;200&quot;</span>.to_string())
             ])
