@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
-use relay_common::{MetricUnit, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    CounterType, DistributionType, DurationUnit, Metric, MetricNamespace, MetricValue,
+    CounterType, DistributionType, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
 };
 
 use crate::metrics_extraction::IntoMetric;
@@ -28,13 +28,13 @@ pub enum TransactionMetric {
         value: CounterType,
         tags: TransactionCPRTags,
     },
-    /// A metric created from [`relay_general::protocol::Breakdowns`].
+    /// A metric created from [`relay_event_schema::protocol::Breakdowns`].
     Breakdown {
         name: String,
         value: DistributionType,
         tags: CommonTags,
     },
-    /// A metric created from a [`relay_general::protocol::Measurement`].
+    /// A metric created from a [`relay_event_schema::protocol::Measurement`].
     Measurement {
         name: String,
         value: DistributionType,

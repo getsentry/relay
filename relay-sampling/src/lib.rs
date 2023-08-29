@@ -78,17 +78,20 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
-use relay_general::types::{self, Annotated};
+use relay_protocol::Annotated;
+use sentry_release_parser::Release;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
 
-use relay_common::{EventType, ProjectKey, Uuid};
-use relay_filter::GlobPatterns;
-use relay_general::protocol::{
+use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectKey;
+use relay_common::glob3::GlobPatterns;
+use relay_common::time;
+use relay_common::uuid::Uuid;
+use relay_event_schema::protocol::{
     BrowserContext, DeviceContext, Event, OsContext, ResponseContext, Span, TraceContext,
 };
-use relay_general::store;
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -584,7 +587,7 @@ fn get_measurement(event: &Event, name: &str) -> Option<f64> {
 /// Trait implemented by providers of fields (Events and Trace Contexts).
 ///
 /// The fields will be used by rules to check if they apply.
-// TODO: This trait is used for more than dynamic sampling now. Move it to relay-general.
+// TODO: This trait is used for more than dynamic sampling now. Move it to relay-protocol.
 pub trait FieldValueProvider {
     /// gets the value of a field
     fn get_value(&self, path: &str) -> Value;
@@ -616,8 +619,8 @@ impl FieldValueProvider for Event {
                 Some(s) => s.as_str().into(),
             },
             "platform" => match self.platform.value() {
-                Some(platform) if store::is_valid_platform(platform) => platform.clone().into(),
-                _ => Value::from("other"),
+                Some(platform) => platform.clone().into(),
+                None => Value::from("other"),
             },
 
             // Fields in top level structures (called "interfaces" in Sentry)
@@ -725,7 +728,7 @@ impl FieldValueProvider for Event {
                 self.timestamp.value(),
             ) {
                 (Some(&EventType::Transaction), Some(&start), Some(&end)) if start <= end => {
-                    match Number::from_f64(relay_common::chrono_to_positive_millis(end - start)) {
+                    match Number::from_f64(time::chrono_to_positive_millis(end - start)) {
                         Some(num) => Value::Number(num),
                         None => Value::Null,
                     }
@@ -733,21 +736,23 @@ impl FieldValueProvider for Event {
                 _ => Value::Null,
             },
             "release.build" => self
-                .parse_release()
-                .as_ref()
-                .and_then(|r| r.build_hash())
-                .map_or(Value::Null, Value::from),
+                .release
+                .as_str()
+                .and_then(|r| Release::parse(r).ok())
+                .and_then(|r| r.build_hash().map(Value::from))
+                .unwrap_or(Value::Null),
             "release.package" => self
-                .parse_release()
-                .as_ref()
-                .and_then(|r| r.package())
-                .map_or(Value::Null, Value::from),
+                .release
+                .as_str()
+                .and_then(|r| Release::parse(r).ok())
+                .and_then(|r| r.package().map(Value::from))
+                .unwrap_or(Value::Null),
             "release.version.short" => self
-                .parse_release()
-                .as_ref()
-                .and_then(|r| r.version())
-                .map(|v| v.raw_short())
-                .map_or(Value::Null, Value::from),
+                .release
+                .as_str()
+                .and_then(|r| Release::parse(r).ok())
+                .and_then(|r| r.version().map(|v| v.raw_short().into()))
+                .unwrap_or(Value::Null),
 
             // Dynamic access to certain data bags
             _ => {
@@ -825,7 +830,7 @@ impl FieldValueProvider for DynamicSamplingContext {
 impl FieldValueProvider for Span {
     fn get_value(&self, path: &str) -> Value {
         let Some(path) = path.strip_prefix("span.") else {
-            return Value::Null
+            return Value::Null;
         };
 
         match path {
@@ -866,12 +871,25 @@ impl FieldValueProvider for Span {
                 if let Some(key) = path.strip_prefix("data.") {
                     let escaped = key.replace("\\.", "\0");
                     let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
-                    let Some(root) = path.next() else { return Value::Null };
-                    let Some(mut val) = self.data.value().and_then(|data| data.get(&root)).and_then(Annotated::value) else { return Value::Null };
+                    let Some(root) = path.next() else {
+                        return Value::Null;
+                    };
+                    let Some(mut val) = self
+                        .data
+                        .value()
+                        .and_then(|data| data.get(&root))
+                        .and_then(Annotated::value)
+                    else {
+                        return Value::Null;
+                    };
                     for part in path {
                         // While there is path segments left, `val` has to be an Object.
-                        let types::Value::Object(map) = val else { return Value::Null };
-                        let Some(child) = map.get(&part).and_then(Annotated::value) else { return Value::Null };
+                        let relay_protocol::Value::Object(map) = val else {
+                            return Value::Null;
+                        };
+                        let Some(child) = map.get(&part).and_then(Annotated::value) else {
+                            return Value::Null;
+                        };
                         val = child;
                     }
                     return Value::from(val.clone());
@@ -1370,7 +1388,9 @@ impl DynamicSamplingContext {
             return None;
         }
 
-        let Some(trace) = event.context::<TraceContext>() else { return None };
+        let Some(trace) = event.context::<TraceContext>() else {
+            return None;
+        };
         let trace_id = trace.trace_id.value()?.0.parse().ok()?;
         let user = event.user.value();
 
@@ -1442,11 +1462,11 @@ mod tests {
     use serde_json::json;
     use similar_asserts::assert_eq;
 
-    use relay_general::protocol::{
+    use relay_event_schema::protocol::{
         Contexts, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
         LenientString, LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
     };
-    use relay_general::types::Annotated;
+    use relay_protocol::Annotated;
 
     use super::*;
 

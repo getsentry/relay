@@ -15,8 +15,8 @@ use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
+use relay_common::glob2::GlobMatcher;
 use relay_config::Config;
-use relay_general::utils::GlobMatcher;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 

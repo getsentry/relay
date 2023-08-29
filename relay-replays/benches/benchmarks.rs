@@ -3,7 +3,7 @@ use std::io::Read;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use flate2::bufread::ZlibEncoder;
 use flate2::Compression;
-use relay_general::pii::DataScrubbingConfig;
+use relay_pii::DataScrubbingConfig;
 use relay_replays::recording::RecordingScrubber;
 
 fn bench_recording(c: &mut Criterion) {

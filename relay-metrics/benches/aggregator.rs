@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use relay_common::{ProjectKey, UnixTimestamp};
+use relay_base_schema::project::ProjectKey;
+use relay_common::time::UnixTimestamp;
 use relay_metrics::{AggregatorConfig, AggregatorService, Metric, MetricValue};
 
 /// Struct representing a testcase for which insert + flush are timed.

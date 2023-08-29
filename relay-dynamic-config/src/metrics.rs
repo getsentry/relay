@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use relay_common::DataCategory;
-use relay_general::store::LazyGlob;
+use relay_base_schema::data_category::DataCategory;
+use relay_common::glob2::LazyGlob;
 use relay_sampling::RuleCondition;
 use serde::{Deserialize, Serialize};
 

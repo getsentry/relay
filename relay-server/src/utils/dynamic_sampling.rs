@@ -1,7 +1,7 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 use chrono::{DateTime, Utc};
-use relay_common::ProjectKey;
-use relay_general::protocol::Event;
+use relay_base_schema::project::ProjectKey;
+use relay_event_schema::protocol::Event;
 use relay_sampling::{
     merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch,
 };
@@ -152,9 +152,10 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::{EventType, Uuid};
-    use relay_general::protocol::{EventId, LenientString};
-    use relay_general::types::Annotated;
+    use relay_base_schema::events::EventType;
+    use relay_common::uuid::Uuid;
+    use relay_event_schema::protocol::{EventId, LenientString};
+    use relay_protocol::Annotated;
     use relay_sampling::{
         EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,
         SamplingRule, SamplingValue,

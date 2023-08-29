@@ -12,10 +12,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::RequestPartsExt;
 use data_encoding::BASE64;
-use relay_common::{
-    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectKeyError, ProjectId, ProjectKey, Scheme,
-};
-use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
+use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
+use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
+use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -163,7 +162,7 @@ impl Serialize for PartialDsn {
 }
 
 const fn default_version() -> u16 {
-    relay_common::PROTOCOL_VERSION
+    relay_event_schema::protocol::PROTOCOL_VERSION
 }
 
 fn is_false(value: &bool) -> bool {
@@ -594,7 +593,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
 
         // For now, we only handle <= v8 and drop everything else
         let version = auth.version();
-        if version > relay_common::PROTOCOL_VERSION {
+        if version > relay_event_schema::protocol::PROTOCOL_VERSION {
             return Err(BadEventMeta::UnsupportedProtocolVersion(version));
         }
 

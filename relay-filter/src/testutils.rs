@@ -1,7 +1,7 @@
 //! Utilities used by the event filter tests.
 
-use relay_general::protocol::{Event, Headers, Request};
-use relay_general::types::Annotated;
+use relay_event_schema::protocol::{Event, Headers, Request};
+use relay_protocol::Annotated;
 
 /// Creates an Event with the specified user agent.
 pub fn get_event_with_user_agent(user_agent: &str) -> Event {

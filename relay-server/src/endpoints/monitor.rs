@@ -2,9 +2,9 @@ use axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter, MethodRouter};
-use relay_common::Uuid;
+use relay_common::uuid::Uuid;
 use relay_config::Config;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use relay_monitors::{CheckIn, CheckInStatus};
 use serde::Deserialize;
 
