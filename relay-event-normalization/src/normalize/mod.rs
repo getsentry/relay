@@ -786,6 +786,7 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
+/// Normalizes incoming contexts for the downstream metric extraction.
 fn normalize_contexts(contexts: &mut Contexts, _: &mut Meta) -> ProcessingResult {
     for (_, annotated) in &mut contexts.0 {
         if let Some(ContextInner(context)) = annotated.value_mut() {
