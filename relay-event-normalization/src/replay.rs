@@ -337,7 +337,7 @@ mod tests {
         // Does not fit within a u16.
         let replay_id =
             Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
-        let segment_id: Annotated<u64> = Annotated::new(65536);
+        let segment_id: Annotated<u64> = Annotated::new(u16::MAX + 1 as u64);
         let mut replay = Annotated::new(Replay {
             replay_id,
             segment_id,
