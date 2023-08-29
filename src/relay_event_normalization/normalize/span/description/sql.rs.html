@@ -453,6 +453,22 @@
 <a href="#453" id="453">453</a>
 <a href="#454" id="454">454</a>
 <a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -496,10 +512,12 @@
 </span><span class="kw">static </span>PARENS: Lazy&lt;Regex&gt; =
     Lazy::new(|| Regex::new(<span class="string">r&quot;((?P&lt;pre&gt;\()\s+)|(\s+(?P&lt;post&gt;\)))&quot;</span>).unwrap());
 
+<span class="kw">static </span>STRIP_QUOTES: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r#&quot;[&quot;`](?P&lt;entity_name&gt;\w+)($|[&quot;`])&quot;#</span>).unwrap());
+
 <span class="doccomment">/// Regex to shorten table or column references, e.g. `&quot;table1&quot;.&quot;col1&quot;` -&gt; `col1`.
-</span><span class="kw">static </span>COLLAPSE_ENTITIES: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(<span class="string">r#&quot;(?x) ( ([`&quot;]\w+[`&quot;]\.)*([`&quot;](?P&lt;entity_name&gt;\w+)([`&quot;]|$)) )&quot;#</span>).unwrap()
-});
+</span><span class="kw">static </span>COLLAPSE_ENTITIES: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r&quot;(?:\w+\.)+(?P&lt;entity_name&gt;\w+)&quot;</span>).unwrap());
 
 <span class="doccomment">/// Regex to make multiple placeholders collapse into one.
 /// This can be used as a second pass after [`NORMALIZER_REGEX`].
@@ -552,6 +570,7 @@
         (<span class="kw-2">&amp;</span>WHITESPACE, <span class="string">&quot; &quot;</span>),
         (<span class="kw-2">&amp;</span>PARENS, <span class="string">&quot;$pre$post&quot;</span>),
         (<span class="kw-2">&amp;</span>COLLAPSE_PLACEHOLDERS, <span class="string">&quot;$pre%s$post&quot;</span>),
+        (<span class="kw-2">&amp;</span>STRIP_QUOTES, <span class="string">&quot;$entity_name&quot;</span>),
         (<span class="kw-2">&amp;</span>COLLAPSE_ENTITIES, <span class="string">&quot;$entity_name&quot;</span>),
         (<span class="kw-2">&amp;</span>COLLAPSE_COLUMNS, <span class="string">&quot;$pre..$post&quot;</span>),
     ] {
@@ -692,6 +711,12 @@
 
     <span class="macro">scrub_sql_test!</span>(
         span_description_strip_prefixes,
+        <span class="string">r#&quot;SELECT table.foo, count(*) from table WHERE sku = %s&quot;#</span>,
+        <span class="string">r#&quot;SELECT foo, count(*) from table WHERE sku = %s&quot;#
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        span_description_strip_prefixes_ansi,
         <span class="string">r#&quot;SELECT &quot;table&quot;.&quot;foo&quot;, count(*) from &quot;table&quot; WHERE sku = %s&quot;#</span>,
         <span class="string">r#&quot;SELECT foo, count(*) from table WHERE sku = %s&quot;#
     </span>);
@@ -839,6 +864,13 @@
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
+        span_description_collapse_columns_with_as_without_quotes,
+        <span class="comment">// Simple lists of columns will be collapsed.
+        </span><span class="string">r#&quot;SELECT myfield1, a.b AS a__b, another_field as bar FROM table WHERE %s&quot;#</span>,
+        <span class="string">&quot;SELECT .. FROM table WHERE %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
         parameters_values,
         <span class="string">&quot;INSERT INTO a (b, c, d, e) VALUES (%s, %s, %s, %s)&quot;</span>,
         <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
@@ -877,7 +909,7 @@
             ) srpe
             inner join foo on foo.id = foo_id
         &quot;</span>,
-        <span class="string">&quot;select .. from (select * from (select .. from x where foo = %s) srpe where x = %s) srpe inner join foo on foo.id = foo_id&quot;
+        <span class="string">&quot;select .. from (select * from (select .. from x where foo = %s) srpe where x = %s) srpe inner join foo on id = foo_id&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
@@ -905,7 +937,7 @@
     <span class="macro">scrub_sql_test!</span>(
         clickhouse,
         <span class="string">&quot;SELECT (toStartOfHour(finish_ts, &#39;Universal&#39;) AS _snuba_time), (uniqIf((nullIf(user, &#39;&#39;) AS _snuba_user), greater(multiIf(equals(tupleElement((&#39;duration&#39;, 300), 1), &#39;lcp&#39;), (if(has(measurements.key, &#39;lcp&#39;), arrayElement(measurements.value, indexOf(measurements.key, &#39;lcp&#39;)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((&#39;duration&#39;, 300), 2), 4))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, 4.56), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((&#39;duration&#39;, 300), 1), &#39;lcp&#39;), `_snuba_measurements[lcp]`, _snuba_duration), 0)), 0), 113.45)), 0) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, 0) AND notEquals(transaction_status, 1) AND notEquals(transaction_status, 2)), count()) AS _snuba_failure_rate), (divide(count(), divide(3600.0, 60)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((&#39;transaction&#39; AS _snuba_type), &#39;transaction&#39;) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(&#39;2023-06-13T09:08:51&#39;, &#39;Universal&#39;)) AND less(_snuba_finish_ts, toDateTime(&#39;2023-07-11T09:08:51&#39;, &#39;Universal&#39;)) AND in((project_id AS _snuba_project_id), [123, 456, 789]) AND equals((environment AS _snuba_environment), &#39;production&#39;) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT 10000 OFFSET 0&quot;</span>,
-        <span class="string">&quot;SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(measurements.key, %s), arrayElement(measurements.value, indexOf(measurements.key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s&quot;
+        <span class="string">&quot;SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(key, %s), arrayElement(value, indexOf(key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s&quot;
     </span>);
 }
 </code></pre></div></section></main></body></html>
