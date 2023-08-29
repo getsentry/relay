@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A type that supports field access by paths."><title>Getter in relay_protocol - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-9bb858ba049f1f21.css" id="mainThemeStyle"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="relay_protocol" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0 (5680fa18f 2023-08-23)" data-channel="1.72.0" data-search-js="search-f6292fe389d70017.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ><script src="../static.files/storage-59fd9b8ccb335783.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-0795b7d26be81095.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc trait"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../relay_protocol/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../relay_protocol/index.html"><img src="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png" alt="logo"></a><h2 class="location"><a href="#">Getter</a></h2><div class="sidebar-elems"><section><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.get_value">get_value</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><h2><a href="index.html">In relay_protocol</a></h2></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Trait <a href="index.html">relay_protocol</a>::<wbr><a class="trait" href="#">Getter</a><button id="copy-path" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/relay_protocol/traits.rs.html#192-195">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><pre class="rust item-decl"><code>pub trait Getter {
+    // Required method
+    fn <a href="#tymethod.get_value" class="fn">get_value</a>(&amp;self, path: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.72.0/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.72.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.Val.html" title="enum relay_protocol::Val">Val</a>&lt;'_&gt;&gt;;
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A type that supports field access by paths.</p>
+<h2 id="syntax"><a href="#syntax">Syntax</a></h2>
+<p>The path identifies a value within the structure. A path consists of components separated by
+<code>.</code>, where each of the components is the name of a field to access. Every path starts with the
+name of the root level component, which must match for this type.</p>
+<p>Special characters are escaped with a <code>\</code>. The two special characters are:</p>
+<ul>
+<li><code>\.</code> matches a literal dot in a path component.</li>
+<li><code>\\</code> matches a literal backslash in a path component.</li>
+</ul>
+<h2 id="implementation"><a href="#implementation">Implementation</a></h2>
+<p>Implementation of the <code>Getter</code> trait should follow a set of conventions to ensure the paths
+align with expectations based on the layout of the implementing type:</p>
+<ol>
+<li>The name of the root component should be the lowercased version of the name of the
+structure. For example, a structure called <code>Event</code> would use <code>event</code> as the root component.</li>
+<li>All fields of the structure are referenced by the name of the field in the containing
+structure. This also applies to mappings such as <code>HashMap</code>, where the key should be used as
+field name. For recursive access, this translates transitively through the hierarchy.</li>
+<li>Newtypes and structured enumerations do not show up in paths. This especially applies to
+<code>Option</code>, which opaque in the path: <code>None</code> is simply propagated up.</li>
+</ol>
+<p>In the future, a derive for the <code>Getter</code> trait will be added to simplify implementing the
+<code>Getter</code> trait.</p>
+<h2 id="example"><a href="#example">Example</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>relay_protocol::{Getter, Val};
+
+<span class="kw">struct </span>Root {
+    a: u64,
+    b: Nested,
+}
+
+<span class="kw">struct </span>Nested {
+    c: u64,
+}
+
+<span class="kw">impl </span>Getter <span class="kw">for </span>Root {
+    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">&#39;_</span>&gt;&gt; {
+        <span class="kw">match </span>path.strip_prefix(<span class="string">&quot;root.&quot;</span>)<span class="question-mark">? </span>{
+            <span class="string">&quot;a&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.a.into()),
+            <span class="string">&quot;b.c&quot; </span>=&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.b.c.into()),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+}
+
+
+<span class="kw">let </span>root = Root {
+  a: <span class="number">1</span>,
+  b: Nested {
+    c: <span class="number">2</span>,
+  }
+};
+
+<span class="macro">assert_eq!</span>(root.get_value(<span class="string">&quot;root.a&quot;</span>), <span class="prelude-val">Some</span>(Val::U64(<span class="number">1</span>)));
+<span class="macro">assert_eq!</span>(root.get_value(<span class="string">&quot;root.b.c&quot;</span>), <span class="prelude-val">Some</span>(Val::U64(<span class="number">2</span>)));
+<span class="macro">assert_eq!</span>(root.get_value(<span class="string">&quot;root.d&quot;</span>), <span class="prelude-val">None</span>);</code></pre></div>
+</div></details><h2 id="required-methods" class="small-section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.get_value" class="method"><a class="srclink rightside" href="../src/relay_protocol/traits.rs.html#194">source</a><h4 class="code-header">fn <a href="#tymethod.get_value" class="fn">get_value</a>(&amp;self, path: &amp;<a class="primitive" href="https://doc.rust-lang.org/1.72.0/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.72.0/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="enum.Val.html" title="enum relay_protocol::Val">Val</a>&lt;'_&gt;&gt;</h4></section></summary><div class="docblock"><p>Returns the serialized value of a field pointed to by a <code>path</code>.</p>
+</div></details></div><h2 id="implementors" class="small-section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../implementors/relay_protocol/traits/trait.Getter.js" async></script></section></div></main></body></html>

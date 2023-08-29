@@ -201,6 +201,18 @@
 <a href="#201" id="201">201</a>
 <a href="#202" id="202">202</a>
 <a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
@@ -235,6 +247,12 @@
     }
 }
 
+<span class="kw">impl </span>AsRef&lt;str&gt; <span class="kw">for </span>TraceId {
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
 <span class="doccomment">/// A 16-character hex string as described in the W3C trace context spec.
 </span><span class="attr">#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = <span class="string">&quot;jsonschema&quot;</span>, derive(JsonSchema))]
@@ -260,6 +278,12 @@
             }
         }
     }
+}
+
+<span class="kw">impl </span>AsRef&lt;str&gt; <span class="kw">for </span>SpanId {
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
 <span class="kw">fn </span>is_hex_string(string: <span class="kw-2">&amp;</span>str, len: usize) -&gt; bool {
@@ -351,7 +375,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
 
     <span class="attr">#[test]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_trace_context_roundtrip() {
+    </span><span class="kw">fn </span>test_trace_context_roundtrip() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;trace_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
   &quot;span_id&quot;: &quot;fa90fdead5f74052&quot;,
@@ -389,7 +413,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_trace_context_normalization() {
+    </span><span class="kw">fn </span>test_trace_context_normalization() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;trace_id&quot;: &quot;4C79F60C11214EB38604F4AE0781BFB2&quot;,
   &quot;span_id&quot;: &quot;FA90FDEAD5F74052&quot;,

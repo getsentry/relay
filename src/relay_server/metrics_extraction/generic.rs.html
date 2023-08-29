@@ -410,16 +410,21 @@
 <a href="#410" id="410">410</a>
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
 <span class="kw">use </span>relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
+<span class="kw">use </span>relay_protocol::{Getter, Val};
 <span class="kw">use </span>relay_quotas::DataCategory;
-<span class="kw">use </span>relay_sampling::FieldValueProvider;
 
 <span class="doccomment">/// Item from which metrics can be extracted.
-</span><span class="kw">pub trait </span>Extractable: FieldValueProvider {
+</span><span class="kw">pub trait </span>Extractable: Getter {
     <span class="doccomment">/// Data category for the metric spec to match on.
     </span><span class="kw">fn </span>category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DataCategory;
 
@@ -427,7 +432,7 @@
     </span><span class="kw">fn </span>timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt;;
 }
 
-<span class="doccomment">/// Extract metrics from any type that implements both [`Extractable`] and [`FieldValueProvider`].
+<span class="doccomment">/// Extract metrics from any type that implements both [`Extractable`] and [`Getter`].
 ///
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
@@ -481,7 +486,7 @@
 
 <span class="kw">pub fn </span>tmp_apply_tags&lt;T&gt;(metrics: <span class="kw-2">&amp;mut </span>[Metric], instance: <span class="kw-2">&amp;</span>T, mappings: <span class="kw-2">&amp;</span>[TagMapping])
 <span class="kw">where
-    </span>T: FieldValueProvider,
+    </span>T: Getter,
 {
     <span class="kw">for </span>mapping <span class="kw">in </span>mappings {
         <span class="kw">let </span><span class="kw-2">mut </span>lazy_tags = <span class="prelude-val">None</span>;
@@ -502,7 +507,7 @@
 
 <span class="kw">fn </span>extract_tags&lt;T&gt;(instance: <span class="kw-2">&amp;</span>T, tags: <span class="kw-2">&amp;</span>[TagSpec]) -&gt; BTreeMap&lt;String, String&gt;
 <span class="kw">where
-    </span>T: FieldValueProvider,
+    </span>T: Getter,
 {
     <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
 
@@ -515,7 +520,10 @@
 
         <span class="kw">let </span>value_opt = <span class="kw">match </span>tag_spec.source() {
             TagSource::Literal(value) =&gt; <span class="prelude-val">Some</span>(value.to_owned()),
-            TagSource::Field(field) =&gt; instance.get_value(field).as_str().map(str::to_owned),
+            TagSource::Field(field) =&gt; <span class="kw">match </span>instance.get_value(field) {
+                <span class="prelude-val">Some</span>(Val::String(s)) =&gt; <span class="prelude-val">Some</span>(s.to_owned()),
+                <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+            },
             TagSource::Unknown =&gt; <span class="prelude-val">None</span>,
         };
 
@@ -531,18 +539,20 @@
 }
 
 <span class="kw">fn </span>read_metric_value(
-    instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>FieldValueProvider,
+    instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>Getter,
     field: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
     ty: MetricType,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;MetricValue&gt; {
     <span class="prelude-val">Some</span>(<span class="kw">match </span>ty {
         MetricType::Counter =&gt; MetricValue::Counter(<span class="kw">match </span>field {
-            <span class="prelude-val">Some</span>(field) =&gt; instance.get_value(field).as_f64()<span class="question-mark">?</span>,
+            <span class="prelude-val">Some</span>(field) =&gt; instance.get_value(field)<span class="question-mark">?</span>.as_f64()<span class="question-mark">?</span>,
             <span class="prelude-val">None </span>=&gt; <span class="number">1.0</span>,
         }),
-        MetricType::Distribution =&gt; MetricValue::Distribution(instance.get_value(field<span class="question-mark">?</span>).as_f64()<span class="question-mark">?</span>),
-        MetricType::Set =&gt; MetricValue::set_from_str(instance.get_value(field<span class="question-mark">?</span>).as_str()<span class="question-mark">?</span>),
-        MetricType::Gauge =&gt; MetricValue::Gauge(instance.get_value(field<span class="question-mark">?</span>).as_f64()<span class="question-mark">?</span>),
+        MetricType::Distribution =&gt; {
+            MetricValue::Distribution(instance.get_value(field<span class="question-mark">?</span>)<span class="question-mark">?</span>.as_f64()<span class="question-mark">?</span>)
+        }
+        MetricType::Set =&gt; MetricValue::set_from_str(instance.get_value(field<span class="question-mark">?</span>)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>),
+        MetricType::Gauge =&gt; MetricValue::Gauge(instance.get_value(field<span class="question-mark">?</span>)<span class="question-mark">?</span>.as_f64()<span class="question-mark">?</span>),
     })
 }
 

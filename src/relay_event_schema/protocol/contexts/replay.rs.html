@@ -148,7 +148,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
 
     <span class="attr">#[test]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_trace_context_roundtrip() {
+    </span><span class="kw">fn </span>test_trace_context_roundtrip() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;replay_id&quot;: &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
   &quot;type&quot;: &quot;replay&quot;
@@ -163,7 +163,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>test_replay_context_normalization() {
+    </span><span class="kw">fn </span>test_replay_context_normalization() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;replay_id&quot;: &quot;4C79F60C11214EB38604F4AE0781BFB2&quot;,
   &quot;type&quot;: &quot;replay&quot;

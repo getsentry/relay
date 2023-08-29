@@ -432,8 +432,6 @@
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -649,9 +647,8 @@
     <span class="doccomment">/// A path to the field to extract the metric from.
     ///
     /// This value contains a fully qualified expression pointing at the data field in the payload
-    /// to extract the metric from. It follows the
-    /// [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax that is also used for
-    /// dynamic sampling.
+    /// to extract the metric from. It follows the `Getter` syntax that is also used for dynamic
+    /// sampling.
     ///
     /// How the value is treated depends on the metric type:
     ///
@@ -726,8 +723,7 @@
 
     <span class="doccomment">/// Path to a field containing the tag&#39;s value.
     ///
-    /// It follows the [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax to read
-    /// data from the payload.
+    /// It follows the `Getter` syntax to read data from the payload.
     ///
     /// Mutually exclusive with `value`.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
