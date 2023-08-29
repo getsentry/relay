@@ -334,10 +334,9 @@ mod tests {
 
     #[test]
     fn test_validate_u16_segment_id() {
+        // Does not fit within a u16.
         let replay_id =
             Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
-
-        // Does not fit within a u16.
         let segment_id: Annotated<u64> = Annotated::new(65536);
         let mut replay = Annotated::new(Replay {
             replay_id,
@@ -347,6 +346,8 @@ mod tests {
         assert!(validate(replay.value_mut().as_mut().unwrap()).is_err());
 
         // Fits within a u16.
+        let replay_id =
+            Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
         let segment_id: Annotated<u64> = Annotated::new(65535);
         let mut replay = Annotated::new(Replay {
             replay_id,
