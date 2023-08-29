@@ -1998,6 +1998,7 @@ mod tests {
     fn test_transaction_status_defaulted_to_unknown() {
         let mut object = Object::new();
         let trace_context = TraceContext {
+            // We assume the status to be null.
             status: Annotated::empty(),
             ..TraceContext::default()
         };

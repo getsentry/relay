@@ -25,13 +25,6 @@ pub mod types;
 /// cardinality data such as raw URLs.
 const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
 
-/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-///
-/// Must be consistent with `process_trace_context` in [`relay_event_normalization`].
-fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
-    *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
-}
-
 /// Extract HTTP method
 /// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
 fn extract_http_method(transaction: &Event) -> Option<String> {
@@ -152,6 +145,8 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     tags.insert(CommonTag::Platform, platform.to_string());
 
     if let Some(trace_context) = event.context::<TraceContext>() {
+        // We assume that the trace context status is automatically set to unknown inside of the
+        // light event normalization step.
         if let Some(status) = trace_context.status.value() {
             tags.insert(CommonTag::TransactionStatus, status.to_string());
         }
@@ -1015,7 +1010,11 @@ mod tests {
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}}
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
         }
         "#;
 
@@ -1040,7 +1039,7 @@ mod tests {
         assert_eq!(
             extracted.project_metrics[0].tags,
             BTreeMap::from([
-                ("transaction.status".to_string(), "unknown".to_string()),
+                ("transaction.status".to_string(), "ok".to_string()),
                 ("platform".to_string(), "other".to_string())
             ])
         );
@@ -1048,12 +1047,17 @@ mod tests {
 
     #[test]
     fn test_span_tags() {
+        // Status is normalized upstream in the light normalization step.
         let json = r#"
         {
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            },
             "spans": [
                 {
                     "description": "<OrganizationContext>",
@@ -1103,7 +1107,7 @@ mod tests {
         assert_eq!(
             extracted.project_metrics[0].tags,
             BTreeMap::from([
-                ("transaction.status".to_string(), "unknown".to_string()),
+                ("transaction.status".to_string(), "ok".to_string()),
                 ("platform".to_string(), "other".to_string()),
                 ("http.status_code".to_string(), "200".to_string())
             ])
