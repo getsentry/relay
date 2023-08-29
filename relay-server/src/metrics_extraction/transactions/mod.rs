@@ -152,9 +152,9 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     tags.insert(CommonTag::Platform, platform.to_string());
 
     if let Some(trace_context) = event.context::<TraceContext>() {
-        let status = extract_transaction_status(trace_context);
-
-        tags.insert(CommonTag::TransactionStatus, status.to_string());
+        if let Some(status) = trace_context.status.value() {
+            tags.insert(CommonTag::TransactionStatus, status.to_string());
+        }
 
         if let Some(op) = normalize_utils::extract_transaction_op(trace_context) {
             tags.insert(CommonTag::TransactionOp, op);
