@@ -23,7 +23,7 @@ impl Default for GlobalConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::GlobalConfig;
 
     #[test]
     fn test_deserialize_global_config() {

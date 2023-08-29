@@ -5,7 +5,8 @@ use itertools::Itertools;
 use relay_auth::PublicKey;
 use relay_base_schema::spans::SpanAttribute;
 use relay_event_normalization::{
-    BreakdownsConfig, MeasurementsConfig, SpanDescriptionRule, TransactionNameRule,
+    BreakdownsConfig, BuiltinMeasurementKey, MeasurementsConfig, SpanDescriptionRule,
+    TransactionNameRule,
 };
 use relay_filter::FiltersConfig;
 use relay_pii::{DataScrubbingConfig, PiiConfig};
@@ -94,31 +95,42 @@ impl ProjectConfig {
         defaults::add_span_metrics(self);
     }
 
-    /// Combines the measurementsconfig from global config and project config.
+    /// Combines the [`MeasurementsConfig`] from [`GlobalConfig`] and [`ProjectConfig`].
     pub fn measurements<'a>(
         &'a self,
         global_config: &'a Arc<GlobalConfig>,
-    ) -> Option<MeasurementsConfig> {
+    ) -> (
+        Option<Box<dyn Iterator<Item = &'a BuiltinMeasurementKey> + 'a>>,
+        Option<usize>,
+    ) {
         match (
             self.measurements.as_ref(),
             global_config.measurements.as_ref(),
         ) {
-            (None, None) => None,
-            (None, Some(glob_measurements_config)) => Some(glob_measurements_config.clone()),
-            (Some(proj_measurements_config), None) => Some(proj_measurements_config.clone()),
+            (None, None) => (None, None),
+            (None, Some(glob_measurements_config)) => (
+                Some(Box::new(
+                    glob_measurements_config.builtin_measurements.iter(),
+                )),
+                Some(glob_measurements_config.max_custom_measurements),
+            ),
+            (Some(proj_measurements_config), None) => (
+                Some(Box::new(
+                    proj_measurements_config.builtin_measurements.iter(),
+                )),
+                Some(proj_measurements_config.max_custom_measurements),
+            ),
             (Some(proj_measurements_config), Some(glob_measurements_config)) => {
-                let merged_measurements: Vec<_> = proj_measurements_config
+                let merged = proj_measurements_config
                     .builtin_measurements
                     .iter()
                     .chain(glob_measurements_config.builtin_measurements.iter())
-                    .unique()
-                    .cloned()
-                    .collect();
+                    .unique_by(|&x| x);
 
-                Some(MeasurementsConfig {
-                    builtin_measurements: merged_measurements,
-                    max_custom_measurements: proj_measurements_config.max_custom_measurements,
-                })
+                (
+                    Some(Box::new(merged)),
+                    Some(proj_measurements_config.max_custom_measurements),
+                )
             }
         }
     }

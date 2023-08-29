@@ -2393,6 +2393,9 @@ impl EnvelopeProcessorService {
             .has_feature(Feature::SpanMetricsExtraction);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
+            let (builtin_measurement_keys, max_custom_measurements) =
+                state.project_state.config.measurements(&self.global_config);
+
             let config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
@@ -2415,7 +2418,6 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state.project_state.config.measurements(&self.global_config),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
@@ -2437,6 +2439,8 @@ impl EnvelopeProcessorService {
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
+                builtin_measurement_keys,
+                max_custom_measurements,
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {

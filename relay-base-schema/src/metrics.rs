@@ -25,7 +25,7 @@ pub fn is_valid_metric_name(name: &str) -> bool {
 /// measurements.
 ///
 /// Units and their precisions are uniquely represented by a string identifier.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Default, PartialOrd)]
 pub enum MetricUnit {
     /// A time duration, defaulting to `"millisecond"`.
     Duration(DurationUnit),
@@ -154,7 +154,7 @@ impl IntoValue for MetricUnit {
 /// Time duration units used in [`MetricUnit::Duration`].
 ///
 /// Defaults to `millisecond`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd)]
 pub enum DurationUnit {
     /// Nanosecond (`"nanosecond"`), 10^-9 seconds.
     NanoSecond,
@@ -203,7 +203,7 @@ pub struct ParseMetricUnitError(());
 ///
 /// Defaults to `byte`. See also [Units of
 /// information](https://en.wikipedia.org/wiki/Units_of_information).
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd)]
 pub enum InformationUnit {
     /// Bit (`"bit"`), corresponding to 1/8 of a byte.
     ///
@@ -267,7 +267,7 @@ impl fmt::Display for InformationUnit {
 /// Units of fraction used in [`MetricUnit::Fraction`].
 ///
 /// Defaults to `ratio`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, PartialOrd)]
 pub enum FractionUnit {
     /// Floating point fraction of `1`.
     Ratio,
@@ -293,7 +293,7 @@ impl fmt::Display for FractionUnit {
 const CUSTOM_UNIT_MAX_SIZE: usize = 15;
 
 /// Custom user-defined units without builtin conversion.
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd)]
 pub struct CustomUnit([u8; CUSTOM_UNIT_MAX_SIZE]);
 
 impl CustomUnit {
