@@ -94,7 +94,7 @@ impl ProjectConfig {
         defaults::add_span_metrics(self);
     }
 
-    /// Retrieves the measurements from project config and falls back on global config if missing.
+    /// Combines the measurementsconfig from global config and project config.
     pub fn measurements<'a>(
         &'a self,
         global_config: &'a Arc<GlobalConfig>,
