@@ -333,6 +333,25 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_u16_segment_id() {
+        // Does not fit within a u16.
+        let segment_id: Annotated<u64> = Annotated::new(65536);
+        let mut replay = Annotated::new(Replay {
+            segment_id: segment_id,
+            ..Default::default()
+        });
+        assert!(validate(replay.value_mut().as_mut().unwrap()).is_err());
+
+        // Fits within a u16.
+        let segment_id: Annotated<u64> = Annotated::new(65535);
+        let mut replay = Annotated::new(Replay {
+            segment_id: segment_id,
+            ..Default::default()
+        });
+        assert!(!validate(replay.value_mut().as_mut().unwrap()).is_err());
+    }
+
+    #[test]
     fn test_truncated_list_less_than_limit() {
         let mut replay = Annotated::new(Replay {
             urls: Annotated::new(Vec::new()),
