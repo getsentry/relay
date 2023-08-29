@@ -82,7 +82,6 @@ mod utils;
 pub use config::SamplingConfig;
 pub use dsc::DynamicSamplingContext;
 
-// TODO(ja): Enable tests
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
