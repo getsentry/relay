@@ -5,8 +5,11 @@ use std::borrow::Cow;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-/// Removes SQL comments starting with "--".
-static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"--.*(?P<newline>\n)").unwrap());
+/// Removes SQL comments starting with "--" or "#".
+static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n)").unwrap());
+
+/// Removes MySQL inline comments.
+static INLINE_COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\*(?:.|\n)*?\*/").unwrap());
 
 /// Regex with multiple capture groups for SQL tokens we should scrub.
 ///
@@ -39,8 +42,9 @@ static PARENS: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"((?P<pre>\()\s+)|(\s+(?P<post>\)))").unwrap());
 
 /// Regex to shorten table or column references, e.g. `"table1"."col1"` -> `col1`.
-static COLLAPSE_ENTITIES: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?x) ( ("\w+"\.)*("(?P<entity_name>\w+)("|$)) )"#).unwrap());
+static COLLAPSE_ENTITIES: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"(?x) ( ([`"]\w+[`"]\.)*([`"](?P<entity_name>\w+)([`"]|$)) )"#).unwrap()
+});
 
 /// Regex to make multiple placeholders collapse into one.
 /// This can be used as a second pass after [`NORMALIZER_REGEX`].
@@ -87,8 +91,9 @@ pub(crate) fn scrub_queries(string: &str) -> Option<String> {
     let mut string = Cow::from(string.trim());
 
     for (regex, replacement) in [
-        (&COMMENTS, "\n"),
         (&NORMALIZER_REGEX, "$pre%s"),
+        (&COMMENTS, "\n"),
+        (&INLINE_COMMENTS, ""),
         (&WHITESPACE, " "),
         (&PARENS, "$pre$post"),
         (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
@@ -233,6 +238,12 @@ mod tests {
     scrub_sql_test!(
         span_description_strip_prefixes,
         r#"SELECT "table"."foo", count(*) from "table" WHERE sku = %s"#,
+        r#"SELECT foo, count(*) from table WHERE sku = %s"#
+    );
+
+    scrub_sql_test!(
+        span_description_strip_prefixes_mysql,
+        r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
         r#"SELECT foo, count(*) from table WHERE sku = %s"#
     );
 
@@ -412,6 +423,28 @@ mod tests {
             inner join foo on foo.id = foo_id
         ",
         "select .. from (select * from (select .. from x where foo = %s) srpe where x = %s) srpe inner join foo on foo.id = foo_id"
+    );
+
+    scrub_sql_test!(
+        not_a_comment,
+        "SELECT * from comments WHERE comment LIKE '-- NOTE%s'
+        AND foo > 0",
+        "SELECT * from comments WHERE comment LIKE %s AND foo > %s"
+    );
+
+    scrub_sql_test!(
+        mysql_comment,
+        "
+            DELETE  # end-of-line
+            FROM /* inline comment */ `some_table`
+            /*
+                multi
+                line
+                comment
+            */
+            WHERE `some_table`.`id` IN (%s)
+        ",
+        "DELETE FROM some_table WHERE id IN (%s)"
     );
 
     scrub_sql_test!(
