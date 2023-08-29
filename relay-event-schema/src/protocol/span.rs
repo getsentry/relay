@@ -1,6 +1,6 @@
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
@@ -96,6 +96,42 @@ impl From<&Event> for Span {
     }
 }
 
+impl Getter for Span {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        Some(match path.strip_prefix("span.")? {
+            "exclusive_time" => self.exclusive_time.value()?.into(),
+            "description" => self.description.as_str()?.into(),
+            "op" => self.op.as_str()?.into(),
+            "span_id" => self.span_id.as_str()?.into(),
+            "parent_span_id" => self.parent_span_id.as_str()?.into(),
+            "trace_id" => self.trace_id.as_str()?.into(),
+            "status" => self.status.as_str()?.into(),
+            "origin" => self.origin.as_str()?.into(),
+            path => {
+                if let Some(key) = path.strip_prefix("tags.") {
+                    self.tags.value()?.get(key)?.as_str()?.into()
+                } else if let Some(key) = path.strip_prefix("data.") {
+                    let escaped = key.replace("\\.", "\0");
+                    let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
+                    let root = path.next()?;
+
+                    let mut val = self.data.value()?.get(&root)?.value()?;
+                    for part in path {
+                        // While there is path segments left, `val` has to be an Object.
+                        let relay_protocol::Value::Object(map) = val else {
+                            return None;
+                        };
+                        val = map.get(&part)?.value()?;
+                    }
+                    val.into()
+                } else {
+                    return None;
+                }
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -135,5 +171,27 @@ mod tests {
 
         let span_from_string = Annotated::from_json(json).unwrap();
         assert_eq!(span, span_from_string);
+    }
+
+    #[test]
+    fn test_getter_span_data() {
+        let span = Annotated::<Span>::from_json(
+            r#"{
+                "data": {
+                    "foo": {"bar": 1},
+                    "foo.bar": 2
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_eq!(span.get_value("span.data.foo.bar"), Some(Val::I64(1)));
+        assert_eq!(span.get_value(r"span.data.foo\.bar"), Some(Val::I64(2)));
+
+        assert_eq!(span.get_value("span.data"), None);
+        assert_eq!(span.get_value("span.data."), None);
+        assert_eq!(span.get_value("span.data.x"), None);
     }
 }

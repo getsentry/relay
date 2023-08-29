@@ -1,19 +1,22 @@
 use std::fmt;
 use std::str::FromStr;
 
+use relay_common::time;
 use relay_common::uuid::Uuid;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema};
+use sentry_release_parser::Release as ParsedRelease;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Breadcrumb, Breakdowns, ClientSdkInfo, Contexts, Csp, DebugMeta, DefaultContext, EventType,
-    Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp, LenientString, Level, LogEntry,
-    Measurements, Metrics, RelayInfo, Request, Span, Stacktrace, Tags, TemplateInfo, Thread,
-    Timestamp, TransactionInfo, User, Values,
+    Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
+    DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
+    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, RelayInfo, Request,
+    ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext,
+    TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -577,6 +580,25 @@ impl Event {
         Some(value)
     }
 
+    /// Returns parsed components of the Release string in [`Self::release`].
+    pub fn parse_release(&self) -> Option<ParsedRelease<'_>> {
+        sentry_release_parser::Release::parse(self.release.as_str()?).ok()
+    }
+
+    /// Returns the numeric measurement value.
+    ///
+    /// The name is provided without a prefix, for example `"lcp"` loads `event.measurements.lcp`.
+    pub fn measurement(&self, name: &str) -> Option<f64> {
+        let annotated = self.measurements.value()?.get(name)?;
+        Some(*annotated.value()?.value.value()?)
+    }
+
+    /// Returns the numeric breakdown value.
+    pub fn breakdown(&self, breakdown: &str, measurement: &str) -> Option<f64> {
+        let breakdown = self.breakdowns.value()?.get(breakdown)?.value()?;
+        Some(*breakdown.get(measurement)?.value()?.value.value()?)
+    }
+
     /// Returns a reference to the context if it exists in its default key.
     pub fn context<C: DefaultContext>(&self) -> Option<&C> {
         self.contexts.value()?.get()
@@ -588,6 +610,103 @@ impl Event {
     }
 }
 
+fn or_none(string: &Annotated<impl AsRef<str>>) -> Option<&str> {
+    match string.as_str() {
+        None | Some("") => None,
+        Some(other) => Some(other),
+    }
+}
+
+impl Getter for Event {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        Some(match path.strip_prefix("event.")? {
+            // Simple fields
+            "release" => self.release.as_str()?.into(),
+            "dist" => self.dist.as_str()?.into(),
+            "environment" => self.environment.as_str()?.into(),
+            "transaction" => self.transaction.as_str()?.into(),
+            "platform" => self.platform.as_str().unwrap_or("other").into(),
+
+            // Fields in top level structures (called "interfaces" in Sentry)
+            "user.email" => or_none(&self.user.value()?.email)?.into(),
+            "user.id" => or_none(&self.user.value()?.id)?.into(),
+            "user.ip_address" => self.user.value()?.ip_address.as_str()?.into(),
+            "user.name" => self.user.value()?.name.as_str()?.into(),
+            "user.segment" => or_none(&self.user.value()?.segment)?.into(),
+            "user.geo.city" => self.user.value()?.geo.value()?.city.as_str()?.into(),
+            "user.geo.country_code" => self
+                .user
+                .value()?
+                .geo
+                .value()?
+                .country_code
+                .as_str()?
+                .into(),
+            "user.geo.region" => self.user.value()?.geo.value()?.region.as_str()?.into(),
+            "user.geo.subdivision" => self.user.value()?.geo.value()?.subdivision.as_str()?.into(),
+            "request.method" => self.request.value()?.method.as_str()?.into(),
+
+            // Partial implementation of contexts.
+            "contexts.device.name" => self.context::<DeviceContext>()?.name.as_str()?.into(),
+            "contexts.device.family" => self.context::<DeviceContext>()?.family.as_str()?.into(),
+            "contexts.os.name" => self.context::<OsContext>()?.name.as_str()?.into(),
+            "contexts.os.version" => self.context::<OsContext>()?.version.as_str()?.into(),
+            "contexts.browser.name" => self.context::<BrowserContext>()?.name.as_str()?.into(),
+            "contexts.browser.version" => {
+                self.context::<BrowserContext>()?.version.as_str()?.into()
+            }
+            "contexts.trace.status" => self
+                .context::<TraceContext>()?
+                .status
+                .value()?
+                .as_str()
+                .into(),
+            "contexts.trace.op" => self.context::<TraceContext>()?.op.as_str()?.into(),
+            "contexts.response.status_code" => self
+                .context::<ResponseContext>()?
+                .status_code
+                .value()?
+                .into(),
+
+            // Computed fields (see Discover)
+            "duration" => {
+                let start = self.start_timestamp.value()?;
+                let end = self.timestamp.value()?;
+                if start <= end && self.ty.value() == Some(&EventType::Transaction) {
+                    time::chrono_to_positive_millis(*end - *start).into()
+                } else {
+                    return None;
+                }
+            }
+
+            // Dynamic access to certain data bags
+            path => {
+                if let Some(rest) = path.strip_prefix("release.") {
+                    let release = self.parse_release()?;
+                    match rest {
+                        "build" => release.build_hash()?.into(),
+                        "package" => release.package()?.into(),
+                        "version.short" => release.version()?.raw_short().into(),
+                        _ => return None,
+                    }
+                } else if let Some(rest) = path.strip_prefix("measurements.") {
+                    let name = rest.strip_suffix(".value")?;
+                    self.measurement(name)?.into()
+                } else if let Some(rest) = path.strip_prefix("breakdowns.") {
+                    let (breakdown, measurement) = rest.split_once('.')?;
+                    self.breakdown(breakdown, measurement)?.into()
+                } else if let Some(rest) = path.strip_prefix("extra.") {
+                    self.extra_at(rest)?.into()
+                } else if let Some(rest) = path.strip_prefix("tags.") {
+                    self.tags.value()?.get(rest)?.into()
+                } else {
+                    return None;
+                }
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -595,7 +714,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use super::*;
-    use crate::protocol::TagEntry;
+    use crate::protocol::{Headers, IpAddr, JsonLenientString, PairList, TagEntry};
 
     #[test]
     fn test_event_roundtrip() {
@@ -848,5 +967,121 @@ mod tests {
         );
         assert_eq!(None, event.extra_at("c.e"));
         assert_eq!(None, event.extra_at("c.f"));
+    }
+
+    #[test]
+    fn test_field_value_provider_event_filled() {
+        let event = Event {
+            release: Annotated::new(LenientString("1.1.1".to_owned())),
+            environment: Annotated::new("prod".to_owned()),
+            user: Annotated::new(User {
+                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
+                id: Annotated::new(LenientString("user-id".into())),
+                segment: Annotated::new("user-seg".into()),
+                ..Default::default()
+            }),
+            exceptions: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(Exception {
+                    value: Annotated::new(JsonLenientString::from(
+                        "canvas.contentDocument".to_owned(),
+                    )),
+                    ..Default::default()
+                })]),
+                ..Default::default()
+            }),
+            request: Annotated::new(Request {
+                headers: Annotated::new(Headers(PairList(vec![Annotated::new((
+                    Annotated::new("user-agent".into()),
+                    Annotated::new("Slurp".into()),
+                ))]))),
+                ..Default::default()
+            }),
+            transaction: Annotated::new("some-transaction".into()),
+            tags: {
+                let items = vec![Annotated::new(TagEntry(
+                    Annotated::new("custom".to_string()),
+                    Annotated::new("custom-value".to_string()),
+                ))];
+                Annotated::new(Tags(items.into()))
+            },
+            contexts: Annotated::new({
+                let mut contexts = Contexts::new();
+                contexts.add(DeviceContext {
+                    name: Annotated::new("iphone".to_string()),
+                    family: Annotated::new("iphone-fam".to_string()),
+                    model: Annotated::new("iphone7,3".to_string()),
+                    ..DeviceContext::default()
+                });
+                contexts.add(OsContext {
+                    name: Annotated::new("iOS".to_string()),
+                    version: Annotated::new("11.4.2".to_string()),
+                    kernel_version: Annotated::new("17.4.0".to_string()),
+                    ..OsContext::default()
+                });
+                contexts
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(Some(Val::String("1.1.1")), event.get_value("event.release"));
+        assert_eq!(
+            Some(Val::String("prod")),
+            event.get_value("event.environment")
+        );
+        assert_eq!(
+            Some(Val::String("user-id")),
+            event.get_value("event.user.id")
+        );
+        assert_eq!(
+            Some(Val::String("user-seg")),
+            event.get_value("event.user.segment")
+        );
+        assert_eq!(
+            Some(Val::String("some-transaction")),
+            event.get_value("event.transaction")
+        );
+        assert_eq!(
+            Some(Val::String("iphone")),
+            event.get_value("event.contexts.device.name")
+        );
+        assert_eq!(
+            Some(Val::String("iphone-fam")),
+            event.get_value("event.contexts.device.family")
+        );
+        assert_eq!(
+            Some(Val::String("iOS")),
+            event.get_value("event.contexts.os.name")
+        );
+        assert_eq!(
+            Some(Val::String("11.4.2")),
+            event.get_value("event.contexts.os.version")
+        );
+        assert_eq!(
+            Some(Val::String("custom-value")),
+            event.get_value("event.tags.custom")
+        );
+        assert_eq!(None, event.get_value("event.tags.doesntexist"));
+    }
+
+    #[test]
+    fn test_field_value_provider_event_empty() {
+        let event = Event::default();
+
+        assert_eq!(None, event.get_value("event.release"));
+        assert_eq!(None, event.get_value("event.environment"));
+        assert_eq!(None, event.get_value("event.user.id"));
+        assert_eq!(None, event.get_value("event.user.segment"));
+
+        // now try with an empty user
+        let event = Event {
+            user: Annotated::new(User {
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert_eq!(None, event.get_value("event.user.id"));
+        assert_eq!(None, event.get_value("event.user.segment"));
+        assert_eq!(None, event.get_value("event.transaction"));
     }
 }

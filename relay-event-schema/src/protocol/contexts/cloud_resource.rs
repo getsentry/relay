@@ -97,7 +97,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    pub(crate) fn test_cloud_resource_context_roundtrip() {
+    fn test_cloud_resource_context_roundtrip() {
         let json = r#"{
   "cloud.account.id": "499517922981",
   "cloud.provider": "aws",
