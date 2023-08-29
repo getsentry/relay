@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use relay_base_schema::events::EventType;
-use relay_base_schema::spans::SpanStatus;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
