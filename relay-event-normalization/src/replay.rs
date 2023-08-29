@@ -51,7 +51,7 @@ pub fn validate(replay: &mut Replay) -> Result<(), ReplayError> {
 
     if segment_id > &65535 {
         return Err(ReplayError::InvalidPayload(
-            "Segment_id is too large.".to_string(),
+            "segment_id exceeded u16 limit".to_string(),
         ));
     }
 
