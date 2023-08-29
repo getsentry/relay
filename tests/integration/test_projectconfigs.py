@@ -11,7 +11,7 @@ import os
 
 from sentry_relay.auth import PublicKey, SecretKey, generate_key_pair
 
-from tests.integration.conftest import GLOBAL_CONFIG
+from . import GLOBAL_CONFIG
 
 
 RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal"])

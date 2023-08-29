@@ -13,10 +13,9 @@ from werkzeug.serving import WSGIRequestHandler
 from pytest_localserver.http import WSGIServer
 from sentry_sdk.envelope import Envelope
 
-from tests.integration.conftest import GLOBAL_CONFIG
-
 
 from . import SentryLike
+from .. import GLOBAL_CONFIG
 
 _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 with open(os.path.join(os.path.dirname(__file__), "../../../relay/Cargo.toml")) as f:
