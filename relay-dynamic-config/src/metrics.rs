@@ -213,8 +213,8 @@ pub struct MetricSpec {
     /// A path to the field to extract the metric from.
     ///
     /// This value contains a fully qualified expression pointing at the data field in the payload
-    /// to extract the metric from. It follows the [`Getter`](relay_protocol::Getter) syntax that is
-    /// also used for dynamic sampling.
+    /// to extract the metric from. It follows the `Getter` syntax that is also used for dynamic
+    /// sampling.
     ///
     /// How the value is treated depends on the metric type:
     ///
@@ -289,7 +289,7 @@ pub struct TagSpec {
 
     /// Path to a field containing the tag's value.
     ///
-    /// It follows the [`Getter`](relay_protocol::Getter) syntax to read data from the payload.
+    /// It follows the `Getter` syntax to read data from the payload.
     ///
     /// Mutually exclusive with `value`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
