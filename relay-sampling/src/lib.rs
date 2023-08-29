@@ -18,8 +18,6 @@
 //!
 //! The sampling system implemented in Relay is composed of the following components:
 //! - [`DynamicSamplingContext`]: a struct that contains the trace information.
-//! - [`FieldValueProvider`]: an abstraction implemented by [`Event`] and [`DynamicSamplingContext`] to
-//! expose fields that are read during matching.
 //! - [`SamplingRule`]: a rule that is matched against [`Event`] or [`DynamicSamplingContext`] that
 //! can contain a [`RuleCondition`] for expressing predicates on the incoming payload.
 //! - [`SamplingMatch`]: the result of the matching of one or more [`SamplingRule`].
@@ -78,8 +76,7 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
-use relay_protocol::Annotated;
-use sentry_release_parser::Release;
+use relay_protocol::{Getter, Val};
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Number, Value};
@@ -87,11 +84,8 @@ use serde_json::{Number, Value};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
 use relay_common::glob3::GlobPatterns;
-use relay_common::time;
 use relay_common::uuid::Uuid;
-use relay_event_schema::protocol::{
-    BrowserContext, DeviceContext, Event, OsContext, ResponseContext, Span, TraceContext,
-};
+use relay_event_schema::protocol::{Event, TraceContext};
 
 /// Defines the type of dynamic rule, i.e. to which type of events it will be applied and how.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -129,51 +123,28 @@ pub struct EqCondition {
 }
 
 impl EqCondition {
-    fn matches<T>(&self, value_provider: &T) -> bool
-    where
-        T: FieldValueProvider,
-    {
-        let value = value_provider.get_value(self.name.as_str());
+    fn cmp(&self, left: &str, right: &str) -> bool {
+        if self.options.ignore_case {
+            unicase::eq(left, right)
+        } else {
+            left == right
+        }
+    }
 
-        match value {
-            Value::Null => self.value == Value::Null,
-            Value::String(ref field) => match self.value {
-                Value::String(ref val) => {
-                    if self.options.ignore_case {
-                        unicase::eq(field.as_str(), val.as_str())
-                    } else {
-                        field == val
-                    }
-                }
-                Value::Array(ref val) => {
-                    if self.options.ignore_case {
-                        val.iter().any(|v| {
-                            if let Some(v) = v.as_str() {
-                                unicase::eq(v, field.as_str())
-                            } else {
-                                false
-                            }
-                        })
-                    } else {
-                        val.iter().any(|v| {
-                            if let Some(v) = v.as_str() {
-                                v == field.as_str()
-                            } else {
-                                false
-                            }
-                        })
-                    }
-                }
-                _ => false,
-            },
-            Value::Bool(field) => {
-                if let Value::Bool(val) = self.value {
-                    field == val
-                } else {
-                    false
-                }
-            }
-            _ => false, // unsupported types
+    fn matches<T>(&self, instance: &T) -> bool
+    where
+        T: Getter,
+    {
+        match (instance.get_value(self.name.as_str()), &self.value) {
+            (None, Value::Null) => true,
+            (Some(Val::String(f)), Value::String(ref val)) => self.cmp(f, val),
+            (Some(Val::String(f)), Value::Array(ref arr)) => arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .any(|v| self.cmp(v, f)),
+            (Some(Val::Uuid(f)), Value::String(ref val)) => Some(f) == val.parse().ok(),
+            (Some(Val::Bool(f)), Value::Bool(v)) => f == *v,
+            _ => false,
         }
     }
 }
@@ -187,15 +158,17 @@ macro_rules! impl_cmp_condition {
         }
 
         impl $struct_name {
-            fn matches<T>(&self, value_provider: &T) -> bool where T: FieldValueProvider{
-                let value = match value_provider.get_value(self.name.as_str()) {
-                    Value::Number(x) => x,
-                    _ => return false
+            fn matches<T>(&self, instance: &T) -> bool
+            where
+                T: Getter
+            {
+                let Some(value) = instance.get_value(self.name.as_str()) else {
+                    return false;
                 };
 
                 // Try various conversion functions in order of expensiveness and likelihood
-                // - as_i64 is not really fast, but most values in sampling rules can be i64, so we could
-                //   return early
+                // - as_i64 is not really fast, but most values in sampling rules can be i64, so we
+                //   could return early
                 // - f64 is more likely to succeed than u64, but we might lose precision
                 if let (Some(a), Some(b)) = (value.as_i64(), self.value.as_i64()) {
                     a $operator b
@@ -224,14 +197,14 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
-    fn matches<T>(&self, value_provider: &T) -> bool
+    fn matches<T>(&self, instance: &T) -> bool
     where
-        T: FieldValueProvider,
+        T: Getter,
     {
-        value_provider
-            .get_value(self.name.as_str())
-            .as_str()
-            .map_or(false, |fv| self.value.is_match(fv))
+        match instance.get_value(self.name.as_str()) {
+            Some(Val::String(s)) => self.value.is_match(s),
+            _ => false,
+        }
     }
 }
 
@@ -251,7 +224,7 @@ impl OrCondition {
 
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: FieldValueProvider,
+        T: Getter,
     {
         self.inner.iter().any(|cond| cond.matches(value))
     }
@@ -272,7 +245,7 @@ impl AndCondition {
     }
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: FieldValueProvider,
+        T: Getter,
     {
         self.inner.iter().all(|cond| cond.matches(value))
     }
@@ -294,7 +267,7 @@ impl NotCondition {
 
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: FieldValueProvider,
+        T: Getter,
     {
         !self.inner.matches(value)
     }
@@ -345,7 +318,7 @@ impl RuleCondition {
 
     pub fn matches<T>(&self, value: &T) -> bool
     where
-        T: FieldValueProvider,
+        T: Getter,
     {
         match self {
             RuleCondition::Eq(condition) => condition.matches(value),
@@ -574,329 +547,24 @@ impl SamplingRule {
     }
 }
 
-/// Get the numeric measurement value.
-///
-/// The name is provided without a prefix, for example `"lcp"` loads `event.measurements.lcp`.
-fn get_measurement(event: &Event, name: &str) -> Option<f64> {
-    let measurements = event.measurements.value()?;
-    let annotated = measurements.get(name)?;
-    let value = annotated.value().and_then(|m| m.value.value())?;
-    Some(*value)
-}
-
-/// Trait implemented by providers of fields (Events and Trace Contexts).
-///
-/// The fields will be used by rules to check if they apply.
-// TODO: This trait is used for more than dynamic sampling now. Move it to relay-protocol.
-pub trait FieldValueProvider {
-    /// gets the value of a field
-    fn get_value(&self, path: &str) -> Value;
-}
-
-impl FieldValueProvider for Event {
-    fn get_value(&self, field_name: &str) -> Value {
-        let field_name = match field_name.strip_prefix("event.") {
-            Some(stripped) => stripped,
-            None => return Value::Null,
-        };
-
-        match field_name {
-            // Simple fields
-            "release" => match self.release.value() {
-                None => Value::Null,
-                Some(s) => s.as_str().into(),
-            },
-            "dist" => match self.dist.value() {
-                None => Value::Null,
-                Some(s) => s.as_str().into(),
-            },
-            "environment" => match self.environment.value() {
-                None => Value::Null,
-                Some(s) => s.as_str().into(),
-            },
-            "transaction" => match self.transaction.value() {
-                None => Value::Null,
-                Some(s) => s.as_str().into(),
-            },
-            "platform" => match self.platform.value() {
-                Some(platform) => platform.clone().into(),
-                None => Value::from("other"),
-            },
-
-            // Fields in top level structures (called "interfaces" in Sentry)
-            "user.email" => self
-                .user
-                .value()
-                .and_then(|user| user.email.as_str())
-                .filter(|id| !id.is_empty())
-                .map_or(Value::Null, Value::from),
-            "user.id" => self
-                .user
-                .value()
-                .and_then(|user| user.id.as_str())
-                .filter(|id| !id.is_empty())
-                .map_or(Value::Null, Value::from),
-            "user.ip_address" => self
-                .user
-                .value()
-                .and_then(|user| user.ip_address.as_str())
-                .map_or(Value::Null, Value::from),
-            "user.name" => self
-                .user
-                .value()
-                .and_then(|user| user.name.as_str())
-                .filter(|id| !id.is_empty())
-                .map_or(Value::Null, Value::from),
-            "user.segment" => self
-                .user
-                .value()
-                .and_then(|user| user.segment.as_str())
-                .filter(|id| !id.is_empty())
-                .map_or(Value::Null, Value::from),
-            "user.geo.city" => self
-                .user
-                .value()
-                .and_then(|user| user.geo.value())
-                .and_then(|geo| geo.city.as_str())
-                .map_or(Value::Null, Value::from),
-            "user.geo.country_code" => self
-                .user
-                .value()
-                .and_then(|user| user.geo.value())
-                .and_then(|geo| geo.country_code.as_str())
-                .map_or(Value::Null, Value::from),
-            "user.geo.region" => self
-                .user
-                .value()
-                .and_then(|user| user.geo.value())
-                .and_then(|geo| geo.region.as_str())
-                .map_or(Value::Null, Value::from),
-            "user.geo.subdivision" => self
-                .user
-                .value()
-                .and_then(|user| user.geo.value())
-                .and_then(|geo| geo.subdivision.as_str())
-                .map_or(Value::Null, Value::from),
-            "request.method" => self
-                .request
-                .value()
-                .and_then(|request| request.method.as_str())
-                .map_or(Value::Null, Value::from),
-
-            // Partial implementation of contexts.
-            "contexts.device.name" => self
-                .context::<DeviceContext>()
-                .and_then(|device| device.name.as_str())
-                .map_or(Value::Null, Value::from),
-            "contexts.device.family" => self
-                .context::<DeviceContext>()
-                .and_then(|device| device.family.as_str())
-                .map_or(Value::Null, Value::from),
-            "contexts.os.name" => self
-                .context::<OsContext>()
-                .and_then(|os| os.name.as_str())
-                .map_or(Value::Null, Value::from),
-            "contexts.os.version" => self
-                .context::<OsContext>()
-                .and_then(|os| os.version.as_str())
-                .map_or(Value::Null, Value::from),
-            "contexts.browser.name" => self
-                .context::<BrowserContext>()
-                .and_then(|browser| browser.name.as_str())
-                .map_or(Value::Null, Value::from),
-            "contexts.browser.version" => self
-                .context::<BrowserContext>()
-                .and_then(|browser| browser.version.as_str())
-                .map_or(Value::Null, Value::from),
-            "contexts.trace.status" => self
-                .context::<TraceContext>()
-                .and_then(|trace| trace.status.value())
-                .map_or(Value::Null, |status| status.as_str().into()),
-            "contexts.trace.op" => self
-                .context::<TraceContext>()
-                .and_then(|trace| trace.op.as_str())
-                .map_or(Value::Null, Value::from),
-            "contexts.response.status_code" => self
-                .context::<ResponseContext>()
-                .and_then(|response| response.status_code.value().copied())
-                .map_or(Value::Null, Value::from),
-
-            // Computed fields (see Discover)
-            "duration" => match (
-                self.ty.value(),
-                self.start_timestamp.value(),
-                self.timestamp.value(),
-            ) {
-                (Some(&EventType::Transaction), Some(&start), Some(&end)) if start <= end => {
-                    match Number::from_f64(time::chrono_to_positive_millis(end - start)) {
-                        Some(num) => Value::Number(num),
-                        None => Value::Null,
-                    }
-                }
-                _ => Value::Null,
-            },
-            "release.build" => self
-                .release
-                .as_str()
-                .and_then(|r| Release::parse(r).ok())
-                .and_then(|r| r.build_hash().map(Value::from))
-                .unwrap_or(Value::Null),
-            "release.package" => self
-                .release
-                .as_str()
-                .and_then(|r| Release::parse(r).ok())
-                .and_then(|r| r.package().map(Value::from))
-                .unwrap_or(Value::Null),
-            "release.version.short" => self
-                .release
-                .as_str()
-                .and_then(|r| Release::parse(r).ok())
-                .and_then(|r| r.version().map(|v| v.raw_short().into()))
-                .unwrap_or(Value::Null),
-
-            // Dynamic access to certain data bags
-            _ => {
-                if let Some(rest) = field_name.strip_prefix("measurements.") {
-                    rest.strip_suffix(".value")
-                        .filter(|measurement_name| !measurement_name.is_empty())
-                        .and_then(|measurement_name| get_measurement(self, measurement_name))
-                        .map_or(Value::Null, Value::from)
-                } else if let Some(rest) = field_name.strip_prefix("breakdowns.") {
-                    rest.split_once('.')
-                        .and_then(|(breakdown, measurement)| {
-                            self.breakdowns
-                                .value()
-                                .and_then(|breakdowns| breakdowns.get(breakdown))
-                                .and_then(|annotated| annotated.value())
-                                .and_then(|measurements| measurements.get(measurement))
-                                .and_then(|annotated| annotated.value())
-                                .and_then(|measurement| measurement.value.value())
-                        })
-                        .map_or(Value::Null, |f| Value::from(*f))
-                } else if let Some(rest) = field_name.strip_prefix("extra.") {
-                    self.extra_at(rest)
-                        .map_or(Value::Null, |v| v.clone().into())
-                } else if let Some(rest) = field_name.strip_prefix("tags.") {
-                    self.tags
-                        .value()
-                        .and_then(|tags| tags.get(rest))
-                        .map_or(Value::Null, Value::from)
-                } else {
-                    Value::Null
-                }
-            }
-        }
+fn or_none(string: &impl AsRef<str>) -> Option<&str> {
+    match string.as_ref() {
+        "" => None,
+        other => Some(other),
     }
 }
 
-impl FieldValueProvider for DynamicSamplingContext {
-    fn get_value(&self, field_name: &str) -> Value {
-        match field_name {
-            "trace.release" => match self.release {
-                None => Value::Null,
-                Some(ref s) => s.as_str().into(),
-            },
-            "trace.environment" => match self.environment {
-                None => Value::Null,
-                Some(ref s) => s.as_str().into(),
-            },
-            "trace.user.id" => {
-                if self.user.user_id.is_empty() {
-                    Value::Null
-                } else {
-                    self.user.user_id.as_str().into()
-                }
-            }
-            "trace.user.segment" => {
-                if self.user.user_segment.is_empty() {
-                    Value::Null
-                } else {
-                    self.user.user_segment.as_str().into()
-                }
-            }
-            "trace.transaction" => match self.transaction {
-                None => Value::Null,
-                Some(ref s) => s.as_str().into(),
-            },
-            "trace.replay_id" => match self.replay_id {
-                None => Value::Null,
-                Some(ref s) => Value::String(s.to_string()),
-            },
-            _ => Value::Null,
-        }
-    }
-}
-
-impl FieldValueProvider for Span {
-    fn get_value(&self, path: &str) -> Value {
-        let Some(path) = path.strip_prefix("span.") else {
-            return Value::Null;
-        };
-
-        match path {
-            "exclusive_time" => self
-                .exclusive_time
-                .value()
-                .map_or(Value::Null, |&v| v.into()),
-            "description" => self.description.as_str().map_or(Value::Null, Value::from),
-            "op" => self.op.as_str().map_or(Value::Null, Value::from),
-            "span_id" => self
-                .span_id
-                .value()
-                .map_or(Value::Null, |s| s.0.as_str().into()),
-            "parent_span_id" => self
-                .parent_span_id
-                .value()
-                .map_or(Value::Null, |s| s.0.as_str().into()),
-            "trace_id" => self
-                .trace_id
-                .value()
-                .map_or(Value::Null, |s| s.0.as_str().into()),
-            "status" => self
-                .status
-                .value()
-                .map_or(Value::Null, |s| s.as_str().into()),
-            "origin" => self.origin.as_str().map_or(Value::Null, Value::from),
-            _ => {
-                if let Some(key) = path.strip_prefix("tags.") {
-                    if let Some(v) = self
-                        .tags
-                        .value()
-                        .and_then(|tags| tags.get(key))
-                        .and_then(Annotated::value)
-                    {
-                        return Value::from(v.as_str());
-                    }
-                }
-                if let Some(key) = path.strip_prefix("data.") {
-                    let escaped = key.replace("\\.", "\0");
-                    let mut path = escaped.split('.').map(|s| s.replace('\0', "."));
-                    let Some(root) = path.next() else {
-                        return Value::Null;
-                    };
-                    let Some(mut val) = self
-                        .data
-                        .value()
-                        .and_then(|data| data.get(&root))
-                        .and_then(Annotated::value)
-                    else {
-                        return Value::Null;
-                    };
-                    for part in path {
-                        // While there is path segments left, `val` has to be an Object.
-                        let relay_protocol::Value::Object(map) = val else {
-                            return Value::Null;
-                        };
-                        let Some(child) = map.get(&part).and_then(Annotated::value) else {
-                            return Value::Null;
-                        };
-                        val = child;
-                    }
-                    return Value::from(val.clone());
-                }
-                Value::Null
-            }
-        }
+impl Getter for DynamicSamplingContext {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        Some(match path.strip_prefix("trace.")? {
+            "release" => self.release.as_deref()?.into(),
+            "environment" => self.environment.as_deref()?.into(),
+            "user.id" => or_none(&self.user.user_id)?.into(),
+            "user.segment" => or_none(&self.user.user_segment)?.into(),
+            "transaction" => self.transaction.as_deref()?.into(),
+            "replay_id" => self.replay_id?.into(),
+            _ => return None,
+        })
     }
 }
 
@@ -1459,12 +1127,11 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{Duration as DateDuration, TimeZone, Utc};
-    use serde_json::json;
     use similar_asserts::assert_eq;
 
     use relay_event_schema::protocol::{
-        Contexts, DeviceContext, EventId, Exception, Headers, IpAddr, JsonLenientString,
-        LenientString, LogEntry, OsContext, PairList, Request, TagEntry, Tags, User, Values,
+        EventId, Exception, Headers, IpAddr, JsonLenientString, LenientString, LogEntry, PairList,
+        Request, User, Values,
     };
     use relay_protocol::Annotated;
 
@@ -1779,120 +1446,8 @@ mod tests {
         assert!(matches!(rule, RuleCondition::Unsupported));
     }
 
-    /// test extraction of field values from event with everything
     #[test]
-    fn test_field_value_provider_event_filled() {
-        let event = Event {
-            release: Annotated::new(LenientString("1.1.1".to_owned())),
-            environment: Annotated::new("prod".to_owned()),
-            user: Annotated::new(User {
-                ip_address: Annotated::new(IpAddr("127.0.0.1".to_owned())),
-                id: Annotated::new(LenientString("user-id".into())),
-                segment: Annotated::new("user-seg".into()),
-                ..Default::default()
-            }),
-            exceptions: Annotated::new(Values {
-                values: Annotated::new(vec![Annotated::new(Exception {
-                    value: Annotated::new(JsonLenientString::from(
-                        "canvas.contentDocument".to_owned(),
-                    )),
-                    ..Default::default()
-                })]),
-                ..Default::default()
-            }),
-            request: Annotated::new(Request {
-                headers: Annotated::new(Headers(PairList(vec![Annotated::new((
-                    Annotated::new("user-agent".into()),
-                    Annotated::new("Slurp".into()),
-                ))]))),
-                ..Default::default()
-            }),
-            transaction: Annotated::new("some-transaction".into()),
-            tags: {
-                let items = vec![Annotated::new(TagEntry(
-                    Annotated::new("custom".to_string()),
-                    Annotated::new("custom-value".to_string()),
-                ))];
-                Annotated::new(Tags(items.into()))
-            },
-            contexts: Annotated::new({
-                let mut contexts = Contexts::new();
-                contexts.add(DeviceContext {
-                    name: Annotated::new("iphone".to_string()),
-                    family: Annotated::new("iphone-fam".to_string()),
-                    model: Annotated::new("iphone7,3".to_string()),
-                    ..DeviceContext::default()
-                });
-                contexts.add(OsContext {
-                    name: Annotated::new("iOS".to_string()),
-                    version: Annotated::new("11.4.2".to_string()),
-                    kernel_version: Annotated::new("17.4.0".to_string()),
-                    ..OsContext::default()
-                });
-                contexts
-            }),
-            ..Default::default()
-        };
-
-        assert_eq!(Some("1.1.1"), event.get_value("event.release").as_str());
-        assert_eq!(Some("prod"), event.get_value("event.environment").as_str());
-        assert_eq!(Some("user-id"), event.get_value("event.user.id").as_str());
-        assert_eq!(
-            Some("user-seg"),
-            event.get_value("event.user.segment").as_str()
-        );
-        assert_eq!(
-            Some("some-transaction"),
-            event.get_value("event.transaction").as_str()
-        );
-        assert_eq!(
-            Some("iphone"),
-            event.get_value("event.contexts.device.name").as_str()
-        );
-        assert_eq!(
-            Some("iphone-fam"),
-            event.get_value("event.contexts.device.family").as_str()
-        );
-        assert_eq!(
-            Some("iOS"),
-            event.get_value("event.contexts.os.name").as_str()
-        );
-        assert_eq!(
-            Some("11.4.2"),
-            event.get_value("event.contexts.os.version").as_str()
-        );
-        assert_eq!(
-            Some("custom-value"),
-            event.get_value("event.tags.custom").as_str()
-        );
-        assert_eq!(Value::Null, event.get_value("event.tags.doesntexist"));
-    }
-
-    /// test extraction of field values from empty event
-    #[test]
-    fn test_field_value_provider_event_empty() {
-        let event = Event::default();
-
-        assert_eq!(Value::Null, event.get_value("event.release"));
-        assert_eq!(Value::Null, event.get_value("event.environment"));
-        assert_eq!(Value::Null, event.get_value("event.user.id"));
-        assert_eq!(Value::Null, event.get_value("event.user.segment"));
-
-        // now try with an empty user
-        let event = Event {
-            user: Annotated::new(User {
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        assert_eq!(Value::Null, event.get_value("event.user.id"));
-        assert_eq!(Value::Null, event.get_value("event.user.segment"));
-        assert_eq!(Value::Null, event.get_value("event.transaction"));
-    }
-
-    #[test]
-    fn test_field_value_provider_trace_filled() {
+    fn test_getter_trace_filled() {
         let replay_id = Uuid::new_v4();
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -1910,34 +1465,25 @@ mod tests {
             other: BTreeMap::new(),
         };
 
+        assert_eq!(Some(Val::String("1.1.1")), dsc.get_value("trace.release"));
         assert_eq!(
-            Value::String("1.1.1".into()),
-            dsc.get_value("trace.release")
-        );
-        assert_eq!(
-            Value::String("prod".into()),
+            Some(Val::String("prod")),
             dsc.get_value("trace.environment")
         );
+        assert_eq!(Some(Val::String("user-id")), dsc.get_value("trace.user.id"));
         assert_eq!(
-            Value::String("user-id".into()),
-            dsc.get_value("trace.user.id")
-        );
-        assert_eq!(
-            Value::String("user-seg".into()),
+            Some(Val::String("user-seg")),
             dsc.get_value("trace.user.segment")
         );
         assert_eq!(
-            Value::String("transaction1".into()),
+            Some(Val::String("transaction1")),
             dsc.get_value("trace.transaction")
         );
-        assert_eq!(
-            Value::String(replay_id.to_string()),
-            dsc.get_value("trace.replay_id")
-        );
+        assert_eq!(Some(Val::Uuid(replay_id)), dsc.get_value("trace.replay_id"));
     }
 
     #[test]
-    fn test_field_value_provider_trace_empty() {
+    fn test_getter_trace_empty() {
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
@@ -1950,12 +1496,12 @@ mod tests {
             sampled: None,
             other: BTreeMap::new(),
         };
-        assert_eq!(Value::Null, dsc.get_value("trace.release"));
-        assert_eq!(Value::Null, dsc.get_value("trace.environment"));
-        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
-        assert_eq!(Value::Null, dsc.get_value("trace.user.transaction"));
-        assert_eq!(Value::Null, dsc.get_value("trace.replay_id"));
+        assert_eq!(None, dsc.get_value("trace.release"));
+        assert_eq!(None, dsc.get_value("trace.environment"));
+        assert_eq!(None, dsc.get_value("trace.user.id"));
+        assert_eq!(None, dsc.get_value("trace.user.segment"));
+        assert_eq!(None, dsc.get_value("trace.user.transaction"));
+        assert_eq!(None, dsc.get_value("trace.replay_id"));
 
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
@@ -1969,32 +1515,8 @@ mod tests {
             sampled: None,
             other: BTreeMap::new(),
         };
-        assert_eq!(Value::Null, dsc.get_value("trace.user.id"));
-        assert_eq!(Value::Null, dsc.get_value("trace.user.segment"));
-    }
-
-    #[test]
-    fn test_field_value_provider_span_data() {
-        let span = Annotated::<Span>::from_json(
-            r#" {
-            "data": {
-                "foo": {
-                    "bar": 1
-                },
-                "foo.bar": 2
-            }
-        }"#,
-        )
-        .unwrap()
-        .into_value()
-        .unwrap();
-
-        assert_eq!(span.get_value("span.data.foo.bar"), json!(1));
-        assert_eq!(span.get_value(r"span.data.foo\.bar"), json!(2));
-
-        assert_eq!(span.get_value("span.data"), Value::Null);
-        assert_eq!(span.get_value("span.data."), Value::Null);
-        assert_eq!(span.get_value("span.data.x"), Value::Null);
+        assert_eq!(None, dsc.get_value("trace.user.id"));
+        assert_eq!(None, dsc.get_value("trace.user.segment"));
     }
 
     #[test]

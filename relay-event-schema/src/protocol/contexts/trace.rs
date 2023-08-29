@@ -32,6 +32,12 @@ impl FromValue for TraceId {
     }
 }
 
+impl AsRef<str> for TraceId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 /// A 16-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -56,6 +62,12 @@ impl FromValue for SpanId {
                 Annotated(None, meta)
             }
         }
+    }
+}
+
+impl AsRef<str> for SpanId {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
@@ -148,7 +160,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    pub(crate) fn test_trace_context_roundtrip() {
+    fn test_trace_context_roundtrip() {
         let json = r#"{
   "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "span_id": "fa90fdead5f74052",
@@ -186,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    pub(crate) fn test_trace_context_normalization() {
+    fn test_trace_context_normalization() {
         let json = r#"{
   "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
   "span_id": "FA90FDEAD5F74052",

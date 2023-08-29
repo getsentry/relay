@@ -3,11 +3,11 @@ use std::collections::BTreeMap;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
 use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
+use relay_protocol::{Getter, Val};
 use relay_quotas::DataCategory;
-use relay_sampling::FieldValueProvider;
 
 /// Item from which metrics can be extracted.
-pub trait Extractable: FieldValueProvider {
+pub trait Extractable: Getter {
     /// Data category for the metric spec to match on.
     fn category(&self) -> DataCategory;
 
@@ -15,7 +15,7 @@ pub trait Extractable: FieldValueProvider {
     fn timestamp(&self) -> Option<UnixTimestamp>;
 }
 
-/// Extract metrics from any type that implements both [`Extractable`] and [`FieldValueProvider`].
+/// Extract metrics from any type that implements both [`Extractable`] and [`Getter`].
 ///
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
@@ -69,7 +69,7 @@ where
 
 pub fn tmp_apply_tags<T>(metrics: &mut [Metric], instance: &T, mappings: &[TagMapping])
 where
-    T: FieldValueProvider,
+    T: Getter,
 {
     for mapping in mappings {
         let mut lazy_tags = None;
@@ -90,7 +90,7 @@ where
 
 fn extract_tags<T>(instance: &T, tags: &[TagSpec]) -> BTreeMap<String, String>
 where
-    T: FieldValueProvider,
+    T: Getter,
 {
     let mut map = BTreeMap::new();
 
@@ -103,7 +103,10 @@ where
 
         let value_opt = match tag_spec.source() {
             TagSource::Literal(value) => Some(value.to_owned()),
-            TagSource::Field(field) => instance.get_value(field).as_str().map(str::to_owned),
+            TagSource::Field(field) => match instance.get_value(field) {
+                Some(Val::String(s)) => Some(s.to_owned()),
+                _ => None,
+            },
             TagSource::Unknown => None,
         };
 
@@ -119,18 +122,20 @@ where
 }
 
 fn read_metric_value(
-    instance: &impl FieldValueProvider,
+    instance: &impl Getter,
     field: Option<&str>,
     ty: MetricType,
 ) -> Option<MetricValue> {
     Some(match ty {
         MetricType::Counter => MetricValue::Counter(match field {
-            Some(field) => instance.get_value(field).as_f64()?,
+            Some(field) => instance.get_value(field)?.as_f64()?,
             None => 1.0,
         }),
-        MetricType::Distribution => MetricValue::Distribution(instance.get_value(field?).as_f64()?),
-        MetricType::Set => MetricValue::set_from_str(instance.get_value(field?).as_str()?),
-        MetricType::Gauge => MetricValue::Gauge(instance.get_value(field?).as_f64()?),
+        MetricType::Distribution => {
+            MetricValue::Distribution(instance.get_value(field?)?.as_f64()?)
+        }
+        MetricType::Set => MetricValue::set_from_str(instance.get_value(field?)?.as_str()?),
+        MetricType::Gauge => MetricValue::Gauge(instance.get_value(field?)?.as_f64()?),
     })
 }
 

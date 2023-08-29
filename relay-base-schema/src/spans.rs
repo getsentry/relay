@@ -121,6 +121,12 @@ impl SpanStatus {
     }
 }
 
+impl AsRef<str> for SpanStatus {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
 /// Error parsing a `SpanStatus`.
 #[derive(Clone, Copy, Debug)]
 pub struct ParseSpanStatusError;
