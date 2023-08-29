@@ -44,12 +44,12 @@ pub fn validate(replay: &mut Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing replay_id".to_string()))?;
 
-    let segment_id = replay
+    let segment_id = *replay
         .segment_id
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
 
-    if segment_id > &65535 {
+    if segment_id > u16::MAX as u64 {
         return Err(ReplayError::InvalidPayload(
             "segment_id exceeded u16 limit".to_string(),
         ));
