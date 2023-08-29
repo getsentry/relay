@@ -49,7 +49,7 @@ pub fn validate(replay: &mut Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
 
-    if segment_id.to_owned() > 65535 {
+    if segment_id > &65535 {
         return Err(ReplayError::InvalidPayload(
             "segment_id exceeded u16 limit".to_string(),
         ));
@@ -334,9 +334,13 @@ mod tests {
 
     #[test]
     fn test_validate_u16_segment_id() {
+        let replay_id =
+            Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
+
         // Does not fit within a u16.
         let segment_id: Annotated<u64> = Annotated::new(65536);
         let mut replay = Annotated::new(Replay {
+            replay_id,
             segment_id,
             ..Default::default()
         });
@@ -345,6 +349,7 @@ mod tests {
         // Fits within a u16.
         let segment_id: Annotated<u64> = Annotated::new(65535);
         let mut replay = Annotated::new(Replay {
+            replay_id,
             segment_id,
             ..Default::default()
         });
