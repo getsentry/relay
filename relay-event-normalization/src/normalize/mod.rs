@@ -944,7 +944,7 @@ pub struct DynamicMeasurementsConfig<'a> {
 }
 
 impl<'a> DynamicMeasurementsConfig<'a> {
-    /// Constructor for [`DynamicMeasurementConfig`].
+    /// Constructor for [`DynamicMeasurementsConfig`].
     pub fn new(
         project: Option<&'a MeasurementsConfig>,
         global: Option<&'a MeasurementsConfig>,
