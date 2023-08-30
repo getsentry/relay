@@ -1,3 +1,4 @@
+use std::cmp;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -95,6 +96,33 @@ impl ProjectConfig {
         defaults::add_span_metrics(self);
     }
 
+    // FOR REVIEWERS: this one works well, but uses a memory allocation. Whereas I've not been able
+    // to put an iterator directly into LightNormalizationConfig due to lifetime issues.
+    pub fn builtin_measurements_with_vector<'a>(
+        &'a self,
+        global_config: &'a Arc<GlobalConfig>,
+    ) -> Option<Vec<&'a BuiltinMeasurementKey>> {
+        match (&self.measurements, &global_config.measurements) {
+            (None, None) => None,
+            (Some(v), None) | (None, Some(v)) => Some(v.builtin_measurements.iter().collect()),
+            (Some(proj), Some(glob)) => {
+                let max_capacity =
+                    proj.builtin_measurements.len() + glob.builtin_measurements.len();
+                let mut result: Vec<&BuiltinMeasurementKey> = Vec::with_capacity(max_capacity);
+
+                result.extend(proj.builtin_measurements.iter());
+
+                result.extend(
+                    glob.builtin_measurements
+                        .iter()
+                        .filter(|&item| !proj.builtin_measurements.contains(item)),
+                );
+
+                Some(result)
+            }
+        }
+    }
+
     // TODO: docs. mention first project config, then global
     pub fn builtin_measurements<'a>(
         &'a self,
@@ -103,27 +131,24 @@ impl ProjectConfig {
         let from_project = self
             .measurements
             .iter()
-            .flat_map(|c| c.builtin_measurements);
+            .flat_map(|c| c.builtin_measurements.iter());
         let from_global = global_config
             .measurements
             .iter()
-            .flat_map(|c| c.builtin_measurements);
+            .flat_map(|c| c.builtin_measurements.iter());
 
         from_project.chain(from_global).unique()
     }
 
     // TODO: docs. mention it's the most restrictive among the two
-    pub fn max_custom_measurements<'a>(
-        &'a self,
-        global_config: &'a Arc<GlobalConfig>,
-    ) -> &'a usize {
-        match (self.measurements, global_config.measurements) {
+    pub fn max_custom_measurements<'a>(&'a self, global_config: &'a Arc<GlobalConfig>) -> usize {
+        match (&self.measurements, &global_config.measurements) {
             (None, None) => 0,
-            (None, Some(global)) => &global.max_custom_measurements,
-            (Some(project), None) => &project.max_custom_measurements,
-            (Some(project), Some(global)) => cmp::min(
-                &project.max_custom_measurements,
-                &global.max_custom_measurements,
+            (None, Some(global)) => global.max_custom_measurements,
+            (Some(project), None) => project.max_custom_measurements,
+            (Some(project), Some(global)) => std::cmp::min(
+                project.max_custom_measurements,
+                global.max_custom_measurements,
             ),
         }
     }

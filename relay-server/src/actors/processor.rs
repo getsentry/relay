@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
-use std::net;
 use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::{boxed, net};
 
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
@@ -23,7 +23,8 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
+    BuiltinMeasurementKey, ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig,
+    TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
@@ -2381,9 +2382,9 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn light_normalize_event(
-        &self,
-        state: &mut ProcessEnvelopeState,
+    fn light_normalize_event<'a>(
+        &'a self,
+        state: &'a mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
         let request_meta = state.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
@@ -2393,9 +2394,6 @@ impl EnvelopeProcessorService {
             .has_feature(Feature::SpanMetricsExtraction);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let (builtin_measurement_keys, max_custom_measurements) =
-                state.project_state.config.measurements(&self.global_config);
-
             let config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
@@ -2439,8 +2437,15 @@ impl EnvelopeProcessorService {
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
-                builtin_measurement_keys,
-                max_custom_measurements,
+                builtin_measurement_keys: state
+                    .project_state
+                    .config
+                    .builtin_measurements_with_vector(&self.global_config),
+                max_custom_measurements: state
+                    .project_state
+                    .config
+                    .max_custom_measurements(&self.global_config)
+                    .into(),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {

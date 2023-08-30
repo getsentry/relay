@@ -311,7 +311,7 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    mut builtin_measurement_keys: &mut Box<dyn Iterator<Item = &BuiltinMeasurementKey>>,
+    builtin_measurement_keys: &mut Vec<&BuiltinMeasurementKey>,
     max_custom_measurements: usize,
     max_name_and_unit_len: Option<usize>,
 ) {
@@ -350,7 +350,7 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in &mut builtin_measurement_keys {
+        for builtin_measurement in &mut *builtin_measurement_keys {
             if &builtin_measurement.name == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
@@ -445,7 +445,7 @@ fn normalize_units(measurements: &mut Measurements) {
 /// Ensure measurements interface is only present for transaction events.
 fn normalize_measurements(
     event: &mut Event,
-    mut builtin_measurement_keys: Option<Box<dyn Iterator<Item = &BuiltinMeasurementKey>>>,
+    builtin_measurement_keys: Option<Vec<&BuiltinMeasurementKey>>,
     max_custom_measurements: Option<usize>,
     max_mri_len: Option<usize>,
 ) {
@@ -455,13 +455,13 @@ fn normalize_measurements(
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
         normalize_app_start_measurements(measurements);
         normalize_units(measurements);
-        if let (Some(builtin_measurement_keys), Some(max_custom_measurements)) =
-            (builtin_measurement_keys.as_mut(), max_custom_measurements)
+        if let (Some(mut builtin_measurement_keys), Some(max_custom_measurements)) =
+            (builtin_measurement_keys, max_custom_measurements)
         {
             remove_invalid_measurements(
                 measurements,
                 meta,
-                builtin_measurement_keys,
+                &mut builtin_measurement_keys,
                 max_custom_measurements,
                 max_mri_len,
             );
@@ -843,7 +843,7 @@ pub struct LightNormalizationConfig<'a> {
     ///
     /// If provided, normalization truncates custom measurements and adds units of known built-in
     /// measurements.
-    pub builtin_measurement_keys: Option<Box<dyn Iterator<Item = &'a BuiltinMeasurementKey>>>,
+    pub builtin_measurement_keys: Option<Vec<&'a BuiltinMeasurementKey>>,
 
     /// yoo
     pub max_custom_measurements: Option<usize>,
