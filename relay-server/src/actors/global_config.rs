@@ -15,7 +15,7 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -243,6 +243,8 @@ impl Service for GlobalConfigService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
+            let mut shutdown = Controller::shutdown_handle();
+
             relay_log::info!("global config service starting");
 
             if self.config.has_credentials() {
@@ -263,11 +265,46 @@ impl Service for GlobalConfigService {
                     () = &mut self.fetch_handle => self.update_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
+                    _ = shutdown.notified() => break,
 
                     else => break,
                 }
             }
             relay_log::info!("global config service stopped");
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_system::{Controller, Service, ShutdownMode};
+    use relay_test::mock_service;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use crate::actors::global_config::{Get, GlobalConfigService};
+
+    /// Tests whether the service shuts down gracefully when the signal is
+    /// received, without requesting more global configs.
+    #[tokio::test]
+    async fn test_service_shutdown() {
+        for mode in &[ShutdownMode::Graceful, ShutdownMode::Immediate] {
+            shutdown_service_with_mode(*mode).await;
+        }
+    }
+
+    async fn shutdown_service_with_mode(mode: ShutdownMode) {
+        let (upstream, _) = mock_service("upstream", (), |&mut (), _| {});
+
+        Controller::start(Duration::from_secs(1));
+
+        let service = GlobalConfigService::new(Arc::default(), upstream).start();
+
+        assert!(service.send(Get).await.is_ok());
+
+        Controller::shutdown(mode);
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        assert!(service.send(Get).await.is_err());
     }
 }
