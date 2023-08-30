@@ -147,6 +147,8 @@ pub struct LimitedProjectConfig {
     pub session_metrics: SessionMetricsConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
+    #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
+    pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]

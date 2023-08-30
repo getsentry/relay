@@ -37,7 +37,7 @@ pub use user_agent::*;
 pub use self::clock_drift::*;
 pub use self::geo::*;
 
-pub use sentry_release_parser::{validate_environment, validate_release, Release as ParsedRelease};
+pub use sentry_release_parser::{validate_environment, validate_release};
 
 /// Configuration for the [`StoreProcessor`].
 #[derive(Serialize, Deserialize, Debug, Default)]

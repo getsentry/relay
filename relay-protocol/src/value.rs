@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::{fmt, str};
 
+use relay_common::uuid::Uuid;
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
@@ -333,4 +334,173 @@ where
     T: Serialize,
 {
     serde_json::to_value(value).map(Value::from_json)
+}
+
+/// Borrowed version of [`Array`].
+#[derive(Debug, Clone, Copy)]
+pub struct Arr<'a> {
+    _phantom: std::marker::PhantomData<&'a ()>,
+}
+
+/// Borrowed version of [`Object`].
+#[derive(Debug, Clone, Copy)]
+pub struct Obj<'a> {
+    _phantom: std::marker::PhantomData<&'a ()>,
+}
+
+/// Borrowed version of [`Value`].
+#[derive(Debug, Clone, Copy)]
+pub enum Val<'a> {
+    /// A boolean value.
+    Bool(bool),
+    /// A signed integer value.
+    I64(i64),
+    /// An unsigned integer value.
+    U64(u64),
+    /// A floating point value.
+    F64(f64),
+    /// A string value.
+    String(&'a str),
+    /// A UUID.
+    Uuid(Uuid),
+    /// An array of annotated values.
+    Array(Arr<'a>),
+    /// A mapping of strings to annotated values.
+    Object(Obj<'a>),
+}
+
+impl<'a> Val<'a> {
+    /// Returns the value if it is a boolean, otherwise `None`.
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Bool(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    /// Represents the value as `f64` if possible. Returns `None` otherwise.
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Self::I64(value) => Some(*value),
+            Self::U64(value) => (*value).try_into().ok(),
+            _ => None,
+        }
+    }
+
+    /// Represents the value as `f64` if possible. Returns `None` otherwise.
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            Self::I64(value) => (*value).try_into().ok(),
+            Self::U64(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    /// Represents the value as `f64` if possible. Returns `None` otherwise.
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Self::I64(value) => Some(*value as f64),
+            Self::U64(value) => Some(*value as f64),
+            Self::F64(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    /// Returns the string if this value is a string, otherwise `None`.
+    pub fn as_str(&self) -> Option<&'a str> {
+        match self {
+            Self::String(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    /// Returns the UUID if this value is a UUID, otherwise `None`.
+    pub fn as_uuid(&self) -> Option<Uuid> {
+        match self {
+            Self::Uuid(value) => Some(*value),
+            _ => None,
+        }
+    }
+}
+
+impl From<bool> for Val<'_> {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+impl From<i64> for Val<'_> {
+    fn from(value: i64) -> Self {
+        Self::I64(value)
+    }
+}
+
+impl From<u64> for Val<'_> {
+    fn from(value: u64) -> Self {
+        Self::U64(value)
+    }
+}
+
+impl From<f64> for Val<'_> {
+    fn from(value: f64) -> Self {
+        Self::F64(value)
+    }
+}
+
+impl<'a> From<&'a str> for Val<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<Uuid> for Val<'_> {
+    fn from(value: Uuid) -> Self {
+        Self::Uuid(value)
+    }
+}
+
+impl<'a, T> From<&'a T> for Val<'a>
+where
+    Val<'a>: From<T>,
+    T: Copy,
+{
+    fn from(value: &'a T) -> Self {
+        (*value).into()
+    }
+}
+
+impl<'a> From<&'a Value> for Val<'a> {
+    fn from(value: &'a Value) -> Self {
+        match value {
+            Value::Bool(value) => Self::Bool(*value),
+            Value::I64(value) => Self::I64(*value),
+            Value::U64(value) => Self::U64(*value),
+            Value::F64(value) => Self::F64(*value),
+            Value::String(value) => Self::String(value),
+            Value::Array(_) => Self::Array(Arr {
+                _phantom: Default::default(),
+            }),
+            Value::Object(_) => Self::Object(Obj {
+                _phantom: Default::default(),
+            }),
+        }
+    }
+}
+
+impl PartialEq for Val<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bool(l0), Self::Bool(r0)) => l0 == r0,
+            (Self::I64(l0), Self::I64(r0)) => l0 == r0,
+            (Self::I64(l0), Self::U64(r0)) => Ok(*l0) == (*r0).try_into(),
+            (Self::U64(l0), Self::U64(r0)) => l0 == r0,
+            (Self::U64(l0), Self::I64(r0)) => Ok(*l0) == (*r0).try_into(),
+            (Self::F64(l0), Self::F64(r0)) => l0 == r0,
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::Uuid(l0), Self::Uuid(r0)) => l0 == r0,
+            (Self::Array(_), Self::Array(_)) => false,
+            (Self::Object(_), Self::Object(_)) => false,
+            _ => false,
+        }
+    }
 }

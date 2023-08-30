@@ -22,10 +22,10 @@ use relay_pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
 use relay_protocol::{Annotated, Remark};
-use relay_sampling::{
-    merge_rules_from_configs, DynamicSamplingContext, RuleCondition, SamplingConfig, SamplingMatch,
-    SamplingRule,
-};
+use relay_sampling::condition::RuleCondition;
+use relay_sampling::config::SamplingRule;
+use relay_sampling::evaluation::SamplingMatch;
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use serde::Serialize;
 
 use crate::core::{RelayBuf, RelayStr};
@@ -335,7 +335,7 @@ struct EphemeralSamplingResult {
     sampling_match: Option<SamplingMatch>,
 }
 
-/// Runs dynamic sampling given the sampling config, root sampling config, dsc and event.
+/// Runs dynamic sampling given the sampling config, root sampling config, DSC and event.
 ///
 /// Returns the sampling decision containing the sample_rate and the list of matched rule ids.
 #[no_mangle]
@@ -356,10 +356,12 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
     // based on the `SamplingMode` but for this simulation it is not that relevant.
-    let rules: Vec<SamplingRule> =
-        merge_rules_from_configs(Some(&sampling_config), Some(&root_sampling_config))
-            .cloned()
-            .collect();
+    let rules: Vec<SamplingRule> = relay_sampling::evaluation::merge_rules_from_configs(
+        Some(&sampling_config),
+        Some(&root_sampling_config),
+    )
+    .cloned()
+    .collect();
 
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
