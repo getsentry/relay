@@ -362,14 +362,12 @@
 <a href="#362" id="362">362</a>
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_event_schema::protocol::Event;
-<span class="kw">use </span>relay_sampling::{
-    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch,
-};
+<span class="kw">use </span>relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
+<span class="kw">use </span>relay_sampling::DynamicSamplingContext;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, ItemType};
@@ -396,7 +394,7 @@
                 matched_rule_ids,
                 seed,
             }) =&gt; {
-                <span class="kw">let </span>random_number = relay_sampling::pseudo_random_from_uuid(seed);
+                <span class="kw">let </span>random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
                 <span class="macro">relay_log::trace!</span>(
                     sample_rate,
                     random_number,
@@ -434,7 +432,7 @@
     <span class="kw">let </span>root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
-    merge_configs_and_match(
+    relay_sampling::evaluation::merge_configs_and_match(
         processing_enabled,
         sampling_config,
         root_sampling_config,
@@ -521,9 +519,9 @@
     <span class="kw">use </span>relay_common::uuid::Uuid;
     <span class="kw">use </span>relay_event_schema::protocol::{EventId, LenientString};
     <span class="kw">use </span>relay_protocol::Annotated;
-    <span class="kw">use </span>relay_sampling::{
-        EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,
-        SamplingRule, SamplingValue,
+    <span class="kw">use </span>relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
+    <span class="kw">use </span>relay_sampling::config::{
+        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
     <span class="kw">use </span>similar_asserts::assert_eq;
 

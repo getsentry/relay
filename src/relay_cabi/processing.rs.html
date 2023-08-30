@@ -426,6 +426,8 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -450,10 +452,10 @@
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Remark};
-<span class="kw">use </span>relay_sampling::{
-    merge_rules_from_configs, DynamicSamplingContext, RuleCondition, SamplingConfig, SamplingMatch,
-    SamplingRule,
-};
+<span class="kw">use </span>relay_sampling::condition::RuleCondition;
+<span class="kw">use </span>relay_sampling::config::SamplingRule;
+<span class="kw">use </span>relay_sampling::evaluation::SamplingMatch;
+<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 <span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use </span><span class="kw">crate</span>::core::{RelayBuf, RelayStr};
@@ -763,7 +765,7 @@
     sampling_match: <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt;,
 }
 
-<span class="doccomment">/// Runs dynamic sampling given the sampling config, root sampling config, dsc and event.
+<span class="doccomment">/// Runs dynamic sampling given the sampling config, root sampling config, DSC and event.
 ///
 /// Returns the sampling decision containing the sample_rate and the list of matched rule ids.
 </span><span class="attr">#[no_mangle]
@@ -784,10 +786,12 @@
     <span class="comment">// Instead of creating a new function, we decided to reuse the existing code here. This will have
     // the only downside of not having the possibility to set the sample rate to a different value
     // based on the `SamplingMode` but for this simulation it is not that relevant.
-    </span><span class="kw">let </span>rules: Vec&lt;SamplingRule&gt; =
-        merge_rules_from_configs(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_sampling_config))
-            .cloned()
-            .collect();
+    </span><span class="kw">let </span>rules: Vec&lt;SamplingRule&gt; = relay_sampling::evaluation::merge_rules_from_configs(
+        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
+        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_sampling_config),
+    )
+    .cloned()
+    .collect();
 
     <span class="comment">// Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.

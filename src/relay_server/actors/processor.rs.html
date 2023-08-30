@@ -3980,6 +3980,8 @@
 <a href="#3980" id="3980">3980</a>
 <a href="#3981" id="3981">3981</a>
 <a href="#3982" id="3982">3982</a>
+<a href="#3983" id="3983">3983</a>
+<a href="#3984" id="3984">3984</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4023,7 +4025,8 @@
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
-<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
+<span class="kw">use </span>relay_sampling::evaluation::MatchedRuleIds;
+<span class="kw">use </span>relay_sampling::DynamicSamplingContext;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 <span class="kw">use </span>serde_json::Value <span class="kw">as </span>SerdeValue;
@@ -4364,7 +4367,7 @@
 </span><span class="kw">fn </span>outcome_from_parts(field: ClientReportField, reason: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Outcome, ()&gt; {
     <span class="kw">match </span>field {
         ClientReportField::FilteredSampling =&gt; <span class="kw">match </span>reason.strip_prefix(<span class="string">&quot;Sampled:&quot;</span>) {
-            <span class="prelude-val">Some</span>(rule_ids) =&gt; MatchedRuleIds::from_string(rule_ids)
+            <span class="prelude-val">Some</span>(rule_ids) =&gt; MatchedRuleIds::parse(rule_ids)
                 .map(Outcome::FilteredSampling)
                 .map_err(|<span class="kw">_</span>| ()),
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(()),
@@ -6806,6 +6809,10 @@
 
     <span class="kw">use </span>chrono::{DateTime, TimeZone, Utc};
     <span class="kw">use </span>relay_common::glob2::LazyGlob;
+    <span class="kw">use </span>relay_sampling::condition::RuleCondition;
+    <span class="kw">use </span>relay_sampling::config::{
+        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    };
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, MetricUnit};
@@ -6813,9 +6820,6 @@
     <span class="kw">use </span>relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
     <span class="kw">use </span>relay_event_schema::protocol::{EventId, TransactionSource};
     <span class="kw">use </span>relay_pii::DataScrubbingConfig;
-    <span class="kw">use </span>relay_sampling::{
-        RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
-    };
     <span class="kw">use </span>relay_test::mock_service;
 
     <span class="kw">use </span><span class="kw">crate</span>::actors::test_store::TestStore;

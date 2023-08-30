@@ -979,7 +979,7 @@
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode, Scoping};
-<span class="kw">use </span>relay_sampling::MatchedRuleIds;
+<span class="kw">use </span>relay_sampling::evaluation::MatchedRuleIds;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
