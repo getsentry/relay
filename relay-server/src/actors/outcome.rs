@@ -24,7 +24,7 @@ use relay_filter::FilterStatKey;
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
 use relay_quotas::{DataCategory, ReasonCode, Scoping};
-use relay_sampling::MatchedRuleIds;
+use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};

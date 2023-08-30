@@ -1,9 +1,10 @@
 use bytes::Bytes;
 use relay_event_schema::protocol::EventId;
-use relay_sampling::{
-    DynamicSamplingContext, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,
-    SamplingRule, SamplingValue,
+use relay_sampling::condition::RuleCondition;
+use relay_sampling::config::{
+    DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue,
 };
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, Item, ItemType};
@@ -21,7 +22,7 @@ pub fn state_with_rule_and_condition(
             ty: rule_type,
             id: RuleId(1),
             time_range: Default::default(),
-            decaying_fn: relay_sampling::DecayingFunction::Constant,
+            decaying_fn: DecayingFunction::Constant,
         }],
         None => Vec::new(),
     };

@@ -1,6 +1,6 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::{EqCondition, RuleCondition};
+use relay_sampling::condition::{EqCondition, RuleCondition};
 use serde_json::Value;
 
 use crate::feature::Feature;

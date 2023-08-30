@@ -41,7 +41,8 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
-use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
+use relay_sampling::evaluation::MatchedRuleIds;
+use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use serde_json::Value as SerdeValue;
@@ -382,7 +383,7 @@ enum ClientReportField {
 fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
     match field {
         ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
-            Some(rule_ids) => MatchedRuleIds::from_string(rule_ids)
+            Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
                 .map(Outcome::FilteredSampling)
                 .map_err(|_| ()),
             None => Err(()),
@@ -2824,6 +2825,10 @@ mod tests {
 
     use chrono::{DateTime, TimeZone, Utc};
     use relay_common::glob2::LazyGlob;
+    use relay_sampling::condition::RuleCondition;
+    use relay_sampling::config::{
+        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    };
     use similar_asserts::assert_eq;
 
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
@@ -2831,9 +2836,6 @@ mod tests {
     use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_sampling::{
-        RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
-    };
     use relay_test::mock_service;
 
     use crate::actors::test_store::TestStore;
