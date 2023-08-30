@@ -312,7 +312,7 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 fn remove_invalid_measurements<'a>(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    mut builtin_measurement_keys: impl Iterator<Item = &'a BuiltinMeasurementKey>,
+    builtin_measurement_keys: Vec<&BuiltinMeasurementKey>,
     max_custom_measurements: &usize,
     max_name_and_unit_len: Option<usize>,
 ) {
@@ -351,7 +351,7 @@ fn remove_invalid_measurements<'a>(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in &mut builtin_measurement_keys {
+        for builtin_measurement in &builtin_measurement_keys {
             if &builtin_measurement.name == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
@@ -463,7 +463,7 @@ fn normalize_measurements(
             remove_invalid_measurements(
                 measurements,
                 meta,
-                builtin_measurement_keys,
+                builtin_measurement_keys.collect_vec(),
                 max_custom_measurements,
                 max_mri_len,
             );
@@ -3399,7 +3399,7 @@ mod tests {
         remove_invalid_measurements(
             &mut measurements,
             &mut meta,
-            dynamic_config.builtin_measurement_keys(),
+            dynamic_config.builtin_measurement_keys().collect_vec(),
             dynamic_config.max_custom_measurements().unwrap(),
             max_name_and_unit_len,
         );
