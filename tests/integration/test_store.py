@@ -1189,7 +1189,7 @@ def test_spans(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = ["projects:extract-standalone-spans"]
+    project_config["config"]["features"] = ["projects:span-metrics-extraction"]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     event["spans"] = [
