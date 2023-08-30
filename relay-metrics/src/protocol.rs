@@ -169,7 +169,11 @@ pub enum MetricNamespace {
     Transactions,
     /// Metrics extracted from spans.
     Spans,
-    /// Metrics that relay either doesn't know or recognize the namespace of, will be dropped before
+    /// User-defined metrics directly sent by SDKs and applications.
+    Custom,
+    /// An unknown and unsupported metric.
+    ///
+    /// Metrics that Relay either doesn't know or recognize the namespace of will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn't support that namespace, it gets deserialized into
     /// this variant.
@@ -187,6 +191,7 @@ impl std::str::FromStr for MetricNamespace {
             "sessions" => Ok(MetricNamespace::Sessions),
             "transactions" => Ok(MetricNamespace::Transactions),
             "spans" => Ok(MetricNamespace::Spans),
+            "custom" => Ok(MetricNamespace::Custom),
             _ => Ok(MetricNamespace::Unsupported),
         }
     }
@@ -200,6 +205,7 @@ impl fmt::Display for MetricNamespace {
             MetricNamespace::Sessions => write!(f, "sessions"),
             MetricNamespace::Transactions => write!(f, "transactions"),
             MetricNamespace::Spans => write!(f, "spans"),
+            MetricNamespace::Custom => write!(f, "custom"),
             MetricNamespace::Unsupported => write!(f, "unsupported"),
         }
     }
@@ -512,7 +518,7 @@ impl Metric {
         let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
         let (raw_namespace, name) = name_and_namespace
             .split_once('/')
-            .unwrap_or(("custom", string));
+            .unwrap_or(("custom", name_and_namespace));
 
         let mut metric = Self::new_mri(
             raw_namespace.parse().ok()?,
@@ -747,6 +753,23 @@ mod tests {
         Metric {
             name: "g:transactions/foo@none",
             value: Gauge(
+                42.0,
+            ),
+            timestamp: UnixTimestamp(4711),
+            tags: {},
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_parse_implicit_namespace() {
+        let s = "foo:42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r#"
+        Metric {
+            name: "c:custom/foo@none",
+            value: Counter(
                 42.0,
             ),
             timestamp: UnixTimestamp(4711),
