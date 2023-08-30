@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
@@ -308,11 +309,11 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// Note that [`Measurements`] is a BTreeMap, which means its keys are sorted.
 /// This ensures that for two events with the same measurement keys, the same set of custom
 /// measurements is retained.
-fn remove_invalid_measurements(
+fn remove_invalid_measurements<'a>(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    builtin_measurement_keys: &mut Vec<&BuiltinMeasurementKey>,
-    max_custom_measurements: usize,
+    mut builtin_measurement_keys: impl Iterator<Item = &'a BuiltinMeasurementKey>,
+    max_custom_measurements: &usize,
     max_name_and_unit_len: Option<usize>,
 ) {
     let mut custom_measurements_count = 0;
@@ -350,7 +351,7 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in &mut *builtin_measurement_keys {
+        for builtin_measurement in &mut builtin_measurement_keys {
             if &builtin_measurement.name == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
@@ -360,7 +361,7 @@ fn remove_invalid_measurements(
         }
 
         // For custom measurements, check the budget:
-        if custom_measurements_count < max_custom_measurements {
+        if custom_measurements_count < *max_custom_measurements {
             custom_measurements_count += 1;
             return true;
         }
@@ -445,8 +446,9 @@ fn normalize_units(measurements: &mut Measurements) {
 /// Ensure measurements interface is only present for transaction events.
 fn normalize_measurements(
     event: &mut Event,
-    builtin_measurement_keys: Option<Vec<&BuiltinMeasurementKey>>,
-    max_custom_measurements: Option<usize>,
+    // builtin_measurement_keys: Option<Vec<&BuiltinMeasurementKey>>,
+    // max_custom_measurements: Option<usize>,
+    measurements_config: Option<DynamicMeasurementConfig>,
     max_mri_len: Option<usize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -455,17 +457,30 @@ fn normalize_measurements(
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
         normalize_app_start_measurements(measurements);
         normalize_units(measurements);
-        if let (Some(mut builtin_measurement_keys), Some(max_custom_measurements)) =
-            (builtin_measurement_keys, max_custom_measurements)
-        {
+        if let Some(measurements_config) = measurements_config {
+            let builtin_measurement_keys = measurements_config.builtin_measurement_keys();
+            let max_custom_measurements =
+                measurements_config.max_custom_measurements().unwrap_or(&0);
+
             remove_invalid_measurements(
                 measurements,
                 meta,
-                &mut builtin_measurement_keys,
+                builtin_measurement_keys,
                 max_custom_measurements,
                 max_mri_len,
             );
         }
+        // if let (Some(builtin_measurement_keys), Some(max_custom_measurements)) =
+        //     (builtin_measurement_keys.as_mut(), max_custom_measurements)
+        // {
+        //     remove_invalid_measurements(
+        //         measurements,
+        //         meta,
+        //         builtin_measurement_keys,
+        //         max_custom_measurements,
+        //         max_mri_len,
+        //     );
+        // }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
             (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
@@ -839,14 +854,16 @@ pub struct LightNormalizationConfig<'a> {
     /// metadata entry.
     pub max_name_and_unit_len: Option<usize>,
 
-    /// Configuration for measurement normalization in transaction events.
-    ///
-    /// If provided, normalization truncates custom measurements and adds units of known built-in
-    /// measurements.
-    pub builtin_measurement_keys: Option<Vec<&'a BuiltinMeasurementKey>>,
+    // /// Configuration for measurement normalization in transaction events.
+    // ///
+    // /// If provided, normalization truncates custom measurements and adds units of known built-in
+    // /// measurements.
+    // pub builtin_measurement_keys: Option<Box<dyn Iterator<Item = &'a BuiltinMeasurementKey>>>,
 
-    /// yoo
-    pub max_custom_measurements: Option<usize>,
+    // /// yoo
+    // pub max_custom_measurements: Option<usize>,
+    /// TODO: docs
+    pub dynamic_measurements_config: Option<DynamicMeasurementConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -914,8 +931,46 @@ impl Default for LightNormalizationConfig<'_> {
             span_description_rules: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
-            builtin_measurement_keys: None,
-            max_custom_measurements: None,
+            dynamic_measurements_config: None,
+        }
+    }
+}
+
+/// TODO: docs
+pub struct DynamicMeasurementConfig<'a> {
+    /// TODO: docs
+    pub project: Option<&'a MeasurementsConfig>,
+    /// TODO: docs
+    pub global: Option<&'a MeasurementsConfig>,
+}
+
+impl<'a> DynamicMeasurementConfig<'a> {
+    /// TODO: docs
+    pub fn new(
+        project: Option<&'a MeasurementsConfig>,
+        global: Option<&'a MeasurementsConfig>,
+    ) -> Self {
+        DynamicMeasurementConfig { project, global }
+    }
+
+    /// TODO: docs. mention first project config, then global
+    pub fn builtin_measurement_keys(&'a self) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
+        let from_project = self.project.iter().flat_map(|c| &c.builtin_measurements);
+        let from_global = self.global.iter().flat_map(|c| &c.builtin_measurements);
+
+        from_project.chain(from_global).unique()
+    }
+
+    /// TODO: docs. mention it's the most restrictive among the two
+    pub fn max_custom_measurements(&'a self) -> Option<&'a usize> {
+        match (&self.project, &self.global) {
+            (None, None) => None,
+            (None, Some(global)) => Some(&global.max_custom_measurements),
+            (Some(project), None) => Some(&project.max_custom_measurements),
+            (Some(project), Some(global)) => Some(min(
+                &project.max_custom_measurements,
+                &global.max_custom_measurements,
+            )),
         }
     }
 }
@@ -1008,8 +1063,7 @@ pub fn light_normalize_event(
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(
             event,
-            config.builtin_measurement_keys,
-            config.max_custom_measurements,
+            config.dynamic_measurements_config,
             config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
