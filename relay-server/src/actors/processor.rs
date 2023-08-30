@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
+use std::net;
 use std::net::IpAddr as NetIPAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{boxed, net};
 
 use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;

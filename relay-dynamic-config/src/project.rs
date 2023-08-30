@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -98,6 +97,7 @@ impl ProjectConfig {
 
     // FOR REVIEWERS: this one works well, but uses a memory allocation. Whereas I've not been able
     // to put an iterator directly into LightNormalizationConfig due to lifetime issues.
+    /// TODO: docs
     pub fn builtin_measurements_with_vector<'a>(
         &'a self,
         global_config: &'a Arc<GlobalConfig>,
