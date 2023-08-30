@@ -1,12 +1,7 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
-
-use itertools::Itertools;
 use relay_auth::PublicKey;
 use relay_base_schema::spans::SpanAttribute;
 use relay_event_normalization::{
-    BreakdownsConfig, BuiltinMeasurementKey, MeasurementsConfig, SpanDescriptionRule,
-    TransactionNameRule,
+    BreakdownsConfig, MeasurementsConfig, SpanDescriptionRule, TransactionNameRule,
 };
 use relay_filter::FiltersConfig;
 use relay_pii::{DataScrubbingConfig, PiiConfig};
@@ -15,12 +10,14 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::defaults;
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
     self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::{defaults, GlobalConfig};
+
+use std::collections::BTreeSet;
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +48,7 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for measurements.
-    /// NOTE: do not access directly, use the getter method!
+    /// NOTE: do not access directly, use the [`DynamicMeasurementConfig`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
@@ -93,74 +90,6 @@ impl ProjectConfig {
 
         metrics::convert_conditional_tagging(self);
         defaults::add_span_metrics(self);
-    }
-
-    // FOR REVIEWERS: this one works well, but uses a memory allocation. Whereas I've not been able
-    // to put an iterator directly into LightNormalizationConfig due to lifetime issues.
-    /// TODO: docs
-    pub fn builtin_measurements_with_vector<'a>(
-        &'a self,
-        global_config: &'a Arc<GlobalConfig>,
-    ) -> Option<Vec<&'a BuiltinMeasurementKey>> {
-        match (&self.measurements, &global_config.measurements) {
-            (None, None) => None,
-            (Some(v), None) | (None, Some(v)) => Some(v.builtin_measurements.iter().collect()),
-            (Some(proj), Some(glob)) => {
-                let max_capacity =
-                    proj.builtin_measurements.len() + glob.builtin_measurements.len();
-                let mut result: Vec<&BuiltinMeasurementKey> = Vec::with_capacity(max_capacity);
-
-                result.extend(proj.builtin_measurements.iter());
-
-                result.extend(
-                    glob.builtin_measurements
-                        .iter()
-                        .filter(|&item| !proj.builtin_measurements.contains(item)),
-                );
-
-                Some(result)
-            }
-        }
-    }
-
-    /// Combines the [`MeasurementsConfig`] from [`GlobalConfig`] and [`ProjectConfig`].
-    pub fn measurements<'a>(
-        &'a self,
-        global_config: &'a Arc<GlobalConfig>,
-    ) -> (
-        Option<Box<dyn Iterator<Item = &'a BuiltinMeasurementKey> + 'a>>,
-        Option<usize>,
-    ) {
-        match (
-            self.measurements.as_ref(),
-            global_config.measurements.as_ref(),
-        ) {
-            (None, None) => (None, None),
-            (None, Some(glob_measurements_config)) => (
-                Some(Box::new(
-                    glob_measurements_config.builtin_measurements.iter(),
-                )),
-                Some(glob_measurements_config.max_custom_measurements),
-            ),
-            (Some(proj_measurements_config), None) => (
-                Some(Box::new(
-                    proj_measurements_config.builtin_measurements.iter(),
-                )),
-                Some(proj_measurements_config.max_custom_measurements),
-            ),
-            (Some(proj_measurements_config), Some(glob_measurements_config)) => {
-                let merged = proj_measurements_config
-                    .builtin_measurements
-                    .iter()
-                    .chain(glob_measurements_config.builtin_measurements.iter())
-                    .unique_by(|&x| x);
-
-                (
-                    Some(Box::new(merged)),
-                    Some(proj_measurements_config.max_custom_measurements),
-                )
-            }
-        }
     }
 }
 

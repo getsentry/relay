@@ -398,8 +398,8 @@ fn get_measurement_rating(name: &str, value: f64) -> Option<String> {
 mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
-        set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
-        MeasurementsConfig,
+        set_default_transaction_source, BreakdownsConfig, DynamicMeasurementConfig,
+        LightNormalizationConfig, MeasurementsConfig,
     };
     use relay_event_schema::protocol::User;
     use relay_metrics::MetricValue;
@@ -900,10 +900,16 @@ mod tests {
             }
         ))
         .unwrap();
+
+        let config = DynamicMeasurementConfig {
+            project: Some(&measurements_config),
+            global: None,
+        };
+
         relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
-                // measurements_config: Some(measurements_config), // TODO: fix the test
+                dynamic_measurements_config: Some(config),
                 ..Default::default()
             },
         )

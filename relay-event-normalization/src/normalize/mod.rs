@@ -45,7 +45,7 @@ mod request;
 mod stacktrace;
 
 /// Defines a builtin measurement.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BuiltinMeasurementKey {
     name: String,
@@ -53,7 +53,7 @@ pub struct BuiltinMeasurementKey {
 }
 
 /// Configuration for measurements normalization.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
@@ -446,8 +446,6 @@ fn normalize_units(measurements: &mut Measurements) {
 /// Ensure measurements interface is only present for transaction events.
 fn normalize_measurements(
     event: &mut Event,
-    // builtin_measurement_keys: Option<Vec<&BuiltinMeasurementKey>>,
-    // max_custom_measurements: Option<usize>,
     measurements_config: Option<DynamicMeasurementConfig>,
     max_mri_len: Option<usize>,
 ) {
@@ -470,17 +468,6 @@ fn normalize_measurements(
                 max_mri_len,
             );
         }
-        // if let (Some(builtin_measurement_keys), Some(max_custom_measurements)) =
-        //     (builtin_measurement_keys.as_mut(), max_custom_measurements)
-        // {
-        //     remove_invalid_measurements(
-        //         measurements,
-        //         meta,
-        //         builtin_measurement_keys,
-        //         max_custom_measurements,
-        //         max_mri_len,
-        //     );
-        // }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
             (Some(start), Some(end)) => relay_common::time::chrono_to_positive_millis(end - start),
@@ -812,7 +799,7 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
 }
 
 /// Configuration for [`light_normalize_event`].
-//#[derive(Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct LightNormalizationConfig<'a> {
     /// The IP address of the SDK that sent the event.
     ///
@@ -854,15 +841,10 @@ pub struct LightNormalizationConfig<'a> {
     /// metadata entry.
     pub max_name_and_unit_len: Option<usize>,
 
-    // /// Configuration for measurement normalization in transaction events.
-    // ///
-    // /// If provided, normalization truncates custom measurements and adds units of known built-in
-    // /// measurements.
-    // pub builtin_measurement_keys: Option<Box<dyn Iterator<Item = &'a BuiltinMeasurementKey>>>,
-
-    // /// yoo
-    // pub max_custom_measurements: Option<usize>,
-    /// TODO: docs
+    /// Configuration for measurement normalization in transaction events.
+    ///
+    /// Can have both configuration from project config and global config. If either is provided,
+    /// normalization will truncate custom measurements and add units of known built-in measurements.
     pub dynamic_measurements_config: Option<DynamicMeasurementConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
@@ -937,6 +919,7 @@ impl Default for LightNormalizationConfig<'_> {
 }
 
 /// TODO: docs
+#[derive(Clone, Debug)]
 pub struct DynamicMeasurementConfig<'a> {
     /// TODO: docs
     pub project: Option<&'a MeasurementsConfig>,
@@ -2724,7 +2707,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        //normalize_measurements(&mut event, None, None);
+        normalize_measurements(&mut event, None, None);
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
         {
@@ -2793,7 +2776,12 @@ mod tests {
         }))
         .unwrap();
 
-        //normalize_measurements(&mut event, Some(&config), None);
+        let config = DynamicMeasurementConfig {
+            project: Some(&config),
+            global: None,
+        };
+
+        normalize_measurements(&mut event, Some(config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
@@ -2838,7 +2826,7 @@ mod tests {
         }
         "#);
     }
-    /*
+
     #[test]
     fn test_light_normalization_is_idempotent() {
         // get an event, light normalize it. the result of that must be the same as light normalizing it once more
@@ -2903,7 +2891,6 @@ mod tests {
             .unwrap();
         assert_eq!(&second, &third, "idempotency check failed");
     }
-    */
 
     #[test]
     fn test_normalize_units() {
@@ -3399,18 +3386,22 @@ mod tests {
             ..Default::default()
         };
 
+        let dynamic_config = DynamicMeasurementConfig {
+            project: Some(&measurements_config),
+            global: None,
+        };
+
         // Just for clarity.
         // Checks that there is 1 measurement before processing.
         assert_eq!(measurements.len(), 1);
 
-        /*
         remove_invalid_measurements(
             &mut measurements,
             &mut meta,
-            &measurements_config,
+            dynamic_config.builtin_measurement_keys(),
+            dynamic_config.max_custom_measurements().unwrap(),
             max_name_and_unit_len,
         );
-        */
 
         // Checks whether the measurement is dropped.
         measurements.len() == 0

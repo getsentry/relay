@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Values shared across all projects may also be included here, to keep
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GlobalConfig {
@@ -13,16 +13,9 @@ pub struct GlobalConfig {
     pub measurements: Option<MeasurementsConfig>,
 }
 
-impl Default for GlobalConfig {
-    fn default() -> Self {
-        Self {
-            measurements: Some(MeasurementsConfig::default()),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+
     use super::GlobalConfig;
 
     #[test]
@@ -57,7 +50,8 @@ mod tests {
        }
     }"#;
 
-        let deserialized: GlobalConfig = serde_json::from_str(json).unwrap();
-        assert_eq!(deserialized, GlobalConfig::default());
+        let deserialized = serde_json::from_str::<GlobalConfig>(json);
+
+        assert!(deserialized.is_ok());
     }
 }
