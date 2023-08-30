@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, TraceContext};
 use relay_protocol::{Annotated, Value};
+use sqlparser::ast::Visitor;
 use url::Url;
 
 use crate::utils::{
@@ -357,8 +358,37 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// Returns the table in the SQL query, if any.
 ///
 /// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
+fn sql_table_from_query(query: &str) -> Option<String> {
+    use sqlparser::ast::{Expr, ObjectName, Visit};
+    use std::ops::ControlFlow;
+    struct V {
+        relations: Vec<String>,
+    }
+
+    // Visit relations and exprs before children are visited (depth first walk)
+    // Note you can also visit statements and visit exprs after children have been visited
+    impl Visitor for V {
+        type Break = ();
+
+        fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
+            if let Some(name) = relation.0.last() {
+                self.relations.push(name.value.clone());
+            }
+            ControlFlow::Continue(())
+        }
+    }
+    match sqlparser::parser::Parser::parse_sql(&sqlparser::dialect::GenericDialect {}, query) {
+        Ok(ast) => {
+            let mut visitor = V { relations: vec![] };
+            ast.visit(&mut visitor);
+            visitor.relations.sort();
+            Some(visitor.relations.join(","))
+        }
+        Err(e) => {
+            relay_log::debug!("Failed to parse SQL: {e}");
+            extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
+        }
+    }
 }
 
 /// Regex with a capture group to extract the HTTP method from a string.
@@ -549,6 +579,12 @@ mod tests {
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+    }
+
+    #[test]
+    fn extract_table_multiple() {
+        let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
+        assert_eq!(sql_table_from_query(query).unwrap(), "a,b,c");
     }
 
     #[test]
