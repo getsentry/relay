@@ -168,6 +168,8 @@
 <a href="#168" id="168">168</a>
 <a href="#169" id="169">169</a>
 <a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
@@ -316,6 +318,8 @@
     </span><span class="kw">pub </span>session_metrics: SessionMetricsConfig,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>transaction_metrics: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;TransactionMetricsConfig&gt;&gt;,
+    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;skip_metrics_extraction&quot;</span>)]
+    </span><span class="kw">pub </span>metric_extraction: ErrorBoundary&lt;MetricExtractionConfig&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>metric_conditional_tagging: Vec&lt;TaggingRule&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;BTreeSet::is_empty&quot;</span>)]
