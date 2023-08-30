@@ -309,7 +309,7 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 /// Note that [`Measurements`] is a BTreeMap, which means its keys are sorted.
 /// This ensures that for two events with the same measurement keys, the same set of custom
 /// measurements is retained.
-fn remove_invalid_measurements<'a>(
+fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
     builtin_measurement_keys: Vec<&BuiltinMeasurementKey>,
@@ -456,14 +456,15 @@ fn normalize_measurements(
         normalize_app_start_measurements(measurements);
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            let builtin_measurement_keys = measurements_config.builtin_measurement_keys();
+            let builtin_measurement_keys =
+                measurements_config.builtin_measurement_keys().collect_vec();
             let max_custom_measurements =
                 measurements_config.max_custom_measurements().unwrap_or(&0);
 
             remove_invalid_measurements(
                 measurements,
                 meta,
-                builtin_measurement_keys.collect_vec(),
+                builtin_measurement_keys,
                 max_custom_measurements,
                 max_mri_len,
             );

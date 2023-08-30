@@ -2395,9 +2395,6 @@ impl EnvelopeProcessorService {
             .has_feature(Feature::SpanMetricsExtraction);
 
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            // let (builtin_measurement_keys, max_custom_measurements) =
-            //     state.project_state.config.measurements(&self.global_config);
-
             let config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
