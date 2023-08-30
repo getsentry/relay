@@ -1,12 +1,12 @@
 //! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, TraceContext};
 use relay_protocol::{Annotated, Value};
-use sqlparser::ast::Visitor;
 use url::Url;
 
 use crate::utils::{
@@ -359,30 +359,41 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 ///
 /// If multiple tables exist, only the first one is returned.
 fn sql_table_from_query(query: &str) -> Option<String> {
-    use sqlparser::ast::{Expr, ObjectName, Visit};
+    use sqlparser::ast::{ObjectName, Visit, Visitor};
+    use sqlparser::dialect::GenericDialect;
     use std::ops::ControlFlow;
-    struct V {
-        relations: Vec<String>,
+    /// Visitor that finds relation names.
+    struct RelationsVisitor {
+        relations: BTreeSet<String>,
     }
 
     // Visit relations and exprs before children are visited (depth first walk)
     // Note you can also visit statements and visit exprs after children have been visited
-    impl Visitor for V {
+    impl Visitor for RelationsVisitor {
         type Break = ();
 
         fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
             if let Some(name) = relation.0.last() {
-                self.relations.push(name.value.clone());
+                self.relations.insert(name.value.clone());
             }
             ControlFlow::Continue(())
         }
     }
-    match sqlparser::parser::Parser::parse_sql(&sqlparser::dialect::GenericDialect {}, query) {
+    match sqlparser::parser::Parser::parse_sql(&GenericDialect {}, query) {
         Ok(ast) => {
-            let mut visitor = V { relations: vec![] };
+            let mut visitor = RelationsVisitor {
+                relations: Default::default(),
+            };
             ast.visit(&mut visitor);
-            visitor.relations.sort();
-            Some(visitor.relations.join(","))
+            let mut s = String::new();
+            for (i, name) in visitor.relations.into_iter().enumerate() {
+                if i == 0 {
+                    s = name;
+                } else {
+                    write!(&mut s, ",{name}").ok();
+                }
+            }
+            Some(s)
         }
         Err(e) => {
             relay_log::debug!("Failed to parse SQL: {e}");
@@ -584,6 +595,34 @@ mod tests {
     #[test]
     fn extract_table_multiple() {
         let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
+        assert_eq!(sql_table_from_query(query).unwrap(), "a,b,c");
+    }
+
+    #[test]
+    fn extract_table_multiple_advanced() {
+        let query = r#"
+SELECT "sentry_grouprelease"."id", "sentry_grouprelease"."project_id",
+  "sentry_grouprelease"."group_id", "sentry_grouprelease"."release_id",
+  "sentry_grouprelease"."environment", "sentry_grouprelease"."first_seen",
+  "sentry_grouprelease"."last_seen"
+FROM "sentry_grouprelease"
+WHERE (
+  "sentry_grouprelease"."group_id" = %s AND "sentry_grouprelease"."release_id" IN (
+    SELECT V0."release_id"
+    FROM "sentry_environmentrelease" V0
+    WHERE (
+      V0."organization_id" = %s AND V0."release_id" IN (
+        SELECT U0."release_id"
+        FROM "sentry_release_project" U0
+        WHERE U0."project_id" = %s
+      )
+    )
+    ORDER BY V0."first_seen" DESC
+    LIMIT 1
+  )
+)
+LIMIT 1
+            "#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a,b,c");
     }
 
