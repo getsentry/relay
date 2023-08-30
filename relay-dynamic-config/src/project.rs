@@ -48,7 +48,7 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for measurements.
-    /// NOTE: do not access directly, use the [`DynamicMeasurementConfig`].
+    /// NOTE: do not access directly, use DynamicMeasurementConfig.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.

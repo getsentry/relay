@@ -446,7 +446,7 @@ fn normalize_units(measurements: &mut Measurements) {
 /// Ensure measurements interface is only present for transaction events.
 fn normalize_measurements(
     event: &mut Event,
-    measurements_config: Option<DynamicMeasurementConfig>,
+    measurements_config: Option<DynamicMeasurementsConfig>,
     max_mri_len: Option<usize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -845,7 +845,7 @@ pub struct LightNormalizationConfig<'a> {
     ///
     /// Can have both configuration from project config and global config. If either is provided,
     /// normalization will truncate custom measurements and add units of known built-in measurements.
-    pub dynamic_measurements_config: Option<DynamicMeasurementConfig<'a>>,
+    pub dynamic_measurements_config: Option<DynamicMeasurementsConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -918,25 +918,25 @@ impl Default for LightNormalizationConfig<'_> {
     }
 }
 
-/// TODO: docs
+/// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
+/// the merging logic.
 #[derive(Clone, Debug)]
-pub struct DynamicMeasurementConfig<'a> {
-    /// TODO: docs
-    pub project: Option<&'a MeasurementsConfig>,
-    /// TODO: docs
-    pub global: Option<&'a MeasurementsConfig>,
+pub struct DynamicMeasurementsConfig<'a> {
+    project: Option<&'a MeasurementsConfig>,
+    global: Option<&'a MeasurementsConfig>,
 }
 
-impl<'a> DynamicMeasurementConfig<'a> {
-    /// TODO: docs
+impl<'a> DynamicMeasurementsConfig<'a> {
+    /// Constructor for [`DynamicMeasurementConfig`].
     pub fn new(
         project: Option<&'a MeasurementsConfig>,
         global: Option<&'a MeasurementsConfig>,
     ) -> Self {
-        DynamicMeasurementConfig { project, global }
+        DynamicMeasurementsConfig { project, global }
     }
 
-    /// TODO: docs. mention first project config, then global
+    /// Returns an iterator over the union of [`BuiltinMeasurementKey`]s from both the global and
+    /// project-level [`MeasurementsConfig`]s.
     pub fn builtin_measurement_keys(&'a self) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
         let from_project = self.project.iter().flat_map(|c| &c.builtin_measurements);
         let from_global = self.global.iter().flat_map(|c| &c.builtin_measurements);
@@ -944,7 +944,8 @@ impl<'a> DynamicMeasurementConfig<'a> {
         from_project.chain(from_global).unique()
     }
 
-    /// TODO: docs. mention it's the most restrictive among the two
+    /// Gets the minimum value of the max amount of custom measurements from project and global level
+    /// [`MeasurementsConfig`] if at least one is available.
     pub fn max_custom_measurements(&'a self) -> Option<&'a usize> {
         match (&self.project, &self.global) {
             (None, None) => None,
@@ -2776,7 +2777,7 @@ mod tests {
         }))
         .unwrap();
 
-        let config = DynamicMeasurementConfig {
+        let config = DynamicMeasurementsConfig {
             project: Some(&config),
             global: None,
         };
@@ -3386,7 +3387,7 @@ mod tests {
             ..Default::default()
         };
 
-        let dynamic_config = DynamicMeasurementConfig {
+        let dynamic_config = DynamicMeasurementsConfig {
             project: Some(&measurements_config),
             global: None,
         };
