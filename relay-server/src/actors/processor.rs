@@ -2804,6 +2804,11 @@ impl Service for EnvelopeProcessorService {
                    biased;
 
                     update = subscription.changed(), if !shutdown => {
+                        // During Relay shutdown, the global config service
+                        // stops and drops the sender of the subscription,
+                        // causing updates to fail. Not to lose envelopes, the
+                        // processor should continue processing in-flight
+                        // messages before the network access is revoked.
                         match update {
                             Ok(()) => self.global_config = subscription.borrow().clone(),
                             Err(_) => shutdown = true,
