@@ -178,6 +178,16 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
 /// and rely on Sentry conventions and heuristics.
 pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
     let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
+
+    let system = span
+        .data
+        .value()
+        .and_then(|v| v.get("db.system"))
+        .and_then(|system| system.as_str());
+    if let Some(sys) = system {
+        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
+    }
+
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
@@ -265,7 +275,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         } else if span_op.starts_with("db") {
             span.description
                 .value()
-                .and_then(|query| sql_table_from_query(query))
+                .and_then(|query| sql_table_from_query(system, query))
         } else {
             None
         };
@@ -289,15 +299,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated.into());
         }
-    }
-
-    let system = span
-        .data
-        .value()
-        .and_then(|v| v.get("db.system"))
-        .and_then(|system| system.as_str());
-    if let Some(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
     }
 
     if let Some(span_status) = span.status.value() {
@@ -361,7 +362,7 @@ static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
 /// Returns the table in the SQL query, if any.
 ///
 /// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<String> {
+fn sql_table_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
     use sqlparser::ast::{ObjectName, Visit, Visitor};
     use sqlparser::dialect::GenericDialect;
     use std::ops::ControlFlow;
@@ -375,14 +376,21 @@ fn sql_table_from_query(query: &str) -> Option<String> {
 
         fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
             if let Some(name) = relation.0.last() {
-                self.relations.insert(name.value.to_lowercase());
+                let last = name.value.split('.').last().unwrap_or(&name.value);
+                self.relations.insert(last.to_lowercase());
             }
             ControlFlow::Continue(())
         }
     }
 
+    // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
+    //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
+    let dialect = db_system
+        .and_then(sqlparser::dialect::dialect_from_str)
+        .unwrap_or_else(|| Box::new(GenericDialect {}));
+
     let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
-    match sqlparser::parser::Parser::parse_sql(&GenericDialect {}, &parsable_query) {
+    match sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query) {
         Ok(ast) => {
             let mut visitor = RelationsVisitor {
                 relations: Default::default(),
@@ -595,19 +603,35 @@ mod tests {
     #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(
+            sql_table_from_query(Some("postgresql"), query).unwrap(),
+            "a.b"
+        );
     }
 
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(
+            sql_table_from_query(Some("postgresql"), query).unwrap(),
+            "a.b"
+        );
     }
 
     #[test]
     fn extract_table_multiple() {
         let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a,b,c");
+        assert_eq!(
+            sql_table_from_query(Some("postgresql"), query).unwrap(),
+            "a,b,c"
+        );
+    }
+
+    #[test]
+    fn extract_table_multiple_mysql() {
+        let query =
+            r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
+        assert_eq!(sql_table_from_query(Some("mysql"), query).unwrap(), "a,b,c");
     }
 
     #[test]
@@ -636,7 +660,7 @@ WHERE (
 LIMIT 1
             "#;
         assert_eq!(
-            sql_table_from_query(query).unwrap(),
+            sql_table_from_query(Some("postgresql"), query).unwrap(),
             "sentry_environmentrelease,sentry_grouprelease,sentry_release_project"
         );
     }
@@ -644,19 +668,28 @@ LIMIT 1
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(
+            sql_table_from_query(Some("postgresql"), query).unwrap(),
+            "a.b"
+        );
     }
 
     #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a");
+        assert_eq!(
+            sql_table_from_query(Some("postgresql"), query).unwrap(),
+            "a"
+        );
     }
 
     #[test]
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a");
+        assert_eq!(
+            sql_table_from_query(Some("postgresql"), query).unwrap(),
+            "a"
+        );
     }
 
     #[test]
