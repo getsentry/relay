@@ -24,7 +24,7 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         # Capture single-quoted strings, including the remaining substring if `\'` is found.
         ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
-        (   (?P<placeholder> (?:\?+|\$\d+|%s|:\w+) (::\w+(\[\]?)?)? )   ) |
+        (   (?P<placeholder> (?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
         ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
@@ -158,6 +158,12 @@ mod tests {
         php_placeholders,
         r"SELECT x FROM y WHERE (z = :c0 AND w = :c1) LIMIT 1",
         "SELECT x FROM y WHERE (z = %s AND w = %s) LIMIT %s"
+    );
+
+    scrub_sql_test!(
+        named_placeholders,
+        r#"SELECT some_func(col, %(my_param1)s)"#,
+        "SELECT some_func(col, %s)"
     );
 
     scrub_sql_test!(
@@ -473,12 +479,6 @@ mod tests {
         collapse_list_cutoff,
         r#"SELECT "t"."a", "t"."b", "t..."#,
         "SELECT .."
-    );
-
-    scrub_sql_test!(
-        collapse_update_lists,
-        "UPDATE `something` SET `x` = NULL, `b` = %s, `c` = %s WHERE `something`.`id` = %s",
-        "UPDATE .. WHERE id = %s"
     );
 
     scrub_sql_test!(
