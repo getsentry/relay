@@ -396,7 +396,7 @@ fn sql_table_from_query(query: &str) -> Option<String> {
                     write!(&mut s, ",{name}").ok();
                 }
             }
-            Some(s)
+            (!s.is_empty()).then_some(s)
         }
         Err(e) => {
             relay_log::debug!("Failed to parse SQL: {e}");
