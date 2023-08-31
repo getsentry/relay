@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use relay_auth::PublicKey;
 use relay_base_schema::spans::SpanAttribute;
 use relay_event_normalization::{
@@ -16,8 +18,6 @@ use crate::feature::FeatureSet;
 use crate::metrics::{
     self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-
-use std::collections::BTreeSet;
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]

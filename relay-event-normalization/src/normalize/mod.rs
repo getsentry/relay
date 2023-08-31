@@ -52,6 +52,16 @@ pub struct BuiltinMeasurementKey {
     unit: MetricUnit,
 }
 
+impl BuiltinMeasurementKey {
+    /// Constructor for [`BuiltinMeasurementKey`].
+    pub fn new(name: impl Into<String>, unit: MetricUnit) -> Self {
+        Self {
+            name: name.into(),
+            unit,
+        }
+    }
+}
+
 /// Configuration for measurements normalization.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(default, rename_all = "camelCase")]
@@ -60,7 +70,7 @@ pub struct MeasurementsConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub builtin_measurements: Vec<BuiltinMeasurementKey>,
 
-    /// The maximum number of measurements allowed per event that are not known measurements.
+    /// The maximum number of custom measurements allowed per event.
     pub max_custom_measurements: usize,
 }
 
@@ -1470,18 +1480,11 @@ mod tests {
         }
     }
 
-    fn new_builtin(name: impl Into<String>, unit: MetricUnit) -> BuiltinMeasurementKey {
-        BuiltinMeasurementKey {
-            name: name.into(),
-            unit,
-        }
-    }
-
     #[test]
     fn test_merge_builtin_measurement_keys() {
-        let foo = new_builtin("foo", MetricUnit::Duration(DurationUnit::Hour));
-        let bar = new_builtin("bar", MetricUnit::Duration(DurationUnit::Day));
-        let baz = new_builtin("baz", MetricUnit::Duration(DurationUnit::Week));
+        let foo = BuiltinMeasurementKey::new("foo", MetricUnit::Duration(DurationUnit::Hour));
+        let bar = BuiltinMeasurementKey::new("bar", MetricUnit::Duration(DurationUnit::Day));
+        let baz = BuiltinMeasurementKey::new("baz", MetricUnit::Duration(DurationUnit::Week));
 
         let proj = MeasurementsConfig {
             builtin_measurements: vec![foo.clone(), bar.clone()],

@@ -16,42 +16,30 @@ pub struct GlobalConfig {
 #[cfg(test)]
 mod tests {
 
+    use relay_base_schema::metrics::MetricUnit;
+    use relay_event_normalization::{BuiltinMeasurementKey, MeasurementsConfig};
+
     use super::GlobalConfig;
 
     #[test]
     fn test_deserialize_global_config() {
-        let json = r#"{
-"measurements":
-       {
-        "builtinMeasurements": [
-            {"name": "app_start_cold", "unit": "millisecond"},
-            {"name": "app_start_warm", "unit": "millisecond"},
-            {"name": "cls", "unit": "none"},
-            {"name": "fcp", "unit": "millisecond"},
-            {"name": "fid", "unit": "millisecond"},
-            {"name": "fp", "unit": "millisecond"},
-            {"name": "frames_frozen_rate", "unit": "ratio"},
-            {"name": "frames_frozen", "unit": "none"},
-            {"name": "frames_slow_rate", "unit": "ratio"},
-            {"name": "frames_slow", "unit": "none"},
-            {"name": "frames_total", "unit": "none"},
-            {"name": "inp", "unit": "millisecond"},
-            {"name": "lcp", "unit": "millisecond"},
-            {"name": "stall_count", "unit": "none"},
-            {"name": "stall_longest_time", "unit": "millisecond"},
-            {"name": "stall_percentage", "unit": "ratio"},
-            {"name": "stall_total_time", "unit": "millisecond"},
-            {"name": "ttfb.requesttime", "unit": "millisecond"},
-            {"name": "ttfb", "unit": "millisecond"},
-            {"name": "time_to_full_display", "unit": "millisecond"},
-            {"name": "time_to_initial_display", "unit": "millisecond"}
-        ],
-        "maxCustomMeasurements": 10
-       }
-    }"#;
+        let global_config = GlobalConfig {
+            measurements: Some(MeasurementsConfig {
+                builtin_measurements: vec![
+                    BuiltinMeasurementKey::new("foo", MetricUnit::None),
+                    BuiltinMeasurementKey::new("bar", MetricUnit::None),
+                    BuiltinMeasurementKey::new("baz", MetricUnit::None),
+                ],
+                max_custom_measurements: 5,
+            }),
+        };
 
-        let deserialized = serde_json::from_str::<GlobalConfig>(json);
+        let serialized =
+            serde_json::to_string(&global_config).expect("failed to serialize GlobalConfig");
 
-        assert!(deserialized.is_ok());
+        let deserialized = serde_json::from_str::<GlobalConfig>(serialized.as_str())
+            .expect("failed to deserialize GlobalConfig");
+
+        assert_eq!(deserialized, global_config);
     }
 }
