@@ -1,6 +1,7 @@
 //! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -177,6 +178,16 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
 /// and rely on Sentry conventions and heuristics.
 pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
     let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
+
+    let system = span
+        .data
+        .value()
+        .and_then(|v| v.get("db.system"))
+        .and_then(|system| system.as_str());
+    if let Some(sys) = system {
+        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
+    }
+
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
@@ -264,8 +275,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         } else if span_op.starts_with("db") {
             span.description
                 .value()
-                .and_then(|query| sql_table_from_query(query))
-                .map(|t| t.to_lowercase())
+                .and_then(|query| sql_tables_from_query(system, query))
         } else {
             None
         };
@@ -289,15 +299,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated.into());
         }
-    }
-
-    let system = span
-        .data
-        .value()
-        .and_then(|v| v.get("db.system"))
-        .and_then(|system| system.as_str());
-    if let Some(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
     }
 
     if let Some(span_status) = span.status.value() {
@@ -354,11 +355,60 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
-/// Returns the table in the SQL query, if any.
-///
-/// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
+/// Used to replace placeholders (parameters) by dummy values such that the query can be parsed.
+static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)").unwrap());
+
+/// Returns a sorted, comma-separated list of SQL tables, if any.
+fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
+    use sqlparser::ast::{ObjectName, Visit, Visitor};
+    use sqlparser::dialect::GenericDialect;
+    use std::ops::ControlFlow;
+    /// Visitor that finds relation names.
+    struct RelationsVisitor {
+        relations: BTreeSet<String>,
+    }
+
+    impl Visitor for RelationsVisitor {
+        type Break = ();
+
+        fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
+            if let Some(name) = relation.0.last() {
+                let last = name.value.split('.').last().unwrap_or(&name.value);
+                self.relations.insert(last.to_lowercase());
+            }
+            ControlFlow::Continue(())
+        }
+    }
+
+    // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
+    //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
+    let dialect = db_system
+        .and_then(sqlparser::dialect::dialect_from_str)
+        .unwrap_or_else(|| Box::new(GenericDialect {}));
+
+    let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
+    match sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query) {
+        Ok(ast) => {
+            let mut visitor = RelationsVisitor {
+                relations: Default::default(),
+            };
+            ast.visit(&mut visitor);
+            let mut s = String::with_capacity(visitor.relations.iter().map(String::len).sum());
+            for (i, name) in visitor.relations.into_iter().enumerate() {
+                if i == 0 {
+                    s = name;
+                } else {
+                    write!(&mut s, ",{name}").ok();
+                }
+            }
+            (!s.is_empty()).then_some(s)
+        }
+        Err(e) => {
+            relay_log::debug!("Failed to parse SQL: {e}");
+            extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
+        }
+    }
 }
 
 /// Regex with a capture group to extract the HTTP method from a string.
@@ -540,33 +590,101 @@ mod tests {
     );
 
     #[test]
+    fn find_placeholders() {
+        let s = "? NULL ?? 'str' %s %(name1)s :c0 $4 xx";
+        assert_eq!(
+            SQL_PLACEHOLDER_REGEX.replace_all(s, "1"),
+            "1 NULL 1 'str' 1 1 1 1 xx"
+        );
+    }
+
+    #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "b"
+        );
     }
 
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(sql_tables_from_query(None, query).unwrap(), "b");
+    }
+
+    #[test]
+    fn extract_table_multiple() {
+        let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "a,b,c"
+        );
+    }
+
+    #[test]
+    fn extract_table_multiple_mysql() {
+        let query =
+            r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
+        assert_eq!(
+            sql_tables_from_query(Some("mysql"), query).unwrap(),
+            "a,b,c"
+        );
+    }
+
+    #[test]
+    fn extract_table_multiple_advanced() {
+        let query = r#"
+SELECT "sentry_grouprelease"."id", "sentry_grouprelease"."project_id",
+  "sentry_grouprelease"."group_id", "sentry_grouprelease"."release_id",
+  "sentry_grouprelease"."environment", "sentry_grouprelease"."first_seen",
+  "sentry_grouprelease"."last_seen"
+FROM "sentry_grouprelease"
+WHERE (
+  "sentry_grouprelease"."group_id" = %s AND "sentry_grouprelease"."release_id" IN (
+    SELECT V0."release_id"
+    FROM "sentry_environmentrelease" V0
+    WHERE (
+      V0."organization_id" = %s AND V0."release_id" IN (
+        SELECT U0."release_id"
+        FROM "sentry_release_project" U0
+        WHERE U0."project_id" = %s
+      )
+    )
+    ORDER BY V0."first_seen" DESC
+    LIMIT 1
+  )
+)
+LIMIT 1
+            "#;
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "sentry_environmentrelease,sentry_grouprelease,sentry_release_project"
+        );
     }
 
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(sql_tables_from_query(None, query).unwrap(), "b");
     }
 
     #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a");
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "a"
+        );
     }
 
     #[test]
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a");
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "a"
+        );
     }
 
     #[test]
