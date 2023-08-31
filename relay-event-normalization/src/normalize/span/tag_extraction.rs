@@ -2,11 +2,14 @@
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
+use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, TraceContext};
 use relay_protocol::{Annotated, Value};
+use sqlparser::ast::{ObjectName, Visit, Visitor};
+use sqlparser::dialect::GenericDialect;
 use url::Url;
 
 use crate::utils::{
@@ -361,43 +364,25 @@ static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
 
 /// Returns a sorted, comma-separated list of SQL tables, if any.
 fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
-    use sqlparser::ast::{ObjectName, Visit, Visitor};
-    use sqlparser::dialect::GenericDialect;
-    use std::ops::ControlFlow;
-    /// Visitor that finds relation names.
-    struct RelationsVisitor {
-        relations: BTreeSet<String>,
-    }
-
-    impl Visitor for RelationsVisitor {
-        type Break = ();
-
-        fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
-            if let Some(name) = relation.0.last() {
-                let last = name.value.split('.').last().unwrap_or(&name.value);
-                self.relations.insert(last.to_lowercase());
-            }
-            ControlFlow::Continue(())
-        }
-    }
-
     // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
     //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
     let dialect = db_system
         .and_then(sqlparser::dialect::dialect_from_str)
         .unwrap_or_else(|| Box::new(GenericDialect {}));
 
+    // Parameters such as "%s" cannot be parsed by sqlparser.
     let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
+
     match sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query) {
         Ok(ast) => {
-            let mut visitor = RelationsVisitor {
-                relations: Default::default(),
+            let mut visitor = SqlTableNameVisitor {
+                table_names: Default::default(),
             };
             ast.visit(&mut visitor);
-            let mut s = String::with_capacity(visitor.relations.iter().map(String::len).sum());
-            for (i, name) in visitor.relations.into_iter().enumerate() {
+            let mut s = String::with_capacity(visitor.table_names.iter().map(String::len).sum());
+            for (i, name) in visitor.table_names.into_iter().enumerate() {
                 if i == 0 {
-                    s = name;
+                    write!(&mut s, "{name}").ok();
                 } else {
                     write!(&mut s, ",{name}").ok();
                 }
@@ -408,6 +393,25 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             relay_log::debug!("Failed to parse SQL: {e}");
             extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
         }
+    }
+}
+
+/// Visitor that finds table names in parsed SQL queries.
+struct SqlTableNameVisitor {
+    /// maintains sorted list of unique table names.
+    /// Having a defined order reduces cardinality in the resulting tag (see [`sql_tables_from_query`]).
+    table_names: BTreeSet<String>,
+}
+
+impl Visitor for SqlTableNameVisitor {
+    type Break = ();
+
+    fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
+        if let Some(name) = relation.0.last() {
+            let last = name.value.split('.').last().unwrap_or(&name.value);
+            self.table_names.insert(last.to_lowercase());
+        }
+        ControlFlow::Continue(())
     }
 }
 
