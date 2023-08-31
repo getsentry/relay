@@ -53,7 +53,7 @@ pub struct BuiltinMeasurementKey {
 }
 
 impl BuiltinMeasurementKey {
-    /// Constructor for [`BuiltinMeasurementKey`].
+    /// Creates a new [`BuiltinMeasurementKey`].
     pub fn new(name: impl Into<String>, unit: MetricUnit) -> Self {
         Self {
             name: name.into(),
@@ -1519,15 +1519,13 @@ mod tests {
             max_custom_measurements: 4,
         };
 
-        // If just global or just project is available, return their max custom measurements value.
-        {
-            let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), None);
+        // If only project level measurement config is there, return its max custom measurement variable.
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), None);
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &3);
 
-            assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &3);
-
-            let dynamic_config = DynamicMeasurementsConfig::new(None, Some(&glob));
-            assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &4);
-        }
+        // Same logic for when only global level measurement config exists.
+        let dynamic_config = DynamicMeasurementsConfig::new(None, Some(&glob));
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &4);
 
         // If both is available, pick the smallest number.
         let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));

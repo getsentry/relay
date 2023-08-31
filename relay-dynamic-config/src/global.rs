@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Values shared across all projects may also be included here, to keep
 /// [`ProjectConfig`](crate::ProjectConfig)s small.
-#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct GlobalConfig {
