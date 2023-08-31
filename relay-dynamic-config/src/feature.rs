@@ -31,7 +31,7 @@ pub enum Feature {
     Deprecated3,
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "projects:extract-standalone-spans")]
-    ExtractStandaloneSpans,
+    Deprecated4,
     /// Forward compatibility.
     #[serde(other)]
     Unknown,
