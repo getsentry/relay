@@ -1470,6 +1470,67 @@ mod tests {
         }
     }
 
+    fn new_builtin(name: impl Into<String>, unit: MetricUnit) -> BuiltinMeasurementKey {
+        BuiltinMeasurementKey {
+            name: name.into(),
+            unit,
+        }
+    }
+
+    #[test]
+    fn test_merge_builtin_measurement_keys() {
+        let foo = new_builtin("foo", MetricUnit::Duration(DurationUnit::Hour));
+        let bar = new_builtin("bar", MetricUnit::Duration(DurationUnit::Day));
+        let baz = new_builtin("baz", MetricUnit::Duration(DurationUnit::Week));
+
+        let proj = MeasurementsConfig {
+            builtin_measurements: vec![foo.clone(), bar.clone()],
+            max_custom_measurements: 3,
+        };
+
+        let glob = MeasurementsConfig {
+            // The 'bar' here will be ignored since it's a duplicate from the project level.
+            builtin_measurements: vec![baz.clone(), bar.clone()],
+            max_custom_measurements: 3,
+        };
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
+
+        let keys = dynamic_config.builtin_measurement_keys().collect_vec();
+
+        assert_eq!(keys, vec![&foo, &bar, &baz]);
+    }
+
+    #[test]
+    fn test_max_custom_measurement() {
+        // Empty configs will return a None value for max measurements.
+        let dynamic_config = DynamicMeasurementsConfig::new(None, None);
+        assert!(dynamic_config.max_custom_measurements().is_none());
+
+        let proj = MeasurementsConfig {
+            builtin_measurements: vec![],
+            max_custom_measurements: 3,
+        };
+
+        let glob = MeasurementsConfig {
+            builtin_measurements: vec![],
+            max_custom_measurements: 4,
+        };
+
+        // If just global or just project is available, return their max custom measurements value.
+        {
+            let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), None);
+
+            assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &3);
+
+            let dynamic_config = DynamicMeasurementsConfig::new(None, Some(&glob));
+            assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &4);
+        }
+
+        // If both is available, pick the smallest number.
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &3);
+    }
+
     #[test]
     fn test_handles_type_in_value() {
         let mut processor = NormalizeProcessor::default();
