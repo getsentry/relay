@@ -1058,6 +1058,48 @@
 <a href="#1058" id="1058">1058</a>
 <a href="#1059" id="1059">1059</a>
 <a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1066,7 +1108,10 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 <span class="kw">use </span>relay_filter::matches_any_origin;
-<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
+<span class="kw">use </span>relay_metrics::{
+    Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace,
+    MetricResourceIdentifier, MetricsContainer,
+};
 <span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, BroadcastChannel};
@@ -1531,26 +1576,59 @@
         <span class="self">self</span>.last_updated_at = Instant::now();
     }
 
-    <span class="doccomment">/// Applies cached rate limits to the given metrics or metrics buckets.
+    <span class="doccomment">/// Removes metrics that should not be ingested.
     ///
-    /// This only applies the rate limits currently stored on the project.
+    ///  - Removes metrics from unsupported or disabled use cases.
+    ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
     </span><span class="kw">fn </span>rate_limit_metrics&lt;T: MetricsContainer&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        metrics: Vec&lt;T&gt;,
+        <span class="kw-2">mut </span>metrics: Vec&lt;T&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     ) -&gt; Vec&lt;T&gt; {
-        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, <span class="self">self</span>.scoping()) {
-            (<span class="prelude-val">Some</span>(state), <span class="prelude-val">Some</span>(scoping)) =&gt; {
-                <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping) {
-                    <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>limiter) =&gt; {
-                        limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits), outcome_aggregator);
-                        limiter.into_metrics()
-                    }
-                    <span class="prelude-val">Err</span>(metrics) =&gt; metrics,
-                }
-            }
-            <span class="kw">_ </span>=&gt; metrics,
+        <span class="self">self</span>.filter_metrics(<span class="kw-2">&amp;mut </span>metrics);
+        <span class="kw">if </span>metrics.is_empty() {
+            <span class="kw">return </span>metrics;
         }
+
+        <span class="kw">let </span>(<span class="prelude-val">Some</span>(state), <span class="prelude-val">Some</span>(scoping)) = (<span class="kw-2">&amp;</span><span class="self">self</span>.state, <span class="self">self</span>.scoping()) <span class="kw">else </span>{
+            <span class="kw">return </span>metrics;
+        };
+
+        <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping) {
+            <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>limiter) =&gt; {
+                limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits), outcome_aggregator);
+                limiter.into_metrics()
+            }
+            <span class="prelude-val">Err</span>(metrics) =&gt; metrics,
+        }
+    }
+
+    <span class="doccomment">/// Remove metric buckets that are not allowed to be ingested.
+    </span><span class="kw">fn </span>filter_metrics&lt;T: MetricsContainer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, metrics: <span class="kw-2">&amp;mut </span>Vec&lt;T&gt;) {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(state) = <span class="kw-2">&amp;</span><span class="self">self</span>.state <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
+
+        metrics.retain(|metric| {
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(mri) = MetricResourceIdentifier::parse(metric.name()) <span class="kw">else </span>{
+                <span class="macro">relay_log::trace!</span>(mri = metric.name(), <span class="string">&quot;dropping metrics with invalid MRI&quot;</span>);
+                <span class="kw">return </span><span class="bool-val">false</span>;
+            };
+
+            <span class="kw">let </span>verdict = <span class="kw">match </span>mri.namespace {
+                MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
+                MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
+                MetricNamespace::Spans =&gt; state.has_feature(Feature::SpanMetricsExtraction),
+                MetricNamespace::Custom =&gt; state.has_feature(Feature::CustomMetrics),
+                MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,
+            };
+
+            <span class="kw">if </span>!verdict {
+                <span class="macro">relay_log::trace!</span>(mri = metric.name(), <span class="string">&quot;dropping metric in disabled namespace&quot;</span>);
+            }
+
+            verdict
+        });
     }
 
     <span class="doccomment">/// Inserts given [buckets](Bucket) into the metrics aggregator.
@@ -1567,6 +1645,8 @@
             <span class="kw">if </span>!buckets.is_empty() {
                 aggregator.send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
             }
+        } <span class="kw">else </span>{
+            <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping metric buckets, project disabled&quot;</span>);
         }
     }
 
@@ -1864,7 +1944,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         services: Services,
         partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-        buckets: Vec&lt;Bucket&gt;,
+        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
     ) {
         <span class="kw">let </span>Services {
             aggregator,
@@ -1900,6 +1980,10 @@
         </span><span class="kw">if </span>project_state.check_disabled(config.as_ref()).is_err() {
             <span class="kw">return</span>;
         }
+
+        <span class="comment">// Re-run feature flag checks since the project might not have been loaded when the buckets
+        // were initially ingested, or feature flags have changed in the meanwhile.
+        </span><span class="self">self</span>.filter_metrics(<span class="kw-2">&amp;mut </span>buckets);
 
         <span class="comment">// Check rate limits if necessary:
         </span><span class="kw">let </span>quotas = project_state.config.quotas.clone();

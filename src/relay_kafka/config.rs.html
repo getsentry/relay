@@ -451,8 +451,8 @@
     </span>Sessions,
     <span class="doccomment">/// Any metric that is extracted from sessions.
     </span>MetricsSessions,
-    <span class="doccomment">/// Any metric that is extracted from transactions.
-    </span>MetricsTransactions,
+    <span class="doccomment">/// Generic metrics topic, excluding sessions (release health).
+    </span>MetricsGeneric,
     <span class="doccomment">/// Profiles
     </span>Profiles,
     <span class="doccomment">/// ReplayEvents, breadcrumb + session updates for replays
@@ -478,7 +478,7 @@
             OutcomesBilling,
             Sessions,
             MetricsSessions,
-            MetricsTransactions,
+            MetricsGeneric,
             Profiles,
             ReplayEvents,
             ReplayRecordings,
@@ -506,13 +506,13 @@
     <span class="doccomment">/// Session health topic name.
     </span><span class="kw">pub </span>sessions: TopicAssignment,
     <span class="doccomment">/// Default topic name for all aggregate metrics. Specialized topics for session-based and
-    /// transaction-based metrics can be configured via `metrics_sessions` and
-    /// `metrics_transactions` each.
+    /// generic metrics can be configured via `metrics_sessions` and `metrics_generic` each.
     </span><span class="kw">pub </span>metrics: TopicAssignment,
     <span class="doccomment">/// Topic name for metrics extracted from sessions. Defaults to the assignment of `metrics`.
     </span><span class="kw">pub </span>metrics_sessions: <span class="prelude-ty">Option</span>&lt;TopicAssignment&gt;,
-    <span class="doccomment">/// Topic name for metrics extracted from transactions. Defaults to the assignment of `metrics`.
-    </span><span class="kw">pub </span>metrics_transactions: TopicAssignment,
+    <span class="doccomment">/// Topic name for all other kinds of metrics. Defaults to the assignment of `metrics`.
+    </span><span class="attr">#[serde(alias = <span class="string">&quot;metrics_transactions&quot;</span>)]
+    </span><span class="kw">pub </span>metrics_generic: TopicAssignment,
     <span class="doccomment">/// Stacktrace topic name
     </span><span class="kw">pub </span>profiles: TopicAssignment,
     <span class="doccomment">/// Replay Events topic name.
@@ -537,7 +537,7 @@
             KafkaTopic::OutcomesBilling =&gt; <span class="self">self</span>.outcomes_billing.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.outcomes),
             KafkaTopic::Sessions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sessions,
             KafkaTopic::MetricsSessions =&gt; <span class="self">self</span>.metrics_sessions.as_ref().unwrap_or(<span class="kw-2">&amp;</span><span class="self">self</span>.metrics),
-            KafkaTopic::MetricsTransactions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_transactions,
+            KafkaTopic::MetricsGeneric =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.metrics_generic,
             KafkaTopic::Profiles =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.profiles,
             KafkaTopic::ReplayEvents =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_events,
             KafkaTopic::ReplayRecordings =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_recordings,
@@ -558,7 +558,7 @@
             sessions: <span class="string">&quot;ingest-sessions&quot;</span>.to_owned().into(),
             metrics: <span class="string">&quot;ingest-metrics&quot;</span>.to_owned().into(),
             metrics_sessions: <span class="prelude-val">None</span>,
-            metrics_transactions: <span class="string">&quot;ingest-performance-metrics&quot;</span>.to_owned().into(),
+            metrics_generic: <span class="string">&quot;ingest-performance-metrics&quot;</span>.to_owned().into(),
             profiles: <span class="string">&quot;profiles&quot;</span>.to_owned().into(),
             replay_events: <span class="string">&quot;ingest-replay-events&quot;</span>.to_owned().into(),
             replay_recordings: <span class="string">&quot;ingest-replay-recordings&quot;</span>.to_owned().into(),

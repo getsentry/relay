@@ -907,6 +907,29 @@
 <a href="#907" id="907">907</a>
 <a href="#908" id="908">908</a>
 <a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
@@ -1078,7 +1101,11 @@
     </span>Transactions,
     <span class="doccomment">/// Metrics extracted from spans.
     </span>Spans,
-    <span class="doccomment">/// Metrics that relay either doesn&#39;t know or recognize the namespace of, will be dropped before
+    <span class="doccomment">/// User-defined metrics directly sent by SDKs and applications.
+    </span>Custom,
+    <span class="doccomment">/// An unknown and unsupported metric.
+    ///
+    /// Metrics that Relay either doesn&#39;t know or recognize the namespace of will be dropped before
     /// aggregating. For instance, an MRI of `c:something_new/foo@none` has the namespace
     /// `something_new`, but as Relay doesn&#39;t support that namespace, it gets deserialized into
     /// this variant.
@@ -1096,6 +1123,7 @@
             <span class="string">&quot;sessions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Sessions),
             <span class="string">&quot;transactions&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Transactions),
             <span class="string">&quot;spans&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Spans),
+            <span class="string">&quot;custom&quot; </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Custom),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported),
         }
     }
@@ -1109,6 +1137,7 @@
             MetricNamespace::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
             MetricNamespace::Transactions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;transactions&quot;</span>),
             MetricNamespace::Spans =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;spans&quot;</span>),
+            MetricNamespace::Custom =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;custom&quot;</span>),
             MetricNamespace::Unsupported =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unsupported&quot;</span>),
         }
     }
@@ -1421,7 +1450,7 @@
         <span class="kw">let </span>(name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)<span class="question-mark">?</span>;
         <span class="kw">let </span>(raw_namespace, name) = name_and_namespace
             .split_once(<span class="string">&#39;/&#39;</span>)
-            .unwrap_or((<span class="string">&quot;custom&quot;</span>, string));
+            .unwrap_or((<span class="string">&quot;custom&quot;</span>, name_and_namespace));
 
         <span class="kw">let </span><span class="kw-2">mut </span>metric = <span class="self">Self</span>::new_mri(
             raw_namespace.parse().ok()<span class="question-mark">?</span>,
@@ -1656,6 +1685,23 @@
         Metric {
             name: &quot;g:transactions/foo@none&quot;,
             value: Gauge(
+                42.0,
+            ),
+            timestamp: UnixTimestamp(4711),
+            tags: {},
+        }
+        &quot;#</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_implicit_namespace() {
+        <span class="kw">let </span>s = <span class="string">&quot;foo:42|c&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
+        Metric {
+            name: &quot;c:custom/foo@none&quot;,
+            value: Counter(
                 42.0,
             ),
             timestamp: UnixTimestamp(4711),

@@ -1277,13 +1277,6 @@
 <a href="#1277" id="1277">1277</a>
 <a href="#1278" id="1278">1278</a>
 <a href="#1279" id="1279">1279</a>
-<a href="#1280" id="1280">1280</a>
-<a href="#1281" id="1281">1281</a>
-<a href="#1282" id="1282">1282</a>
-<a href="#1283" id="1283">1283</a>
-<a href="#1284" id="1284">1284</a>
-<a href="#1285" id="1285">1285</a>
-<a href="#1286" id="1286">1286</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1830,22 +1823,15 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>mri = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>message.name);
         <span class="kw">let </span>(topic, namespace) = <span class="kw">match </span>mri.map(|mri| mri.namespace) {
-            <span class="prelude-val">Ok</span>(namespace @ MetricNamespace::Transactions) =&gt; {
-                (KafkaTopic::MetricsTransactions, namespace)
-            }
-            <span class="prelude-val">Ok</span>(namespace @ MetricNamespace::Spans) =&gt; (KafkaTopic::MetricsTransactions, namespace),
             <span class="prelude-val">Ok</span>(namespace @ MetricNamespace::Sessions) =&gt; (KafkaTopic::MetricsSessions, namespace),
             <span class="prelude-val">Ok</span>(MetricNamespace::Unsupported) | <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
                 relay_log::with_scope(
-                    |scope| {
-                        scope.set_extra(<span class="string">&quot;metric_message.name&quot;</span>, message.name.into());
-                    },
-                    || {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;store service dropping unknown metric usecase&quot;</span>);
-                    },
+                    |scope| scope.set_extra(<span class="string">&quot;metric_message.name&quot;</span>, message.name.into()),
+                    || <span class="macro">relay_log::error!</span>(<span class="string">&quot;store service dropping unknown metric usecase&quot;</span>),
                 );
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
+            <span class="prelude-val">Ok</span>(namespace) =&gt; (KafkaTopic::MetricsGeneric, namespace),
         };
         <span class="kw">let </span>headers = BTreeMap::from([(<span class="string">&quot;namespace&quot;</span>.to_string(), namespace.to_string())]);
 
