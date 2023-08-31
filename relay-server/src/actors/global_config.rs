@@ -289,7 +289,7 @@ mod tests {
 
     /// Tests whether the service shuts down gracefully when the signal is
     /// received, without requesting more global configs.
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_service_shutdown() {
         for mode in &[ShutdownMode::Graceful, ShutdownMode::Immediate] {
             shutdown_service_with_mode(*mode).await;
@@ -306,7 +306,7 @@ mod tests {
         assert!(service.send(Get).await.is_ok());
 
         Controller::shutdown(mode);
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::advance(Duration::from_millis(200)).await;
 
         assert!(service.send(Get).await.is_err());
     }
