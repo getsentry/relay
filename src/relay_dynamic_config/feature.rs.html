@@ -112,9 +112,6 @@
     <span class="doccomment">/// Enables metric extraction from spans.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction&quot;</span>)]
     </span>SpanMetricsExtraction,
-    <span class="doccomment">/// Extract spans from transactions and convert them to standalone spans.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:extract-standalone-spans&quot;</span>)]
-    </span>ExtractStandaloneSpans,
     <span class="doccomment">/// Allow ingestion of metrics in the &quot;custom&quot; namespace.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:custom-metrics&quot;</span>)]
     </span>CustomMetrics,
@@ -128,6 +125,9 @@
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
     </span>Deprecated3,
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:extract-standalone-spans&quot;</span>)]
+    </span>Deprecated4,
     <span class="doccomment">/// Forward compatibility.
     </span><span class="attr">#[serde(other)]
     </span>Unknown,
