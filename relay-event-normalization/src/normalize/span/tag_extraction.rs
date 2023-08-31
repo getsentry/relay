@@ -2,6 +2,7 @@
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
+use std::time::Instant;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -266,7 +267,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             span.description
                 .value()
                 .and_then(|query| sql_table_from_query(query))
-                .map(|t| t.to_lowercase())
         } else {
             None
         };
@@ -355,6 +355,10 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
+/// Used to replace placeholders (parameters) by dummy values such that the query can be parsed.
+static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)").unwrap());
+
 /// Returns the table in the SQL query, if any.
 ///
 /// If multiple tables exist, only the first one is returned.
@@ -367,25 +371,25 @@ fn sql_table_from_query(query: &str) -> Option<String> {
         relations: BTreeSet<String>,
     }
 
-    // Visit relations and exprs before children are visited (depth first walk)
-    // Note you can also visit statements and visit exprs after children have been visited
     impl Visitor for RelationsVisitor {
         type Break = ();
 
         fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
             if let Some(name) = relation.0.last() {
-                self.relations.insert(name.value.clone());
+                self.relations.insert(name.value.to_lowercase());
             }
             ControlFlow::Continue(())
         }
     }
-    match sqlparser::parser::Parser::parse_sql(&GenericDialect {}, query) {
+
+    let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
+    match sqlparser::parser::Parser::parse_sql(&GenericDialect {}, &parsable_query) {
         Ok(ast) => {
             let mut visitor = RelationsVisitor {
                 relations: Default::default(),
             };
             ast.visit(&mut visitor);
-            let mut s = String::new();
+            let mut s = String::with_capacity(visitor.relations.iter().map(String::len).sum());
             for (i, name) in visitor.relations.into_iter().enumerate() {
                 if i == 0 {
                     s = name;
@@ -581,6 +585,15 @@ mod tests {
     );
 
     #[test]
+    fn find_placeholders() {
+        let s = "? NULL ?? 'str' %s %(name1)s :c0 $4 xx";
+        assert_eq!(
+            SQL_PLACEHOLDER_REGEX.replace_all(s, "1"),
+            "1 NULL 1 'str' 1 1 1 1 xx"
+        );
+    }
+
+    #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
         assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
@@ -623,7 +636,10 @@ WHERE (
 )
 LIMIT 1
             "#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a,b,c");
+        assert_eq!(
+            sql_table_from_query(query).unwrap(),
+            "sentry_environmentrelease,sentry_grouprelease,sentry_release_project"
+        );
     }
 
     #[test]
