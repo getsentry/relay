@@ -10,7 +10,11 @@
 
 **Features**:
 
-- Fall back to `MeasurementsConfig` from `GlobalConfig`. ([#2415](https://github.com/getsentry/relay/pull/2415))
+- Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
+
+**Internal**:
+
+- Support ingestion of custom metrics when the `organizations:custom-metrics` feature flag is enabled. ([#2443](https://github.com/getsentry/relay/pull/2443))
 
 ## 23.8.0
 

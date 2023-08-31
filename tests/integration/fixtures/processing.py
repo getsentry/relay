@@ -51,7 +51,7 @@ def processing_config(get_topic_name):
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
                 "metrics": metrics_topic,
-                "metrics_transactions": metrics_topic,
+                "metrics_generic": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
