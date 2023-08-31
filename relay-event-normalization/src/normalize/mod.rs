@@ -70,7 +70,7 @@ pub struct MeasurementsConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub builtin_measurements: Vec<BuiltinMeasurementKey>,
 
-    /// The maximum number of custom measurements allowed per event.
+    /// The maximum number of measurements allowed per event that are not known measurements.
     pub max_custom_measurements: usize,
 }
 
@@ -963,7 +963,7 @@ impl<'a> DynamicMeasurementsConfig<'a> {
     }
 
     /// Returns an iterator over the union of [`BuiltinMeasurementKey`]s from both the global and
-    /// project-level [`MeasurementsConfig`]s.
+    /// project-level [`MeasurementsConfig`]s, with the elements from project config coming first.
     pub fn builtin_measurement_keys(&'a self) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
         let from_project = self.project.iter().flat_map(|c| &c.builtin_measurements);
         let from_global = self.global.iter().flat_map(|c| &c.builtin_measurements);
@@ -971,8 +971,8 @@ impl<'a> DynamicMeasurementsConfig<'a> {
         from_project.chain(from_global).unique()
     }
 
-    /// Gets the minimum value of the max amount of custom measurements from project and global level
-    /// [`MeasurementsConfig`] if at least one is available.
+    /// Gets the max custom measurements value from the [`MeasurementsConfig`] from project level or
+    /// global level. If both of them are available, it will choose the most restrictive.
     pub fn max_custom_measurements(&'a self) -> Option<&'a usize> {
         match (&self.project, &self.global) {
             (None, None) => None,
@@ -2872,7 +2872,7 @@ mod tests {
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        let config: MeasurementsConfig = serde_json::from_value(json!({
+        let project_measurement_config: MeasurementsConfig = serde_json::from_value(json!({
             "builtinMeasurements": [
                 {"name": "frames_frozen", "unit": "none"},
                 {"name": "frames_slow", "unit": "none"}
@@ -2882,12 +2882,12 @@ mod tests {
         }))
         .unwrap();
 
-        let config = DynamicMeasurementsConfig {
-            project: Some(&config),
+        let dynamic_measurement_config = DynamicMeasurementsConfig {
+            project: Some(&project_measurement_config),
             global: None,
         };
 
-        normalize_measurements(&mut event, Some(config), None);
+        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"

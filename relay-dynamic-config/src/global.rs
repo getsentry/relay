@@ -22,7 +22,7 @@ mod tests {
     use super::GlobalConfig;
 
     #[test]
-    fn test_deserialize_global_config() {
+    fn test_global_config_roundtrip() {
         let global_config = GlobalConfig {
             measurements: Some(MeasurementsConfig {
                 builtin_measurements: vec![
