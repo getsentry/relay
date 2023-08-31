@@ -2,7 +2,6 @@
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
-use std::time::Instant;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
