@@ -5,7 +5,7 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sqlparser::ast::{Visit, Visitor};
+use sqlparser::ast::{Value, VisitMut, VisitorMut};
 use sqlparser::dialect::GenericDialect;
 
 /// Removes SQL comments starting with "--" or "#".
@@ -91,12 +91,12 @@ static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1
 
 /// Normalizes the given SQL-query-like string.
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
-    let parsed = parse_query(db_system, string).ok()?; // TODO: fallback to regexes
+    let mut parsed = parse_query(db_system, string).ok()?; // TODO: fallback to regexes
     let mut visitor = NormalizeVisitor::default();
     dbg!("VISITING");
     parsed.visit(&mut visitor);
-    Some(visitor.result) // TODO: if empty?
-                         // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
+    Some(parsed[0].to_string()) // TODO: if empty? // FIXME: [0]
+                                // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
 
     // let mut string = Cow::from(string.trim());
 
@@ -129,71 +129,16 @@ struct NormalizeVisitor {
     result: String,
 }
 
-impl Visitor for NormalizeVisitor {
+impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
-    fn pre_visit_relation(
-        &mut self,
-        _relation: &sqlparser::ast::ObjectName,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        std::ops::ControlFlow::Continue(())
+    fn pre_visit_expr(&mut self, expr: &mut sqlparser::ast::Expr) -> ControlFlow<Self::Break> {
+        *expr = sqlparser::ast::Expr::Value(Value::Number("666".into(), false));
+        ControlFlow::Continue(())
     }
 
-    fn post_visit_relation(
-        &mut self,
-        _relation: &sqlparser::ast::ObjectName,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        std::ops::ControlFlow::Continue(())
-    }
-
-    fn pre_visit_table_factor(
-        &mut self,
-        _table_factor: &sqlparser::ast::TableFactor,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        std::ops::ControlFlow::Continue(())
-    }
-
-    fn post_visit_table_factor(
-        &mut self,
-        _table_factor: &sqlparser::ast::TableFactor,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        std::ops::ControlFlow::Continue(())
-    }
-
-    fn pre_visit_expr(
-        &mut self,
-        expr: &sqlparser::ast::Expr,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        match expr {
-            sqlparser::ast::Expr::Value(x) => {
-                dbg!("FOUND VALUE", x);
-            }
-            _ => {}
-        }
-        std::ops::ControlFlow::Continue(())
-    }
-
-    fn post_visit_expr(
-        &mut self,
-        _expr: &sqlparser::ast::Expr,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        std::ops::ControlFlow::Continue(())
-    }
-
-    fn pre_visit_statement(
-        &mut self,
-        statement: &sqlparser::ast::Statement,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        dbg!("FOUND STATEMENT", statement);
-        // write!(&mut self.result, "{}", statement.to_string());
-        std::ops::ControlFlow::Continue(())
-    }
-
-    fn post_visit_statement(
-        &mut self,
-        _statement: &sqlparser::ast::Statement,
-    ) -> std::ops::ControlFlow<Self::Break> {
-        std::ops::ControlFlow::Continue(())
+    fn post_visit_expr(&mut self, _expr: &mut sqlparser::ast::Expr) -> ControlFlow<Self::Break> {
+        ControlFlow::Continue(())
     }
 }
 
