@@ -2795,14 +2795,20 @@ impl Service for EnvelopeProcessorService {
                 return;
             };
 
+            let mut shutdown = false;
+
             loop {
                 let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
 
                 tokio::select! {
                    biased;
 
-                    // TODO(iker): deal with the error when the sender of the channel is dropped.
-                    _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
+                    update = subscription.changed(), if !shutdown => {
+                        match update {
+                            Ok(()) => self.global_config = subscription.borrow().clone(),
+                            Err(_) => shutdown = true,
+                        };
+                    },
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
