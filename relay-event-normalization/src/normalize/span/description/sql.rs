@@ -1,9 +1,12 @@
 //! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 
-use std::borrow::Cow;
+use std::fmt::Write;
+use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
+use sqlparser::ast::{Visit, Visitor};
+use sqlparser::dialect::GenericDialect;
 
 /// Removes SQL comments starting with "--" or "#".
 static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n)").unwrap());
@@ -87,33 +90,130 @@ static COLLAPSE_COLUMNS: Lazy<Regex> = Lazy::new(|| {
 static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1|%s").unwrap());
 
 /// Normalizes the given SQL-query-like string.
-pub(crate) fn scrub_queries(string: &str) -> Option<String> {
-    let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
+pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
+    let parsed = parse_query(db_system, string).ok()?; // TODO: fallback to regexes
+    let mut visitor = NormalizeVisitor::default();
+    dbg!("VISITING");
+    parsed.visit(&mut visitor);
+    Some(visitor.result) // TODO: if empty?
+                         // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
 
-    let mut string = Cow::from(string.trim());
+    // let mut string = Cow::from(string.trim());
 
-    for (regex, replacement) in [
-        (&NORMALIZER_REGEX, "$pre%s"),
-        (&COMMENTS, "\n"),
-        (&INLINE_COMMENTS, ""),
-        (&WHITESPACE, " "),
-        (&PARENS, "$pre$post"),
-        (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
-        (&STRIP_QUOTES, "$entity_name"),
-        (&COLLAPSE_ENTITIES, "$entity_name"),
-        (&COLLAPSE_COLUMNS, "$pre..$post"),
-    ] {
-        let replaced = regex.replace_all(&string, replacement);
-        if let Cow::Owned(s) = replaced {
-            string = Cow::Owned(s);
+    // for (regex, replacement) in [
+    //     (&NORMALIZER_REGEX, "$pre%s"),
+    //     (&COMMENTS, "\n"),
+    //     (&INLINE_COMMENTS, ""),
+    //     (&WHITESPACE, " "),
+    //     (&PARENS, "$pre$post"),
+    //     (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
+    //     (&STRIP_QUOTES, "$entity_name"),
+    //     (&COLLAPSE_ENTITIES, "$entity_name"),
+    //     (&COLLAPSE_COLUMNS, "$pre..$post"),
+    // ] {
+    //     let replaced = regex.replace_all(&string, replacement);
+    //     if let Cow::Owned(s) = replaced {
+    //         string = Cow::Owned(s);
+    //     }
+    // }
+
+    // match string {
+    //     Cow::Owned(scrubbed) => Some(scrubbed),
+    //     Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
+    //     Cow::Borrowed(_) => None,
+    // }
+}
+
+#[derive(Debug, Default)]
+struct NormalizeVisitor {
+    result: String,
+}
+
+impl Visitor for NormalizeVisitor {
+    type Break = ();
+
+    fn pre_visit_relation(
+        &mut self,
+        _relation: &sqlparser::ast::ObjectName,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        std::ops::ControlFlow::Continue(())
+    }
+
+    fn post_visit_relation(
+        &mut self,
+        _relation: &sqlparser::ast::ObjectName,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        std::ops::ControlFlow::Continue(())
+    }
+
+    fn pre_visit_table_factor(
+        &mut self,
+        _table_factor: &sqlparser::ast::TableFactor,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        std::ops::ControlFlow::Continue(())
+    }
+
+    fn post_visit_table_factor(
+        &mut self,
+        _table_factor: &sqlparser::ast::TableFactor,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        std::ops::ControlFlow::Continue(())
+    }
+
+    fn pre_visit_expr(
+        &mut self,
+        expr: &sqlparser::ast::Expr,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        match expr {
+            sqlparser::ast::Expr::Value(x) => {
+                dbg!("FOUND VALUE", x);
+            }
+            _ => {}
         }
+        std::ops::ControlFlow::Continue(())
     }
 
-    match string {
-        Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
-        Cow::Borrowed(_) => None,
+    fn post_visit_expr(
+        &mut self,
+        _expr: &sqlparser::ast::Expr,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        std::ops::ControlFlow::Continue(())
     }
+
+    fn pre_visit_statement(
+        &mut self,
+        statement: &sqlparser::ast::Statement,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        dbg!("FOUND STATEMENT", statement);
+        // write!(&mut self.result, "{}", statement.to_string());
+        std::ops::ControlFlow::Continue(())
+    }
+
+    fn post_visit_statement(
+        &mut self,
+        _statement: &sqlparser::ast::Statement,
+    ) -> std::ops::ControlFlow<Self::Break> {
+        std::ops::ControlFlow::Continue(())
+    }
+}
+
+/// Used to replace placeholders (parameters) by dummy values such that the query can be parsed.
+static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)").unwrap());
+
+/// Derive the SQL dialect from `span.system` and try to parse the query into an AST.
+pub fn parse_query(
+    db_system: Option<&str>,
+    query: &str,
+) -> Result<Vec<sqlparser::ast::Statement>, sqlparser::parser::ParserError> {
+    // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
+    //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
+    let dialect = db_system
+        .and_then(sqlparser::dialect::dialect_from_str)
+        .unwrap_or_else(|| Box::new(GenericDialect {}));
+
+    let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
+    sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query)
 }
 
 #[cfg(test)]
@@ -124,7 +224,7 @@ mod tests {
         ($name:ident, $description_in:literal, $output:literal) => {
             #[test]
             fn $name() {
-                let scrubbed = scrub_queries($description_in);
+                let scrubbed = scrub_queries(None, $description_in);
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
@@ -486,4 +586,13 @@ mod tests {
         "SELECT (toStartOfHour(finish_ts, 'Universal') AS _snuba_time), (uniqIf((nullIf(user, '') AS _snuba_user), greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), (if(has(measurements.key, 'lcp'), arrayElement(measurements.value, indexOf(measurements.key, 'lcp')), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement(('duration', 300), 2), 4))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, 4.56), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), `_snuba_measurements[lcp]`, _snuba_duration), 0)), 0), 113.45)), 0) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, 0) AND notEquals(transaction_status, 1) AND notEquals(transaction_status, 2)), count()) AS _snuba_failure_rate), (divide(count(), divide(3600.0, 60)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals(('transaction' AS _snuba_type), 'transaction') AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime('2023-06-13T09:08:51', 'Universal')) AND less(_snuba_finish_ts, toDateTime('2023-07-11T09:08:51', 'Universal')) AND in((project_id AS _snuba_project_id), [123, 456, 789]) AND equals((environment AS _snuba_environment), 'production') GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT 10000 OFFSET 0",
         "SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(key, %s), arrayElement(value, indexOf(key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s"
     );
+
+    #[test]
+    fn find_placeholders() {
+        let s = "? NULL ?? 'str' %s %(name1)s :c0 $4 xx";
+        assert_eq!(
+            SQL_PLACEHOLDER_REGEX.replace_all(s, "1"),
+            "1 NULL 1 'str' 1 1 1 1 xx"
+        );
+    }
 }

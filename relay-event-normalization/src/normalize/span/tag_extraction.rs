@@ -7,8 +7,11 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, TraceContext};
 use relay_protocol::{Annotated, Value};
+use sqlparser::ast::Visit;
+use sqlparser::dialect::GenericDialect;
 use url::Url;
 
+use crate::span::description::parse_query;
 use crate::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
 };
@@ -355,14 +358,9 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
-/// Used to replace placeholders (parameters) by dummy values such that the query can be parsed.
-static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)").unwrap());
-
 /// Returns a sorted, comma-separated list of SQL tables, if any.
 fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
-    use sqlparser::ast::{ObjectName, Visit, Visitor};
-    use sqlparser::dialect::GenericDialect;
+    use sqlparser::ast::{ObjectName, Visitor};
     use std::ops::ControlFlow;
     /// Visitor that finds relation names.
     struct RelationsVisitor {
@@ -381,14 +379,7 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
         }
     }
 
-    // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
-    //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
-    let dialect = db_system
-        .and_then(sqlparser::dialect::dialect_from_str)
-        .unwrap_or_else(|| Box::new(GenericDialect {}));
-
-    let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
-    match sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query) {
+    match parse_query(db_system, query) {
         Ok(ast) => {
             let mut visitor = RelationsVisitor {
                 relations: Default::default(),
@@ -588,15 +579,6 @@ mod tests {
         "post",
         "POST"
     );
-
-    #[test]
-    fn find_placeholders() {
-        let s = "? NULL ?? 'str' %s %(name1)s :c0 $4 xx";
-        assert_eq!(
-            SQL_PLACEHOLDER_REGEX.replace_all(s, "1"),
-            "1 NULL 1 'str' 1 1 1 1 xx"
-        );
-    }
 
     #[test]
     fn extract_table_select() {
