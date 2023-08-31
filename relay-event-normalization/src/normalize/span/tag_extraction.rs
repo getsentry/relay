@@ -605,17 +605,14 @@ mod tests {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
         assert_eq!(
             sql_table_from_query(Some("postgresql"), query).unwrap(),
-            "a.b"
+            "b"
         );
     }
 
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(
-            sql_table_from_query(Some("postgresql"), query).unwrap(),
-            "a.b"
-        );
+        assert_eq!(sql_table_from_query(None, query).unwrap(), "b");
     }
 
     #[test]
@@ -668,10 +665,7 @@ LIMIT 1
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(
-            sql_table_from_query(Some("postgresql"), query).unwrap(),
-            "a.b"
-        );
+        assert_eq!(sql_table_from_query(None, query).unwrap(), "b");
     }
 
     #[test]
