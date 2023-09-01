@@ -678,6 +678,9 @@
 <a href="#678" id="678">678</a>
 <a href="#679" id="679">679</a>
 <a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, RangeInclusive};
@@ -803,15 +806,18 @@
             MaxChars::Symbol =&gt; <span class="number">256</span>,
             MaxChars::Path =&gt; <span class="number">256</span>,
             MaxChars::ShortPath =&gt; <span class="number">128</span>,
-            <span class="comment">// these are from constants.py or limits imposed by the database
-            </span>MaxChars::Logger =&gt; <span class="number">64</span>,
-            MaxChars::Email =&gt; <span class="number">75</span>,
-            MaxChars::Culprit =&gt; <span class="number">200</span>,
-            MaxChars::TagKey =&gt; <span class="number">32</span>,
-            MaxChars::TagValue =&gt; <span class="number">200</span>,
-            MaxChars::Environment =&gt; <span class="number">64</span>,
-            MaxChars::Distribution =&gt; <span class="number">64</span>,
-            MaxChars::Soft(len) | MaxChars::Hard(len) =&gt; len,
+            <span class="comment">// These limits below were initially derived from Sentry&#39;s original implementation in
+            // Python. Before changing any of these limits, check if the values are inserted into
+            // the database by the Sentry processing pipeline, and if there are limits on the
+            // database column.
+            </span>MaxChars::Logger =&gt; <span class="number">64</span>,       <span class="comment">// src/sentry/constants.py:???
+            </span>MaxChars::Email =&gt; <span class="number">75</span>,        <span class="comment">// src/sentry/constants.py:MAX_EMAIL_FIELD_LENGTH
+            </span>MaxChars::Culprit =&gt; <span class="number">200</span>,     <span class="comment">// src/sentry/constants.py:MAX_CULPRIT_LENGTH
+            </span>MaxChars::TagKey =&gt; <span class="number">200</span>,      <span class="comment">// src/sentry/constants.py:MAX_TAG_KEY_LENGTH
+            </span>MaxChars::TagValue =&gt; <span class="number">200</span>,    <span class="comment">// src/sentry/constants.py:MAX_TAG_VALUE_LENGTH
+            </span>MaxChars::Environment =&gt; <span class="number">64</span>,  <span class="comment">// src/sentry/constants.py:ENVIRONMENT_NAME_MAX_LENGTH
+            </span>MaxChars::Distribution =&gt; <span class="number">64</span>, <span class="comment">// src/sentry/models/distribution.py
+            </span>MaxChars::Soft(len) | MaxChars::Hard(len) =&gt; len,
         }
     }
 
