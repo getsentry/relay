@@ -13,7 +13,7 @@ publish = false
 num-traits = "0.2.12"
 relay-common = { path = "../relay-common" }
 relay-protocol-derive = { path = "../relay-protocol-derive", optional = true }
-schemars = { version = "=0.8.10", optional = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }

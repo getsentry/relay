@@ -12,10 +12,7 @@ publish = false
 [dependencies]
 relay-common = { path = "../relay-common" }
 relay-protocol = { path = "../relay-protocol" }
-schemars = { version = "0.8.0", features = [
-    "uuid1",
-    "chrono",
-], optional = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 
 [features]
