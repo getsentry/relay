@@ -32,6 +32,7 @@ smallvec = { workspace = true }
 sqlparser = { version = "0.37.0", features = ["visitor"] }
 thiserror = { workspace = true }
 url = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

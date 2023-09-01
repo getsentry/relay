@@ -32,3 +32,4 @@ relay-sampling = { path = "../relay-sampling" }
 sentry-release-parser = { version = "1.3.2", features = ["serde"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+uuid = { workspace = true }

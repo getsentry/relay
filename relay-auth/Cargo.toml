@@ -12,12 +12,13 @@ build = "build.rs"
 
 [dependencies]
 chrono = { workspace = true }
+data-encoding = "2.3.3"
 ed25519-dalek = { version = "2.0.0", features = ["rand_core"] }
-thiserror = { workspace = true }
 hmac = "0.12.1"
 rand = "0.8.5"
 relay-common = { path = "../relay-common" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = "0.10.6"
-data-encoding = "2.3.3"
+thiserror = { workspace = true }
+uuid = { workspace = true }

@@ -10,12 +10,12 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-relay-common = { path = "../relay-common" }
+once_cell = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-regex = { workspace = true }
-once_cell = { workspace = true }
 thiserror = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 similar-asserts = { workspace = true }

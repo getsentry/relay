@@ -105,6 +105,7 @@ tower-http = { version = "0.4.0", default-features = false, features = [
     "trace",
 ] }
 url = { workspace = true, features = ["serde"] }
+uuid = { workspace = true, features = ["v5"] }
 zstd = { version = "0.12.3", optional = true }
 
 [dev-dependencies]

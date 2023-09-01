@@ -3027,12 +3027,12 @@ dependencies = [
  "dialoguer",
  "hostname",
  "once_cell",
- "relay-common",
  "relay-config",
  "relay-log",
  "relay-server",
  "relay-statsd",
  "tikv-jemallocator",
+ "uuid",
 ]
 
 [[package]]
@@ -3049,6 +3049,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3096,6 +3097,7 @@ dependencies = [
  "sentry-release-parser",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -3111,7 +3113,6 @@ dependencies = [
  "sentry-types",
  "serde",
  "serde_test",
- "uuid",
 ]
 
 [[package]]
@@ -3132,6 +3133,7 @@ dependencies = [
  "serde_yaml 0.9.17",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3201,6 +3203,7 @@ dependencies = [
  "sqlparser",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3225,6 +3228,7 @@ dependencies = [
  "similar-asserts",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3331,11 +3335,11 @@ version = "23.8.0"
 dependencies = [
  "once_cell",
  "regex",
- "relay-common",
  "serde",
  "serde_json",
  "similar-asserts",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3385,13 +3389,13 @@ name = "relay-protocol"
 version = "23.8.0"
 dependencies = [
  "num-traits",
- "relay-common",
  "relay-protocol-derive",
  "schemars",
  "serde",
  "serde_json",
  "similar-asserts",
  "smallvec",
+ "uuid",
 ]
 
 [[package]]
@@ -3466,6 +3470,7 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "unicase",
+ "uuid",
 ]
 
 [[package]]
@@ -3530,6 +3535,7 @@ dependencies = [
  "tower",
  "tower-http",
  "url",
+ "uuid",
  "zstd",
 ]
 
