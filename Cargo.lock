@@ -3493,7 +3493,6 @@ dependencies = [
  "minidump",
  "multer",
  "once_cell",
- "parking_lot",
  "regex",
  "relay-auth",
  "relay-aws-extension",
