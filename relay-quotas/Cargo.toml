@@ -20,7 +20,7 @@ relay-log = { path = "../relay-log", optional = true }
 relay-redis = { path = "../relay-redis", optional = true }
 serde = { version = "1.0.114", features = ["derive"] }
 smallvec = { version = "1.4.0", features = ["serde"] }
-thiserror = { version = "1.0.38", optional = true }
+thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = { version = "1.31.0", features = ["ron"] }

@@ -13,7 +13,7 @@ build = "build.rs"
 [dependencies]
 chrono = { workspace = true }
 ed25519-dalek = { version = "2.0.0", features = ["rand_core"] }
-thiserror = "1.0.38"
+thiserror = { workspace = true }
 hmac = "0.12.1"
 rand = "0.8.5"
 relay-common = { path = "../relay-common" }

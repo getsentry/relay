@@ -26,5 +26,5 @@ relay-redis = { path = "../relay-redis" }
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.55"
 serde_yaml = "0.9.17"
-thiserror = "1.0.38"
+thiserror = { workspace = true }
 url = "2.1.1"

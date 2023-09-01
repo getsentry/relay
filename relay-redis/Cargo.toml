@@ -18,7 +18,7 @@ redis = { version = "0.23.1", optional = true, features = [
     "keep-alive",
 ] }
 serde = { version = "1.0.114", features = ["derive"] }
-thiserror = "1.0.38"
+thiserror = { workspace = true }
 
 [features]
 default = []

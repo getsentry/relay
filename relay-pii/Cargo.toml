@@ -23,7 +23,7 @@ relay-protocol = { path = "../relay-protocol" }
 serde = { version = "1.0.114", features = ["derive"] }
 sha1 = "0.10.5"
 smallvec = { version = "1.4.0", features = ["serde"] }
-thiserror = "1.0.38"
+thiserror = { workspace = true }
 utf16string = "0.2.0"
 
 [dev-dependencies]
