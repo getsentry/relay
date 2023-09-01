@@ -127,6 +127,9 @@ pub trait IntoValue: Debug + Empty {
 
 /// A type that supports field access by paths.
 ///
+/// This is the runtime version of [`get_value!`](crate::get_value!) and additionally supports
+/// indexing into [`Value`]. For typed access to static paths, use the macros instead.
+///
 /// # Syntax
 ///
 /// The path identifies a value within the structure. A path consists of components separated by
