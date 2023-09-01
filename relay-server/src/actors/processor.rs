@@ -2798,12 +2798,14 @@ impl Service for EnvelopeProcessorService {
             loop {
                 let next_msg = async {
                     let permit_result = semaphore.clone().acquire_owned().await;
+                    // `permit_result` might get dropped when this future is cancelled while awaiting
+                    // `rx.recv()`. This is OK though: No envelope is received so the permit is not
+                    // required.
                     (rx.recv().await, permit_result)
                 };
 
                 tokio::select! {
                    biased;
-
                     // TODO(iker): deal with the error when the sender of the channel is dropped.
                     _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
