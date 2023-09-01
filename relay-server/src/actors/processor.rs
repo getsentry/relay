@@ -2795,25 +2795,18 @@ impl Service for EnvelopeProcessorService {
                 return;
             };
 
-            let mut shutdown = false;
-
             loop {
                 let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
 
                 tokio::select! {
                    biased;
 
-                    update = subscription.changed(), if !shutdown => {
-                        // During Relay shutdown, the global config service
-                        // stops and drops the sender of the subscription,
-                        // causing updates to fail. Not to lose envelopes, the
-                        // processor should continue processing in-flight
-                        // messages before the network access is revoked.
-                        match update {
-                            Ok(()) => self.global_config = subscription.borrow().clone(),
-                            Err(_) => shutdown = true,
-                        };
-                    },
+                    // During Relay shutdown, the global config service stops
+                    // and drops the sender of the subscription, causing updates
+                    // to fail. Not to lose envelopes, the processor should
+                    // continue processing in-flight messages before the network
+                    // access is revoked.
+                    Ok(()) = subscription.changed() => self.global_config = subscription.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
