@@ -2253,7 +2253,7 @@ impl EnvelopeProcessorService {
         // Check feature flag.
         if !state
             .project_state
-            .has_feature(Feature::ExtractStandaloneSpans)
+            .has_feature(Feature::SpanMetricsExtraction)
         {
             return;
         };
@@ -2796,7 +2796,13 @@ impl Service for EnvelopeProcessorService {
             };
 
             loop {
-                let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
+                let next_msg = async {
+                    let permit_result = semaphore.clone().acquire_owned().await;
+                    // `permit_result` might get dropped when this future is cancelled while awaiting
+                    // `rx.recv()`. This is OK though: No envelope is received so the permit is not
+                    // required.
+                    (rx.recv().await, permit_result)
+                };
 
                 tokio::select! {
                    biased;
