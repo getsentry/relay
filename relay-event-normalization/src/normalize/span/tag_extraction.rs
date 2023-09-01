@@ -2,13 +2,14 @@
 //! These are then used for metrics extraction.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
+use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, TraceContext};
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
-use sqlparser::dialect::GenericDialect;
+use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
 use crate::span::description::parse_query;
@@ -360,33 +361,14 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 
 /// Returns a sorted, comma-separated list of SQL tables, if any.
 fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
-    use sqlparser::ast::{ObjectName, Visitor};
-    use std::ops::ControlFlow;
-    /// Visitor that finds relation names.
-    struct RelationsVisitor {
-        relations: BTreeSet<String>,
-    }
-
-    impl Visitor for RelationsVisitor {
-        type Break = ();
-
-        fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
-            if let Some(name) = relation.0.last() {
-                let last = name.value.split('.').last().unwrap_or(&name.value);
-                self.relations.insert(last.to_lowercase());
-            }
-            ControlFlow::Continue(())
-        }
-    }
-
     match parse_query(db_system, query) {
         Ok(ast) => {
-            let mut visitor = RelationsVisitor {
-                relations: Default::default(),
+            let mut visitor = SqlTableNameVisitor {
+                table_names: Default::default(),
             };
             ast.visit(&mut visitor);
-            let mut s = String::with_capacity(visitor.relations.iter().map(String::len).sum());
-            for (i, name) in visitor.relations.into_iter().enumerate() {
+            let mut s = String::with_capacity(visitor.table_names.iter().map(String::len).sum());
+            for (i, name) in visitor.table_names.into_iter().enumerate() {
                 if i == 0 {
                     s = name;
                 } else {
@@ -399,6 +381,25 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             relay_log::debug!("Failed to parse SQL: {e}");
             extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
         }
+    }
+}
+
+/// Visitor that finds table names in parsed SQL queries.
+struct SqlTableNameVisitor {
+    /// maintains sorted list of unique table names.
+    /// Having a defined order reduces cardinality in the resulting tag (see [`sql_tables_from_query`]).
+    table_names: BTreeSet<String>,
+}
+
+impl Visitor for SqlTableNameVisitor {
+    type Break = ();
+
+    fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
+        if let Some(name) = relation.0.last() {
+            let last = name.value.split('.').last().unwrap_or(&name.value);
+            self.table_names.insert(last.to_lowercase());
+        }
+        ControlFlow::Continue(())
     }
 }
 

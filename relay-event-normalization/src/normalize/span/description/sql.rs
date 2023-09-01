@@ -1,6 +1,5 @@
 //! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 
-use std::fmt::Write;
 use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
@@ -92,11 +91,12 @@ static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1
 /// Normalizes the given SQL-query-like string.
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
     let mut parsed = parse_query(db_system, string).ok()?; // TODO: fallback to regexes
-    let mut visitor = NormalizeVisitor::default();
+    let mut visitor = NormalizeVisitor;
     dbg!("VISITING");
     parsed.visit(&mut visitor);
-    Some(parsed[0].to_string()) // TODO: if empty? // FIXME: [0]
-                                // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
+    dbg!(&parsed);
+    Some(parsed[0].to_string().to_string()) // TODO: if empty? // FIXME: [0]
+                                            // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
 
     // let mut string = Cow::from(string.trim());
 
@@ -124,16 +124,16 @@ pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
     // }
 }
 
-#[derive(Debug, Default)]
-struct NormalizeVisitor {
-    result: String,
-}
+struct NormalizeVisitor;
 
 impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
     fn pre_visit_expr(&mut self, expr: &mut sqlparser::ast::Expr) -> ControlFlow<Self::Break> {
-        *expr = sqlparser::ast::Expr::Value(Value::Number("666".into(), false));
+        match expr {
+            sqlparser::ast::Expr::Value(x) => *x = Value::Number("666".into(), false),
+            _ => {}
+        }
         ControlFlow::Continue(())
     }
 
@@ -158,7 +158,7 @@ pub fn parse_query(
         .unwrap_or_else(|| Box::new(GenericDialect {}));
 
     let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
-    sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query)
+    sqlparser::parser::Parser::parse_sql(&*dialect, dbg!(&parsable_query))
 }
 
 #[cfg(test)]
