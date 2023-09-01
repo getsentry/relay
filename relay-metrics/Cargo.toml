@@ -26,7 +26,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = { workspace = true }
 insta = { workspace = true }
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
 relay-test = { path = "../relay-test" }

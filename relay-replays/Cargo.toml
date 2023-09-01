@@ -23,7 +23,7 @@ serde-transcode = "1.1.1"
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
-criterion = "0.5"
+criterion = { workspace = true }
 insta = { workspace = true }
 
 [[bench]]
