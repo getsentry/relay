@@ -367,10 +367,10 @@
 <span class="kw">use </span>clap::ArgMatches;
 <span class="kw">use </span>clap_complete::Shell;
 <span class="kw">use </span>dialoguer::{Confirm, Select};
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="kw">use </span>relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::cliapp::make_app;
 <span class="kw">use </span><span class="kw">crate</span>::utils::get_theme;

@@ -4973,7 +4973,6 @@
 
     <span class="kw">use </span>chrono::TimeZone;
     <span class="kw">use </span>insta::assert_debug_snapshot;
-    <span class="kw">use </span>relay_common::uuid::Uuid;
     <span class="kw">use </span>relay_event_schema::processor::process_value;
     <span class="kw">use </span>relay_event_schema::protocol::{
         Csp, DebugMeta, DeviceContext, Frame, Geo, LenientString, LogEntry, PairList,
@@ -4984,6 +4983,7 @@
     };
     <span class="kw">use </span>serde_json::json;
     <span class="kw">use </span>similar_asserts::assert_eq;
+    <span class="kw">use </span>uuid::Uuid;
 
     <span class="kw">use </span><span class="kw">crate</span>::user_agent::ClientHints;
 

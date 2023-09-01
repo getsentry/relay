@@ -1089,13 +1089,13 @@
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_common::time;
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema};
 <span class="kw">use </span>sentry_release_parser::Release <span class="kw">as </span>ParsedRelease;
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{

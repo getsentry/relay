@@ -217,12 +217,12 @@
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="kw">use </span>relay_event_schema::processor::{ProcessingResult, ProcessingState, Processor};
 <span class="kw">use </span>relay_event_schema::protocol::{Event, IpAddr, SpanAttribute};
 <span class="kw">use </span>relay_protocol::Meta;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">mod </span>clock_drift;
 <span class="kw">mod </span>event_error;

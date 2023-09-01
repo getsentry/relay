@@ -941,10 +941,10 @@
 <span class="kw">use </span>rand::rngs::OsRng;
 <span class="kw">use </span>rand::{thread_rng, RngCore};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>sha2::Sha512;
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="macro">include!</span>(<span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;OUT_DIR&quot;</span>), <span class="string">&quot;/constants.gen.rs&quot;</span>));
 

@@ -257,6 +257,40 @@
 <a href="#257" id="257">257</a>
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_event_schema::processor::{
@@ -417,10 +451,7 @@
             Annotated::&lt;Event&gt;::from_json(<span class="string">r#&quot;{&quot;logentry&quot;: {&quot;message&quot;: &quot;hi&quot;}}&quot;#</span>).unwrap();
 
         <span class="kw">let </span>selectors = selector_suggestions_from_value(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">insta::assert_yaml_snapshot!</span>(selectors, @<span class="string">r###&quot;
-        ---
-        []
-        &quot;###</span>);
+        <span class="macro">assert!</span>(selectors.is_empty());
     }
 
     <span class="attr">#[test]
@@ -475,45 +506,82 @@
         .unwrap();
 
         <span class="kw">let </span>selectors = selector_suggestions_from_value(<span class="kw-2">&amp;mut </span>event);
-        <span class="macro">insta::assert_yaml_snapshot!</span>(selectors, @<span class="string">r#&quot;
-        ---
-        - path: $string
-          value: &quot;123&quot;
-        - path: $string
-          value: Divided by zero
-        - path: $string
-          value: Something failed
-        - path: $string
-          value: bar
-        - path: $string
-          value: hi
-        - path: $string
-          value: not really
-        - path: $error.value
-          value: Divided by zero
-        - path: $error.value
-          value: Something failed
-        - path: $frame.abs_path
-          value: foo/bar/baz
-        - path: $frame.filename
-          value: baz
-        - path: $frame.vars
-          value: ~
-        - path: $frame.vars.bam
-          value: bar
-        - path: $frame.vars.foo
-          value: bar
-        - path: $http.headers
-          value: ~
-        - path: $http.headers.Authorization
-          value: not really
-        - path: $message
-          value: hi
-        - path: extra
-          value: ~
-        - path: &quot;extra.&#39;My Custom Value&#39;&quot;
-          value: &quot;123&quot;
-        &quot;#</span>);
+        <span class="macro">insta::assert_json_snapshot!</span>(selectors, @<span class="string">r###&quot;
+        [
+          {
+            &quot;path&quot;: &quot;$string&quot;,
+            &quot;value&quot;: &quot;123&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$string&quot;,
+            &quot;value&quot;: &quot;Divided by zero&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$string&quot;,
+            &quot;value&quot;: &quot;Something failed&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$string&quot;,
+            &quot;value&quot;: &quot;bar&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$string&quot;,
+            &quot;value&quot;: &quot;hi&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$string&quot;,
+            &quot;value&quot;: &quot;not really&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$error.value&quot;,
+            &quot;value&quot;: &quot;Divided by zero&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$error.value&quot;,
+            &quot;value&quot;: &quot;Something failed&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$frame.abs_path&quot;,
+            &quot;value&quot;: &quot;foo/bar/baz&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$frame.filename&quot;,
+            &quot;value&quot;: &quot;baz&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$frame.vars&quot;,
+            &quot;value&quot;: null
+          },
+          {
+            &quot;path&quot;: &quot;$frame.vars.bam&quot;,
+            &quot;value&quot;: &quot;bar&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$frame.vars.foo&quot;,
+            &quot;value&quot;: &quot;bar&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$http.headers&quot;,
+            &quot;value&quot;: null
+          },
+          {
+            &quot;path&quot;: &quot;$http.headers.Authorization&quot;,
+            &quot;value&quot;: &quot;not really&quot;
+          },
+          {
+            &quot;path&quot;: &quot;$message&quot;,
+            &quot;value&quot;: &quot;hi&quot;
+          },
+          {
+            &quot;path&quot;: &quot;extra&quot;,
+            &quot;value&quot;: null
+          },
+          {
+            &quot;path&quot;: &quot;extra.&#39;My Custom Value&#39;&quot;,
+            &quot;value&quot;: &quot;123&quot;
+          }
+        ]
+        &quot;###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

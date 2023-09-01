@@ -572,11 +572,11 @@
 <a href="#572" id="572">572</a>
 <a href="#573" id="573">573</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="kw">use </span>relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
 <span class="kw">use </span>relay_metrics::Metric;
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::types::{
     CommonTags, SessionMetric, SessionSessionTags, SessionUserTags,

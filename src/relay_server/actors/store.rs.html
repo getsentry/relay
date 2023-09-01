@@ -1288,7 +1288,6 @@
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{
     <span class="self">self</span>, EventId, SessionAggregates, SessionStatus, SessionUpdate,
@@ -1300,6 +1299,7 @@
 <span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>serde::ser::Error;
 <span class="kw">use </span>serde::Serialize;
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;

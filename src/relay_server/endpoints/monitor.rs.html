@@ -91,11 +91,11 @@
 <span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{on, MethodFilter, MethodRouter};
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
 <span class="kw">use </span>relay_monitors::{CheckIn, CheckInStatus};
 <span class="kw">use </span>serde::Deserialize;
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};

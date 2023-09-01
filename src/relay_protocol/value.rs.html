@@ -507,11 +507,11 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::{fmt, str};
 
-<span class="kw">use </span>relay_common::uuid::Uuid;
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 <span class="kw">use </span>serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 <span class="kw">use </span>serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::annotated::Annotated;
 <span class="kw">use </span><span class="kw">crate</span>::meta::Meta;
