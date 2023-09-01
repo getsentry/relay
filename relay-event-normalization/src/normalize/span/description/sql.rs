@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sqlparser::ast::{Value, VisitMut, VisitorMut};
+use sqlparser::ast::{Expr, Ident, Statement, Value, VisitMut, VisitorMut};
 use sqlparser::dialect::GenericDialect;
 
 /// Removes SQL comments starting with "--" or "#".
@@ -126,14 +126,49 @@ pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
 
 struct NormalizeVisitor;
 
+impl NormalizeVisitor {
+    fn placeholder() -> Value {
+        Value::Number("%s".into(), false)
+    }
+}
+
 impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
-    fn pre_visit_expr(&mut self, expr: &mut sqlparser::ast::Expr) -> ControlFlow<Self::Break> {
+    fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         match expr {
-            sqlparser::ast::Expr::Value(x) => *x = Value::Number("666".into(), false),
+            Expr::Value(x) => *x = Self::placeholder(),
+            Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
+
             _ => {}
         }
+        ControlFlow::Continue(())
+    }
+
+    fn pre_visit_statement(
+        &mut self,
+        _statement: &mut sqlparser::ast::Statement,
+    ) -> ControlFlow<Self::Break> {
+        match dbg!(_statement) {
+            sqlparser::ast::Statement::Query(x) => match &mut *x.body {
+                sqlparser::ast::SetExpr::Select(x) => {
+                    dbg!(&x.selection);
+                }
+                _ => {}
+            },
+            Statement::Insert {
+                columns, source, ..
+            } => {
+                *columns = vec![Ident::new("..")];
+                match &mut *source.body {
+                    sqlparser::ast::SetExpr::Values(v) => {
+                        v.rows = vec![vec![Expr::Value(Self::placeholder())]]
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        };
         ControlFlow::Continue(())
     }
 
@@ -177,26 +212,26 @@ mod tests {
 
     scrub_sql_test!(
         various_parameterized_ins_percentage,
-        "SELECT count() FROM table WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
-        "SELECT count() FROM table WHERE id IN (%s) AND id IN (%s)"
+        "SELECT count() FROM table1 WHERE id IN (%s, %s) AND id IN (%s, %s, %s)",
+        "SELECT count() FROM table1 WHERE id IN (%s) AND id IN (%s)"
     );
 
     scrub_sql_test!(
         various_parameterized_ins_dollar,
-        "SELECT count() FROM table WHERE id IN ($1, $2, $3)",
-        "SELECT count() FROM table WHERE id IN (%s)"
+        "SELECT count() FROM table1 WHERE id IN ($1, $2, $3)",
+        "SELECT count() FROM table1 WHERE id IN (%s)"
     );
 
     scrub_sql_test!(
         various_parameterized_questionmarks,
-        "SELECT count() FROM table WHERE id IN (?, ?, ?)",
-        "SELECT count() FROM table WHERE id IN (%s)"
+        "SELECT count() FROM table1 WHERE id IN (?, ?, ?)",
+        "SELECT count() FROM table1 WHERE id IN (%s)"
     );
 
     scrub_sql_test!(
         unparameterized_ins_uppercase,
-        "SELECT count() FROM table WHERE id IN (100, 101, 102)",
-        "SELECT count() FROM table WHERE id IN (%s)"
+        "SELECT count() FROM table1 WHERE id IN (100, 101, 102)",
+        "SELECT count() FROM table1 WHERE id IN (%s)"
     );
 
     scrub_sql_test!(
@@ -213,8 +248,8 @@ mod tests {
 
     scrub_sql_test!(
         various_parameterized_ins_lowercase,
-        "select count() from table where id in (100, 101, 102)",
-        "select count() from table where id in (%s)"
+        "select count() from table1 where id in (100, 101, 102)",
+        "select count() from table1 where id in (%s)"
     );
 
     scrub_sql_test!(
@@ -225,8 +260,8 @@ mod tests {
 
     scrub_sql_test!(
         various_parameterized_cutoff,
-        "select count() from table where name in ('foo', 'bar', 'ba",
-        "select count() from table where name in (%s"
+        "select count() from table1 where name in ('foo', 'bar', 'ba",
+        "select count() from table1 where name in (%s"
     );
 
     scrub_sql_test!(
@@ -267,44 +302,44 @@ mod tests {
 
     scrub_sql_test!(
         single_quoted_string,
-        "SELECT * FROM table WHERE sku = 'foo'",
-        "SELECT * FROM table WHERE sku = %s"
+        "SELECT * FROM table1 WHERE sku = 'foo'",
+        "SELECT * FROM table1 WHERE sku = %s"
     );
 
     scrub_sql_test!(
         single_quoted_string_finished,
-        r"SELECT * FROM table WHERE quote = 'it\\'s a string'",
-        "SELECT * FROM table WHERE quote = %s"
+        r"SELECT * FROM table1 WHERE quote = 'it\\'s a string'",
+        "SELECT * FROM table1 WHERE quote = %s"
     );
 
     scrub_sql_test!(
         single_quoted_string_unfinished,
-        r"SELECT * FROM table WHERE quote = 'it\\'s a string",
-        "SELECT * FROM table WHERE quote = %s"
+        r"SELECT * FROM table1 WHERE quote = 'it\\'s a string",
+        "SELECT * FROM table1 WHERE quote = %s"
     );
 
     scrub_sql_test!(
         span_description_dont_scrub_double_quoted_strings_format_postgres,
         r#"SELECT * from "table" WHERE sku = %s"#,
-        r#"SELECT * from table WHERE sku = %s"#
+        r#"SELECT * from table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
         span_description_strip_prefixes,
-        r#"SELECT table.foo, count(*) from table WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table WHERE sku = %s"#
+        r#"SELECT table.foo, count(*) from table1 WHERE sku = %s"#,
+        r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
         span_description_strip_prefixes_ansi,
         r#"SELECT "table"."foo", count(*) from "table" WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table WHERE sku = %s"#
+        r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
         span_description_strip_prefixes_mysql,
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table WHERE sku = %s"#
+        r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
@@ -315,32 +350,32 @@ mod tests {
 
     scrub_sql_test!(
         span_description_dont_scrub_double_quoted_strings_format_mysql,
-        r#"SELECT * from table WHERE sku = "foo""#,
-        "SELECT * from table WHERE sku = foo"
+        r#"SELECT * from table1 WHERE sku = "foo""#,
+        "SELECT * from table1 WHERE sku = foo"
     );
 
     scrub_sql_test!(
         num_where,
-        "SELECT * FROM table WHERE id = 1",
-        "SELECT * FROM table WHERE id = %s"
+        "SELECT * FROM table1 WHERE id = 1",
+        "SELECT * FROM table1 WHERE id = %s"
     );
 
     scrub_sql_test!(
         num_limit,
-        "SELECT * FROM table LIMIT 1",
-        "SELECT * FROM table LIMIT %s"
+        "SELECT * FROM table1 LIMIT 1",
+        "SELECT * FROM table1 LIMIT %s"
     );
 
     scrub_sql_test!(
         num_negative_where,
-        "SELECT * FROM table WHERE temperature > -100",
-        "SELECT * FROM table WHERE temperature > %s"
+        "SELECT * FROM table1 WHERE temperature > -100",
+        "SELECT * FROM table1 WHERE temperature > %s"
     );
 
     scrub_sql_test!(
         num_e_where,
-        "SELECT * FROM table WHERE salary > 1e7",
-        "SELECT * FROM table WHERE salary > %s"
+        "SELECT * FROM table1 WHERE salary > 1e7",
+        "SELECT * FROM table1 WHERE salary > %s"
     );
 
     scrub_sql_test!(
@@ -351,20 +386,20 @@ mod tests {
 
     scrub_sql_test!(
         boolean_where_true,
-        "SELECT * FROM table WHERE deleted = true",
-        "SELECT * FROM table WHERE deleted = %s"
+        "SELECT * FROM table1 WHERE deleted = true",
+        "SELECT * FROM table1 WHERE deleted = %s"
     );
 
     scrub_sql_test!(
         boolean_where_false,
-        "SELECT * FROM table WHERE deleted = false",
-        "SELECT * FROM table WHERE deleted = %s"
+        "SELECT * FROM table1 WHERE deleted = false",
+        "SELECT * FROM table1 WHERE deleted = %s"
     );
 
     scrub_sql_test!(
         boolean_where_bool_insensitive,
-        "SELECT * FROM table WHERE deleted = FaLsE",
-        "SELECT * FROM table WHERE deleted = %s"
+        "SELECT * FROM table1 WHERE deleted = FaLsE",
+        "SELECT * FROM table1 WHERE deleted = %s"
     );
 
     scrub_sql_test!(
@@ -393,22 +428,22 @@ mod tests {
 
     scrub_sql_test!(
         span_description_dont_scrub_nulls,
-        "SELECT * FROM table WHERE deleted_at IS NULL",
+        "SELECT * FROM table1 WHERE deleted_at IS NULL",
         ""
     );
 
     scrub_sql_test!(
         span_description_collapse_columns,
         // Simple lists of columns will be collapsed
-        r#"SELECT myfield1, "a"."b", another_field FROM table WHERE %s"#,
-        "SELECT .. FROM table WHERE %s"
+        r#"SELECT myfield1, "a"."b", another_field FROM table1 WHERE %s"#,
+        "SELECT .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
         span_description_do_not_collapse_single_column,
         // Single columns remain intact
-        r#"SELECT a FROM table WHERE %s"#,
-        "SELECT a FROM table WHERE %s"
+        r#"SELECT a FROM table1 WHERE %s"#,
+        "SELECT a FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
@@ -420,8 +455,8 @@ mod tests {
 
     scrub_sql_test!(
         span_description_collapse_partial_column_lists,
-        r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table WHERE %s"#,
-        "SELECT .., count(*) AS c,.. FROM table WHERE %s"
+        r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table1 WHERE %s"#,
+        "SELECT .., count(*) AS c,.. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
@@ -432,22 +467,22 @@ mod tests {
 
     scrub_sql_test!(
         span_description_collapse_columns_distinct,
-        r#"SELECT DISTINCT a, b, c FROM table WHERE %s"#,
-        "SELECT DISTINCT .. FROM table WHERE %s"
+        r#"SELECT DISTINCT a, b, c FROM table1 WHERE %s"#,
+        "SELECT DISTINCT .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
         span_description_collapse_columns_with_as,
         // Simple lists of columns will be collapsed.
-        r#"SELECT myfield1, "a"."b" AS a__b, another_field as bar FROM table WHERE %s"#,
-        "SELECT .. FROM table WHERE %s"
+        r#"SELECT myfield1, "a"."b" AS a__b, another_field as bar FROM table1 WHERE %s"#,
+        "SELECT .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
         span_description_collapse_columns_with_as_without_quotes,
         // Simple lists of columns will be collapsed.
-        r#"SELECT myfield1, a.b AS a__b, another_field as bar FROM table WHERE %s"#,
-        "SELECT .. FROM table WHERE %s"
+        r#"SELECT myfield1, a.b AS a__b, another_field as bar FROM table1 WHERE %s"#,
+        "SELECT .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
@@ -458,8 +493,8 @@ mod tests {
 
     scrub_sql_test!(
         parameters_in,
-        "select column FROM table WHERE id IN (1, 2, 3)",
-        "select column FROM table WHERE id IN (%s)"
+        "select column FROM table1 WHERE id IN (1, 2, 3)",
+        "SELECT column FROM table1 WHERE id IN (%s)"
     );
 
     scrub_sql_test!(
@@ -489,14 +524,14 @@ mod tests {
             ) srpe
             inner join foo on foo.id = foo_id
         ",
-        "select .. from (select * from (select .. from x where foo = %s) srpe where x = %s) srpe inner join foo on id = foo_id"
+        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x where foo = %s) srpe WHERE x = %s) srpe INNER JOIN foo ON id = foo_id"
     );
 
     scrub_sql_test!(
         not_a_comment,
         "SELECT * from comments WHERE comment LIKE '-- NOTE%s'
         AND foo > 0",
-        "SELECT * from comments WHERE comment LIKE %s AND foo > %s"
+        "SELECT * FROM comments WHERE comment LIKE %s AND foo > %s"
     );
 
     scrub_sql_test!(
