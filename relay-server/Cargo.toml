@@ -25,7 +25,7 @@ processing = [
 ]
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 axum = { version = "0.6.15", features = [
     "headers",
     "macros",

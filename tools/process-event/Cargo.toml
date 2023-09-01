@@ -11,7 +11,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.32"
+anyhow = { workspace = true }
 clap = { version = "4.1.4", features = ["derive"] }
 relay-event-schema = { path = "../../relay-event-schema" }
 relay-pii = { path = "../../relay-pii" }

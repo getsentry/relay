@@ -14,7 +14,7 @@ default = []
 processing = []
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 human-size = "0.4.1"
 num_cpus = "1.13.0"
 relay-auth = { path = "../relay-auth" }

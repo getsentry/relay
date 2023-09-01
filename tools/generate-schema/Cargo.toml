@@ -9,7 +9,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-anyhow = "1.0.32"
+anyhow = { workspace = true }
 clap = { version = "4.1.4", features = ["derive"] }
 relay-event-schema = { path = "../../relay-event-schema", features = [
     "jsonschema",

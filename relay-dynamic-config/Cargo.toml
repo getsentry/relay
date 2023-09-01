@@ -13,7 +13,7 @@ publish = false
 default = []
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 assert-json-diff = "2.0.2"
 relay-auth = { path = "../relay-auth" }
 relay-base-schema = { path = "../relay-base-schema" }
