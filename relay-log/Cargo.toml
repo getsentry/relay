@@ -11,21 +11,31 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-chrono = { version = "0.4.24", optional = true, default-features = false, features = ["clock", "std", "serde"] }
+chrono = { version = "0.4.24", optional = true, default-features = false, features = [
+    "clock",
+    "std",
+    "serde",
+] }
 console = { version = "0.15.5", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
-sentry = { version = "0.31.3", features = ["debug-images", "tower-axum-matched-path", "tracing"], optional = true }
+sentry = { version = "0.31.3", features = [
+    "debug-images",
+    "tower-axum-matched-path",
+    "tracing",
+], optional = true }
 sentry-core = { version = "0.31.3" }
 serde = { version = "1.0.114", features = ["derive"], optional = true }
 serde_json = { version = "1.0.55", optional = true }
 tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter", "json", "time"], optional = true }
+tracing-subscriber = { version = "0.3.17", features = [
+    "env-filter",
+    "json",
+    "time",
+], optional = true }
 
 [features]
 default = []
-test = [
-    "dep:tracing-subscriber",
-]
+test = ["dep:tracing-subscriber"]
 init = [
     "dep:chrono",
     "dep:console",
@@ -34,10 +44,5 @@ init = [
     "dep:serde_json",
     "dep:tracing-subscriber",
 ]
-crash-handler = [
-    "init",
-    "dep:relay-crash",
-]
-sentry = [
-    "dep:sentry",
-]
+crash-handler = ["init", "dep:relay-crash"]
+sentry = ["dep:sentry"]
