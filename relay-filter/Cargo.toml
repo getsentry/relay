@@ -18,7 +18,7 @@ relay-event-schema = { path = "../relay-event-schema" }
 relay-protocol = { path = "../relay-protocol" }
 relay-ua = { path = "../relay-ua" }
 serde = { workspace = true }
-url = "2.1.1"
+url = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

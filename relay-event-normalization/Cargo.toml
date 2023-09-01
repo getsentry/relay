@@ -31,7 +31,7 @@ serde_urlencoded = "0.7.1"
 smallvec = { workspace = true }
 sqlparser = { version = "0.37.0", features = ["visitor"] }
 thiserror = { workspace = true }
-url = "2.1.1"
+url = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
