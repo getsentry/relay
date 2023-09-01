@@ -23,14 +23,14 @@ relay-system = { path = "../relay-system" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-tokio = { version = "1.28.0", features = ["macros", "time"] }
+tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
 criterion = "0.5"
 insta = { workspace = true }
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
 relay-test = { path = "../relay-test" }
-tokio = { version = "1.28.0", features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util"] }
 
 [[bench]]
 name = "aggregator"

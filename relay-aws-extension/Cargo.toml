@@ -15,4 +15,4 @@ relay-system = { path = "../relay-system" }
 reqwest = { version = "0.11.1", features = ["json"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { version = "1.28.0" }
+tokio = { workspace = true }

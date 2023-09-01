@@ -10,12 +10,12 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-futures = "0.3"
+futures = { workspace = true }
 once_cell = { workspace = true }
 relay-log = { path = "../relay-log" }
 relay-statsd = { path = "../relay-statsd" }
-tokio = { version = "1.28.0", features = ["macros", "signal", "tracing"] }
+tokio = { workspace = true, features = ["signal"] }
 
 [dev-dependencies]
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
-tokio = { version = "1.28.0", features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util"] }
