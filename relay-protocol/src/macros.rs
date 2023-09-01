@@ -1,4 +1,4 @@
-/// Returns a reference to the typed `Annotated` value at a given path.
+/// Returns a reference to the typed [`Annotated`] value at a given path.
 ///
 /// The return type depends on the path expression used. By default, this macro will resolve to an
 /// `Option<&Annotated<T>>`, where the option is `Some` if the path exists. Note that if the
@@ -6,9 +6,11 @@
 ///
 /// When used with an exclamation mark after the path, this macro unwraps to an `&Annotated<T>`.
 ///
+/// [`Annotated`]: crate::Annotated
+///
 /// # Syntax
 ///
-/// A path starts with the name of a variable holding an `Annotated`. Access to children of this
+/// A path starts with the name of a variable holding an [`Annotated`]. Access to children of this
 /// type depend on the value type:
 ///  - To access a struct field, use a period followed by the field's name, for instance (`.field`).
 ///  - To access an array element, use the element's numeric index in brackets, for instance `[0]`.
@@ -71,16 +73,18 @@ macro_rules! get_path {
     }};
 }
 
-/// Returns a reference to the typed value at a given path.
+/// Returns a reference to the typed value at a given path in an [`Annotated`].
 ///
 /// The return type depends on the path expression used. By default, this macro will resolve to an
 /// `Option<&T>`, where the option is `Some` if the path exists and the value is present.
 ///
 /// When used with an exclamation mark after the path, this macro unwraps to an `&T`.
 ///
+/// [`Annotated`]: crate::Annotated
+///
 /// # Syntax
 ///
-/// A path starts with the name of a variable holding an `Annotated`. Access to children of this
+/// A path starts with the name of a variable holding an [`Annotated`]. Access to children of this
 /// type depend on the value type:
 ///  - To access a struct field, use a period followed by the field's name, for instance (`.field`).
 ///  - To access an array element, use the element's numeric index in brackets, for instance `[0]`.
@@ -142,12 +146,18 @@ macro_rules! get_value {
     }};
 }
 
-/// Derives the `FromValue`, `IntoValue`, and `Empty` traits using the string representation.
+/// Derives the [`FromValue`], [`IntoValue`], and [`Empty`] traits using the string representation.
 ///
 /// Requires that this type implements `FromStr` and `Display`. Implements the following traits:
-///  - `FromValue`: Deserializes a string, then uses `FromStr` to convert into the type.
-///  - `IntoValue`: Serializes into a string using the `Display` trait.
-///  - `Empty`: This type is never empty.
+///
+///  - [`FromValue`]: Deserializes a string, then uses [`FromStr`](std::str::FromStr) to convert
+///        into the type.
+///  - [`IntoValue`]: Serializes into a string using the [`Display`](std::fmt::Display) trait.
+///  - [`Empty`]: This type is never empty.
+///
+/// [`FromValue`]: crate::FromValue
+/// [`IntoValue`]: crate::IntoValue
+/// [`Empty`]: crate::Empty
 #[macro_export]
 macro_rules! derive_string_meta_structure {
     ($type:ident, $expectation:expr) => {
