@@ -17,4 +17,4 @@ relay-event-schema = { path = "../../relay-event-schema" }
 relay-pii = { path = "../../relay-pii" }
 relay-protocol = { path = "../../relay-protocol" }
 relay-event-normalization = { path = "../../relay-event-normalization" }
-serde_json = "1.0.55"
+serde_json = { workspace = true }

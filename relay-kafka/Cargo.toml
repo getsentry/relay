@@ -15,8 +15,8 @@ rdkafka-sys = { version = "4.3.0", optional = true }
 relay-log = { path = "../relay-log", optional = true }
 relay-statsd = { path = "../relay-statsd", optional = true }
 rmp-serde = { version = "1.1.1", optional = true }
-serde = { version = "1.0.114", features = ["derive"] }
-serde_json = { version = "1.0.55", optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true, optional = true }
 thiserror = { workspace = true }
 sentry-kafka-schemas = { version = "0.1.12", default_features = false }
 jsonschema = { version = "0.17.0", optional = true }

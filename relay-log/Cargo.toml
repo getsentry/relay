@@ -20,8 +20,8 @@ sentry = { version = "0.31.3", features = [
     "tracing",
 ], optional = true }
 sentry-core = { version = "0.31.3" }
-serde = { version = "1.0.114", features = ["derive"], optional = true }
-serde_json = { version = "1.0.55", optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = [
     "env-filter",

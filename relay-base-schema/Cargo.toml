@@ -16,7 +16,7 @@ schemars = { version = "0.8.0", features = [
     "uuid1",
     "chrono",
 ], optional = true }
-serde = { version = "1.0.114", features = ["derive"] }
+serde = { workspace = true }
 
 [features]
 default = []

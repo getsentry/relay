@@ -17,7 +17,7 @@ redis = { version = "0.23.1", optional = true, features = [
     "tls-native-tls",
     "keep-alive",
 ] }
-serde = { version = "1.0.114", features = ["derive"] }
+serde = { workspace = true }
 thiserror = { workspace = true }
 
 [features]

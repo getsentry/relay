@@ -14,4 +14,4 @@ clap = { version = "4.1.4", features = ["derive"] }
 relay-event-schema = { path = "../../relay-event-schema", features = [
     "jsonschema",
 ] }
-serde_json = "1.0.55"
+serde_json = { workspace = true }
