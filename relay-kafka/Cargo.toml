@@ -22,7 +22,7 @@ sentry-kafka-schemas = { version = "0.1.12", default_features = false, optional 
 jsonschema = { version = "0.17.0", optional = true }
 
 [dev-dependencies]
-serde_yaml = "0.9.17"
+serde_yaml = { workspace = true }
 
 [features]
 default = []

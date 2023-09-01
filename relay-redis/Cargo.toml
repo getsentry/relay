@@ -25,4 +25,4 @@ default = []
 impl = ["dep:r2d2", "dep:redis"]
 
 [dev-dependencies]
-serde_yaml = "0.9.17"
+serde_yaml = { workspace = true }
