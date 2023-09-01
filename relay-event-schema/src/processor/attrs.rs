@@ -123,14 +123,17 @@ impl MaxChars {
             MaxChars::Symbol => 256,
             MaxChars::Path => 256,
             MaxChars::ShortPath => 128,
-            // these are from constants.py or limits imposed by the database
-            MaxChars::Logger => 64,
-            MaxChars::Email => 75,
-            MaxChars::Culprit => 200,
-            MaxChars::TagKey => 32,
-            MaxChars::TagValue => 200,
-            MaxChars::Environment => 64,
-            MaxChars::Distribution => 64,
+            // These limits below were initially derived from Sentry's original implementation in
+            // Python. Before changing any of these limits, check if the values are inserted into
+            // the database by the Sentry processing pipeline, and if there are limits on the
+            // database column.
+            MaxChars::Logger => 64,       // src/sentry/constants.py:???
+            MaxChars::Email => 75,        // src/sentry/constants.py:MAX_EMAIL_FIELD_LENGTH
+            MaxChars::Culprit => 200,     // src/sentry/constants.py:MAX_CULPRIT_LENGTH
+            MaxChars::TagKey => 200,      // src/sentry/constants.py:MAX_TAG_KEY_LENGTH
+            MaxChars::TagValue => 200,    // src/sentry/constants.py:MAX_TAG_VALUE_LENGTH
+            MaxChars::Environment => 64,  // src/sentry/constants.py:ENVIRONMENT_NAME_MAX_LENGTH
+            MaxChars::Distribution => 64, // src/sentry/models/distribution.py
             MaxChars::Soft(len) | MaxChars::Hard(len) => len,
         }
     }

@@ -545,7 +545,7 @@ mod tests {
         let mut event = Annotated::new(Event {
             tags: Annotated::new(Tags(
                 vec![Annotated::new(TagEntry(
-                    Annotated::new("x".repeat(200)),
+                    Annotated::new("x".repeat(300)),
                     Annotated::new("x".repeat(300)),
                 ))]
                 .into(),
@@ -565,7 +565,7 @@ mod tests {
             json,
             r#"[
   [
-    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..."
   ]
 ]"#
