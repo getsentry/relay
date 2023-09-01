@@ -1,3 +1,5 @@
+#![cfg(feature = "derive")]
+
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, FromValue, IntoValue};
 use similar_asserts::assert_eq;
 
