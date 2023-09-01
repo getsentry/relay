@@ -3982,6 +3982,11 @@
 <a href="#3982" id="3982">3982</a>
 <a href="#3983" id="3983">3983</a>
 <a href="#3984" id="3984">3984</a>
+<a href="#3985" id="3985">3985</a>
+<a href="#3986" id="3986">3986</a>
+<a href="#3987" id="3987">3987</a>
+<a href="#3988" id="3988">3988</a>
+<a href="#3989" id="3989">3989</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6780,11 +6785,16 @@
             };
 
             <span class="kw">loop </span>{
-                <span class="kw">let </span>next_msg = <span class="kw">async </span>{ <span class="macro">tokio::join!</span>(rx.recv(), semaphore.clone().acquire_owned()) };
+                <span class="kw">let </span>next_msg = <span class="kw">async </span>{
+                    <span class="kw">let </span>permit_result = semaphore.clone().acquire_owned().<span class="kw">await</span>;
+                    <span class="comment">// `permit_result` might get dropped when this future is cancelled while awaiting
+                    // `rx.recv()`. This is OK though: No envelope is received so the permit is not
+                    // required.
+                    </span>(rx.recv().<span class="kw">await</span>, permit_result)
+                };
 
                 <span class="macro">tokio::select! </span>{
                    biased;
-
                     <span class="comment">// TODO(iker): deal with the error when the sender of the channel is dropped.
                     </span><span class="kw">_ </span>= subscription.changed() =&gt; <span class="self">self</span>.global_config = subscription.borrow().clone(),
                     (<span class="prelude-val">Some</span>(message), <span class="prelude-val">Ok</span>(permit)) = next_msg =&gt; {
