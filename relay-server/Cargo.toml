@@ -49,7 +49,7 @@ mime = "0.3.16"
 minidump = { version = "0.15.2", optional = true }
 multer = "2.0.4"
 once_cell = { workspace = true }
-regex = "1.9.1"
+regex = { workspace = true }
 relay-auth = { path = "../relay-auth" }
 relay-aws-extension = { path = "../relay-aws-extension" }
 relay-base-schema = { path = "../relay-base-schema" }

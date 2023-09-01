@@ -17,7 +17,7 @@ itertools = { workspace = true }
 maxminddb = "0.23.0"
 md5 = "0.7.0"
 once_cell = { workspace = true }
-regex = "1.9.1"
+regex = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-event-schema = { path = "../relay-event-schema" }

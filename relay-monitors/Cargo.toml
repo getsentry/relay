@@ -13,7 +13,7 @@ publish = false
 relay-common = { path = "../relay-common" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-regex = "1.9.1"
+regex = { workspace = true }
 once_cell = { workspace = true }
 thiserror = { workspace = true }
 
