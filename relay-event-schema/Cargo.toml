@@ -11,11 +11,7 @@ publish = false
 
 [dependencies]
 bytecount = "0.6.0"
-chrono = { version = "0.4.24", default-features = false, features = [
-    "clock",
-    "std",
-    "serde",
-] }
+chrono = { workspace = true, features = ["clock"] }
 cookie = { version = "0.17.0", features = ["percent-encode"] }
 debugid = { version = "0.8.0", features = ["serde"] }
 enumset = "1.0.4"

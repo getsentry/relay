@@ -11,10 +11,7 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-chrono = { version = "0.4.24", default-features = false, features = [
-    "std",
-    "serde",
-] }
+chrono = { workspace = true }
 ed25519-dalek = { version = "2.0.0", features = ["rand_core"] }
 thiserror = "1.0.38"
 hmac = "0.12.1"

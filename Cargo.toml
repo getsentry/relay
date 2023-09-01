@@ -12,3 +12,9 @@ debug = false
 # In release, however, we do want full debug information to report
 # panic and error stack traces to Sentry.
 debug = true
+
+[workspace.dependencies]
+chrono = { version = "0.4.24", default-features = false, features = [
+    "std",
+    "serde",
+] }

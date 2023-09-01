@@ -11,11 +11,7 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-chrono = { version = "0.4.24", optional = true, default-features = false, features = [
-    "clock",
-    "std",
-    "serde",
-] }
+chrono = { workspace = true, features = ["clock"], optional = true }
 console = { version = "0.15.5", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
 sentry = { version = "0.31.3", features = [

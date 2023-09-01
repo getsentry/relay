@@ -38,11 +38,7 @@ backoff = "0.4.0"
 brotli = "3.3.4"
 bytecount = "0.6.0"
 bytes = { version = "1.4.0" }
-chrono = { version = "0.4.24", default-features = false, features = [
-    "clock",
-    "std",
-    "serde",
-] }
+chrono = { workspace = true, features = ["clock"] }
 data-encoding = "2.3.3"
 flate2 = "1.0.19"
 futures = "0.3"
