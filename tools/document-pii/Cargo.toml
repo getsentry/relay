@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-clap = { version = "4.1.4", features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
 path-slash = "0.2.1"
 proc-macro2 = "1.0.54"
 quote = "1.0.26"

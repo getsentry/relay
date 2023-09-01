@@ -12,7 +12,7 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-clap = { version = "4.1.4", features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
 relay-event-schema = { path = "../../relay-event-schema" }
 relay-pii = { path = "../../relay-pii" }
 relay-protocol = { path = "../../relay-protocol" }

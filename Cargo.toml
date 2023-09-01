@@ -19,6 +19,7 @@ chrono = { version = "0.4.24", default-features = false, features = [
     "std",
     "serde",
 ] }
+clap = { version = "4.1.4" }
 criterion = "0.5"
 futures = { version = "0.3", default-features = false }
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }

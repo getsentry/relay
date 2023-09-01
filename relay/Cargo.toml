@@ -17,7 +17,7 @@ crash-handler = ["relay-log/crash-handler"]
 # Direct dependencies of the main application in `src/`
 [dependencies]
 anyhow = { workspace = true }
-clap = { version = "4.1.4", features = ["env", "wrap_help"] }
+clap = { workspace = true, features = ["env", "wrap_help"] }
 clap_complete = "4.1.1"
 dialoguer = "0.10.0"
 hostname = "0.3.1"

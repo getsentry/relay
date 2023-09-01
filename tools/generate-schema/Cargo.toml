@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
-clap = { version = "4.1.4", features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
 relay-event-schema = { path = "../../relay-event-schema", features = [
     "jsonschema",
 ] }
