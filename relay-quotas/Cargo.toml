@@ -23,5 +23,5 @@ smallvec = { version = "1.4.0", features = ["serde"] }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
-insta = { version = "1.31.0", features = ["ron"] }
+insta = { workspace = true }
 serde_json = { workspace = true }

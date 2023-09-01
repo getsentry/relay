@@ -27,7 +27,7 @@ tokio = { version = "1.28.0", features = ["macros", "time"] }
 
 [dev-dependencies]
 criterion = "0.5"
-insta = "1.31.0"
+insta = { workspace = true }
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
 relay-test = { path = "../relay-test" }
 tokio = { version = "1.28.0", features = ["test-util"] }

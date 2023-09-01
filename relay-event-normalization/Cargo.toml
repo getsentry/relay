@@ -34,7 +34,7 @@ thiserror = { workspace = true }
 url = "2.1.1"
 
 [dev-dependencies]
-insta = { version = "1.31.0", features = ["json", "redactions", "ron", "yaml"] }
+insta = { workspace = true }
 relay-protocol = { path = "../relay-protocol", features = ["test"] }
 similar-asserts = "1.4.2"
 

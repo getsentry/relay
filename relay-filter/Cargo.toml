@@ -21,5 +21,5 @@ serde = { workspace = true }
 url = "2.1.1"
 
 [dev-dependencies]
-insta = { version = "1.31.0", features = ["json"] }
+insta = { workspace = true }
 serde_json = { workspace = true }

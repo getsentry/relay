@@ -2796,7 +2796,10 @@ impl Service for EnvelopeProcessorService {
             };
 
             loop {
-                let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
+                let next_msg = async {
+                    let permit_result = semaphore.clone().acquire_owned().await;
+                    (rx.recv().await, permit_result)
+                };
 
                 tokio::select! {
                    biased;
