@@ -544,22 +544,15 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let (topic, namespace) = match mri.map(|mri| mri.namespace) {
-            Ok(namespace @ MetricNamespace::Transactions) => {
-                (KafkaTopic::MetricsTransactions, namespace)
-            }
-            Ok(namespace @ MetricNamespace::Spans) => (KafkaTopic::MetricsTransactions, namespace),
             Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
-                    |scope| {
-                        scope.set_extra("metric_message.name", message.name.into());
-                    },
-                    || {
-                        relay_log::error!("store service dropping unknown metric usecase");
-                    },
+                    |scope| scope.set_extra("metric_message.name", message.name.into()),
+                    || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
             }
+            Ok(namespace) => (KafkaTopic::MetricsGeneric, namespace),
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
