@@ -870,8 +870,9 @@ pub struct LightNormalizationConfig<'a> {
 
     /// Configuration for measurement normalization in transaction events.
     ///
-    /// Can have both configuration from project config and global config. If either is provided,
-    /// normalization will truncate custom measurements and add units of known built-in measurements.
+    /// Has an optional [`MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
     pub dynamic_measurements_config: Option<DynamicMeasurementsConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
@@ -1488,13 +1489,13 @@ mod tests {
 
         let proj = MeasurementsConfig {
             builtin_measurements: vec![foo.clone(), bar.clone()],
-            max_custom_measurements: 3,
+            max_custom_measurements: 4,
         };
 
         let glob = MeasurementsConfig {
             // The 'bar' here will be ignored since it's a duplicate from the project level.
             builtin_measurements: vec![baz.clone(), bar.clone()],
-            max_custom_measurements: 3,
+            max_custom_measurements: 4,
         };
         let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
 
