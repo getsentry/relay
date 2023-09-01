@@ -43,7 +43,7 @@ data-encoding = "2.3.3"
 flate2 = "1.0.19"
 futures = "0.3"
 hashbrown = "0.13.2"
-itertools = "0.10.5"
+itertools = { workspace = true }
 json-forensics = { version = "0.1.1" }
 mime = "0.3.16"
 minidump = { version = "0.15.2", optional = true }
@@ -82,7 +82,7 @@ reqwest = { version = "0.11.1", features = [
 rmp-serde = "1.1.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
-smallvec = { version = "1.4.0", features = ["serde"] }
+smallvec = { workspace = true }
 sqlx = { version = "0.7.0", features = [
     "macros",
     "migrate",

@@ -13,7 +13,7 @@ publish = false
 bytecount = "0.6.0"
 chrono = { workspace = true, features = ["clock"] }
 dynfmt = { version = "0.1.4", features = ["python", "curly"] }
-itertools = "0.10.5"
+itertools = { workspace = true }
 maxminddb = "0.23.0"
 md5 = "0.7.0"
 once_cell = "1.13.1"
@@ -28,7 +28,7 @@ sentry-release-parser = "1.3.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = "0.7.1"
-smallvec = { version = "1.4.0", features = ["serde"] }
+smallvec = { workspace = true }
 sqlparser = { version = "0.37.0", features = ["visitor"] }
 thiserror = { workspace = true }
 url = "2.1.1"

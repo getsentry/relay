@@ -19,7 +19,7 @@ relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log", optional = true }
 relay-redis = { path = "../relay-redis", optional = true }
 serde = { workspace = true }
-smallvec = { version = "1.4.0", features = ["serde"] }
+smallvec = { workspace = true }
 thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]

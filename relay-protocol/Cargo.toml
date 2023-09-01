@@ -16,7 +16,7 @@ relay-protocol-derive = { path = "../relay-protocol-derive", optional = true }
 schemars = { version = "=0.8.10", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-smallvec = { version = "1.4.0", features = ["serde"] }
+smallvec = { workspace = true }
 
 [dev-dependencies]
 similar-asserts = { workspace = true }
