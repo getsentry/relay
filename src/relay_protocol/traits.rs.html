@@ -193,6 +193,9 @@
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
 <a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Debug;
 
@@ -321,6 +324,9 @@
 }
 
 <span class="doccomment">/// A type that supports field access by paths.
+///
+/// This is the runtime version of [`get_value!`](crate::get_value!) and additionally supports
+/// indexing into [`Value`]. For typed access to static paths, use the macros instead.
 ///
 /// # Syntax
 ///
