@@ -48,7 +48,7 @@ json-forensics = { version = "0.1.1" }
 mime = "0.3.16"
 minidump = { version = "0.15.2", optional = true }
 multer = "2.0.4"
-once_cell = "1.13.1"
+once_cell = { workspace = true }
 parking_lot = "0.12.1"
 regex = "1.9.1"
 relay-auth = { path = "../relay-auth" }
