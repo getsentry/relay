@@ -1,815 +1,1161 @@
 ---
-source: relay-general/tests/test_fixtures.rs
+source: relay-server/tests/test_fixtures.rs
 expression: SerializableAnnotated(&event)
 ---
-event_id: 04e03764d7024caab8736daeefbb9bee
-level: error
-type: error
-logger: ""
-modules:
-  Microsoft.AI.DependencyCollector: 2.4.1.0
-  Microsoft.ApplicationInsights: 2.4.0.0
-  Microsoft.ApplicationInsights.AspNetCore: 2.1.1.0
-  Microsoft.AspNetCore: 2.0.3.0
-  Microsoft.AspNetCore.Antiforgery: 2.0.3.0
-  Microsoft.AspNetCore.ApplicationInsights.HostingStartup: 2.0.3.0
-  Microsoft.AspNetCore.Authentication.Abstractions: 2.0.3.0
-  Microsoft.AspNetCore.Authentication.Core: 2.0.3.0
-  Microsoft.AspNetCore.Authorization: 2.0.4.0
-  Microsoft.AspNetCore.Authorization.Policy: 2.0.4.0
-  Microsoft.AspNetCore.Cors: 2.0.3.0
-  Microsoft.AspNetCore.Cryptography.Internal: 2.0.3.0
-  Microsoft.AspNetCore.DataProtection: 2.0.3.0
-  Microsoft.AspNetCore.DataProtection.Abstractions: 2.0.3.0
-  Microsoft.AspNetCore.Diagnostics: 2.0.3.0
-  Microsoft.AspNetCore.Diagnostics.Abstractions: 2.1.0.0
-  Microsoft.AspNetCore.Hosting: 2.1.0.0
-  Microsoft.AspNetCore.Hosting.Abstractions: 2.1.0.0
-  Microsoft.AspNetCore.Hosting.Server.Abstractions: 2.1.0.0
-  Microsoft.AspNetCore.Html.Abstractions: 2.0.2.0
-  Microsoft.AspNetCore.Http: 2.1.0.0
-  Microsoft.AspNetCore.Http.Abstractions: 2.1.0.0
-  Microsoft.AspNetCore.Http.Extensions: 2.1.0.0
-  Microsoft.AspNetCore.Http.Features: 2.1.0.0
-  Microsoft.AspNetCore.HttpOverrides: 2.0.3.0
-  Microsoft.AspNetCore.JsonPatch: 2.0.0.0
-  Microsoft.AspNetCore.Mvc: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.Abstractions: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.ApiExplorer: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.Core: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.Cors: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.DataAnnotations: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.Formatters.Json: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.Razor: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.Razor.Extensions: 2.0.3.0
-  Microsoft.AspNetCore.Mvc.RazorPages: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.TagHelpers: 2.0.4.0
-  Microsoft.AspNetCore.Mvc.ViewFeatures: 2.0.4.0
-  Microsoft.AspNetCore.Razor: 2.0.3.0
-  Microsoft.AspNetCore.Razor.Language: 2.0.3.0
-  Microsoft.AspNetCore.Razor.Runtime: 2.0.3.0
-  Microsoft.AspNetCore.Routing: 2.0.3.0
-  Microsoft.AspNetCore.Routing.Abstractions: 2.0.3.0
-  Microsoft.AspNetCore.Server.IISIntegration: 2.0.3.0
-  Microsoft.AspNetCore.Server.Kestrel: 2.0.3.0
-  Microsoft.AspNetCore.Server.Kestrel.Core: 2.0.3.0
-  Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions: 2.0.3.0
-  Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv: 2.0.3.0
-  Microsoft.AspNetCore.SpaServices: 2.0.4.0
-  Microsoft.AspNetCore.StaticFiles: 2.0.3.0
-  Microsoft.AspNetCore.WebUtilities: 2.1.0.0
-  Microsoft.CodeAnalysis: 2.3.0.0
-  Microsoft.CodeAnalysis.CSharp: 2.3.0.0
-  Microsoft.CodeAnalysis.Razor: 2.0.3.0
-  Microsoft.DotNet.PlatformAbstractions: 2.0.3.0
-  Microsoft.Extensions.Caching.Abstractions: 2.0.2.0
-  Microsoft.Extensions.Caching.Memory: 2.0.2.0
-  Microsoft.Extensions.Configuration: 2.1.0.0
-  Microsoft.Extensions.Configuration.Abstractions: 2.1.0.0
-  Microsoft.Extensions.Configuration.Binder: 2.1.0.0
-  Microsoft.Extensions.Configuration.CommandLine: 2.0.2.0
-  Microsoft.Extensions.Configuration.EnvironmentVariables: 2.1.0.0
-  Microsoft.Extensions.Configuration.FileExtensions: 2.1.0.0
-  Microsoft.Extensions.Configuration.Json: 2.0.2.0
-  Microsoft.Extensions.DependencyInjection: 2.1.0.0
-  Microsoft.Extensions.DependencyInjection.Abstractions: 2.1.0.0
-  Microsoft.Extensions.DependencyModel: 2.0.3.0
-  Microsoft.Extensions.DiagnosticAdapter: 2.0.1.0
-  Microsoft.Extensions.FileProviders.Abstractions: 2.1.0.0
-  Microsoft.Extensions.FileProviders.Physical: 2.1.0.0
-  Microsoft.Extensions.FileSystemGlobbing: 2.1.0.0
-  Microsoft.Extensions.Hosting.Abstractions: 2.1.0.0
-  Microsoft.Extensions.Localization.Abstractions: 2.0.3.0
-  Microsoft.Extensions.Logging: 2.1.0.0
-  Microsoft.Extensions.Logging.Abstractions: 2.1.0.0
-  Microsoft.Extensions.Logging.Configuration: 2.0.2.0
-  Microsoft.Extensions.Logging.Console: 2.0.2.0
-  Microsoft.Extensions.Logging.Debug: 2.0.2.0
-  Microsoft.Extensions.ObjectPool: 2.1.0.0
-  Microsoft.Extensions.Options: 2.1.0.0
-  Microsoft.Extensions.Options.ConfigurationExtensions: 2.0.2.0
-  Microsoft.Extensions.Primitives: 2.1.0.0
-  Microsoft.Extensions.WebEncoders: 2.0.2.0
-  Microsoft.Net.Http.Headers: 2.1.0.0
-  Microsoft.VisualStudio.Web.BrowserLink: 2.0.3.0
-  Microsoft.Win32.Registry: 4.1.0.0
-  Newtonsoft.Json: 11.0.0.0
-  Sentry: 0.0.1.0
-  Sentry.AspNetCore: 0.0.1.0
-  Sentry.Extensions.Logging: 0.0.1.0
-  Sentry.PlatformAbstractions: 1.0.0.0
-  Sentry.Samples.AspNetCore.Mvc: 1.0.0.0
-  System.AppContext: 4.2.0.0
-  System.Buffers: 4.0.2.0
-  System.Collections: 4.1.0.0
-  System.Collections.Concurrent: 4.0.14.0
-  System.Collections.Immutable: 1.2.3.0
-  System.Collections.Specialized: 4.1.0.0
-  System.ComponentModel: 4.0.3.0
-  System.ComponentModel.Annotations: 4.2.0.0
-  System.ComponentModel.Primitives: 4.2.0.0
-  System.ComponentModel.TypeConverter: 4.2.0.0
-  System.Console: 4.1.0.0
-  System.Data.Common: 4.2.0.0
-  System.Diagnostics.Debug: 4.1.0.0
-  System.Diagnostics.DiagnosticSource: 4.0.3.0
-  System.Diagnostics.StackTrace: 4.1.0.0
-  System.Diagnostics.Tools: 4.1.0.0
-  System.Diagnostics.TraceSource: 4.1.0.0
-  System.Diagnostics.Tracing: 4.2.0.0
-  System.Drawing.Primitives: 4.1.0.0
-  System.Globalization: 4.1.0.0
-  System.IO: 4.2.0.0
-  System.IO.FileSystem: 4.1.0.0
-  System.IO.FileSystem.Primitives: 4.1.0.0
-  System.IO.FileSystem.Watcher: 4.1.0.0
-  System.Linq: 4.2.0.0
-  System.Linq.Expressions: 4.2.0.0
-  System.Net.Http: 4.2.0.0
-  System.Net.NameResolution: 4.1.0.0
-  System.Net.Primitives: 4.1.0.0
-  System.Numerics.Vectors: 4.1.3.0
-  System.ObjectModel: 4.1.0.0
-  System.Private.CoreLib: 4.0.0.0
-  System.Private.Uri: 4.0.4.0
-  System.Private.Xml: 4.0.0.0
-  System.Private.Xml.Linq: 4.0.0.0
-  System.Reflection: 4.2.0.0
-  System.Reflection.Emit: 4.1.0.0
-  System.Reflection.Emit.ILGeneration: 4.0.3.0
-  System.Reflection.Emit.Lightweight: 4.0.3.0
-  System.Reflection.Extensions: 4.1.0.0
-  System.Reflection.Metadata: 1.4.3.0
-  System.Reflection.Primitives: 4.1.0.0
-  System.Resources.ResourceManager: 4.1.0.0
-  System.Runtime: 4.2.0.0
-  System.Runtime.CompilerServices.Unsafe: 4.0.4.0
-  System.Runtime.Extensions: 4.2.0.0
-  System.Runtime.InteropServices: 4.2.0.0
-  System.Runtime.InteropServices.RuntimeInformation: 4.0.2.0
-  System.Runtime.Numerics: 4.1.0.0
-  System.Runtime.Serialization.Formatters: 4.0.2.0
-  System.Security.Claims: 4.1.0.0
-  System.Security.Cryptography.Algorithms: 4.3.0.0
-  System.Security.Cryptography.Primitives: 4.1.0.0
-  System.Security.Cryptography.X509Certificates: 4.2.0.0
-  System.Security.Principal: 4.1.0.0
-  System.Text.Encoding: 4.1.0.0
-  System.Text.Encoding.Extensions: 4.1.0.0
-  System.Text.Encodings.Web: 4.0.3.0
-  System.Text.RegularExpressions: 4.2.0.0
-  System.Threading: 4.1.0.0
-  System.Threading.Overlapped: 4.1.0.0
-  System.Threading.Tasks: 4.1.0.0
-  System.Threading.Tasks.Parallel: 4.0.3.0
-  System.Threading.Thread: 4.1.0.0
-  System.Threading.ThreadPool: 4.1.0.0
-  System.Threading.Timer: 4.1.0.0
-  System.ValueTuple: 4.0.2.0
-  System.Xml.XDocument: 4.1.0.0
-  b3kd5uzy.5ut: 0.0.0.0
-  cvrsljbk.gm1: 0.0.0.0
-  fwwefxr0.3z0: 0.0.0.0
-  nbxk3h5b.orp: 0.0.0.0
-  netstandard: 2.0.0.0
-platform: csharp
-timestamp: "[timestamp]"
-received: "[received]"
-release: e386dfd
-environment: Production
-user:
-  ip_address: ~
-request:
-  url: /Home/PostIndex
-  method: POST
-  data:
-    a: b
-    c:
-      - d: e
-        f: g
-  cookies:
-    - - ".AspNetCore.Antiforgery._2NlYY4B078"
-      - CfDJ8ChafIEN-7pHv152tZrpaC_lvW7hdfN_EdO5t5Zh63rpzWqqsA5O2nEyfM5KDfb0QyrEiEK_I3phDQyTPdGKKImqEXWHWHjLJyUU8VRQNNsFvKgwyLiiOc1mDPNxlDbsXhWV44nuF4SzFe9gy9mm_g0
-    - - wcsid
-      - "[Filtered]"
-    - - hblid
-      - "[Filtered]"
-    - - _okdetect
-      - "{[ok detect token],\"proto\":\"http:\",\"host\":\"localhost:4040\"}"
-    - - olfsk
-      - olfsk36178984508065715
-    - - _okbk
-      - "cd4=true,vi5=0,vi4=1532343436427,vi3=active,vi2=false,vi1=false,cd8=chat,cd6=0,cd5=away,cd3=false,cd2=0,cd1=0,"
-    - - _ok
-      - 1700-237-10-3483
-    - - _oklv
-      - "1532343437829,9BYRwrV1RfdG7uxS3m39N0NXoA7d3ajb"
-  headers:
-    - - Accept
-      - "application/json, text/javascript, */*; q=0.01"
-    - - Accept-Encoding
-      - "gzip, deflate, br"
-    - - Accept-Language
-      - "en-US,en;q=0.9,de-AT;q=0.8,de;q=0.7,cs-CZ;q=0.6,cs;q=0.5,pt-BR;q=0.4,pt;q=0.3,es-AR;q=0.2,es;q=0.1"
-    - - Connection
-      - Keep-Alive
-    - - Content-Length
-      - "65"
-    - - Content-Type
-      - application/json; charset=UTF-8
-    - - Host
-      - "localhost:62919"
-    - - MS-ASPNETCORE-TOKEN
-      - "[Filtered]"
-    - - Origin
-      - "http://localhost:62919"
-    - - Referer
-      - "http://localhost:62919/"
-    - - User-Agent
-      - "[Filtered]"
-    - - X-Original-For
-      - "127.0.0.1:50788"
-    - - X-Original-Proto
-      - http
-    - - X-Requested-With
-      - XMLHttpRequest
-  env:
-    DOCUMENT_ROOT: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\wwwroot"
-    REMOTE_ADDR: "::1"
-    SERVER_NAME: TAMPERE
-    SERVER_PORT: "15446"
-    SERVER_SOFTWARE: Kestrel
-  inferred_content_type: application/json
-contexts:
-  server-os:
-    name: Windows
-    version: "10"
-    build: "17134"
-    raw_description: "Microsoft Windows 10.0.17134 "
-    type: os
-  server-runtime:
-    name: ".NET Core"
-    version: 2.0.7
-    raw_description: ".NET Core 4.6.26328.01"
-    type: runtime
-breadcrumbs:
-  values:
-    - timestamp: 1532343407
-      type: default
-      category: Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager
-      level: info
-      message: "User profile is available. Using 'C:\\Users\\[user]\\AppData\\Local\\ASP.NET\\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest."
-    - timestamp: 1532343443
-      type: default
-      category: Microsoft.AspNetCore.Hosting.Internal.WebHost
-      level: info
-      message: "Request starting HTTP/1.1 POST http://localhost:62919/Home/[user]/json; charset=UTF-8 65"
-      data:
-        eventId: "1"
-    - timestamp: 1532343443
-      type: default
-      category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-      level: info
-      message: Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) with arguments () - ModelState is Valid
-      data:
-        eventId: "1"
-    - timestamp: 1532343443
-      type: default
-      category: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
-      level: warning
-      message: Param is null!
-    - timestamp: 1532343443
-      type: default
-      category: Sentry.Samples.AspNetCore.Mvc.GameService
-      level: info
-      message: Fetching dungeons and mana level in parallel.
-    - timestamp: 1532343443
-      type: default
-      category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-      level: info
-      message: Executed action Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) in 43.7868ms
-      data:
-        eventId: "2"
-    - timestamp: 1532343443
-      type: default
-      category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-      level: info
-      message: Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.Error (Sentry.Samples.AspNetCore.Mvc) with arguments ((null)) - ModelState is Valid
-      data:
-        eventId: "1"
-    - timestamp: 1532343443
-      type: default
-      category: Microsoft.AspNetCore.Mvc.ViewFeatures.Internal.ViewResultExecutor
-      level: info
-      message: "Executing ViewResult, running view at path /Views/Shared/Error.cshtml."
-      data:
-        eventId: "1"
-    - timestamp: 1532343443
-      type: default
-      category: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-      level: info
-      message: Executed action Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.Error (Sentry.Samples.AspNetCore.Mvc) in 146.9482ms
-      data:
-        eventId: "2"
-exception:
-  values:
-    - type: System.Net.Http.HttpRequestException
-      value: Failed to fetch available Dungeons
-      module: "System.Net.Http, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
-      stacktrace:
-        frames:
-          - function: FetchNextPhaseDataAsync
-            module: Sentry.Samples.AspNetCore.Mvc.GameService
-            package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            lineno: 25
-            colno: 17
-            context_line: Void MoveNext()
-            in_app: true
-          - function: GetResult
-            module: "System.Runtime.CompilerServices.TaskAwaiter`1"
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: TResult GetResult()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: ExecuteWithThreadLocal
-            module: System.Threading.Tasks.Task
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void ExecuteWithThreadLocal(System.Threading.Tasks.Task ByRef)
-            in_app: false
-          - function: Run
-            module: System.Threading.ExecutionContext
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: "Void Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object)"
-            in_app: false
-          - function: InnerInvoke
-            module: "System.Threading.Tasks.Task`1"
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void InnerInvoke()
-            in_app: false
-          - function: "FetchNextPhaseDataAsync { <lambda> }"
-            module: Sentry.Samples.AspNetCore.Mvc.GameService+<>c
-            package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            lineno: 19
-            colno: 64
-            context_line: Int32 <FetchNextPhaseDataAsync>b__2_0()
-            in_app: true
-      thread_id: 25
-    - type: System.Data.DataException
-      value: "Invalid Mana level: -10"
-      module: "System.Data.Common, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
-      stacktrace:
-        frames:
-          - function: ExecuteWithThreadLocal
-            module: System.Threading.Tasks.Task
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void ExecuteWithThreadLocal(System.Threading.Tasks.Task ByRef)
-            in_app: false
-          - function: Run
-            module: System.Threading.ExecutionContext
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: "Void Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object)"
-            in_app: false
-          - function: InnerInvoke
-            module: "System.Threading.Tasks.Task`1"
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void InnerInvoke()
-            in_app: false
-          - function: "FetchNextPhaseDataAsync { <lambda> }"
-            module: Sentry.Samples.AspNetCore.Mvc.GameService+<>c
-            package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            lineno: 20
-            colno: 60
-            context_line: Int32 <FetchNextPhaseDataAsync>b__2_1()
-            in_app: true
-      thread_id: 25
-    - type: System.AggregateException
-      value: "One or more errors occurred. (Failed to fetch available Dungeons) (Invalid Mana level: -10)"
-      module: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-      stacktrace:
-        frames:
-          - function: PostIndex
-            module: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
-            package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
-            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
-            lineno: 38
-            colno: 17
-            context_line: Void MoveNext()
-            in_app: true
-          - function: GetResult
-            module: "System.Runtime.CompilerServices.TaskAwaiter`1"
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: TResult GetResult()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: FetchNextPhaseDataAsync
-            module: Sentry.Samples.AspNetCore.Mvc.GameService
-            package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs"
-            lineno: 31
-            colno: 17
-            context_line: Void MoveNext()
-            in_app: true
-      thread_id: 25
-    - type: System.InvalidOperationException
-      value: Bad POST! See Inner exception for details.
-      module: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-      stacktrace:
-        frames:
-          - function: Invoke
-            module: Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware
-            package: "Microsoft.AspNetCore.Diagnostics, Version=2.0.3.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: Invoke
-            module: Microsoft.AspNetCore.Builder.RouterMiddleware
-            package: "Microsoft.AspNetCore.Routing, Version=2.0.3.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: InvokeAsync
-            module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: InvokeFilterPipelineAsync
-            module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: Next
-            module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: "System.Threading.Tasks.Task Next(State ByRef, Scope ByRef, System.Object ByRef, Boolean ByRef)"
-            in_app: false
-          - function: Rethrow
-            module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void Rethrow(Microsoft.AspNetCore.Mvc.Filters.ResourceExecutedContext)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: InvokeNextResourceFilter
-            module: Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: InvokeInnerFilterAsync
-            module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: Next
-            module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: "System.Threading.Tasks.Task Next(State ByRef, Scope ByRef, System.Object ByRef, Boolean ByRef)"
-            in_app: false
-          - function: Rethrow
-            module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void Rethrow(Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: InvokeNextActionFilterAsync
-            module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: InvokeActionMethodAsync
-            module: Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker
-            package: "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60"
-            context_line: Void MoveNext()
-            in_app: false
-          - function: HandleNonSuccessAndDebuggerNotification
-            module: System.Runtime.CompilerServices.TaskAwaiter
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)
-            in_app: false
-          - function: Throw
-            module: System.Runtime.ExceptionServices.ExceptionDispatchInfo
-            package: "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e"
-            context_line: Void Throw()
-            in_app: false
-          - function: PostIndex
-            module: Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController
-            package: "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0"
-            filename: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
-            abs_path: "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs"
-            lineno: 53
-            colno: 17
-            context_line: Void MoveNext()
-            in_app: true
-      thread_id: 25
-tags:
-  - - RequestId
-    - ~
-extra:
-  "Response:HasStarted": true
-  "System.AggregateException.Data[inventory]":
-    BigPotion: 0
-    CheeseWheels: 512
-    SmallPotion: 3
-  "System.Data.DataException.Data[inventory]":
-    BigPotion: 0
-    CheeseWheels: 512
-    SmallPotion: 3
-  "System.InvalidOperationException.Data[inventory]":
-    BigPotion: 0
-    CheeseWheels: 512
-    SmallPotion: 3
-  "System.Net.Http.HttpRequestException.Data[inventory]":
-    BigPotion: 0
-    CheeseWheels: 512
-    SmallPotion: 3
-sdk:
-  name: Sentry.AspNetCore
-  version: 0.0.1-preview3
-_meta:
-  breadcrumbs:
-    values:
-      "0":
-        message:
-          "":
-            rem:
-              - - "@userpath:replace"
-                - s
-                - 43
-                - 49
-            len: 152
-      "1":
-        message:
-          "":
-            rem:
-              - - "@userpath:replace"
-                - s
-                - 59
-                - 65
-            len: 103
-  exception:
-    values:
-      "0":
-        stacktrace:
-          frames:
-            "0":
-              abs_path:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-              filename:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-            "7":
-              abs_path:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-              filename:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-      "1":
-        stacktrace:
-          frames:
-            "3":
-              abs_path:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-              filename:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-      "2":
-        stacktrace:
-          frames:
-            "0":
-              abs_path:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 82
-              filename:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 82
-            "4":
-              abs_path:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-              filename:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 70
-      "3":
-        stacktrace:
-          frames:
-            "26":
-              abs_path:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 82
-              filename:
-                "":
-                  rem:
-                    - - "@userpath:replace"
-                      - s
-                      - 9
-                      - 15
-                  len: 82
-  request:
-    cookies:
-      "1":
-        "1":
-          "":
-            rem:
-              - - "@anything:replace"
-                - s
-                - 0
-                - 10
-            len: 32
-      "2":
-        "1":
-          "":
-            rem:
-              - - "@anything:replace"
-                - s
-                - 0
-                - 10
-            len: 32
-      "3":
-        "1":
-          "":
-            rem:
-              - - removeOkDetectToken
-                - s
-                - 1
-                - 18
-            len: 66
-    env:
-      DOCUMENT_ROOT:
-        "":
-          rem:
-            - - "@userpath:replace"
-              - s
-              - 9
-              - 15
-          len: 78
-    headers:
-      "10":
-        "1":
-          "":
-            rem:
-              - - "@anything:replace"
-                - s
-                - 0
-                - 10
-            len: 114
-      "7":
-        "1":
-          "":
-            rem:
-              - - "@anything:replace"
-                - s
-                - 0
-                - 10
-            len: 36
-  tags:
-    "0":
-      "1":
-        "":
-          rem:
-            - - "@anything:remove"
-              - x
-  user:
-    ip_address:
-      "":
-        rem:
-          - - "@anything:remove"
-            - x
-
+{
+  "event_id": "04e03764d7024caab8736daeefbb9bee",
+  "level": "error",
+  "type": "error",
+  "logger": "",
+  "modules": {
+    "Microsoft.AI.DependencyCollector": "2.4.1.0",
+    "Microsoft.ApplicationInsights": "2.4.0.0",
+    "Microsoft.ApplicationInsights.AspNetCore": "2.1.1.0",
+    "Microsoft.AspNetCore": "2.0.3.0",
+    "Microsoft.AspNetCore.Antiforgery": "2.0.3.0",
+    "Microsoft.AspNetCore.ApplicationInsights.HostingStartup": "2.0.3.0",
+    "Microsoft.AspNetCore.Authentication.Abstractions": "2.0.3.0",
+    "Microsoft.AspNetCore.Authentication.Core": "2.0.3.0",
+    "Microsoft.AspNetCore.Authorization": "2.0.4.0",
+    "Microsoft.AspNetCore.Authorization.Policy": "2.0.4.0",
+    "Microsoft.AspNetCore.Cors": "2.0.3.0",
+    "Microsoft.AspNetCore.Cryptography.Internal": "2.0.3.0",
+    "Microsoft.AspNetCore.DataProtection": "2.0.3.0",
+    "Microsoft.AspNetCore.DataProtection.Abstractions": "2.0.3.0",
+    "Microsoft.AspNetCore.Diagnostics": "2.0.3.0",
+    "Microsoft.AspNetCore.Diagnostics.Abstractions": "2.1.0.0",
+    "Microsoft.AspNetCore.Hosting": "2.1.0.0",
+    "Microsoft.AspNetCore.Hosting.Abstractions": "2.1.0.0",
+    "Microsoft.AspNetCore.Hosting.Server.Abstractions": "2.1.0.0",
+    "Microsoft.AspNetCore.Html.Abstractions": "2.0.2.0",
+    "Microsoft.AspNetCore.Http": "2.1.0.0",
+    "Microsoft.AspNetCore.Http.Abstractions": "2.1.0.0",
+    "Microsoft.AspNetCore.Http.Extensions": "2.1.0.0",
+    "Microsoft.AspNetCore.Http.Features": "2.1.0.0",
+    "Microsoft.AspNetCore.HttpOverrides": "2.0.3.0",
+    "Microsoft.AspNetCore.JsonPatch": "2.0.0.0",
+    "Microsoft.AspNetCore.Mvc": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.Abstractions": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.ApiExplorer": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.Core": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.Cors": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.DataAnnotations": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.Formatters.Json": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.Razor": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.Razor.Extensions": "2.0.3.0",
+    "Microsoft.AspNetCore.Mvc.RazorPages": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.TagHelpers": "2.0.4.0",
+    "Microsoft.AspNetCore.Mvc.ViewFeatures": "2.0.4.0",
+    "Microsoft.AspNetCore.Razor": "2.0.3.0",
+    "Microsoft.AspNetCore.Razor.Language": "2.0.3.0",
+    "Microsoft.AspNetCore.Razor.Runtime": "2.0.3.0",
+    "Microsoft.AspNetCore.Routing": "2.0.3.0",
+    "Microsoft.AspNetCore.Routing.Abstractions": "2.0.3.0",
+    "Microsoft.AspNetCore.Server.IISIntegration": "2.0.3.0",
+    "Microsoft.AspNetCore.Server.Kestrel": "2.0.3.0",
+    "Microsoft.AspNetCore.Server.Kestrel.Core": "2.0.3.0",
+    "Microsoft.AspNetCore.Server.Kestrel.Transport.Abstractions": "2.0.3.0",
+    "Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv": "2.0.3.0",
+    "Microsoft.AspNetCore.SpaServices": "2.0.4.0",
+    "Microsoft.AspNetCore.StaticFiles": "2.0.3.0",
+    "Microsoft.AspNetCore.WebUtilities": "2.1.0.0",
+    "Microsoft.CodeAnalysis": "2.3.0.0",
+    "Microsoft.CodeAnalysis.CSharp": "2.3.0.0",
+    "Microsoft.CodeAnalysis.Razor": "2.0.3.0",
+    "Microsoft.DotNet.PlatformAbstractions": "2.0.3.0",
+    "Microsoft.Extensions.Caching.Abstractions": "2.0.2.0",
+    "Microsoft.Extensions.Caching.Memory": "2.0.2.0",
+    "Microsoft.Extensions.Configuration": "2.1.0.0",
+    "Microsoft.Extensions.Configuration.Abstractions": "2.1.0.0",
+    "Microsoft.Extensions.Configuration.Binder": "2.1.0.0",
+    "Microsoft.Extensions.Configuration.CommandLine": "2.0.2.0",
+    "Microsoft.Extensions.Configuration.EnvironmentVariables": "2.1.0.0",
+    "Microsoft.Extensions.Configuration.FileExtensions": "2.1.0.0",
+    "Microsoft.Extensions.Configuration.Json": "2.0.2.0",
+    "Microsoft.Extensions.DependencyInjection": "2.1.0.0",
+    "Microsoft.Extensions.DependencyInjection.Abstractions": "2.1.0.0",
+    "Microsoft.Extensions.DependencyModel": "2.0.3.0",
+    "Microsoft.Extensions.DiagnosticAdapter": "2.0.1.0",
+    "Microsoft.Extensions.FileProviders.Abstractions": "2.1.0.0",
+    "Microsoft.Extensions.FileProviders.Physical": "2.1.0.0",
+    "Microsoft.Extensions.FileSystemGlobbing": "2.1.0.0",
+    "Microsoft.Extensions.Hosting.Abstractions": "2.1.0.0",
+    "Microsoft.Extensions.Localization.Abstractions": "2.0.3.0",
+    "Microsoft.Extensions.Logging": "2.1.0.0",
+    "Microsoft.Extensions.Logging.Abstractions": "2.1.0.0",
+    "Microsoft.Extensions.Logging.Configuration": "2.0.2.0",
+    "Microsoft.Extensions.Logging.Console": "2.0.2.0",
+    "Microsoft.Extensions.Logging.Debug": "2.0.2.0",
+    "Microsoft.Extensions.ObjectPool": "2.1.0.0",
+    "Microsoft.Extensions.Options": "2.1.0.0",
+    "Microsoft.Extensions.Options.ConfigurationExtensions": "2.0.2.0",
+    "Microsoft.Extensions.Primitives": "2.1.0.0",
+    "Microsoft.Extensions.WebEncoders": "2.0.2.0",
+    "Microsoft.Net.Http.Headers": "2.1.0.0",
+    "Microsoft.VisualStudio.Web.BrowserLink": "2.0.3.0",
+    "Microsoft.Win32.Registry": "4.1.0.0",
+    "Newtonsoft.Json": "11.0.0.0",
+    "Sentry": "0.0.1.0",
+    "Sentry.AspNetCore": "0.0.1.0",
+    "Sentry.Extensions.Logging": "0.0.1.0",
+    "Sentry.PlatformAbstractions": "1.0.0.0",
+    "Sentry.Samples.AspNetCore.Mvc": "1.0.0.0",
+    "System.AppContext": "4.2.0.0",
+    "System.Buffers": "4.0.2.0",
+    "System.Collections": "4.1.0.0",
+    "System.Collections.Concurrent": "4.0.14.0",
+    "System.Collections.Immutable": "1.2.3.0",
+    "System.Collections.Specialized": "4.1.0.0",
+    "System.ComponentModel": "4.0.3.0",
+    "System.ComponentModel.Annotations": "4.2.0.0",
+    "System.ComponentModel.Primitives": "4.2.0.0",
+    "System.ComponentModel.TypeConverter": "4.2.0.0",
+    "System.Console": "4.1.0.0",
+    "System.Data.Common": "4.2.0.0",
+    "System.Diagnostics.Debug": "4.1.0.0",
+    "System.Diagnostics.DiagnosticSource": "4.0.3.0",
+    "System.Diagnostics.StackTrace": "4.1.0.0",
+    "System.Diagnostics.Tools": "4.1.0.0",
+    "System.Diagnostics.TraceSource": "4.1.0.0",
+    "System.Diagnostics.Tracing": "4.2.0.0",
+    "System.Drawing.Primitives": "4.1.0.0",
+    "System.Globalization": "4.1.0.0",
+    "System.IO": "4.2.0.0",
+    "System.IO.FileSystem": "4.1.0.0",
+    "System.IO.FileSystem.Primitives": "4.1.0.0",
+    "System.IO.FileSystem.Watcher": "4.1.0.0",
+    "System.Linq": "4.2.0.0",
+    "System.Linq.Expressions": "4.2.0.0",
+    "System.Net.Http": "4.2.0.0",
+    "System.Net.NameResolution": "4.1.0.0",
+    "System.Net.Primitives": "4.1.0.0",
+    "System.Numerics.Vectors": "4.1.3.0",
+    "System.ObjectModel": "4.1.0.0",
+    "System.Private.CoreLib": "4.0.0.0",
+    "System.Private.Uri": "4.0.4.0",
+    "System.Private.Xml": "4.0.0.0",
+    "System.Private.Xml.Linq": "4.0.0.0",
+    "System.Reflection": "4.2.0.0",
+    "System.Reflection.Emit": "4.1.0.0",
+    "System.Reflection.Emit.ILGeneration": "4.0.3.0",
+    "System.Reflection.Emit.Lightweight": "4.0.3.0",
+    "System.Reflection.Extensions": "4.1.0.0",
+    "System.Reflection.Metadata": "1.4.3.0",
+    "System.Reflection.Primitives": "4.1.0.0",
+    "System.Resources.ResourceManager": "4.1.0.0",
+    "System.Runtime": "4.2.0.0",
+    "System.Runtime.CompilerServices.Unsafe": "4.0.4.0",
+    "System.Runtime.Extensions": "4.2.0.0",
+    "System.Runtime.InteropServices": "4.2.0.0",
+    "System.Runtime.InteropServices.RuntimeInformation": "4.0.2.0",
+    "System.Runtime.Numerics": "4.1.0.0",
+    "System.Runtime.Serialization.Formatters": "4.0.2.0",
+    "System.Security.Claims": "4.1.0.0",
+    "System.Security.Cryptography.Algorithms": "4.3.0.0",
+    "System.Security.Cryptography.Primitives": "4.1.0.0",
+    "System.Security.Cryptography.X509Certificates": "4.2.0.0",
+    "System.Security.Principal": "4.1.0.0",
+    "System.Text.Encoding": "4.1.0.0",
+    "System.Text.Encoding.Extensions": "4.1.0.0",
+    "System.Text.Encodings.Web": "4.0.3.0",
+    "System.Text.RegularExpressions": "4.2.0.0",
+    "System.Threading": "4.1.0.0",
+    "System.Threading.Overlapped": "4.1.0.0",
+    "System.Threading.Tasks": "4.1.0.0",
+    "System.Threading.Tasks.Parallel": "4.0.3.0",
+    "System.Threading.Thread": "4.1.0.0",
+    "System.Threading.ThreadPool": "4.1.0.0",
+    "System.Threading.Timer": "4.1.0.0",
+    "System.ValueTuple": "4.0.2.0",
+    "System.Xml.XDocument": "4.1.0.0",
+    "b3kd5uzy.5ut": "0.0.0.0",
+    "cvrsljbk.gm1": "0.0.0.0",
+    "fwwefxr0.3z0": "0.0.0.0",
+    "nbxk3h5b.orp": "0.0.0.0",
+    "netstandard": "2.0.0.0"
+  },
+  "platform": "csharp",
+  "timestamp": "[timestamp]",
+  "received": "[received]",
+  "release": "e386dfd",
+  "environment": "Production",
+  "user": {
+    "ip_address": null
+  },
+  "request": {
+    "url": "/Home/PostIndex",
+    "method": "POST",
+    "data": {
+      "a": "b",
+      "c": [
+        {
+          "d": "e",
+          "f": "g"
+        }
+      ]
+    },
+    "cookies": [
+      [
+        ".AspNetCore.Antiforgery._2NlYY4B078",
+        "CfDJ8ChafIEN-7pHv152tZrpaC_lvW7hdfN_EdO5t5Zh63rpzWqqsA5O2nEyfM5KDfb0QyrEiEK_I3phDQyTPdGKKImqEXWHWHjLJyUU8VRQNNsFvKgwyLiiOc1mDPNxlDbsXhWV44nuF4SzFe9gy9mm_g0"
+      ],
+      [
+        "wcsid",
+        "[Filtered]"
+      ],
+      [
+        "hblid",
+        "[Filtered]"
+      ],
+      [
+        "_okdetect",
+        "{[ok detect token],\"proto\":\"http:\",\"host\":\"localhost:4040\"}"
+      ],
+      [
+        "olfsk",
+        "olfsk36178984508065715"
+      ],
+      [
+        "_okbk",
+        "cd4=true,vi5=0,vi4=1532343436427,vi3=active,vi2=false,vi1=false,cd8=chat,cd6=0,cd5=away,cd3=false,cd2=0,cd1=0,"
+      ],
+      [
+        "_ok",
+        "1700-237-10-3483"
+      ],
+      [
+        "_oklv",
+        "1532343437829,9BYRwrV1RfdG7uxS3m39N0NXoA7d3ajb"
+      ]
+    ],
+    "headers": [
+      [
+        "Accept",
+        "application/json, text/javascript, */*; q=0.01"
+      ],
+      [
+        "Accept-Encoding",
+        "gzip, deflate, br"
+      ],
+      [
+        "Accept-Language",
+        "en-US,en;q=0.9,de-AT;q=0.8,de;q=0.7,cs-CZ;q=0.6,cs;q=0.5,pt-BR;q=0.4,pt;q=0.3,es-AR;q=0.2,es;q=0.1"
+      ],
+      [
+        "Connection",
+        "Keep-Alive"
+      ],
+      [
+        "Content-Length",
+        "65"
+      ],
+      [
+        "Content-Type",
+        "application/json; charset=UTF-8"
+      ],
+      [
+        "Host",
+        "localhost:62919"
+      ],
+      [
+        "MS-ASPNETCORE-TOKEN",
+        "[Filtered]"
+      ],
+      [
+        "Origin",
+        "http://localhost:62919"
+      ],
+      [
+        "Referer",
+        "http://localhost:62919/"
+      ],
+      [
+        "User-Agent",
+        "[Filtered]"
+      ],
+      [
+        "X-Original-For",
+        "127.0.0.1:50788"
+      ],
+      [
+        "X-Original-Proto",
+        "http"
+      ],
+      [
+        "X-Requested-With",
+        "XMLHttpRequest"
+      ]
+    ],
+    "env": {
+      "DOCUMENT_ROOT": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\wwwroot",
+      "REMOTE_ADDR": "::1",
+      "SERVER_NAME": "TAMPERE",
+      "SERVER_PORT": "15446",
+      "SERVER_SOFTWARE": "Kestrel"
+    },
+    "inferred_content_type": "application/json"
+  },
+  "contexts": {
+    "server-os": {
+      "name": "Windows",
+      "version": "10",
+      "build": "17134",
+      "raw_description": "Microsoft Windows 10.0.17134 ",
+      "type": "os"
+    },
+    "server-runtime": {
+      "name": ".NET Core",
+      "version": "2.0.7",
+      "raw_description": ".NET Core 4.6.26328.01",
+      "type": "runtime"
+    }
+  },
+  "breadcrumbs": {
+    "values": [
+      {
+        "timestamp": 1532343407.0,
+        "type": "default",
+        "category": "Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager",
+        "level": "info",
+        "message": "User profile is available. Using 'C:\\Users\\[user]\\AppData\\Local\\ASP.NET\\DataProtection-Keys' as key repository and Windows DPAPI to encrypt keys at rest."
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Microsoft.AspNetCore.Hosting.Internal.WebHost",
+        "level": "info",
+        "message": "Request starting HTTP/1.1 POST http://localhost:62919/Home/[user]/json; charset=UTF-8 65",
+        "data": {
+          "eventId": "1"
+        }
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+        "level": "info",
+        "message": "Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) with arguments () - ModelState is Valid",
+        "data": {
+          "eventId": "1"
+        }
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController",
+        "level": "warning",
+        "message": "Param is null!"
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Sentry.Samples.AspNetCore.Mvc.GameService",
+        "level": "info",
+        "message": "Fetching dungeons and mana level in parallel."
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+        "level": "info",
+        "message": "Executed action Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.PostIndex (Sentry.Samples.AspNetCore.Mvc) in 43.7868ms",
+        "data": {
+          "eventId": "2"
+        }
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+        "level": "info",
+        "message": "Executing action method Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.Error (Sentry.Samples.AspNetCore.Mvc) with arguments ((null)) - ModelState is Valid",
+        "data": {
+          "eventId": "1"
+        }
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Microsoft.AspNetCore.Mvc.ViewFeatures.Internal.ViewResultExecutor",
+        "level": "info",
+        "message": "Executing ViewResult, running view at path /Views/Shared/Error.cshtml.",
+        "data": {
+          "eventId": "1"
+        }
+      },
+      {
+        "timestamp": 1532343443.0,
+        "type": "default",
+        "category": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+        "level": "info",
+        "message": "Executed action Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController.Error (Sentry.Samples.AspNetCore.Mvc) in 146.9482ms",
+        "data": {
+          "eventId": "2"
+        }
+      }
+    ]
+  },
+  "exception": {
+    "values": [
+      {
+        "type": "System.Net.Http.HttpRequestException",
+        "value": "Failed to fetch available Dungeons",
+        "module": "System.Net.Http, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a",
+        "stacktrace": {
+          "frames": [
+            {
+              "function": "FetchNextPhaseDataAsync",
+              "module": "Sentry.Samples.AspNetCore.Mvc.GameService",
+              "package": "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0",
+              "filename": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "abs_path": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "lineno": 25,
+              "colno": 17,
+              "context_line": "Void MoveNext()",
+              "in_app": true
+            },
+            {
+              "function": "GetResult",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter`1",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "TResult GetResult()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "ExecuteWithThreadLocal",
+              "module": "System.Threading.Tasks.Task",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void ExecuteWithThreadLocal(System.Threading.Tasks.Task ByRef)",
+              "in_app": false
+            },
+            {
+              "function": "Run",
+              "module": "System.Threading.ExecutionContext",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object)",
+              "in_app": false
+            },
+            {
+              "function": "InnerInvoke",
+              "module": "System.Threading.Tasks.Task`1",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void InnerInvoke()",
+              "in_app": false
+            },
+            {
+              "function": "FetchNextPhaseDataAsync { <lambda> }",
+              "module": "Sentry.Samples.AspNetCore.Mvc.GameService+<>c",
+              "package": "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0",
+              "filename": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "abs_path": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "lineno": 19,
+              "colno": 64,
+              "context_line": "Int32 <FetchNextPhaseDataAsync>b__2_0()",
+              "in_app": true
+            }
+          ]
+        },
+        "thread_id": 25
+      },
+      {
+        "type": "System.Data.DataException",
+        "value": "Invalid Mana level: -10",
+        "module": "System.Data.Common, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a",
+        "stacktrace": {
+          "frames": [
+            {
+              "function": "ExecuteWithThreadLocal",
+              "module": "System.Threading.Tasks.Task",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void ExecuteWithThreadLocal(System.Threading.Tasks.Task ByRef)",
+              "in_app": false
+            },
+            {
+              "function": "Run",
+              "module": "System.Threading.ExecutionContext",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Run(System.Threading.ExecutionContext, System.Threading.ContextCallback, System.Object)",
+              "in_app": false
+            },
+            {
+              "function": "InnerInvoke",
+              "module": "System.Threading.Tasks.Task`1",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void InnerInvoke()",
+              "in_app": false
+            },
+            {
+              "function": "FetchNextPhaseDataAsync { <lambda> }",
+              "module": "Sentry.Samples.AspNetCore.Mvc.GameService+<>c",
+              "package": "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0",
+              "filename": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "abs_path": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "lineno": 20,
+              "colno": 60,
+              "context_line": "Int32 <FetchNextPhaseDataAsync>b__2_1()",
+              "in_app": true
+            }
+          ]
+        },
+        "thread_id": 25
+      },
+      {
+        "type": "System.AggregateException",
+        "value": "One or more errors occurred. (Failed to fetch available Dungeons) (Invalid Mana level: -10)",
+        "module": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+        "stacktrace": {
+          "frames": [
+            {
+              "function": "PostIndex",
+              "module": "Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController",
+              "package": "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0",
+              "filename": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs",
+              "abs_path": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs",
+              "lineno": 38,
+              "colno": 17,
+              "context_line": "Void MoveNext()",
+              "in_app": true
+            },
+            {
+              "function": "GetResult",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter`1",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "TResult GetResult()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "FetchNextPhaseDataAsync",
+              "module": "Sentry.Samples.AspNetCore.Mvc.GameService",
+              "package": "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0",
+              "filename": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "abs_path": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\GameService.cs",
+              "lineno": 31,
+              "colno": 17,
+              "context_line": "Void MoveNext()",
+              "in_app": true
+            }
+          ]
+        },
+        "thread_id": 25
+      },
+      {
+        "type": "System.InvalidOperationException",
+        "value": "Bad POST! See Inner exception for details.",
+        "module": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+        "stacktrace": {
+          "frames": [
+            {
+              "function": "Invoke",
+              "module": "Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware",
+              "package": "Microsoft.AspNetCore.Diagnostics, Version=2.0.3.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "Invoke",
+              "module": "Microsoft.AspNetCore.Builder.RouterMiddleware",
+              "package": "Microsoft.AspNetCore.Routing, Version=2.0.3.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "InvokeAsync",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "InvokeFilterPipelineAsync",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "Next",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "System.Threading.Tasks.Task Next(State ByRef, Scope ByRef, System.Object ByRef, Boolean ByRef)",
+              "in_app": false
+            },
+            {
+              "function": "Rethrow",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void Rethrow(Microsoft.AspNetCore.Mvc.Filters.ResourceExecutedContext)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "InvokeNextResourceFilter",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ResourceInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "InvokeInnerFilterAsync",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "Next",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "System.Threading.Tasks.Task Next(State ByRef, Scope ByRef, System.Object ByRef, Boolean ByRef)",
+              "in_app": false
+            },
+            {
+              "function": "Rethrow",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void Rethrow(Microsoft.AspNetCore.Mvc.Filters.ActionExecutedContext)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "InvokeNextActionFilterAsync",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "InvokeActionMethodAsync",
+              "module": "Microsoft.AspNetCore.Mvc.Internal.ControllerActionInvoker",
+              "package": "Microsoft.AspNetCore.Mvc.Core, Version=2.0.4.0, Culture=neutral, PublicKeyToken=adb9793829ddae60",
+              "context_line": "Void MoveNext()",
+              "in_app": false
+            },
+            {
+              "function": "HandleNonSuccessAndDebuggerNotification",
+              "module": "System.Runtime.CompilerServices.TaskAwaiter",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void HandleNonSuccessAndDebuggerNotification(System.Threading.Tasks.Task)",
+              "in_app": false
+            },
+            {
+              "function": "Throw",
+              "module": "System.Runtime.ExceptionServices.ExceptionDispatchInfo",
+              "package": "System.Private.CoreLib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "context_line": "Void Throw()",
+              "in_app": false
+            },
+            {
+              "function": "PostIndex",
+              "module": "Sentry.Samples.AspNetCore.Mvc.Controllers.HomeController",
+              "package": "Sentry.Samples.AspNetCore.Mvc, Version=1.0.0.0, Culture=neutral, PublicKeyToken=fba2ec45388e2af0",
+              "filename": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs",
+              "abs_path": "C:\\Users\\[user]\\git\\sentry-dotnet\\samples\\Sentry.Samples.AspNetCore.Mvc\\Controllers\\HomeController.cs",
+              "lineno": 53,
+              "colno": 17,
+              "context_line": "Void MoveNext()",
+              "in_app": true
+            }
+          ]
+        },
+        "thread_id": 25
+      }
+    ]
+  },
+  "tags": [
+    [
+      "RequestId",
+      null
+    ]
+  ],
+  "extra": {
+    "Response:HasStarted": true,
+    "System.AggregateException.Data[inventory]": {
+      "BigPotion": 0,
+      "CheeseWheels": 512,
+      "SmallPotion": 3
+    },
+    "System.Data.DataException.Data[inventory]": {
+      "BigPotion": 0,
+      "CheeseWheels": 512,
+      "SmallPotion": 3
+    },
+    "System.InvalidOperationException.Data[inventory]": {
+      "BigPotion": 0,
+      "CheeseWheels": 512,
+      "SmallPotion": 3
+    },
+    "System.Net.Http.HttpRequestException.Data[inventory]": {
+      "BigPotion": 0,
+      "CheeseWheels": 512,
+      "SmallPotion": 3
+    }
+  },
+  "sdk": {
+    "name": "Sentry.AspNetCore",
+    "version": "0.0.1-preview3"
+  },
+  "_meta": {
+    "breadcrumbs": {
+      "values": {
+        "0": {
+          "message": {
+            "": {
+              "rem": [
+                [
+                  "@userpath:replace",
+                  "s",
+                  43,
+                  49
+                ]
+              ],
+              "len": 152
+            }
+          }
+        },
+        "1": {
+          "message": {
+            "": {
+              "rem": [
+                [
+                  "@userpath:replace",
+                  "s",
+                  59,
+                  65
+                ]
+              ],
+              "len": 103
+            }
+          }
+        }
+      }
+    },
+    "exception": {
+      "values": {
+        "0": {
+          "stacktrace": {
+            "frames": {
+              "0": {
+                "abs_path": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                },
+                "filename": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                }
+              },
+              "7": {
+                "abs_path": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                },
+                "filename": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                }
+              }
+            }
+          }
+        },
+        "1": {
+          "stacktrace": {
+            "frames": {
+              "3": {
+                "abs_path": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                },
+                "filename": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                }
+              }
+            }
+          }
+        },
+        "2": {
+          "stacktrace": {
+            "frames": {
+              "0": {
+                "abs_path": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 82
+                  }
+                },
+                "filename": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 82
+                  }
+                }
+              },
+              "4": {
+                "abs_path": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                },
+                "filename": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 70
+                  }
+                }
+              }
+            }
+          }
+        },
+        "3": {
+          "stacktrace": {
+            "frames": {
+              "26": {
+                "abs_path": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 82
+                  }
+                },
+                "filename": {
+                  "": {
+                    "rem": [
+                      [
+                        "@userpath:replace",
+                        "s",
+                        9,
+                        15
+                      ]
+                    ],
+                    "len": 82
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "request": {
+      "cookies": {
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:replace",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 32
+            }
+          }
+        },
+        "2": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:replace",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 32
+            }
+          }
+        },
+        "3": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "removeOkDetectToken",
+                  "s",
+                  1,
+                  18
+                ]
+              ],
+              "len": 66
+            }
+          }
+        }
+      },
+      "env": {
+        "DOCUMENT_ROOT": {
+          "": {
+            "rem": [
+              [
+                "@userpath:replace",
+                "s",
+                9,
+                15
+              ]
+            ],
+            "len": 78
+          }
+        }
+      },
+      "headers": {
+        "10": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:replace",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 114
+            }
+          }
+        },
+        "7": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@anything:replace",
+                  "s",
+                  0,
+                  10
+                ]
+              ],
+              "len": 36
+            }
+          }
+        }
+      }
+    },
+    "tags": {
+      "0": {
+        "1": {
+          "": {
+            "rem": [
+              [
+                "@anything:remove",
+                "x"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "user": {
+      "ip_address": {
+        "": {
+          "rem": [
+            [
+              "@anything:remove",
+              "x"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}
