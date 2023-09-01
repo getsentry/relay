@@ -36,7 +36,7 @@ url = "2.1.1"
 [dev-dependencies]
 insta = { workspace = true }
 relay-protocol = { path = "../relay-protocol", features = ["test"] }
-similar-asserts = "1.4.2"
+similar-asserts = { workspace = true }
 
 [features]
 default = ["mmap"]

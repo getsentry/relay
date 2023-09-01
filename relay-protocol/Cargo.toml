@@ -19,7 +19,7 @@ serde_json = { workspace = true }
 smallvec = { version = "1.4.0", features = ["serde"] }
 
 [dev-dependencies]
-similar-asserts = "1.4.2"
+similar-asserts = { workspace = true }
 
 [features]
 default = []

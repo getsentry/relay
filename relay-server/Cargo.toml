@@ -115,5 +115,5 @@ relay-event-schema = { path = "../relay-event-schema", features = [
 ] }
 relay-protocol = { path = "../relay-protocol", features = ["test"] }
 relay-test = { path = "../relay-test" }
-similar-asserts = "1.4.2"
+similar-asserts = { workspace = true }
 tempfile = "3.5.0"

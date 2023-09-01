@@ -18,4 +18,4 @@ once_cell = "1.13.1"
 thiserror = { workspace = true }
 
 [dev-dependencies]
-similar-asserts = "1.4.2"
+similar-asserts = { workspace = true }

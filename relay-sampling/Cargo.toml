@@ -24,4 +24,4 @@ unicase = "2.6.0"
 
 [dev-dependencies]
 insta = { workspace = true }
-similar-asserts = "1.4.2"
+similar-asserts = { workspace = true }

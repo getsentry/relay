@@ -32,7 +32,7 @@ itertools = "0.10.5"
 pretty-hex = "0.3.0"
 relay-protocol = { path = "../relay-protocol", features = ["test"] }
 serde_json = { workspace = true }
-similar-asserts = "1.4.2"
+similar-asserts = { workspace = true }
 
 [features]
 default = []
