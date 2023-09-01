@@ -2254,7 +2254,7 @@ impl EnvelopeProcessorService {
         // Check feature flag.
         if !state
             .project_state
-            .has_feature(Feature::ExtractStandaloneSpans)
+            .has_feature(Feature::SpanMetricsExtraction)
         {
             return;
         };

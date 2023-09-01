@@ -1126,12 +1126,12 @@ def test_limit_custom_measurements(
     "sent_description, expected_description",
     [
         (
-            "SELECT column FROM table WHERE another_col = %s",
-            "SELECT column FROM table WHERE another_col = %s",
+            "SELECT column FROM table1 WHERE another_col = %s",
+            "SELECT column FROM table1 WHERE another_col = %s",
         ),
         (
-            "SELECT column FROM table WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
-            "SELECT column FROM table WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*",
+            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*",
         ),
     ],
     ids=["Must not truncate short descriptions", "Must truncate long descriptions"],
@@ -1351,6 +1351,7 @@ def test_span_metrics_secondary_aggregator(
                     "span.action": "SELECT",
                     "span.description": "SELECT %s*",
                     "span.category": "db",
+                    "span.domain": "foo",
                     "span.module": "db",
                     "span.op": "db",
                 },
