@@ -139,7 +139,11 @@ impl VisitorMut for NormalizeVisitor {
         match expr {
             Expr::Value(x) => *x = Self::placeholder(),
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
-
+            Expr::CompoundIdentifier(parts) => {
+                if let Some(last) = parts.pop() {
+                    *parts = vec![last];
+                }
+            }
             _ => {}
         }
         ControlFlow::Continue(())
@@ -147,9 +151,20 @@ impl VisitorMut for NormalizeVisitor {
 
     fn pre_visit_statement(&mut self, statement: &mut ast::Statement) -> ControlFlow<Self::Break> {
         match statement {
+            ast::Statement::Savepoint { name } => {
+                name.quote_style = None;
+                name.value = "%s".into()
+            } // TODO: placeholder constant
+            _ => {}
+        };
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_statement(&mut self, statement: &mut ast::Statement) -> ControlFlow<Self::Break> {
+        match statement {
             ast::Statement::Query(x) => match &mut *x.body {
                 ast::SetExpr::Select(select) => {
-                    let mut replace_me = None;
+                    let mut collapse = vec![];
                     for item in std::mem::take(&mut select.projection) {
                         if match &item {
                             ast::SelectItem::UnnamedExpr(expr) => {
@@ -160,21 +175,32 @@ impl VisitorMut for NormalizeVisitor {
                             }
                             _ => false,
                         } {
-                            if replace_me.is_some() {
-                                select.projection.push(ast::SelectItem::UnnamedExpr(
-                                    Expr::Identifier("..".into()),
-                                ));
-                                replace_me = None;
-                            } else {
-                                replace_me = Some(item);
-                            }
+                            collapse.push(item);
                         } else {
-                            if let Some(previous) = replace_me {
-                                select.projection.push(previous);
-                                replace_me = None;
+                            match collapse.len() {
+                                0 => {}
+                                1 => {
+                                    select.projection.append(&mut collapse);
+                                }
+                                _ => select.projection.push(ast::SelectItem::UnnamedExpr(
+                                    Expr::Value(Value::Number("..".into(), false)),
+                                )),
                             }
+                            collapse.clear();
                             select.projection.push(item);
                         }
+                    }
+                    match collapse.len() {
+                        0 => {}
+                        1 => {
+                            select.projection.append(&mut collapse);
+                        }
+                        _ => select
+                            .projection
+                            .push(ast::SelectItem::UnnamedExpr(Expr::Value(Value::Number(
+                                "..".into(),
+                                false,
+                            )))),
                     }
                 }
                 _ => {}
@@ -282,19 +308,19 @@ mod tests {
     scrub_sql_test!(
         various_parameterized_ins_lowercase,
         "select count() from table1 where id in (100, 101, 102)",
-        "select count() from table1 where id in (%s)"
+        "SELECT count() FROM table1 WHERE id IN (%s)"
     );
 
     scrub_sql_test!(
         various_parameterized_strings,
         "select count() from table_1 where name in ('foo', %s, 1)",
-        "select count() from table_1 where name in (%s)"
+        "SELECT count() FROM table_1 WHERE name IN (%s)"
     );
 
     scrub_sql_test!(
         various_parameterized_cutoff,
         "select count() from table1 where name in ('foo', 'bar', 'ba",
-        "select count() from table1 where name in (%s"
+        "SELECT count() FROM table1 WHERE name IN (%s"
     );
 
     scrub_sql_test!(
@@ -312,13 +338,13 @@ mod tests {
     scrub_sql_test!(
         savepoint_uppercase_semicolon,
         "SAVEPOINT unquoted_identifier;",
-        "SAVEPOINT %s;"
+        "SAVEPOINT %s"
     );
 
     scrub_sql_test!(
         savepoint_lowercase,
         "savepoint unquoted_identifier",
-        "savepoint %s"
+        "SAVEPOINT %s"
     );
 
     scrub_sql_test!(
@@ -328,7 +354,14 @@ mod tests {
     );
 
     scrub_sql_test!(
+        savepoint_quoted_backtick_generic,
+        "SAVEPOINT `backtick_quoted_identifier`",
+        "SAVEPOINT %s"
+    );
+
+    scrub_sql_test_with_dialect!(
         savepoint_quoted_backtick,
+        "mysql",
         "SAVEPOINT `backtick_quoted_identifier`",
         "SAVEPOINT %s"
     );
@@ -352,44 +385,44 @@ mod tests {
     );
 
     scrub_sql_test!(
-        span_description_dont_scrub_double_quoted_strings_format_postgres,
+        dont_scrub_double_quoted_strings_format_postgres,
         r#"SELECT * from "table" WHERE sku = %s"#,
         r#"SELECT * from table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
-        span_description_strip_prefixes,
+        strip_prefixes,
         r#"SELECT table.foo, count(*) from table1 WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
+        r#"SELECT foo, count(*) FROM table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
-        span_description_strip_prefixes_ansi,
+        strip_prefixes_ansi,
         r#"SELECT "table"."foo", count(*) from "table" WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
+        r#"SELECT foo, count(*) FROM table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
-        span_description_strip_prefixes_mysql_generic,
+        strip_prefixes_mysql_generic,
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
         r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
     );
 
     scrub_sql_test_with_dialect!(
-        span_description_strip_prefixes_mysql,
+        strip_prefixes_mysql,
         "mysql",
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
         r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
     );
 
     scrub_sql_test!(
-        span_description_strip_prefixes_truncated,
+        strip_prefixes_truncated,
         r#"SELECT foo = %s FROM "db"."ba"#,
         r#"SELECT foo = %s FROM ba"#
     );
 
     scrub_sql_test!(
-        span_description_dont_scrub_double_quoted_strings_format_mysql,
+        dont_scrub_double_quoted_strings_format_mysql,
         r#"SELECT * from table1 WHERE sku = "foo""#,
         "SELECT * from table1 WHERE sku = foo"
     );
@@ -419,7 +452,7 @@ mod tests {
     );
 
     scrub_sql_test!(
-        span_description_already_scrubbed,
+        already_scrubbed,
         "SELECT * FROM table123 WHERE id = %s",
         "SELECT * FROM table123 WHERE id = %s"
     );
@@ -467,59 +500,59 @@ mod tests {
     );
 
     scrub_sql_test!(
-        span_description_dont_scrub_nulls,
+        dont_scrub_nulls,
         "SELECT * FROM table1 WHERE deleted_at IS NULL",
-        ""
+        "SELECT * FROM table1 WHERE deleted_at IS NULL"
     );
 
     scrub_sql_test!(
-        span_description_collapse_columns,
+        collapse_columns,
         // Simple lists of columns will be collapsed
         r#"SELECT myfield1, "a"."b", another_field FROM table1 WHERE %s"#,
         "SELECT .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
-        span_description_do_not_collapse_single_column,
+        do_not_collapse_single_column,
         // Single columns remain intact
         r#"SELECT a FROM table1 WHERE %s"#,
         "SELECT a FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
-        span_description_collapse_columns_nested,
+        collapse_columns_nested,
         // Simple lists of columns will be collapsed
         r#"SELECT a, b FROM (SELECT c, d FROM t) AS s WHERE %s"#,
         "SELECT .. FROM (SELECT .. FROM t) AS s WHERE %s"
     );
 
     scrub_sql_test!(
-        span_description_collapse_partial_column_lists,
+        collapse_partial_column_lists,
         r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table1 WHERE %s"#,
         "SELECT .., count(*) AS c, .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
-        span_description_collapse_partial_column_lists_2,
+        collapse_partial_column_lists_2,
         r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"#,
         "SELECT DISTINCT .., COALESCE(foo, %s) AS id FROM x"
     );
 
     scrub_sql_test!(
-        span_description_collapse_columns_distinct,
+        collapse_columns_distinct,
         r#"SELECT DISTINCT a, b, c FROM table1 WHERE %s"#,
         "SELECT DISTINCT .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
-        span_description_collapse_columns_with_as,
+        collapse_columns_with_as,
         // Simple lists of columns will be collapsed.
         r#"SELECT myfield1, "a"."b" AS a__b, another_field as bar FROM table1 WHERE %s"#,
         "SELECT .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
-        span_description_collapse_columns_with_as_without_quotes,
+        collapse_columns_with_as_without_quotes,
         // Simple lists of columns will be collapsed.
         r#"SELECT myfield1, a.b AS a__b, another_field as bar FROM table1 WHERE %s"#,
         "SELECT .. FROM table1 WHERE %s"
