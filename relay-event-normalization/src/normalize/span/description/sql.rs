@@ -1,10 +1,12 @@
 //! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow, Index};
+use std::slice::SliceIndex;
 
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sqlparser::ast::{Expr, Ident, Statement, Value, VisitMut, VisitorMut};
+use sqlparser::ast::{self, Expr, Ident, Statement, Value, VisitMut, VisitorMut};
 use sqlparser::dialect::GenericDialect;
 
 /// Removes SQL comments starting with "--" or "#".
@@ -92,9 +94,7 @@ static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
     let mut parsed = parse_query(db_system, string).ok()?; // TODO: fallback to regexes
     let mut visitor = NormalizeVisitor;
-    dbg!("VISITING");
     parsed.visit(&mut visitor);
-    dbg!(&parsed);
     Some(parsed[0].to_string().to_string()) // TODO: if empty? // FIXME: [0]
                                             // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
 
@@ -135,7 +135,7 @@ impl NormalizeVisitor {
 impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
-    fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
+    fn pre_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
         match expr {
             Expr::Value(x) => *x = Self::placeholder(),
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
@@ -145,14 +145,37 @@ impl VisitorMut for NormalizeVisitor {
         ControlFlow::Continue(())
     }
 
-    fn pre_visit_statement(
-        &mut self,
-        _statement: &mut sqlparser::ast::Statement,
-    ) -> ControlFlow<Self::Break> {
-        match dbg!(_statement) {
-            sqlparser::ast::Statement::Query(x) => match &mut *x.body {
-                sqlparser::ast::SetExpr::Select(x) => {
-                    dbg!(&x.selection);
+    fn pre_visit_statement(&mut self, statement: &mut ast::Statement) -> ControlFlow<Self::Break> {
+        match statement {
+            ast::Statement::Query(x) => match &mut *x.body {
+                ast::SetExpr::Select(select) => {
+                    let mut replace_me = None;
+                    for item in std::mem::take(&mut select.projection) {
+                        if match &item {
+                            ast::SelectItem::UnnamedExpr(expr) => {
+                                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
+                            }
+                            ast::SelectItem::ExprWithAlias { expr, alias } => {
+                                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
+                            }
+                            _ => false,
+                        } {
+                            if replace_me.is_some() {
+                                select.projection.push(ast::SelectItem::UnnamedExpr(
+                                    Expr::Identifier("..".into()),
+                                ));
+                                replace_me = None;
+                            } else {
+                                replace_me = Some(item);
+                            }
+                        } else {
+                            if let Some(previous) = replace_me {
+                                select.projection.push(previous);
+                                replace_me = None;
+                            }
+                            select.projection.push(item);
+                        }
+                    }
                 }
                 _ => {}
             },
@@ -161,7 +184,7 @@ impl VisitorMut for NormalizeVisitor {
             } => {
                 *columns = vec![Ident::new("..")];
                 match &mut *source.body {
-                    sqlparser::ast::SetExpr::Values(v) => {
+                    ast::SetExpr::Values(v) => {
                         v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                     }
                     _ => {}
@@ -172,7 +195,7 @@ impl VisitorMut for NormalizeVisitor {
         ControlFlow::Continue(())
     }
 
-    fn post_visit_expr(&mut self, _expr: &mut sqlparser::ast::Expr) -> ControlFlow<Self::Break> {
+    fn post_visit_expr(&mut self, _expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
         ControlFlow::Continue(())
     }
 }
@@ -185,7 +208,7 @@ static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
 pub fn parse_query(
     db_system: Option<&str>,
     query: &str,
-) -> Result<Vec<sqlparser::ast::Statement>, sqlparser::parser::ParserError> {
+) -> Result<Vec<ast::Statement>, sqlparser::parser::ParserError> {
     // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
     //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
     let dialect = db_system
@@ -193,7 +216,7 @@ pub fn parse_query(
         .unwrap_or_else(|| Box::new(GenericDialect {}));
 
     let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
-    sqlparser::parser::Parser::parse_sql(&*dialect, dbg!(&parsable_query))
+    sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query)
 }
 
 #[cfg(test)]
@@ -205,6 +228,16 @@ mod tests {
             #[test]
             fn $name() {
                 let scrubbed = scrub_queries(None, $description_in);
+                assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
+            }
+        };
+    }
+
+    macro_rules! scrub_sql_test_with_dialect {
+        ($name:ident, $db_system:literal, $description_in:literal, $output:literal) => {
+            #[test]
+            fn $name() {
+                let scrubbed = scrub_queries(Some($db_system), $description_in);
                 assert_eq!(scrubbed.as_deref().unwrap_or_default(), $output);
             }
         };
@@ -337,7 +370,14 @@ mod tests {
     );
 
     scrub_sql_test!(
+        span_description_strip_prefixes_mysql_generic,
+        r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
+        r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
+    );
+
+    scrub_sql_test_with_dialect!(
         span_description_strip_prefixes_mysql,
+        "mysql",
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
         r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
     );
@@ -456,7 +496,7 @@ mod tests {
     scrub_sql_test!(
         span_description_collapse_partial_column_lists,
         r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table1 WHERE %s"#,
-        "SELECT .., count(*) AS c,.. FROM table1 WHERE %s"
+        "SELECT .., count(*) AS c, .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
@@ -534,8 +574,24 @@ mod tests {
         "SELECT * FROM comments WHERE comment LIKE %s AND foo > %s"
     );
 
-    scrub_sql_test!(
+    scrub_sql_test_with_dialect!(
         mysql_comment,
+        "mysql",
+        "
+            DELETE  # end-of-line
+            FROM /* inline comment */ `some_table`
+            /*
+                multi
+                line
+                comment
+            */
+            WHERE `some_table`.`id` IN (%s)
+        ",
+        "DELETE FROM some_table WHERE id IN (%s)"
+    );
+
+    scrub_sql_test!(
+        mysql_comment_generic,
         "
             DELETE  # end-of-line
             FROM /* inline comment */ `some_table`
@@ -562,7 +618,14 @@ mod tests {
     );
 
     scrub_sql_test!(
+        clickhouse_generic,
+        "SELECT (toStartOfHour(finish_ts, 'Universal') AS _snuba_time), (uniqIf((nullIf(user, '') AS _snuba_user), greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), (if(has(measurements.key, 'lcp'), arrayElement(measurements.value, indexOf(measurements.key, 'lcp')), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement(('duration', 300), 2), 4))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, 4.56), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), `_snuba_measurements[lcp]`, _snuba_duration), 0)), 0), 113.45)), 0) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, 0) AND notEquals(transaction_status, 1) AND notEquals(transaction_status, 2)), count()) AS _snuba_failure_rate), (divide(count(), divide(3600.0, 60)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals(('transaction' AS _snuba_type), 'transaction') AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime('2023-06-13T09:08:51', 'Universal')) AND less(_snuba_finish_ts, toDateTime('2023-07-11T09:08:51', 'Universal')) AND in((project_id AS _snuba_project_id), [123, 456, 789]) AND equals((environment AS _snuba_environment), 'production') GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT 10000 OFFSET 0",
+        "SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(key, %s), arrayElement(value, indexOf(key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s"
+    );
+
+    scrub_sql_test_with_dialect!(
         clickhouse,
+        "clickhouse",
         "SELECT (toStartOfHour(finish_ts, 'Universal') AS _snuba_time), (uniqIf((nullIf(user, '') AS _snuba_user), greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), (if(has(measurements.key, 'lcp'), arrayElement(measurements.value, indexOf(measurements.key, 'lcp')), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement(('duration', 300), 2), 4))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, 4.56), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), `_snuba_measurements[lcp]`, _snuba_duration), 0)), 0), 113.45)), 0) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, 0) AND notEquals(transaction_status, 1) AND notEquals(transaction_status, 2)), count()) AS _snuba_failure_rate), (divide(count(), divide(3600.0, 60)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals(('transaction' AS _snuba_type), 'transaction') AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime('2023-06-13T09:08:51', 'Universal')) AND less(_snuba_finish_ts, toDateTime('2023-07-11T09:08:51', 'Universal')) AND in((project_id AS _snuba_project_id), [123, 456, 789]) AND equals((environment AS _snuba_environment), 'production') GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT 10000 OFFSET 0",
         "SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(key, %s), arrayElement(value, indexOf(key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s"
     );
