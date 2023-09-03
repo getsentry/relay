@@ -6,7 +6,7 @@ use std::slice::SliceIndex;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sqlparser::ast::{self, Expr, Ident, Statement, Value, VisitMut, VisitorMut};
+use sqlparser::ast::{self, Expr, Ident, Statement, UnaryOperator, Value, VisitMut, VisitorMut};
 use sqlparser::dialect::GenericDialect;
 
 /// Removes SQL comments starting with "--" or "#".
@@ -130,66 +130,22 @@ impl NormalizeVisitor {
     fn placeholder() -> Value {
         Value::Number("%s".into(), false)
     }
-}
 
-impl VisitorMut for NormalizeVisitor {
-    type Break = ();
-
-    fn pre_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
-        match expr {
-            Expr::Value(x) => *x = Self::placeholder(),
-            Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
-            Expr::CompoundIdentifier(parts) => {
-                if let Some(last) = parts.pop() {
-                    *parts = vec![last];
-                }
-            }
-            _ => {}
-        }
-        ControlFlow::Continue(())
-    }
-
-    fn pre_visit_statement(&mut self, statement: &mut ast::Statement) -> ControlFlow<Self::Break> {
-        match statement {
-            ast::Statement::Savepoint { name } => {
-                name.quote_style = None;
-                name.value = "%s".into()
-            } // TODO: placeholder constant
-            _ => {}
-        };
-        ControlFlow::Continue(())
-    }
-
-    fn post_visit_statement(&mut self, statement: &mut ast::Statement) -> ControlFlow<Self::Break> {
-        match statement {
-            ast::Statement::Query(x) => match &mut *x.body {
-                ast::SetExpr::Select(select) => {
-                    let mut collapse = vec![];
-                    for item in std::mem::take(&mut select.projection) {
-                        if match &item {
-                            ast::SelectItem::UnnamedExpr(expr) => {
-                                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
-                            }
-                            ast::SelectItem::ExprWithAlias { expr, alias } => {
-                                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
-                            }
-                            _ => false,
-                        } {
-                            collapse.push(item);
-                        } else {
-                            match collapse.len() {
-                                0 => {}
-                                1 => {
-                                    select.projection.append(&mut collapse);
-                                }
-                                _ => select.projection.push(ast::SelectItem::UnnamedExpr(
-                                    Expr::Value(Value::Number("..".into(), false)),
-                                )),
-                            }
-                            collapse.clear();
-                            select.projection.push(item);
-                        }
+    fn transform_query(query: &mut ast::Query) {
+        if let ast::SetExpr::Select(select) = &mut *query.body {
+            let mut collapse = vec![];
+            for item in std::mem::take(&mut select.projection) {
+                if match &item {
+                    ast::SelectItem::UnnamedExpr(expr) => {
+                        matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
                     }
+                    ast::SelectItem::ExprWithAlias { expr, .. } => {
+                        matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
+                    }
+                    _ => false,
+                } {
+                    collapse.push(item);
+                } else {
                     match collapse.len() {
                         0 => {}
                         1 => {
@@ -202,22 +158,73 @@ impl VisitorMut for NormalizeVisitor {
                                 false,
                             )))),
                     }
+                    collapse.clear();
+                    select.projection.push(item);
                 }
-                _ => {}
-            },
+            }
+            match collapse.len() {
+                0 => {}
+                1 => {
+                    select.projection.append(&mut collapse);
+                }
+                _ => select
+                    .projection
+                    .push(ast::SelectItem::UnnamedExpr(Expr::Value(Value::Number(
+                        "..".into(),
+                        false,
+                    )))),
+            }
+        }
+    }
+}
+
+impl VisitorMut for NormalizeVisitor {
+    type Break = ();
+
+    fn pre_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
+        match expr {
+            Expr::UnaryOp { op: _, expr: inner } => {
+                if matches!(inner.as_ref(), Expr::Value(_)) {
+                    *expr = Expr::Value(Self::placeholder());
+                }
+            }
+            Expr::Value(x) => *x = Self::placeholder(),
+
+            Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
+            Expr::CompoundIdentifier(parts) => {
+                if let Some(last) = parts.pop() {
+                    *parts = vec![last];
+                }
+            }
+            Expr::Subquery(query) => Self::transform_query(query),
+            _ => {}
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn pre_visit_statement(&mut self, statement: &mut ast::Statement) -> ControlFlow<Self::Break> {
+        match statement {
             Statement::Insert {
                 columns, source, ..
             } => {
                 *columns = vec![Ident::new("..")];
-                match &mut *source.body {
-                    ast::SetExpr::Values(v) => {
-                        v.rows = vec![vec![Expr::Value(Self::placeholder())]]
-                    }
-                    _ => {}
+                if let ast::SetExpr::Values(v) = &mut *source.body {
+                    v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                 }
             }
+            Statement::Savepoint { name } => {
+                name.quote_style = None;
+                name.value = "%s".into()
+            } // TODO: placeholder constant
             _ => {}
         };
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_statement(&mut self, statement: &mut Statement) -> ControlFlow<Self::Break> {
+        if let ast::Statement::Query(query) = statement {
+            Self::transform_query(query);
+        }
         ControlFlow::Continue(())
     }
 
@@ -573,7 +580,7 @@ mod tests {
     scrub_sql_test!(
         values_multi,
         "INSERT INTO a (b, c, d, e) VALuES (%s, %s, %s, %s), (%s, %s, %s, %s), (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
-        "INSERT INTO a (..) VALuES (%s) ON CONFLICT DO NOTHING"
+        "INSERT INTO a (..) VALUES (%s)  ON CONFLICT DO NOTHING"
     );
 
     scrub_sql_test!(
