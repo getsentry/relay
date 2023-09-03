@@ -5,6 +5,7 @@ use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 use std::{env, fmt, fs, io};
 
@@ -1251,7 +1252,7 @@ impl ConfigObject for ConfigValues {
 pub struct Config {
     values: ConfigValues,
     credentials: Option<Credentials>,
-    global_config: Option<GlobalConfig>,
+    global_config: Option<Arc<GlobalConfig>>,
     path: PathBuf,
 }
 
@@ -1266,8 +1267,8 @@ impl fmt::Debug for Config {
 
 impl Config {
     /// globconf
-    pub fn global_config(&self) -> Option<&GlobalConfig> {
-        self.global_config.as_ref()
+    pub fn global_config(&self) -> Option<Arc<GlobalConfig>> {
+        self.global_config.clone()
     }
 
     /// Loads a config from a given config folder.
@@ -1283,7 +1284,7 @@ impl Config {
             } else {
                 None
             },
-            global_config: GlobalConfig::from_file()?,
+            global_config: GlobalConfig::from_file()?.map(Arc::new),
             path: path.clone(),
         };
 
@@ -1302,7 +1303,7 @@ impl Config {
             values: serde_json::from_value(value)
                 .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
             credentials: None,
-            global_config: GlobalConfig::from_file()?,
+            global_config: GlobalConfig::from_file()?.map(Arc::new),
             path: PathBuf::new(),
         })
     }

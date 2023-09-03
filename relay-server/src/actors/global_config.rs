@@ -157,19 +157,10 @@ pub struct GlobalConfigService {
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let (status, (global_config_watch, _)) = {
-            match config.global_config() {
-                Some(global_config) => (
-                    Status::StaticFile,
-                    watch::channel(Arc::new(global_config.clone())),
-                ),
-                None => (Status::Normal, watch::channel(Arc::default())),
-            }
-        };
-
+        let (global_config_watch, _) = watch::channel(Arc::default());
         let status = Status::UnInit;
-
         let (internal_tx, internal_rx) = mpsc::channel(1);
+
         Self {
             config,
             global_config_watch,
@@ -266,25 +257,25 @@ impl Service for GlobalConfigService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            relay_log::info!("global config service starting");
-
             match (self.config.has_credentials(), self.config.global_config()) {
                 (true, None) => {
                     // NOTE(iker): if this first request fails it's possible the default
                     // global config is forwarded. This is not ideal, but we accept it
                     // for now.
+                    relay_log::info!("global config service starting");
                     self.update_global_config();
                     self.status = Status::Normal;
                 }
                 (false, None) => {
                     // NOTE(iker): not making a request results in the sleep handler
                     // not being reset, so no new requests are made.
-                    relay_log::info!("fetching global configs disabled: no credentials configured");
+                    relay_log::info!("global config service starting with fetching disabled: no credentials configured");
                     self.status = Status::NoCredentials;
                 }
                 (_, Some(global_config)) => {
+                    relay_log::info!("using static global config loaded from local file");
                     self.global_config_watch
-                        .send(Arc::new(global_config.clone()))
+                        .send(global_config.clone())
                         .unwrap();
                     self.status = Status::StaticFile;
                 }
