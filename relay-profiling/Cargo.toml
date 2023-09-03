@@ -10,7 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-android_trace_log = { version = "0.2.0", features = ["serde"] }
+android_trace_log = { version = "0.3.0", features = ["serde"] }
 chrono = { workspace = true }
 data-encoding = "2.3.3"
 relay-event-schema = { path = "../relay-event-schema" }
