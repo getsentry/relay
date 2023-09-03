@@ -123,6 +123,15 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
     }
 }
 
+#[derive(Debug)]
+enum Status {
+    UnInit,
+    Normal,
+    NoCredentials,
+    StaticFile,
+    ShuttingDown,
+}
+
 /// Service implementing the [`GlobalConfigManager`] interface.
 ///
 /// The service offers two alternatives to fetch the [`GlobalConfig`]:
@@ -141,12 +150,25 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
+    /// Status of service.
+    status: Status,
 }
 
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let (global_config_watch, _) = watch::channel(Arc::default());
+        let (status, (global_config_watch, _)) = {
+            match config.global_config() {
+                Some(global_config) => (
+                    Status::StaticFile,
+                    watch::channel(Arc::new(global_config.clone())),
+                ),
+                None => (Status::Normal, watch::channel(Arc::default())),
+            }
+        };
+
+        let status = Status::UnInit;
+
         let (internal_tx, internal_rx) = mpsc::channel(1);
         Self {
             config,
@@ -155,6 +177,7 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
+            status,
         }
     }
 
@@ -245,22 +268,33 @@ impl Service for GlobalConfigService {
         tokio::spawn(async move {
             relay_log::info!("global config service starting");
 
-            if self.config.has_credentials() {
-                // NOTE(iker): if this first request fails it's possible the default
-                // global config is forwarded. This is not ideal, but we accept it
-                // for now.
-                self.update_global_config();
-            } else {
-                // NOTE(iker): not making a request results in the sleep handler
-                // not being reset, so no new requests are made.
-                relay_log::info!("fetching global configs disabled: no credentials configured");
+            match (self.config.has_credentials(), self.config.global_config()) {
+                (true, None) => {
+                    // NOTE(iker): if this first request fails it's possible the default
+                    // global config is forwarded. This is not ideal, but we accept it
+                    // for now.
+                    self.update_global_config();
+                    self.status = Status::Normal;
+                }
+                (false, None) => {
+                    // NOTE(iker): not making a request results in the sleep handler
+                    // not being reset, so no new requests are made.
+                    relay_log::info!("fetching global configs disabled: no credentials configured");
+                    self.status = Status::NoCredentials;
+                }
+                (_, Some(global_config)) => {
+                    self.global_config_watch
+                        .send(Arc::new(global_config.clone()))
+                        .unwrap();
+                    self.status = Status::StaticFile;
+                }
             }
 
             loop {
                 tokio::select! {
                     biased;
 
-                    () = &mut self.fetch_handle => self.update_global_config(),
+                    () = &mut self.fetch_handle, if matches!(self.status, Status::Normal) => self.update_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
 

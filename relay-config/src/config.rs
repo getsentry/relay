@@ -12,6 +12,7 @@ use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::uuid::Uuid;
 use relay_common::Dsn;
+use relay_dynamic_config::GlobalConfig;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
@@ -1250,6 +1251,7 @@ impl ConfigObject for ConfigValues {
 pub struct Config {
     values: ConfigValues,
     credentials: Option<Credentials>,
+    global_config: Option<GlobalConfig>,
     path: PathBuf,
 }
 
@@ -1263,6 +1265,11 @@ impl fmt::Debug for Config {
 }
 
 impl Config {
+    /// globconf
+    pub fn global_config(&self) -> Option<&GlobalConfig> {
+        self.global_config.as_ref()
+    }
+
     /// Loads a config from a given config folder.
     pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         let path = env::current_dir()
@@ -1276,6 +1283,7 @@ impl Config {
             } else {
                 None
             },
+            global_config: GlobalConfig::from_file()?,
             path: path.clone(),
         };
 
@@ -1294,6 +1302,7 @@ impl Config {
             values: serde_json::from_value(value)
                 .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
             credentials: None,
+            global_config: GlobalConfig::from_file()?,
             path: PathBuf::new(),
         })
     }
@@ -2022,6 +2031,7 @@ impl Default for Config {
             values: ConfigValues::default(),
             credentials: None,
             path: PathBuf::new(),
+            global_config: None,
         }
     }
 }

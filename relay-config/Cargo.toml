@@ -20,6 +20,7 @@ num_cpus = "1.13.0"
 relay-auth = { path = "../relay-auth" }
 relay-common = { path = "../relay-common" }
 relay-kafka = { path = "../relay-kafka" }
+relay-dynamic-config = { path = "../relay-dynamic-config" }
 relay-log = { path = "../relay-log", features = ["init"] }
 relay-metrics = { path = "../relay-metrics" }
 relay-redis = { path = "../relay-redis" }
