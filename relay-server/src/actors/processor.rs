@@ -2796,11 +2796,16 @@ impl Service for EnvelopeProcessorService {
             };
 
             loop {
-                let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
+                let next_msg = async {
+                    let permit_result = semaphore.clone().acquire_owned().await;
+                    // `permit_result` might get dropped when this future is cancelled while awaiting
+                    // `rx.recv()`. This is OK though: No envelope is received so the permit is not
+                    // required.
+                    (rx.recv().await, permit_result)
+                };
 
                 tokio::select! {
                    biased;
-
                     // TODO(iker): deal with the error when the sender of the channel is dropped.
                     _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
@@ -2824,19 +2829,18 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
+    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
+    use relay_event_schema::protocol::{EventId, TransactionSource};
+    use relay_pii::DataScrubbingConfig;
     use relay_sampling::condition::RuleCondition;
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
-    use similar_asserts::assert_eq;
-
-    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
-    use relay_common::uuid::Uuid;
-    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
-    use relay_event_schema::protocol::{EventId, TransactionSource};
-    use relay_pii::DataScrubbingConfig;
     use relay_test::mock_service;
+    use similar_asserts::assert_eq;
+    use uuid::Uuid;
 
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;

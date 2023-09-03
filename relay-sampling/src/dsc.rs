@@ -12,11 +12,11 @@ use std::fmt;
 
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
-use relay_common::uuid::Uuid;
 use relay_event_schema::protocol::{Event, TraceContext};
 use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use uuid::Uuid;
 
 /// DynamicSamplingContext created by the first Sentry SDK in the call chain.
 ///
