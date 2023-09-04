@@ -123,6 +123,18 @@
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
@@ -167,6 +179,10 @@
 
     <span class="doccomment">/// A flag indicating whether the app is in foreground or not. An app is in foreground when it&#39;s visible to the user.
     </span><span class="kw">pub </span>in_foreground: Annotated&lt;bool&gt;,
+
+    <span class="doccomment">/// The names of the currently visible views.
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
+    </span><span class="kw">pub </span>view_names: Annotated&lt;Vec&lt;Annotated&lt;String&gt;&gt;&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
@@ -221,6 +237,10 @@
   &quot;app_build&quot;: &quot;100001&quot;,
   &quot;app_memory&quot;: 22883948,
   &quot;in_foreground&quot;: true,
+  &quot;view_names&quot;: [
+    &quot;FooViewController&quot;,
+    &quot;BarViewController&quot;
+  ],
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;app&quot;
 }&quot;#</span>;
@@ -234,6 +254,10 @@
             app_build: Annotated::new(<span class="string">&quot;100001&quot;</span>.to_string().into()),
             app_memory: Annotated::new(<span class="number">22883948</span>),
             in_foreground: Annotated::new(<span class="bool-val">true</span>),
+            view_names: Annotated::new(<span class="macro">vec!</span>[
+                Annotated::new(<span class="string">&quot;FooViewController&quot;</span>.to_string()),
+                Annotated::new(<span class="string">&quot;BarViewController&quot;</span>.to_string()),
+            ]),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
