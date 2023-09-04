@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
 - Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
 
 **Bug Fixes**:
@@ -12,6 +13,7 @@
 - Fixes the `TraceContext.status` not being defaulted to `unknown` before the new metrics extraction pipeline. ([#2436](https://github.com/getsentry/relay/pull/2436))
 - Support on-demand metrics for alerts and widgets in external Relays. ([#2440](https://github.com/getsentry/relay/pull/2440))
 - Prevent sporadic data loss in `EnvelopeProcessorService`. ([#2454](https://github.com/getsentry/relay/pull/2454))
+- Prevent panic when android trace contains invalid start time. ([#2457](https://github.com/getsentry/relay/pull/2457))
 
 **Internal**:
 
@@ -114,7 +116,7 @@
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
 - Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
 
-- Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
+- Relay now supports a simplified cron check-in API. ([#2153](https://github.com/getsentry/relay/pull/2153))
 
 ## 23.5.1
 

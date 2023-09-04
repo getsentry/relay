@@ -18,10 +18,10 @@ relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-log = { path = "../relay-log", optional = true }
 relay-redis = { path = "../relay-redis", optional = true }
-serde = { version = "1.0.114", features = ["derive"] }
-smallvec = { version = "1.4.0", features = ["serde"] }
-thiserror = { version = "1.0.38", optional = true }
+serde = { workspace = true }
+smallvec = { workspace = true }
+thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
-insta = { version = "1.31.0", features = ["ron"] }
-serde_json = "1.0.55"
+insta = { workspace = true }
+serde_json = { workspace = true }

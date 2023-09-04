@@ -75,6 +75,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "android-tzdata"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e999941b234f3131b00bc13c22d06e8c5ff726d1b6318ac7eb276997bbb4fef0"
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -85,9 +91,9 @@ dependencies = [
 
 [[package]]
 name = "android_trace_log"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbde12639dffb3ef0549232753981842c669e142255e48aaa2748a1e0f534a96"
+checksum = "5b6b53e6d20664ddcbc06b80f29c64330f3c3aa01b597a8743f4368623a03718"
 dependencies = [
  "chrono",
  "log",
@@ -467,15 +473,15 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chrono"
-version = "0.4.24"
+version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e3c5919066adf22df73762e50cffcde3a758f2a848b113b586d1f86728b673b"
+checksum = "95ed24df0632f708f5f6d8082675bef2596f7084dee3dd55f632290bf35bfe0f"
 dependencies = [
+ "android-tzdata",
  "iana-time-zone",
- "num-integer",
  "num-traits",
  "serde",
- "winapi",
+ "windows-targets 0.48.0",
 ]
 
 [[package]]
@@ -1339,7 +1345,6 @@ checksum = "13e2792b0ff0340399d58445b88fd9770e3489eff258a4cbc1523418f12abf84"
 dependencies = [
  "futures-channel",
  "futures-core",
- "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -3029,12 +3034,12 @@ dependencies = [
  "dialoguer",
  "hostname",
  "once_cell",
- "relay-common",
  "relay-config",
  "relay-log",
  "relay-server",
  "relay-statsd",
  "tikv-jemallocator",
+ "uuid",
 ]
 
 [[package]]
@@ -3051,6 +3056,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3098,6 +3104,7 @@ dependencies = [
  "sentry-release-parser",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -3113,7 +3120,6 @@ dependencies = [
  "sentry-types",
  "serde",
  "serde_test",
- "uuid",
 ]
 
 [[package]]
@@ -3134,6 +3140,7 @@ dependencies = [
  "serde_yaml 0.9.17",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3203,6 +3210,7 @@ dependencies = [
  "sqlparser",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3227,6 +3235,7 @@ dependencies = [
  "similar-asserts",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3323,6 +3332,7 @@ dependencies = [
  "relay-test",
  "serde",
  "serde_json",
+ "similar-asserts",
  "thiserror",
  "tokio",
 ]
@@ -3333,11 +3343,11 @@ version = "23.8.0"
 dependencies = [
  "once_cell",
  "regex",
- "relay-common",
  "serde",
  "serde_json",
  "similar-asserts",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3387,13 +3397,13 @@ name = "relay-protocol"
 version = "23.8.0"
 dependencies = [
  "num-traits",
- "relay-common",
  "relay-protocol-derive",
  "schemars",
  "serde",
  "serde_json",
  "similar-asserts",
  "smallvec",
+ "uuid",
 ]
 
 [[package]]
@@ -3468,6 +3478,7 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "unicase",
+ "uuid",
 ]
 
 [[package]]
@@ -3493,7 +3504,6 @@ dependencies = [
  "minidump",
  "multer",
  "once_cell",
- "parking_lot",
  "regex",
  "relay-auth",
  "relay-aws-extension",
@@ -3533,6 +3543,7 @@ dependencies = [
  "tower",
  "tower-http",
  "url",
+ "uuid",
  "zstd",
 ]
 

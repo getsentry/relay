@@ -2,13 +2,13 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_common::time;
-use relay_common::uuid::Uuid;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema};
 use sentry_release_parser::Release as ParsedRelease;
+use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{

@@ -158,10 +158,7 @@ mod tests {
             Annotated::<Event>::from_json(r#"{"logentry": {"message": "hi"}}"#).unwrap();
 
         let selectors = selector_suggestions_from_value(&mut event);
-        insta::assert_yaml_snapshot!(selectors, @r###"
-        ---
-        []
-        "###);
+        assert!(selectors.is_empty());
     }
 
     #[test]
@@ -216,44 +213,81 @@ mod tests {
         .unwrap();
 
         let selectors = selector_suggestions_from_value(&mut event);
-        insta::assert_yaml_snapshot!(selectors, @r#"
-        ---
-        - path: $string
-          value: "123"
-        - path: $string
-          value: Divided by zero
-        - path: $string
-          value: Something failed
-        - path: $string
-          value: bar
-        - path: $string
-          value: hi
-        - path: $string
-          value: not really
-        - path: $error.value
-          value: Divided by zero
-        - path: $error.value
-          value: Something failed
-        - path: $frame.abs_path
-          value: foo/bar/baz
-        - path: $frame.filename
-          value: baz
-        - path: $frame.vars
-          value: ~
-        - path: $frame.vars.bam
-          value: bar
-        - path: $frame.vars.foo
-          value: bar
-        - path: $http.headers
-          value: ~
-        - path: $http.headers.Authorization
-          value: not really
-        - path: $message
-          value: hi
-        - path: extra
-          value: ~
-        - path: "extra.'My Custom Value'"
-          value: "123"
-        "#);
+        insta::assert_json_snapshot!(selectors, @r###"
+        [
+          {
+            "path": "$string",
+            "value": "123"
+          },
+          {
+            "path": "$string",
+            "value": "Divided by zero"
+          },
+          {
+            "path": "$string",
+            "value": "Something failed"
+          },
+          {
+            "path": "$string",
+            "value": "bar"
+          },
+          {
+            "path": "$string",
+            "value": "hi"
+          },
+          {
+            "path": "$string",
+            "value": "not really"
+          },
+          {
+            "path": "$error.value",
+            "value": "Divided by zero"
+          },
+          {
+            "path": "$error.value",
+            "value": "Something failed"
+          },
+          {
+            "path": "$frame.abs_path",
+            "value": "foo/bar/baz"
+          },
+          {
+            "path": "$frame.filename",
+            "value": "baz"
+          },
+          {
+            "path": "$frame.vars",
+            "value": null
+          },
+          {
+            "path": "$frame.vars.bam",
+            "value": "bar"
+          },
+          {
+            "path": "$frame.vars.foo",
+            "value": "bar"
+          },
+          {
+            "path": "$http.headers",
+            "value": null
+          },
+          {
+            "path": "$http.headers.Authorization",
+            "value": "not really"
+          },
+          {
+            "path": "$message",
+            "value": "hi"
+          },
+          {
+            "path": "extra",
+            "value": null
+          },
+          {
+            "path": "extra.'My Custom Value'",
+            "value": "123"
+          }
+        ]
+        "###);
     }
 }

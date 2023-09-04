@@ -10,5 +10,5 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 relay-ffi-macros = { path = "../relay-ffi-macros" }
