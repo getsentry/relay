@@ -1279,7 +1279,7 @@ impl Config {
             } else {
                 None
             },
-            global_config: GlobalConfig::load_from_file()?.map(Arc::new),
+            global_config: GlobalConfig::load(&path)?.map(Arc::new),
             path: path.clone(),
         };
 
@@ -1298,7 +1298,7 @@ impl Config {
             values: serde_json::from_value(value)
                 .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
             credentials: None,
-            global_config: GlobalConfig::load_from_file()?.map(Arc::new),
+            global_config: None,
             path: PathBuf::new(),
         })
     }

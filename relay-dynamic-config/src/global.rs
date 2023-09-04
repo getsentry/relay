@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Serialize};
 
 /// A dynamic configuration for all Relays passed down from Sentry.
@@ -9,11 +11,14 @@ use serde::{Deserialize, Serialize};
 pub struct GlobalConfig {}
 
 impl GlobalConfig {
+    /// The full filename of the global config file, including the file extension.
+    fn path(base: &Path) -> PathBuf {
+        base.join("global_config.json")
+    }
+
     /// Loads the [`GlobalConfig`] from a file if it's provided.
-    pub fn load_from_file() -> anyhow::Result<Option<Self>> {
-        let path = std::env::current_dir()?
-            .join(".relay")
-            .join("global_config.json");
+    pub fn load(base: &Path) -> anyhow::Result<Option<Self>> {
+        let path = Self::path(base);
 
         match path.exists() {
             true => {
