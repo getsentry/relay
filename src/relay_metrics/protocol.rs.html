@@ -945,6 +945,7 @@
 <a href="#945" id="945">945</a>
 <a href="#946" id="946">946</a>
 <a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
@@ -1523,7 +1524,8 @@
     </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str;
 
     <span class="doccomment">/// Returns the number of raw data points in this container.
-    /// See [`crate::aggregation::BucketValue::len()`].
+    ///
+    /// See [`BucketValue::len`](crate::BucketValue::len).
     </span><span class="kw">fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize;
 
     <span class="doccomment">/// Returns `true` if this container contains no values.
