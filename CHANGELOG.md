@@ -12,6 +12,7 @@
 - Fixes the `TraceContext.status` not being defaulted to `unknown` before the new metrics extraction pipeline. ([#2436](https://github.com/getsentry/relay/pull/2436))
 - Support on-demand metrics for alerts and widgets in external Relays. ([#2440](https://github.com/getsentry/relay/pull/2440))
 - Prevent sporadic data loss in `EnvelopeProcessorService`. ([#2454](https://github.com/getsentry/relay/pull/2454))
+- Prevent panic when android trace contains invalid start time. ([#2457](https://github.com/getsentry/relay/pull/2457))
 
 **Internal**:
 
