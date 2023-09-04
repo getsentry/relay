@@ -15,7 +15,7 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -129,7 +129,7 @@ enum Status {
     Normal,
     NoCredentials,
     StaticFile,
-    ShuttingDown,
+    //ShuttingDown,
 }
 
 /// Service implementing the [`GlobalConfigManager`] interface.
@@ -158,7 +158,6 @@ impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (global_config_watch, _) = watch::channel(Arc::default());
-        let status = Status::UnInit;
         let (internal_tx, internal_rx) = mpsc::channel(1);
 
         Self {
@@ -168,7 +167,7 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
-            status,
+            status: Status::UnInit,
         }
     }
 
