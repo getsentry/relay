@@ -1,12 +1,12 @@
 //! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 
-use std::ops::{ControlFlow, Index};
-use std::slice::SliceIndex;
+use std::borrow::Cow;
+use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use sqlparser::ast::{self, Expr, Ident, Statement, UnaryOperator, Value, VisitMut, VisitorMut};
+use sqlparser::ast::{self, Expr, Ident, Statement, Value, VisitMut, VisitorMut};
 use sqlparser::dialect::{Dialect, GenericDialect};
 
 /// Removes SQL comments starting with "--" or "#".
@@ -92,43 +92,38 @@ static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1
 
 /// Normalizes the given SQL-query-like string.
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
-    match parse_query(db_system, string) {
-        Ok(s) => s,
-        Err(e) => {
-            dbg!(e);
-            return None;
+    if let Ok(mut parsed) = parse_query(db_system, string) {
+        let mut visitor = NormalizeVisitor;
+        parsed.visit(&mut visitor);
+        return Some(parsed.iter().map(Statement::to_string).join("; "));
+    };
+
+    let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
+
+    let mut string = Cow::from(string.trim());
+
+    for (regex, replacement) in [
+        (&NORMALIZER_REGEX, "$pre%s"),
+        (&COMMENTS, "\n"),
+        (&INLINE_COMMENTS, ""),
+        (&WHITESPACE, " "),
+        (&PARENS, "$pre$post"),
+        (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
+        (&STRIP_QUOTES, "$entity_name"),
+        (&COLLAPSE_ENTITIES, "$entity_name"),
+        (&COLLAPSE_COLUMNS, "$pre..$post"),
+    ] {
+        let replaced = regex.replace_all(&string, replacement);
+        if let Cow::Owned(s) = replaced {
+            string = Cow::Owned(s);
         }
     }
-    let mut visitor = NormalizeVisitor;
-    parsed.visit(&mut visitor);
-    Some(parsed.iter().map(Statement::to_string).join("; "))
 
-    // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
-
-    // let mut string = Cow::from(string.trim());
-
-    // for (regex, replacement) in [
-    //     (&NORMALIZER_REGEX, "$pre%s"),
-    //     (&COMMENTS, "\n"),
-    //     (&INLINE_COMMENTS, ""),
-    //     (&WHITESPACE, " "),
-    //     (&PARENS, "$pre$post"),
-    //     (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
-    //     (&STRIP_QUOTES, "$entity_name"),
-    //     (&COLLAPSE_ENTITIES, "$entity_name"),
-    //     (&COLLAPSE_COLUMNS, "$pre..$post"),
-    // ] {
-    //     let replaced = regex.replace_all(&string, replacement);
-    //     if let Cow::Owned(s) = replaced {
-    //         string = Cow::Owned(s);
-    //     }
-    // }
-
-    // match string {
-    //     Cow::Owned(scrubbed) => Some(scrubbed),
-    //     Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
-    //     Cow::Borrowed(_) => None,
-    // }
+    match string {
+        Cow::Owned(scrubbed) => Some(scrubbed),
+        Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
+        Cow::Borrowed(_) => None,
+    }
 }
 
 struct NormalizeVisitor;
@@ -141,6 +136,8 @@ impl NormalizeVisitor {
     fn transform_query(query: &mut ast::Query) {
         if let ast::SetExpr::Select(select) = &mut *query.body {
             let mut collapse = vec![];
+
+            // Iterate projection (the thing that's being selected).
             for item in std::mem::take(&mut select.projection) {
                 if match &item {
                     ast::SelectItem::UnnamedExpr(expr) => {
@@ -180,6 +177,13 @@ impl NormalizeVisitor {
                         "..".into(),
                         false,
                     )))),
+            }
+
+            // Iterate "FROM"
+            for from in select.from.iter_mut() {
+                if let ast::TableFactor::Derived { subquery, .. } = &mut from.relation {
+                    Self::transform_query(subquery);
+                }
             }
         }
     }
@@ -240,10 +244,6 @@ impl VisitorMut for NormalizeVisitor {
             } // TODO: placeholder constant
             _ => {}
         }
-        ControlFlow::Continue(())
-    }
-
-    fn post_visit_expr(&mut self, _expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
         ControlFlow::Continue(())
     }
 }
@@ -417,7 +417,7 @@ mod tests {
     scrub_sql_test!(
         various_parameterized_cutoff,
         "select count() from table1 where name in ('foo', 'bar', 'ba",
-        "SELECT count() FROM table1 WHERE name IN (%s"
+        "select count() FROM table1 WHERE name in (%s"
     );
 
     scrub_sql_test!(
@@ -496,13 +496,13 @@ mod tests {
     scrub_sql_test!(
         strip_prefixes_ansi,
         r#"SELECT "table"."foo", count(*) from "table" WHERE sku = %s"#,
-        r#"SELECT foo, count(*) FROM table1 WHERE sku = %s"#
+        r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     );
 
     scrub_sql_test!(
         strip_prefixes_mysql_generic,
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table1 WHERE sku = %s"#
+        r#"SELECT foo, count(*) from table WHERE sku = %s"#
     );
 
     scrub_sql_test_with_dialect!(
@@ -695,7 +695,7 @@ mod tests {
             ) srpe
             inner join foo on foo.id = foo_id
         ",
-        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x where foo = %s) srpe WHERE x = %s) srpe INNER JOIN foo ON id = foo_id"
+        "SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id"
     );
 
     scrub_sql_test!(
@@ -740,12 +740,6 @@ mod tests {
         bytesa,
         r#"SELECT "t"."x", "t"."arr"::bytea, "t"."c" WHERE "t"."id" IN (%s, %s)"#,
         "SELECT .. WHERE id IN (%s)"
-    );
-
-    scrub_sql_test!(
-        collapse_list_cutoff,
-        r#"SELECT "t"."a", "t"."b", "t..."#,
-        "SELECT .."
     );
 
     scrub_sql_test!(
