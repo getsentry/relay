@@ -103,7 +103,7 @@ fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
 ///
 /// This is an approximate function. The bucket is not actually serialized, but rather its
 /// footprint is estimated through the number of data points contained. See
-/// [`estimated_size`](Self::estimated_size) for more information.
+/// `estimate_size` for more information.
 fn split_at(mut bucket: Bucket, size: usize) -> (Option<Bucket>, Option<Bucket>) {
     // If there's enough space for the entire bucket, do not perform a split.
     if size >= estimate_size(&bucket) {
@@ -825,7 +825,7 @@ impl FromMessage<MergeBuckets> for Aggregator {
 /// - `Counter`: Sum of values.
 /// - `Distribution`: A list of values.
 /// - `Set`: A unique set of hashed values.
-/// - `Gauge`: A summary of the reported values, see [`GaugeValue`].
+/// - `Gauge`: A summary of the reported values, see [`GaugeValue`](crate::GaugeValue).
 ///
 /// # Conflicts
 ///

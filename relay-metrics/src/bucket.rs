@@ -561,7 +561,7 @@ impl From<MetricValue> for BucketValue {
 #[error("failed to parse metric bucket")]
 pub struct ParseBucketError(#[source] serde_json::Error);
 
-/// An aggregation of metric values by the [`Aggregator`].
+/// An aggregation of metric values.
 ///
 /// As opposed to single metric values, bucket aggregations can carry multiple values. See
 /// [`MetricType`] for a description on how values are aggregated in buckets. Values are aggregated
@@ -598,16 +598,17 @@ pub struct Bucket {
     pub width: u64,
     /// The MRI (metric resource identifier).
     ///
-    /// See [`Metric::name`].
+    /// See [`Metric::name`](crate::Metric::name).
     pub name: String,
     /// The type and aggregated values of this bucket.
     ///
-    /// See [`Metric::value`] for a mapping to inbound data.
+    /// See [`Metric::value`](crate::Metric::value) for a mapping to inbound data.
     #[serde(flatten)]
     pub value: BucketValue,
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
     ///
-    /// See [`Metric::tags`]. Every combination of tags results in a different bucket.
+    /// See [`Metric::tags`](crate::Metric::tags). Every combination of tags results in a different
+    /// bucket.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
