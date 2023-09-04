@@ -15,7 +15,7 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -123,15 +123,6 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
     }
 }
 
-#[derive(Debug)]
-enum Status {
-    UnInit,
-    Normal,
-    NoCredentials,
-    StaticFile,
-    //ShuttingDown,
-}
-
 /// Service implementing the [`GlobalConfigManager`] interface.
 ///
 /// The service offers two alternatives to fetch the [`GlobalConfig`]:
@@ -150,8 +141,6 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
-    /// Status of service.
-    status: Status,
 }
 
 impl GlobalConfigService {
@@ -167,7 +156,6 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
-            status: Status::UnInit,
         }
     }
 
@@ -194,6 +182,7 @@ impl GlobalConfigService {
     /// Requests a new global config from upstream.
     ///
     /// We check if we have credentials before sending,
+    ///
     /// otherwise we would log an [`UpstreamRequestError::NoCredentials`] error.
     fn update_global_config(&mut self) {
         self.fetch_handle.reset();
@@ -263,20 +252,17 @@ impl Service for GlobalConfigService {
                     // for now.
                     relay_log::info!("global config service starting");
                     self.update_global_config();
-                    self.status = Status::Normal;
                 }
                 (false, None) => {
                     // NOTE(iker): not making a request results in the sleep handler
                     // not being reset, so no new requests are made.
                     relay_log::info!("global config service starting with fetching disabled: no credentials configured");
-                    self.status = Status::NoCredentials;
                 }
                 (_, Some(global_config)) => {
-                    relay_log::info!("using static global config loaded from local file");
+                    relay_log::info!("global config service starting with fetching disabled: using static global config");
                     self.global_config_watch
                         .send(global_config.clone())
                         .unwrap();
-                    self.status = Status::StaticFile;
                 }
             }
 
@@ -284,7 +270,7 @@ impl Service for GlobalConfigService {
                 tokio::select! {
                     biased;
 
-                    () = &mut self.fetch_handle, if matches!(self.status, Status::Normal) => self.update_global_config(),
+                    () = &mut self.fetch_handle => self.update_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
 

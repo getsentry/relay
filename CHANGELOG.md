@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Use static global configuration if file is provided. ([#2453](https://github.com/getsentry/relay/pull/2453))
 - Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
 
 **Bug Fixes**:
