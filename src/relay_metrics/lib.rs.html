@@ -74,40 +74,6 @@
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
 <a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.
 //!
 //! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
@@ -136,8 +102,8 @@
 //! ```text
 //! {}
 //! {&quot;type&quot;: &quot;metrics&quot;, &quot;timestamp&quot;: 1615889440, ...}
-//! endpoint.response_time@millisecond:57|d|#route:user_index
-//! ...
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/metrics.statsd.txt&quot;</span>)]
+</span><span class="doccomment">//! ...
 //! ```
 //!
 //! Note that the name format used in the statsd protocol is different from the MRI: Metric names
@@ -158,30 +124,8 @@
 //! Aggregate buckets are encoded in JSON with the following schema:
 //!
 //! ```json
-//! [
-//!   {
-//!     &quot;name&quot;: &quot;endpoint.response_time&quot;,
-//!     &quot;unit&quot;: &quot;millisecond&quot;,
-//!     &quot;value&quot;: [36, 49, 57, 68],
-//!     &quot;type&quot;: &quot;d&quot;,
-//!     &quot;timestamp&quot;: 1615889440,
-//!     &quot;width&quot;: 10,
-//!     &quot;tags&quot;: {
-//!       &quot;route&quot;: &quot;user_index&quot;
-//!     }
-//!   },
-//!   {
-//!     &quot;name&quot;: &quot;endpoint.hits&quot;,
-//!     &quot;value&quot;: 4,
-//!     &quot;type&quot;: &quot;c&quot;,
-//!     &quot;timestamp&quot;: 1615889440,
-//!     &quot;width&quot;: 10,
-//!     &quot;tags&quot;: {
-//!       &quot;route&quot;: &quot;user_index&quot;
-//!     }
-//!   }
-//! ]
-//! ```
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/buckets.json&quot;</span>)]
+</span><span class="doccomment">//! ```
 //!
 //! # Ingestion
 //!
@@ -190,25 +134,13 @@
 //! separate message:
 //!
 //! ```json
-//! {
-//!   &quot;org_id&quot;: 1,
-//!   &quot;project_id&quot;: 42,
-//!   &quot;name&quot;: &quot;endpoint.response_time&quot;,
-//!   &quot;unit&quot;: &quot;millisecond&quot;,
-//!   &quot;value&quot;: [36, 49, 57, 68],
-//!   &quot;type&quot;: &quot;d&quot;,
-//!   &quot;timestamp&quot;: 1615889440,
-//!   &quot;tags&quot;: {
-//!     &quot;route&quot;: &quot;user_index&quot;
-//!   }
-//! }
-//! ```
+</span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/kafka.json&quot;</span>)]
+</span><span class="doccomment">//! ```
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
     html_logo_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;</span>,
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
 </span>)]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 </span><span class="kw">mod </span>aggregation;
 <span class="kw">mod </span>protocol;

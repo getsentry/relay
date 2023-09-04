@@ -930,6 +930,21 @@
 <a href="#930" id="930">930</a>
 <a href="#931" id="931">931</a>
 <a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
@@ -1306,9 +1321,8 @@
 /// submission looks like this:
 ///
 /// ```text
-/// endpoint.response_time@millisecond:57|d|#route:user_index
-/// endpoint.hits:1|c|#route:user_index
-/// ```
+</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/metrics.statsd.txt&quot;</span>)]
+</span><span class="doccomment">/// ```
 ///
 /// To parse a submission payload, use [`Metric::parse_all`].
 ///
@@ -1319,17 +1333,8 @@
 /// metric (see [crate documentation](crate)).
 ///
 /// ```json
-/// {
-///   &quot;name&quot;: &quot;endpoint.response_time&quot;,
-///   &quot;unit&quot;: &quot;millisecond&quot;,
-///   &quot;value&quot;: 57,
-///   &quot;type&quot;: &quot;d&quot;,
-///   &quot;timestamp&quot;: 1615889449,
-///   &quot;tags&quot;: {
-///     &quot;route&quot;: &quot;user_index&quot;
-///   }
-/// }
-/// ```
+</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/metrics.json&quot;</span>)]
+</span><span class="doccomment">/// ```
 ///
 /// # Hashing of Sets
 ///
@@ -1340,18 +1345,14 @@
 /// **Example**:
 ///
 /// ```text
-/// endpoint.users:e2546e4c-ecd0-43ad-ae27-87960e57a658|s
-/// ```
+</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.statsd.txt&quot;</span>)]
+</span><span class="doccomment">/// ```
 ///
 /// The above submission is represented as:
 ///
 /// ```json
-/// {
-///   &quot;name&quot;: &quot;endpoint.users&quot;,
-///   &quot;value&quot;: 4267882815,
-///   &quot;type&quot;: &quot;s&quot;
-/// }
-/// ```
+</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.json&quot;</span>)]
+</span><span class="doccomment">/// ```
 
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>Metric {
@@ -1601,6 +1602,8 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>similar_asserts::assert_eq;
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="attr">#[test]
@@ -1860,6 +1863,33 @@
 
         <span class="kw">let </span>metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
         <span class="macro">assert_eq!</span>(metric_count, <span class="number">2</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_metrics_docs() {
+        <span class="kw">let </span>text = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/metrics.statsd.txt&quot;</span>).trim_end();
+        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/metrics.json&quot;</span>).trim_end();
+
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">1615889449</span>);
+        <span class="kw">let </span>statsd_metrics = Metric::parse_all(text.as_bytes(), timestamp)
+            .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
+            .unwrap();
+
+        <span class="kw">let </span>json_metrics: Vec&lt;Metric&gt; = serde_json::from_str(json).unwrap();
+
+        <span class="macro">assert_eq!</span>(statsd_metrics, json_metrics);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_set_docs() {
+        <span class="kw">let </span>text = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.statsd.txt&quot;</span>).trim_end();
+        <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.json&quot;</span>).trim_end();
+
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">1615889449</span>);
+        <span class="kw">let </span>statsd_metric = Metric::parse(text.as_bytes(), timestamp).unwrap();
+        <span class="kw">let </span>json_metric: Metric = serde_json::from_str(json).unwrap();
+
+        <span class="macro">assert_eq!</span>(statsd_metric, json_metric);
     }
 }
 </code></pre></div></section></main></body></html>
