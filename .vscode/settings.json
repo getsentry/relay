@@ -24,5 +24,6 @@
   "[markdown]": {
     "editor.rulers": [80],
     "editor.tabSize": 2
-  }
+  },
+  "rust-analyzer.linkedProjects": ["./relay-event-normalization/Cargo.toml"]
 }

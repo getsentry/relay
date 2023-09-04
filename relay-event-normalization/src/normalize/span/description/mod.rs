@@ -1,6 +1,6 @@
 //! Span description scrubbing logic.
 mod sql;
-pub use sql::parse_query; // TODO: move to different module.
+pub use sql::parse_query;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
