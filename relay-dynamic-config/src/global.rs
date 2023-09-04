@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 pub struct GlobalConfig {}
 
 impl GlobalConfig {
-    /// load it from a file
-    pub fn from_file() -> anyhow::Result<Option<GlobalConfig>> {
+    /// Loads the [`GlobalConfig`] from a file if it's provided.
+    pub fn load_from_file() -> anyhow::Result<Option<Self>> {
         let path = std::env::current_dir()?
             .join(".relay")
             .join("global_config.json");

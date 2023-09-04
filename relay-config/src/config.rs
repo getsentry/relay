@@ -1266,11 +1266,6 @@ impl fmt::Debug for Config {
 }
 
 impl Config {
-    /// globconf
-    pub fn global_config(&self) -> Option<Arc<GlobalConfig>> {
-        self.global_config.clone()
-    }
-
     /// Loads a config from a given config folder.
     pub fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Config> {
         let path = env::current_dir()
@@ -1284,7 +1279,7 @@ impl Config {
             } else {
                 None
             },
-            global_config: GlobalConfig::from_file()?.map(Arc::new),
+            global_config: GlobalConfig::load_from_file()?.map(Arc::new),
             path: path.clone(),
         };
 
@@ -1303,7 +1298,7 @@ impl Config {
             values: serde_json::from_value(value)
                 .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
             credentials: None,
-            global_config: GlobalConfig::from_file()?.map(Arc::new),
+            global_config: GlobalConfig::load_from_file()?.map(Arc::new),
             path: PathBuf::new(),
         })
     }
@@ -1478,6 +1473,11 @@ impl Config {
     /// Return the current credentials
     pub fn credentials(&self) -> Option<&Credentials> {
         self.credentials.as_ref()
+    }
+
+    /// Return the optional statically configured global config.
+    pub fn global_config(&self) -> Option<Arc<GlobalConfig>> {
+        self.global_config.clone()
     }
 
     /// Set new credentials.

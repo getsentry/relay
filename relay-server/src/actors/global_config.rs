@@ -148,7 +148,6 @@ impl GlobalConfigService {
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (global_config_watch, _) = watch::channel(Arc::default());
         let (internal_tx, internal_rx) = mpsc::channel(1);
-
         Self {
             config,
             global_config_watch,
@@ -182,7 +181,6 @@ impl GlobalConfigService {
     /// Requests a new global config from upstream.
     ///
     /// We check if we have credentials before sending,
-    ///
     /// otherwise we would log an [`UpstreamRequestError::NoCredentials`] error.
     fn update_global_config(&mut self) {
         self.fetch_handle.reset();
