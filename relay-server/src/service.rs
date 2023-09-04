@@ -25,7 +25,6 @@ use crate::actors::store::StoreService;
 use crate::actors::test_store::{TestStore, TestStoreService};
 use crate::actors::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::BufferGuard;
-use crate::Runtimes;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -277,6 +276,45 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+}
+
+/// Contains secondary service runtimes.
+#[derive(Debug)]
+pub struct Runtimes {
+    upstream: Runtime,
+    project: Runtime,
+    aggregator: Runtime,
+    outcome: Runtime,
+    #[cfg(feature = "processing")]
+    store: Option<Runtime>,
+}
+
+impl Runtimes {
+    /// Creates the secondary runtimes required by services.
+    pub fn new(config: &Config) -> Self {
+        Self {
+            upstream: create_runtime("upstream-rt", 1),
+            project: create_runtime("project-rt", 1),
+            aggregator: create_runtime("aggregator-rt", 1),
+            outcome: create_runtime("outcome-rt", 1),
+            #[cfg(feature = "processing")]
+            store: config
+                .processing_enabled()
+                .then(|| create_runtime("store-rt", 1)),
+        }
+    }
+
+    /// Shuts down the runtime. Drops all futures immediately.
+    pub fn shutdown(self) {
+        self.upstream.shutdown_background();
+        self.project.shutdown_background();
+        self.aggregator.shutdown_background();
+        self.outcome.shutdown_background();
+        #[cfg(feature = "processing")]
+        if let Some(r) = self.store {
+            r.shutdown_background()
+        }
     }
 }
 

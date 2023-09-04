@@ -273,21 +273,9 @@ use std::time::Duration;
 
 use relay_config::Config;
 use relay_system::{Controller, Service};
-use tokio::runtime::Runtime;
 
 use crate::actors::server::HttpServer;
-use crate::service::{create_runtime, ServiceState};
-
-/// Contains secondary service runtimes.
-#[derive(Debug)]
-pub struct Runtimes {
-    upstream: Runtime,
-    project: Runtime,
-    aggregator: Runtime,
-    outcome: Runtime,
-    #[cfg(feature = "processing")]
-    store: Option<Runtime>,
-}
+use crate::service::{Runtimes, ServiceState};
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -304,16 +292,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // Create secondary service runtimes.
     //
     // Runtimes must not be dropped within other runtimes, so keep them alive here.
-    let runtimes = Runtimes {
-        upstream: create_runtime("upstream-rt", 1),
-        project: create_runtime("project-rt", 1),
-        aggregator: create_runtime("aggregator-rt", 1),
-        outcome: create_runtime("outcome-rt", 1),
-        #[cfg(feature = "processing")]
-        store: config
-            .processing_enabled()
-            .then(|| create_runtime("store-rt", 1)),
-    };
+    let runtimes = Runtimes::new(&config);
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
@@ -330,6 +309,9 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // not exit by themselves, and the shutdown timeout should have given them enough time to
     // complete their tasks. The additional 100ms allow services to run their error handlers.
     main_runtime.shutdown_timeout(Duration::from_millis(100));
+
+    // Shutdown all runtimes.
+    runtimes.shutdown();
 
     relay_log::info!("relay shutdown complete");
     Ok(())
