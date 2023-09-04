@@ -2,18 +2,16 @@
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
-use sqlparser::ast::{self, Expr, Ident, Statement, Value, VisitMut, VisitorMut}; // TODO: no self
+use sqlparser::ast::{
+    Expr, Ident, Query, SelectItem, SetExpr, Statement, TableFactor, Value, VisitMut, VisitorMut,
+};
 use sqlparser::dialect::{Dialect, GenericDialect};
-
-/// Used to replace placeholders (parameters) by dummy values such that the query can be parsed.
-// static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
-//     Lazy::new(|| Regex::new(r"(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)").unwrap());
 
 /// Derive the SQL dialect from `span.system` and try to parse the query into an AST.
 pub fn parse_query(
     db_system: Option<&str>,
     query: &str,
-) -> Result<Vec<ast::Statement>, sqlparser::parser::ParserError> {
+) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
     // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
     //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
     let dialect = db_system
@@ -41,64 +39,69 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
 pub struct NormalizeVisitor;
 
 impl NormalizeVisitor {
+    /// Placeholder for string and numerical literals.
     fn placeholder() -> Value {
         Value::Number("%s".into(), false)
     }
 
-    fn transform_query(query: &mut ast::Query) {
-        if let ast::SetExpr::Select(select) = &mut *query.body {
+    /// Check if a selected item can be erased into `..`. Currently we only collapse simple
+    /// columns (`col1` or `col1 AS foo`).
+    fn is_collapsible(item: &SelectItem) -> bool {
+        match item {
+            SelectItem::UnnamedExpr(expr) => {
+                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
+            }
+            SelectItem::ExprWithAlias { expr, .. } => {
+                matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
+            }
+            _ => false,
+        }
+    }
+
+    fn collapse_items(collapse: &mut Vec<SelectItem>, output: &mut Vec<SelectItem>) {
+        match collapse.len() {
+            0 => {}
+            1 => {
+                output.append(collapse);
+            }
+            _ => output.push(SelectItem::UnnamedExpr(Expr::Value(Value::Number(
+                "..".into(),
+                false,
+            )))),
+        }
+    }
+
+    /// Normalizes `SELECT ...` queries.
+    fn transform_query(query: &mut Query) {
+        if let SetExpr::Select(select) = &mut *query.body {
+            // Track collapsible selected items (e.g. `SELECT col1, col2`).
             let mut collapse = vec![];
 
-            // Iterate projection (the thing that's being selected).
+            // Iterate over selected item.
             for mut item in std::mem::take(&mut select.projection) {
-                if match &mut item {
-                    ast::SelectItem::UnnamedExpr(expr) => {
-                        matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
-                    }
-                    ast::SelectItem::ExprWithAlias { expr, alias } => {
-                        alias.quote_style = None;
-                        matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
-                    }
-                    _ => false,
-                } {
+                // Normalize aliases.
+                if let SelectItem::ExprWithAlias { ref mut alias, .. } = &mut item {
+                    alias.quote_style = None;
+                }
+                if Self::is_collapsible(&item) {
                     collapse.push(item);
                 } else {
-                    match collapse.len() {
-                        0 => {}
-                        1 => {
-                            select.projection.append(&mut collapse);
-                        }
-                        _ => select
-                            .projection
-                            .push(ast::SelectItem::UnnamedExpr(Expr::Value(Value::Number(
-                                "..".into(),
-                                false,
-                            )))),
-                    }
+                    Self::collapse_items(&mut collapse, &mut select.projection);
                     collapse.clear();
                     select.projection.push(item);
                 }
             }
-            match collapse.len() {
-                0 => {}
-                1 => {
-                    select.projection.append(&mut collapse);
-                }
-                _ => select
-                    .projection
-                    .push(ast::SelectItem::UnnamedExpr(Expr::Value(Value::Number(
-                        "..".into(),
-                        false,
-                    )))),
-            }
+            Self::collapse_items(&mut collapse, &mut select.projection);
 
             // Iterate "FROM"
             for from in select.from.iter_mut() {
                 match &mut from.relation {
-                    ast::TableFactor::Derived { subquery, .. } => {
+                    // Recurse into subqueries.
+                    TableFactor::Derived { subquery, .. } => {
                         Self::transform_query(subquery);
                     }
-                    ast::TableFactor::Table { name, .. } => {
+                    // Strip quotes from identifiers in table names.
+                    TableFactor::Table { name, .. } => {
                         for ident in &mut name.0 {
                             ident.quote_style = None;
                         }
@@ -113,56 +116,53 @@ impl NormalizeVisitor {
 impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
-    fn pre_visit_expr(&mut self, expr: &mut ast::Expr) -> ControlFlow<Self::Break> {
+    fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         match expr {
-            Expr::UnaryOp { op: _, expr: inner } => {
-                if matches!(inner.as_ref(), Expr::Value(_)) {
-                    *expr = Expr::Value(Self::placeholder());
-                }
-            }
+            // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
+            // Casts are omitted for simplification.
             Expr::Cast { expr: inner, .. } => {
-                // Discard casts.
-                *expr = *inner.clone(); // TODO: without clone?
+                *expr = *inner.clone(); // clone is unfortunate here.
             }
+            // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
+            // `"table"."col"` is replaced by `col`.
             Expr::CompoundIdentifier(parts) => {
                 if let Some(mut last) = parts.pop() {
                     last.quote_style = None;
                     *parts = vec![last];
                 }
             }
+            // `"col"` is replaced by `col`.
             Expr::Identifier(ident) => {
                 ident.quote_style = None;
             }
+            // Recurse into subqueries.
             Expr::Subquery(query) => Self::transform_query(query),
             _ => {}
         }
         ControlFlow::Continue(())
     }
 
-    // fn pre_visit_statement(&mut self, statement: &mut ast::Statement) -> ControlFlow<Self::Break> {
-    //     match statement {};
-    //     ControlFlow::Continue(())
-    // }
-
     fn post_visit_statement(&mut self, statement: &mut Statement) -> ControlFlow<Self::Break> {
         match statement {
-            ast::Statement::Query(query) => {
+            Statement::Query(query) => {
                 Self::transform_query(query);
             }
+            // `INSERT INTO col1, col2 VALUES (val1, val2)` becomes `INSERT INTO .. VALUES (%s)`.
             Statement::Insert {
                 columns, source, ..
             } => {
                 *columns = vec![Ident::new("..")];
-                if let ast::SetExpr::Values(v) = &mut *source.body {
+                if let SetExpr::Values(v) = &mut *source.body {
                     v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                 }
             }
+            // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
             Statement::Savepoint { name } => {
                 name.quote_style = None;
                 name.value = "%s".into()
-            } // TODO: placeholder constant
+            }
             _ => {}
         }
         ControlFlow::Continue(())
