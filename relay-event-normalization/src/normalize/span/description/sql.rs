@@ -138,12 +138,13 @@ impl NormalizeVisitor {
             let mut collapse = vec![];
 
             // Iterate projection (the thing that's being selected).
-            for item in std::mem::take(&mut select.projection) {
-                if match &item {
+            for mut item in std::mem::take(&mut select.projection) {
+                if match &mut item {
                     ast::SelectItem::UnnamedExpr(expr) => {
                         matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
                     }
-                    ast::SelectItem::ExprWithAlias { expr, .. } => {
+                    ast::SelectItem::ExprWithAlias { expr, alias } => {
+                        alias.quote_style = None;
                         matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
                     }
                     _ => false,
@@ -181,8 +182,16 @@ impl NormalizeVisitor {
 
             // Iterate "FROM"
             for from in select.from.iter_mut() {
-                if let ast::TableFactor::Derived { subquery, .. } = &mut from.relation {
-                    Self::transform_query(subquery);
+                match &mut from.relation {
+                    ast::TableFactor::Derived { subquery, .. } => {
+                        Self::transform_query(subquery);
+                    }
+                    ast::TableFactor::Table { name, .. } => {
+                        for ident in &mut name.0 {
+                            ident.quote_style = None;
+                        }
+                    }
+                    _ => (),
                 }
             }
         }
@@ -417,7 +426,7 @@ mod tests {
     scrub_sql_test!(
         various_parameterized_cutoff,
         "select count() from table1 where name in ('foo', 'bar', 'ba",
-        "select count() FROM table1 WHERE name in (%s"
+        "select count() from table1 where name in (%s"
     );
 
     scrub_sql_test!(
@@ -509,20 +518,19 @@ mod tests {
         strip_prefixes_mysql,
         "mysql",
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
-        r#"SELECT foo, count(*) from table WHERE sku = %s"#
+        r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     );
 
-    // TODO: reenable with fallback
-    // scrub_sql_test!(
-    //     strip_prefixes_truncated,
-    //     r#"SELECT foo = %s FROM "db"."ba"#,
-    //     r#"SELECT foo = %s FROM ba"#
-    // );
+    scrub_sql_test!(
+        strip_prefixes_truncated,
+        r#"SELECT foo = %s FROM "db"."ba"#,
+        r#"SELECT foo = %s FROM ba"#
+    );
 
     scrub_sql_test!(
         dont_scrub_double_quoted_strings_format_mysql,
         r#"SELECT * from table1 WHERE sku = "foo""#,
-        "SELECT * from table1 WHERE sku = foo"
+        "SELECT * FROM table1 WHERE sku = foo"
     );
 
     scrub_sql_test!(
