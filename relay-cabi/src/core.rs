@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::{mem, ptr, slice, str};
 
-use relay_common::uuid::Uuid;
+use uuid::Uuid;
 
 /// A length-prefixed UTF-8 string.
 ///

@@ -948,8 +948,8 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use insta::assert_debug_snapshot;
-    use relay_common::uuid::Uuid;
     use relay_test::mock_service;
+    use uuid::Uuid;
 
     use crate::testutils::empty_envelope;
 

@@ -152,7 +152,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
-    use relay_common::uuid::Uuid;
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
     use relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
@@ -160,6 +159,7 @@ mod tests {
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
     use similar_asserts::assert_eq;
+    use uuid::Uuid;
 
     use super::*;
     use crate::testutils::project_state_with_config;

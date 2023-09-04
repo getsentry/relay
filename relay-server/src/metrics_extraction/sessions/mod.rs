@@ -1,9 +1,9 @@
 use relay_common::time::UnixTimestamp;
-use relay_common::uuid::Uuid;
 use relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
 use relay_metrics::Metric;
+use uuid::Uuid;
 
 use crate::metrics_extraction::sessions::types::{
     CommonTags, SessionMetric, SessionSessionTags, SessionUserTags,

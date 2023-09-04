@@ -16,8 +16,8 @@
 )]
 #![warn(missing_docs)]
 
-use relay_common::uuid::Uuid;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Maximum length of monitor slugs.
 const SLUG_LENGTH: usize = 50;

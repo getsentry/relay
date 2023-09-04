@@ -2834,19 +2834,18 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
+    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
+    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
+    use relay_event_schema::protocol::{EventId, TransactionSource};
+    use relay_pii::DataScrubbingConfig;
     use relay_sampling::condition::RuleCondition;
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
-    use similar_asserts::assert_eq;
-
-    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
-    use relay_common::uuid::Uuid;
-    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
-    use relay_event_schema::protocol::{EventId, TransactionSource};
-    use relay_pii::DataScrubbingConfig;
     use relay_test::mock_service;
+    use similar_asserts::assert_eq;
+    use uuid::Uuid;
 
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
