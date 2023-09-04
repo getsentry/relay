@@ -1,4 +1,5 @@
 use std::collections::{btree_map, BTreeMap, BTreeSet};
+use std::iter::FusedIterator;
 use std::{fmt, mem};
 
 use float_ord::FloatOrd;
@@ -7,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    CounterType, DistributionType, GaugeType, MetricType, MetricValue, MetricsContainer, SetType,
+    parse_name_unit, parse_tags, CounterType, DistributionType, GaugeType,
+    MetricResourceIdentifier, MetricType, MetricValue, MetricsContainer, SetType,
 };
 
 /// A snapshot of values within a [`Bucket`].
@@ -448,6 +450,13 @@ macro_rules! dist {
     }};
 }
 
+/// A set of unique values.
+///
+/// Set values can be specified as strings in the submission protocol. They are always hashed
+/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+/// 32-bit integer, it will be used directly, instead.
+pub type SetValue = BTreeSet<SetType>;
+
 /// The [aggregated value](Bucket::value) of a metric bucket.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
@@ -478,7 +487,7 @@ pub enum BucketValue {
     ///
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
-    Set(BTreeSet<SetType>),
+    Set(SetValue),
     /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
     /// value, as well as the sum and count of all values.
     ///
@@ -556,10 +565,87 @@ impl From<MetricValue> for BucketValue {
     }
 }
 
+/// Parses a list of counter values separated by colons and sums them up.
+fn parse_counter(string: &str) -> Option<CounterType> {
+    let mut sum = CounterType::default();
+    for component in string.split(':') {
+        sum += component.parse::<CounterType>().ok()?;
+    }
+    Some(sum)
+}
+
+/// Parses a distribution from a list of floating point values separated by colons.
+fn parse_distribution(string: &str) -> Option<DistributionValue> {
+    let mut dist = DistributionValue::default();
+    for component in string.split(':') {
+        dist.insert(component.parse().ok()?);
+    }
+    Some(dist)
+}
+
+/// Parses a set of hashed numeric values.
+fn parse_set(string: &str) -> Option<SetValue> {
+    let mut set = SetValue::default();
+    for component in string.split(':') {
+        set.insert(component.parse().ok()?);
+    }
+    Some(set)
+}
+
+/// Parses a gauge from a value.
+///
+/// The gauge can either be given as a single floating point value, or as a list of exactly five
+/// values in the order of [`GaugeValue`] fields.
+fn parse_gauge(string: &str) -> Option<GaugeValue> {
+    let mut components = string.split(':');
+
+    let first = components.next()?.parse().ok()?;
+    Some(if let Some(min) = components.next() {
+        GaugeValue {
+            max: first,
+            min: min.parse().ok()?,
+            sum: components.next()?.parse().ok()?,
+            last: components.next()?.parse().ok()?,
+            count: components.next()?.parse().ok()?,
+        }
+    } else {
+        GaugeValue {
+            max: first,
+            min: first,
+            sum: first,
+            last: first,
+            count: 1,
+        }
+    })
+}
+
+/// Parses an MRI from a string and a separate type.
+///
+/// The given string must be a part of the MRI, including the following components:
+///  - (optional) The namespace. If missing, it is defaulted to `"custom"`
+///  - (required) The metric name.
+///  - (optional) The unit. If missing, it is defaulted to "none".
+///
+/// The metric type is never part of this string and must be supplied separately.
+fn parse_mri(string: &str, ty: MetricType) -> Option<MetricResourceIdentifier> {
+    let (name_and_namespace, unit) = parse_name_unit(string)?;
+
+    let (raw_namespace, name) = name_and_namespace
+        .split_once('/')
+        .unwrap_or(("custom", name_and_namespace));
+
+    Some(MetricResourceIdentifier {
+        ty,
+        name,
+        namespace: raw_namespace.parse().ok()?,
+        unit,
+    })
+}
+
 /// Error returned when parsing or serializing a [`Bucket`].
 #[derive(Debug, Error)]
 #[error("failed to parse metric bucket")]
-pub struct ParseBucketError(#[source] serde_json::Error);
+pub struct ParseBucketError(());
 
 /// An aggregation of metric values.
 ///
@@ -614,20 +700,85 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    // /// Parses a single metric bucket from the JSON protocol.
-    // pub fn parse(slice: &[u8]) -> Result<Self, ParseBucketError> {
-    //     serde_json::from_slice(slice).map_err(ParseBucketError)
-    // }
+    /// Parse statsd-compatible payload of format
+    /// ```text
+    /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
+    /// ```
+    fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
+        let mut components = string.split('|');
 
-    // /// Parses a set of metric bucket from the JSON protocol.
-    // pub fn parse_all(slice: &[u8]) -> Result<Vec<Bucket>, ParseBucketError> {
-    //     serde_json::from_slice(slice).map_err(ParseBucketError)
-    // }
+        let (mri_str, values_str) = components.next()?.split_once(':')?;
+        let ty = components.next().and_then(|s| s.parse().ok())?;
 
-    // /// Serializes the given buckets to the JSON protocol.
-    // pub fn serialize_all(buckets: &[Self]) -> Result<String, ParseBucketError> {
-    //     serde_json::to_string(&buckets).map_err(ParseBucketError)
-    // }
+        let mri = parse_mri(mri_str, ty)?;
+        let value = match ty {
+            MetricType::Counter => BucketValue::Counter(parse_counter(values_str)?),
+            MetricType::Distribution => BucketValue::Distribution(parse_distribution(values_str)?),
+            MetricType::Set => BucketValue::Set(parse_set(values_str)?),
+            MetricType::Gauge => BucketValue::Gauge(parse_gauge(values_str)?),
+        };
+
+        let mut bucket = Bucket {
+            timestamp,
+            width: 0,
+            name: mri.to_string(),
+            value,
+            tags: Default::default(),
+        };
+
+        for component in components {
+            if let Some('#') = component.chars().next() {
+                bucket.tags = parse_tags(component.get(1..)?)?;
+            }
+        }
+
+        Some(bucket)
+    }
+
+    /// Parses a single metric aggregate from the raw protocol.
+    ///
+    /// See the [`Bucket`] for more information on the protocol.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_metrics::{Bucket, UnixTimestamp};
+    ///
+    /// let bucket = Bucket::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
+    ///     .expect("metric should parse");
+    /// ```
+    pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseBucketError> {
+        let string = std::str::from_utf8(slice).or(Err(ParseBucketError(())))?;
+        Self::parse_str(string, timestamp).ok_or(ParseBucketError(()))
+    }
+
+    /// Parses a set of metric aggregates from the raw protocol.
+    ///
+    /// Returns a metric result for each line in `slice`, ignoring empty lines. Both UNIX newlines
+    /// (`\n`) and Windows newlines (`\r\n`) are supported.
+    ///
+    /// It is possible to continue consuming the iterator after `Err` is yielded.
+    ///
+    /// See [`Bucket`] for more information on the protocol.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_metrics::{Bucket, UnixTimestamp};
+    ///
+    /// let data = br#"
+    /// endpoint.response_time@millisecond:57|d
+    /// endpoint.hits:1|c
+    /// "#;
+    ///
+    /// for metric_result in Bucket::parse_all(data, UnixTimestamp::now()) {
+    ///     let bucket = metric_result.expect("metric should parse");
+    ///     println!("Metric {}: {:?}", bucket.name, bucket.value);
+    /// }
+    /// ```
+    pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseBuckets<'_> {
+        ParseBuckets { slice, timestamp }
+    }
 }
 
 impl MetricsContainer for Bucket {
@@ -647,6 +798,50 @@ impl MetricsContainer for Bucket {
         self.tags.remove(name);
     }
 }
+
+/// Iterator over parsed metrics returned from [`Metric::parse_all`].
+#[derive(Clone, Debug)]
+pub struct ParseBuckets<'a> {
+    slice: &'a [u8],
+    timestamp: UnixTimestamp,
+}
+
+impl Default for ParseBuckets<'_> {
+    fn default() -> Self {
+        Self {
+            slice: &[],
+            // The timestamp will never be returned.
+            timestamp: UnixTimestamp::from_secs(4711),
+        }
+    }
+}
+
+impl Iterator for ParseBuckets<'_> {
+    type Item = Result<Bucket, ParseBucketError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.slice.is_empty() {
+                return None;
+            }
+
+            let mut split = self.slice.splitn(2, |&b| b == b'\n');
+            let current = split.next()?;
+            self.slice = split.next().unwrap_or_default();
+
+            let string = match std::str::from_utf8(current) {
+                Ok(string) => string.strip_suffix('\r').unwrap_or(string),
+                Err(_) => return Some(Err(ParseBucketError(()))),
+            };
+
+            if !string.is_empty() {
+                return Some(Bucket::parse_str(string, self.timestamp).ok_or(ParseBucketError(())));
+            }
+        }
+    }
+}
+
+impl FusedIterator for ParseBuckets<'_> {}
 
 #[cfg(test)]
 mod tests {

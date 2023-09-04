@@ -283,7 +283,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
 /// invalid.
-fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
+pub(crate) fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
     if !relay_base_schema::metrics::is_valid_metric_name(name) {
@@ -336,7 +336,7 @@ fn parse_name_unit_value(string: &str, ty: MetricType) -> Option<(&str, MetricUn
 /// Parses tags in the format `tag1,tag2:value`.
 ///
 /// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
-fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
+pub(crate) fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
     let mut map = BTreeMap::new();
 
     for pair in string.split(',') {
