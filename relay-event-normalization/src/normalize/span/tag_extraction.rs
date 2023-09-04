@@ -370,7 +370,7 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
             let mut s = String::with_capacity(visitor.table_names.iter().map(String::len).sum());
             for (i, name) in visitor.table_names.into_iter().enumerate() {
                 if i == 0 {
-                    s = name;
+                    write!(&mut s, "{name}").ok();
                 } else {
                     write!(&mut s, ",{name}").ok();
                 }

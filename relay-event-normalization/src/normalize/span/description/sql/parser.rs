@@ -58,6 +58,7 @@ impl NormalizeVisitor {
         }
     }
 
+    /// Helper function to collapse a sequence of selected items into `..`.
     fn collapse_items(collapse: &mut Vec<SelectItem>, output: &mut Vec<SelectItem>) {
         match collapse.len() {
             0 => {}
@@ -93,7 +94,7 @@ impl NormalizeVisitor {
             }
             Self::collapse_items(&mut collapse, &mut select.projection);
 
-            // Iterate "FROM"
+            // Iterate "FROM".
             for from in select.from.iter_mut() {
                 match &mut from.relation {
                     // Recurse into subqueries.
