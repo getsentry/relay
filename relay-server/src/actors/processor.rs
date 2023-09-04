@@ -2640,7 +2640,7 @@ impl EnvelopeProcessorService {
                     .project_cache
                     .send(InsertMetrics::new(public_key, metrics));
             } else if item.ty() == &ItemType::MetricBuckets {
-                match Bucket::parse_all(&payload) {
+                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(mut buckets) => {
                         for bucket in &mut buckets {
                             clock_drift_processor.process_timestamp(&mut bucket.timestamp);

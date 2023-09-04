@@ -614,20 +614,20 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    /// Parses a single metric bucket from the JSON protocol.
-    pub fn parse(slice: &[u8]) -> Result<Self, ParseBucketError> {
-        serde_json::from_slice(slice).map_err(ParseBucketError)
-    }
+    // /// Parses a single metric bucket from the JSON protocol.
+    // pub fn parse(slice: &[u8]) -> Result<Self, ParseBucketError> {
+    //     serde_json::from_slice(slice).map_err(ParseBucketError)
+    // }
 
-    /// Parses a set of metric bucket from the JSON protocol.
-    pub fn parse_all(slice: &[u8]) -> Result<Vec<Bucket>, ParseBucketError> {
-        serde_json::from_slice(slice).map_err(ParseBucketError)
-    }
+    // /// Parses a set of metric bucket from the JSON protocol.
+    // pub fn parse_all(slice: &[u8]) -> Result<Vec<Bucket>, ParseBucketError> {
+    //     serde_json::from_slice(slice).map_err(ParseBucketError)
+    // }
 
-    /// Serializes the given buckets to the JSON protocol.
-    pub fn serialize_all(buckets: &[Self]) -> Result<String, ParseBucketError> {
-        serde_json::to_string(&buckets).map_err(ParseBucketError)
-    }
+    // /// Serializes the given buckets to the JSON protocol.
+    // pub fn serialize_all(buckets: &[Self]) -> Result<String, ParseBucketError> {
+    //     serde_json::to_string(&buckets).map_err(ParseBucketError)
+    // }
 }
 
 impl MetricsContainer for Bucket {
@@ -741,7 +741,7 @@ mod tests {
           }
         ]"#;
 
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
         insta::assert_debug_snapshot!(buckets, @r#"
         [
             Bucket {
@@ -776,7 +776,7 @@ mod tests {
           }
         ]"#;
 
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
         insta::assert_debug_snapshot!(buckets, @r#"
         [
             Bucket {
@@ -848,7 +848,7 @@ mod tests {
   }
 ]"#;
 
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);
     }
@@ -858,7 +858,7 @@ mod tests {
         let json = include_str!("../tests/fixtures/buckets.json")
             .trim_end()
             .replace("\r\n", "\n");
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let buckets = serde_json::from_str::<Vec<Bucket>>(&json).unwrap();
 
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);

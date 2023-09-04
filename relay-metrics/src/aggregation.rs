@@ -1905,7 +1905,7 @@ mod tests {
           }
         ]"#;
 
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
 
         let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
         let batch = iter.next().unwrap();
@@ -1930,7 +1930,7 @@ mod tests {
           }
         ]"#;
 
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
 
         // 58 is a magic number obtained by experimentation that happens to split this bucket
         let mut iter = CappedBucketIter::new(buckets.into_iter(), 108);
@@ -2359,7 +2359,7 @@ mod tests {
           }
         ]"#;
 
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
 
         let mut iter = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
         let batches = iter
