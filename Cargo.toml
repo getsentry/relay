@@ -15,7 +15,7 @@ debug = true
 
 [workspace.dependencies]
 anyhow = "1.0.66"
-chrono = { version = "0.4.24", default-features = false, features = [
+chrono = { version = "0.4.28", default-features = false, features = [
     "std",
     "serde",
 ] }
