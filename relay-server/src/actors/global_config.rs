@@ -285,11 +285,12 @@ impl Service for GlobalConfigService {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
     use relay_config::Config;
     use relay_system::{Controller, Service, ShutdownMode};
     use relay_test::mock_service;
-    use std::sync::Arc;
-    use std::time::Duration;
 
     use crate::actors::global_config::{Get, GlobalConfigService};
 
