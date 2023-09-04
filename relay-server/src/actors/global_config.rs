@@ -285,6 +285,7 @@ impl Service for GlobalConfigService {
 
 #[cfg(test)]
 mod tests {
+    use relay_config::Config;
     use relay_system::{Controller, Service, ShutdownMode};
     use relay_test::mock_service;
     use std::sync::Arc;
@@ -295,23 +296,26 @@ mod tests {
     /// Tests that the service can still handle requests after sending a
     /// shutdown signal.
     #[tokio::test]
-    async fn test_service_shutdown() {
-        for mode in &[ShutdownMode::Graceful, ShutdownMode::Immediate] {
-            shutdown_service_with_mode(*mode).await;
-        }
-    }
+    async fn shutdown_service() {
+        relay_test::setup();
+        tokio::time::pause();
 
-    async fn shutdown_service_with_mode(mode: ShutdownMode) {
-        let (upstream, _) = mock_service("upstream", (), |&mut (), _| {});
+        let (upstream, _) = mock_service("upstream", 0, |state, _| {
+            *state += 1;
+
+            if *state > 1 {
+                panic!("should not receive requests after shutdown");
+            }
+        });
 
         Controller::start(Duration::from_secs(1));
-
-        let service = GlobalConfigService::new(Arc::default(), upstream).start();
+        let config = Arc::<Config>::default();
+        let service = GlobalConfigService::new(config.clone(), upstream).start();
 
         assert!(service.send(Get).await.is_ok());
 
-        Controller::shutdown(mode);
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        Controller::shutdown(ShutdownMode::Immediate);
+        tokio::time::sleep(config.global_config_fetch_interval() * 2).await;
 
         assert!(service.send(Get).await.is_ok());
     }
