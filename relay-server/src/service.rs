@@ -292,6 +292,7 @@ pub struct Runtimes {
 
 impl Runtimes {
     /// Creates the secondary runtimes required by services.
+    #[allow(unused_variables)]
     pub fn new(config: &Config) -> Self {
         Self {
             upstream: create_runtime("upstream-rt", 1),
