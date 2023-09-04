@@ -3,7 +3,9 @@ mod parser;
 pub use parser::parse_query;
 
 use std::borrow::Cow;
+use std::time::Instant;
 
+use crate::statsd::Timers;
 use once_cell::sync::Lazy;
 use parser::normalize_parsed_queries;
 use regex::Regex;
@@ -91,8 +93,18 @@ static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1
 
 /// Normalizes the given SQL-query-like string.
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
+    let t = Instant::now();
+    let (res, mode) = scrub_queries_inner(db_system, string);
+    relay_statsd::metric!(
+        timer(Timers::SpanDescriptionNormalizeSQL) = t.elapsed(),
+        mode = mode
+    );
+    res
+}
+
+fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>, &'static str) {
     if let Ok(queries) = normalize_parsed_queries(db_system, string) {
-        return Some(queries);
+        return (Some(queries), "parser");
     }
 
     let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
@@ -116,11 +128,12 @@ pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
         }
     }
 
-    match string {
+    let result = match string {
         Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
         Cow::Borrowed(_) => None,
-    }
+    };
+    (result, "regex")
 }
 
 #[cfg(test)]
@@ -281,7 +294,6 @@ mod tests {
 
     scrub_sql_test!(
         strip_prefixes_mysql,
-        "mysql",
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
         r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     );

@@ -3200,6 +3200,7 @@ dependencies = [
  "relay-event-schema",
  "relay-log",
  "relay-protocol",
+ "relay-statsd",
  "relay-ua",
  "sentry-release-parser",
  "serde",
