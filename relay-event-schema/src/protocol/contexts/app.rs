@@ -89,7 +89,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    pub(crate) fn test_app_context_roundtrip() {
+    fn test_app_context_roundtrip() {
         let json = r#"{
   "app_start_time": "2018-02-08T22:21:57Z",
   "device_app_hash": "4c793e3776474877ae30618378e9662a",

@@ -2,11 +2,11 @@ use axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{on, MethodFilter, MethodRouter};
-use relay_common::uuid::Uuid;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use relay_monitors::{CheckIn, CheckInStatus};
 use serde::Deserialize;
+use uuid::Uuid;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};

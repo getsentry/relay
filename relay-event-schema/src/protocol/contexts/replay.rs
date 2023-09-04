@@ -59,7 +59,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    pub(crate) fn test_trace_context_roundtrip() {
+    fn test_trace_context_roundtrip() {
         let json = r#"{
   "replay_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "type": "replay"
@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    pub(crate) fn test_replay_context_normalization() {
+    fn test_replay_context_normalization() {
         let json = r#"{
   "replay_id": "4C79F60C11214EB38604F4AE0781BFB2",
   "type": "replay"

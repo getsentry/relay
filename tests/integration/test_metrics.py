@@ -168,10 +168,11 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     metrics_consumer = metrics_consumer()
 
     project_id = 42
-    mini_sentry.add_full_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:custom-metrics"]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = "transactions/foo:42|c\ntransactions/bar@second:17|c"
+    metrics_payload = "transactions/foo:42|c\nbar@second:17|c"
     relay.send_metrics(project_id, metrics_payload, timestamp)
 
     metrics = metrics_by_name(metrics_consumer, 2)
@@ -190,14 +191,12 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
         "timestamp": timestamp,
     }
 
-    assert metrics["headers"]["c:transactions/bar@second"] == [
-        ("namespace", b"transactions")
-    ]
-    assert metrics["c:transactions/bar@second"] == {
+    assert metrics["headers"]["c:custom/bar@second"] == [("namespace", b"custom")]
+    assert metrics["c:custom/bar@second"] == {
         "org_id": 1,
         "project_id": project_id,
         "retention_days": 90,
-        "name": "c:transactions/bar@second",
+        "name": "c:custom/bar@second",
         "tags": {},
         "value": 17.0,
         "type": "c",
@@ -218,7 +217,7 @@ def test_metrics_with_sharded_kafka(
         "processing": {
             "secondary_kafka_configs": {"foo": default_config, "baz": default_config},
             "topics": {
-                "metrics_transactions": {
+                "metrics_generic": {
                     "shards": 3,
                     "mapping": {
                         0: {
@@ -1127,12 +1126,12 @@ def test_limit_custom_measurements(
     "sent_description, expected_description",
     [
         (
-            "SELECT column FROM table WHERE another_col = %s",
-            "SELECT column FROM table WHERE another_col = %s",
+            "SELECT column FROM table1 WHERE another_col = %s",
+            "SELECT column FROM table1 WHERE another_col = %s",
         ),
         (
-            "SELECT column FROM table WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
-            "SELECT column FROM table WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*",
+            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+            "SELECT column FROM table1 WHERE another_col = %s AND yet_another_col = something_very_longggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg*",
         ),
     ],
     ids=["Must not truncate short descriptions", "Must truncate long descriptions"],
@@ -1231,7 +1230,8 @@ def test_generic_metric_extraction(mini_sentry, relay):
     transaction["timestamp"] = timestamp.isoformat()
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    # Explicitly test a chain of Relays
+    relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
@@ -1351,6 +1351,7 @@ def test_span_metrics_secondary_aggregator(
                     "span.action": "SELECT",
                     "span.description": "SELECT %s*",
                     "span.category": "db",
+                    "span.domain": "foo",
                     "span.module": "db",
                     "span.op": "db",
                 },
@@ -1361,3 +1362,21 @@ def test_span_metrics_secondary_aggregator(
             [("namespace", b"spans")],
         ),
     ]
+
+
+def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_consumer):
+    relay = relay_with_processing(options=TEST_CONFIG)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    # NOTE: "organizations:custom-metrics" missing from features
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = "transactions/foo:42|c\nbar@second:17|c"
+    relay.send_metrics(project_id, metrics_payload, timestamp)
+
+    metrics = metrics_by_name(metrics_consumer, 1)
+
+    assert "c:transactions/foo@none" in metrics
+    assert "c:custom/bar@second" not in metrics

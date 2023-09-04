@@ -64,7 +64,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    pub(crate) fn test_otel_context_roundtrip() {
+    fn test_otel_context_roundtrip() {
         let json = r#"{
   "attributes": {
     "app.payment.amount": 394.25,

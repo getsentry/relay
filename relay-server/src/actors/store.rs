@@ -9,7 +9,6 @@ use bytes::Bytes;
 use once_cell::sync::OnceCell;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_common::uuid::Uuid;
 use relay_config::Config;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
@@ -21,6 +20,7 @@ use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
+use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::service::ServiceError;
@@ -544,22 +544,15 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let (topic, namespace) = match mri.map(|mri| mri.namespace) {
-            Ok(namespace @ MetricNamespace::Transactions) => {
-                (KafkaTopic::MetricsTransactions, namespace)
-            }
-            Ok(namespace @ MetricNamespace::Spans) => (KafkaTopic::MetricsTransactions, namespace),
             Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
-                    |scope| {
-                        scope.set_extra("metric_message.name", message.name.into());
-                    },
-                    || {
-                        relay_log::error!("store service dropping unknown metric usecase");
-                    },
+                    |scope| scope.set_extra("metric_message.name", message.name.into()),
+                    || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
             }
+            Ok(namespace) => (KafkaTopic::MetricsGeneric, namespace),
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 

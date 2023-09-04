@@ -3,7 +3,6 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 use enumset::EnumSet;
-use relay_common::uuid::Uuid;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
@@ -12,6 +11,7 @@ use relay_protocol::{
 #[cfg(feature = "jsonschema")]
 use schemars::{gen::SchemaGenerator, schema::Schema};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::processor::{ProcessValue, ProcessingResult, ProcessingState, Processor, ValueType};
 use crate::protocol::Addr;
