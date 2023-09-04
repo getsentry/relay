@@ -1272,11 +1272,6 @@
 <a href="#1272" id="1272">1272</a>
 <a href="#1273" id="1273">1273</a>
 <a href="#1274" id="1274">1274</a>
-<a href="#1275" id="1275">1275</a>
-<a href="#1276" id="1276">1276</a>
-<a href="#1277" id="1277">1277</a>
-<a href="#1278" id="1278">1278</a>
-<a href="#1279" id="1279">1279</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1302,7 +1297,6 @@
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceError;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 
 <span class="doccomment">/// The maximum number of individual session updates generated for each aggregate item.
@@ -1339,13 +1333,9 @@
         <span class="kw">for </span>topic <span class="kw">in </span>KafkaTopic::iter()
             .filter(|t| <span class="kw-2">**</span>t != KafkaTopic::Outcomes || <span class="kw-2">**</span>t != KafkaTopic::OutcomesBilling)
         {
-            <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config
-                .kafka_config(<span class="kw-2">*</span>topic)
-                .map_err(|<span class="kw">_</span>| ServiceError::Kafka)<span class="question-mark">?</span>;
-            client_builder = client_builder
-                .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config)
-                .map_err(|<span class="kw">_</span>| ServiceError::Kafka)<span class="question-mark">?
-        </span>}
+            <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config.kafka_config(<span class="kw-2">*</span>topic)<span class="question-mark">?</span>;
+            client_builder = client_builder.add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config)<span class="question-mark">?</span>;
+        }
 
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             client: client_builder.build(),

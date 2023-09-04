@@ -305,6 +305,28 @@
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -392,11 +414,6 @@
     config: Arc&lt;Config&gt;,
     buffer_guard: Arc&lt;BufferGuard&gt;,
     registry: Registry,
-    _aggregator_runtime: Arc&lt;Runtime&gt;,
-    _outcome_runtime: Arc&lt;Runtime&gt;,
-    _project_runtime: Arc&lt;Runtime&gt;,
-    _upstream_runtime: Arc&lt;Runtime&gt;,
-    _store_runtime: <span class="prelude-ty">Option</span>&lt;Arc&lt;Runtime&gt;&gt;,
 }
 
 <span class="doccomment">/// Server state.
@@ -407,14 +424,8 @@
 
 <span class="kw">impl </span>ServiceState {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.
-    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>upstream_runtime = create_runtime(<span class="string">&quot;upstream-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span>project_runtime = create_runtime(<span class="string">&quot;project-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span>aggregator_runtime = create_runtime(<span class="string">&quot;aggregator-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span>outcome_runtime = create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>);
-        <span class="kw">let </span><span class="kw-2">mut </span>_store_runtime = <span class="prelude-val">None</span>;
-
-        <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start_in(<span class="kw-2">&amp;</span>upstream_runtime);
+    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;, runtimes: <span class="kw-2">&amp;</span>Runtimes) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start_in(<span class="kw-2">&amp;</span>runtimes.upstream);
         <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
 
         <span class="kw">let </span>redis_pool = <span class="kw">match </span>config.redis() {
@@ -434,9 +445,9 @@
             upstream_relay.clone(),
             envelope_manager.clone(),
         )<span class="question-mark">?
-        </span>.start_in(<span class="kw-2">&amp;</span>outcome_runtime);
+        </span>.start_in(<span class="kw-2">&amp;</span>runtimes.outcome);
         <span class="kw">let </span>outcome_aggregator =
-            OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start_in(<span class="kw-2">&amp;</span>outcome_runtime);
+            OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start_in(<span class="kw-2">&amp;</span>runtimes.outcome);
 
         <span class="kw">let </span>global_config =
             GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
@@ -458,7 +469,7 @@
             config.secondary_aggregator_configs().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )
-        .start_in(<span class="kw-2">&amp;</span>aggregator_runtime);
+        .start_in(<span class="kw-2">&amp;</span>runtimes.aggregator);
 
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_manager_service = EnvelopeManagerService::new(
@@ -471,11 +482,9 @@
         );
 
         <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-        </span><span class="kw">if </span>config.processing_enabled() {
-            <span class="kw">let </span>rt = create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>);
-            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start_in(<span class="kw-2">&amp;</span>rt);
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>rt) = runtimes.store {
+            <span class="kw">let </span>store = StoreService::create(config.clone())<span class="question-mark">?</span>.start_in(rt);
             envelope_manager_service.set_store_forwarder(store);
-            _store_runtime = <span class="prelude-val">Some</span>(rt);
         }
 
         envelope_manager_service.spawn_handler(envelope_manager_rx);
@@ -490,7 +499,7 @@
             test_store.clone(),
             upstream_relay.clone(),
         );
-        <span class="kw">let </span>guard = project_runtime.enter();
+        <span class="kw">let </span>guard = runtimes.project.enter();
         ProjectCacheService::new(
             config.clone(),
             buffer.clone(),
@@ -533,11 +542,6 @@
             buffer_guard: buffer,
             config,
             registry,
-            _aggregator_runtime: Arc::new(aggregator_runtime),
-            _outcome_runtime: Arc::new(outcome_runtime),
-            _project_runtime: Arc::new(project_runtime),
-            _upstream_runtime: Arc::new(upstream_runtime),
-            _store_runtime: _store_runtime.map(Arc::new),
         };
 
         <span class="prelude-val">Ok</span>(ServiceState {
@@ -601,6 +605,46 @@
     <span class="doccomment">/// Returns the address of the [`OutcomeProducer`] service.
     </span><span class="kw">pub fn </span>outcome_aggregator(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;TrackOutcome&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.outcome_aggregator
+    }
+}
+
+<span class="doccomment">/// Contains secondary service runtimes.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Runtimes {
+    upstream: Runtime,
+    project: Runtime,
+    aggregator: Runtime,
+    outcome: Runtime,
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>store: <span class="prelude-ty">Option</span>&lt;Runtime&gt;,
+}
+
+<span class="kw">impl </span>Runtimes {
+    <span class="doccomment">/// Creates the secondary runtimes required by services.
+    </span><span class="attr">#[allow(unused_variables)]
+    </span><span class="kw">pub fn </span>new(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            upstream: create_runtime(<span class="string">&quot;upstream-rt&quot;</span>, <span class="number">1</span>),
+            project: create_runtime(<span class="string">&quot;project-rt&quot;</span>, <span class="number">1</span>),
+            aggregator: create_runtime(<span class="string">&quot;aggregator-rt&quot;</span>, <span class="number">1</span>),
+            outcome: create_runtime(<span class="string">&quot;outcome-rt&quot;</span>, <span class="number">1</span>),
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>store: config
+                .processing_enabled()
+                .then(|| create_runtime(<span class="string">&quot;store-rt&quot;</span>, <span class="number">1</span>)),
+        }
+    }
+
+    <span class="doccomment">/// Shuts down the runtime. Drops all futures immediately.
+    </span><span class="kw">pub fn </span>shutdown(<span class="self">self</span>) {
+        <span class="self">self</span>.upstream.shutdown_background();
+        <span class="self">self</span>.project.shutdown_background();
+        <span class="self">self</span>.aggregator.shutdown_background();
+        <span class="self">self</span>.outcome.shutdown_background();
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(r) = <span class="self">self</span>.store {
+            r.shutdown_background()
+        }
     }
 }
 

@@ -313,6 +313,9 @@
 <a href="#313" id="313">313</a>
 <a href="#314" id="314">314</a>
 <a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -590,7 +593,7 @@
 <span class="kw">use </span>relay_system::{Controller, Service};
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::server::HttpServer;
-<span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::service::{Runtimes, ServiceState};
 
 <span class="doccomment">/// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -601,29 +604,32 @@
     <span class="kw">let </span>config = Arc::new(config);
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay server starting&quot;</span>);
 
-    <span class="comment">// Create the main tokio runtime that all services run in.
+    <span class="comment">// Creates the main runtime.
     </span><span class="kw">let </span>main_runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">&quot;main-rt&quot;</span>, config.cpu_concurrency());
+
+    <span class="comment">// Create secondary service runtimes.
+    //
+    // Runtimes must not be dropped within other runtimes, so keep them alive here.
+    </span><span class="kw">let </span>runtimes = Runtimes::new(<span class="kw-2">&amp;</span>config);
 
     <span class="comment">// Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    </span><span class="kw">let </span>service = main_runtime.block_on(<span class="kw">async </span>{
+    </span>main_runtime.block_on(<span class="kw">async </span>{
         Controller::start(config.shutdown_timeout());
-        <span class="kw">let </span>service = ServiceState::start(config.clone())<span class="question-mark">?</span>;
+        <span class="kw">let </span>service = ServiceState::start(config.clone(), <span class="kw-2">&amp;</span>runtimes)<span class="question-mark">?</span>;
         HttpServer::new(config, service.clone())<span class="question-mark">?</span>.start();
         Controller::shutdown_handle().finished().<span class="kw">await</span>;
-        anyhow::Ok(service)
+        anyhow::Ok(())
     })<span class="question-mark">?</span>;
-
-    <span class="comment">// TODO: Temporary workaround for dropping runtimes inside ServiceState. Dropping them within
-    // `main_runtime` causes panics. Consider removing the internal runtimes in favor of
-    // spawn_blocking and improved resource management.
-    </span>drop(service);
 
     <span class="comment">// Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
     // not exit by themselves, and the shutdown timeout should have given them enough time to
     // complete their tasks. The additional 100ms allow services to run their error handlers.
     </span>main_runtime.shutdown_timeout(Duration::from_millis(<span class="number">100</span>));
+
+    <span class="comment">// Shutdown all runtimes.
+    </span>runtimes.shutdown();
 
     <span class="macro">relay_log::info!</span>(<span class="string">&quot;relay shutdown complete&quot;</span>);
     <span class="prelude-val">Ok</span>(())
