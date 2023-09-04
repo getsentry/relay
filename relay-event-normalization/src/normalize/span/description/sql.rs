@@ -7,7 +7,7 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sqlparser::ast::{self, Expr, Ident, Statement, UnaryOperator, Value, VisitMut, VisitorMut};
-use sqlparser::dialect::GenericDialect;
+use sqlparser::dialect::{Dialect, GenericDialect};
 
 /// Removes SQL comments starting with "--" or "#".
 static COMMENTS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:--|#).*(?P<newline>\n)").unwrap());
@@ -235,8 +235,8 @@ impl VisitorMut for NormalizeVisitor {
 }
 
 /// Used to replace placeholders (parameters) by dummy values such that the query can be parsed.
-static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)").unwrap());
+// static SQL_PLACEHOLDER_REGEX: Lazy<Regex> =
+//     Lazy::new(|| Regex::new(r"(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)").unwrap());
 
 /// Derive the SQL dialect from `span.system` and try to parse the query into an AST.
 pub fn parse_query(
@@ -248,9 +248,84 @@ pub fn parse_query(
     let dialect = db_system
         .and_then(sqlparser::dialect::dialect_from_str)
         .unwrap_or_else(|| Box::new(GenericDialect {}));
+    let dialect = DialectWithParameters(dialect);
 
-    let parsable_query = dbg!(SQL_PLACEHOLDER_REGEX.replace_all(query, "1"));
-    sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query)
+    sqlparser::parser::Parser::parse_sql(&dialect, query)
+}
+
+/// An extension of an SQL dialect that accepts `?`, `%s`, `:c0` as valid input.
+#[derive(Debug)]
+struct DialectWithParameters(Box<dyn Dialect>);
+
+impl DialectWithParameters {
+    const PARAMETERS: &'static str = "?%:";
+}
+
+impl Dialect for DialectWithParameters {
+    fn is_identifier_start(&self, ch: char) -> bool {
+        Self::PARAMETERS.contains(ch) || self.0.is_identifier_start(ch)
+    }
+
+    fn is_identifier_part(&self, ch: char) -> bool {
+        self.0.is_identifier_part(ch)
+    }
+
+    fn is_delimited_identifier_start(&self, ch: char) -> bool {
+        self.0.is_delimited_identifier_start(ch)
+    }
+
+    fn is_proper_identifier_inside_quotes(
+        &self,
+        chars: std::iter::Peekable<std::str::Chars<'_>>,
+    ) -> bool {
+        self.0.is_proper_identifier_inside_quotes(chars)
+    }
+
+    fn supports_filter_during_aggregation(&self) -> bool {
+        self.0.supports_filter_during_aggregation()
+    }
+
+    fn supports_within_after_array_aggregation(&self) -> bool {
+        self.0.supports_within_after_array_aggregation()
+    }
+
+    fn supports_group_by_expr(&self) -> bool {
+        self.0.supports_group_by_expr()
+    }
+
+    fn supports_substring_from_for_expr(&self) -> bool {
+        self.0.supports_substring_from_for_expr()
+    }
+
+    fn parse_prefix(
+        &self,
+        parser: &mut sqlparser::parser::Parser,
+    ) -> Option<Result<Expr, sqlparser::parser::ParserError>> {
+        self.0.parse_prefix(parser)
+    }
+
+    fn parse_infix(
+        &self,
+        parser: &mut sqlparser::parser::Parser,
+        expr: &Expr,
+        precedence: u8,
+    ) -> Option<Result<Expr, sqlparser::parser::ParserError>> {
+        self.0.parse_infix(parser, expr, precedence)
+    }
+
+    fn get_next_precedence(
+        &self,
+        parser: &sqlparser::parser::Parser,
+    ) -> Option<Result<u8, sqlparser::parser::ParserError>> {
+        self.0.get_next_precedence(parser)
+    }
+
+    fn parse_statement(
+        &self,
+        parser: &mut sqlparser::parser::Parser,
+    ) -> Option<Result<Statement, sqlparser::parser::ParserError>> {
+        self.0.parse_statement(parser)
+    }
 }
 
 #[cfg(test)]
@@ -676,13 +751,4 @@ mod tests {
         "SELECT (toStartOfHour(finish_ts, 'Universal') AS _snuba_time), (uniqIf((nullIf(user, '') AS _snuba_user), greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), (if(has(measurements.key, 'lcp'), arrayElement(measurements.value, indexOf(measurements.key, 'lcp')), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement(('duration', 300), 2), 4))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, 4.56), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement(('duration', 300), 1), 'lcp'), `_snuba_measurements[lcp]`, _snuba_duration), 0)), 0), 113.45)), 0) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, 0) AND notEquals(transaction_status, 1) AND notEquals(transaction_status, 2)), count()) AS _snuba_failure_rate), (divide(count(), divide(3600.0, 60)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals(('transaction' AS _snuba_type), 'transaction') AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime('2023-06-13T09:08:51', 'Universal')) AND less(_snuba_finish_ts, toDateTime('2023-07-11T09:08:51', 'Universal')) AND in((project_id AS _snuba_project_id), [123, 456, 789]) AND equals((environment AS _snuba_environment), 'production') GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT 10000 OFFSET 0",
         "SELECT (toStartOfHour(finish_ts, %s) AS _snuba_time), (uniqIf((nullIf(user, %s) AS _snuba_user), greater(multiIf(equals(tupleElement((%s, %s), %s), %s), (if(has(key, %s), arrayElement(value, indexOf(key, %s)), NULL) AS `_snuba_measurements[lcp]`), (duration AS _snuba_duration)), multiply(tupleElement((%s, %s), %s), %s))) AS _snuba_count_miserable_user), (ifNull(divide(plus(_snuba_count_miserable_user, %s), plus(nullIf(uniqIf(_snuba_user, greater(multiIf(equals(tupleElement((%s, %s), %s), %s), `_snuba_measurements[lcp]`, _snuba_duration), %s)), %s), %s)), %s) AS _snuba_user_misery), _snuba_count_miserable_user, (divide(countIf(notEquals(transaction_status, %s) AND notEquals(transaction_status, %s) AND notEquals(transaction_status, %s)), count()) AS _snuba_failure_rate), (divide(count(), divide(%s, %s)) AS _snuba_tpm_3600) FROM transactions_dist WHERE equals((%s AS _snuba_type), %s) AND greaterOrEquals((finish_ts AS _snuba_finish_ts), toDateTime(%s, %s)) AND less(_snuba_finish_ts, toDateTime(%s, %s)) AND in((project_id AS _snuba_project_id), [%s, %s, %s]) AND equals((environment AS _snuba_environment), %s) GROUP BY _snuba_time ORDER BY _snuba_time ASC LIMIT %s OFFSET %s"
     );
-
-    #[test]
-    fn find_placeholders() {
-        let s = "? NULL ?? 'str' %s %(name1)s :c0 $4 xx";
-        assert_eq!(
-            SQL_PLACEHOLDER_REGEX.replace_all(s, "1"),
-            "1 NULL 1 'str' 1 1 1 1 xx"
-        );
-    }
 }
