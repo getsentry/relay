@@ -8,9 +8,9 @@ use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
 use relay_base_schema::events::EventType;
-use relay_common::uuid::Uuid;
 use relay_event_schema::protocol::Event;
 use serde::Serialize;
+use uuid::Uuid;
 
 use crate::config::{
     DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,

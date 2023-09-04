@@ -1459,7 +1459,6 @@ mod tests {
 
     use chrono::TimeZone;
     use insta::assert_debug_snapshot;
-    use relay_common::uuid::Uuid;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
         Csp, DebugMeta, DeviceContext, Frame, Geo, LenientString, LogEntry, PairList,
@@ -1470,6 +1469,7 @@ mod tests {
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
+    use uuid::Uuid;
 
     use crate::user_agent::ClientHints;
 

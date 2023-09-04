@@ -10,7 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-once_cell = "1.13.1"
+once_cell = { workspace = true }
 uaparser = { version = "0.6.0" }
 
 [features]

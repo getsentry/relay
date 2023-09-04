@@ -83,7 +83,7 @@ macro_rules! event_snapshot {
                 let mut processor = PiiProcessor::new(&compiled);
 
                 process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
-                insta::assert_yaml_snapshot!("pii_stripping", SerializableAnnotated(&event), {
+                insta::assert_json_snapshot!("pii_stripping", SerializableAnnotated(&event), {
                     ".received" => "[received]",
                     ".timestamp" => "[timestamp]"
                 });

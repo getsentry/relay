@@ -1339,7 +1339,6 @@ checksum = "13e2792b0ff0340399d58445b88fd9770e3489eff258a4cbc1523418f12abf84"
 dependencies = [
  "futures-channel",
  "futures-core",
- "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -1419,7 +1418,6 @@ version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c1d6de3acfef38d2be4b1f543f553131788603495be83da675e180c8d6b7bd1"
 dependencies = [
- "futures-channel",
  "futures-core",
  "futures-io",
  "futures-macro",
@@ -3029,12 +3027,12 @@ dependencies = [
  "dialoguer",
  "hostname",
  "once_cell",
- "relay-common",
  "relay-config",
  "relay-log",
  "relay-server",
  "relay-statsd",
  "tikv-jemallocator",
+ "uuid",
 ]
 
 [[package]]
@@ -3051,6 +3049,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3098,6 +3097,7 @@ dependencies = [
  "sentry-release-parser",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -3113,7 +3113,6 @@ dependencies = [
  "sentry-types",
  "serde",
  "serde_test",
- "uuid",
 ]
 
 [[package]]
@@ -3134,6 +3133,7 @@ dependencies = [
  "serde_yaml 0.9.17",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3204,6 +3204,7 @@ dependencies = [
  "sqlparser",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3228,6 +3229,7 @@ dependencies = [
  "similar-asserts",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3334,11 +3336,11 @@ version = "23.8.0"
 dependencies = [
  "once_cell",
  "regex",
- "relay-common",
  "serde",
  "serde_json",
  "similar-asserts",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -3388,13 +3390,13 @@ name = "relay-protocol"
 version = "23.8.0"
 dependencies = [
  "num-traits",
- "relay-common",
  "relay-protocol-derive",
  "schemars",
  "serde",
  "serde_json",
  "similar-asserts",
  "smallvec",
+ "uuid",
 ]
 
 [[package]]
@@ -3469,6 +3471,7 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "unicase",
+ "uuid",
 ]
 
 [[package]]
@@ -3494,7 +3497,6 @@ dependencies = [
  "minidump",
  "multer",
  "once_cell",
- "parking_lot",
  "regex",
  "relay-auth",
  "relay-aws-extension",
@@ -3534,6 +3536,7 @@ dependencies = [
  "tower",
  "tower-http",
  "url",
+ "uuid",
  "zstd",
 ]
 

@@ -42,7 +42,7 @@ pub fn project_state_with_config(sampling_config: SamplingConfig) -> ProjectStat
 
 pub fn create_sampling_context(sample_rate: Option<f64>) -> DynamicSamplingContext {
     DynamicSamplingContext {
-        trace_id: relay_common::uuid::Uuid::new_v4(),
+        trace_id: uuid::Uuid::new_v4(),
         public_key: "12345678901234567890123456789012".parse().unwrap(),
         release: None,
         environment: None,

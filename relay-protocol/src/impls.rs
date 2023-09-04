@@ -1,6 +1,6 @@
-use relay_common::uuid::Uuid;
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
+use uuid::Uuid;
 
 use crate::annotated::{Annotated, MetaMap, MetaTree};
 use crate::macros::derive_string_meta_structure;
