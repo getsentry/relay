@@ -246,7 +246,7 @@ impl Service for GlobalConfigService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            let mut shutdown = Controller::shutdown_handle();
+            let mut shutdown_handle = Controller::shutdown_handle();
 
             relay_log::info!("global config service starting");
 
@@ -261,14 +261,16 @@ impl Service for GlobalConfigService {
                 relay_log::info!("fetching global configs disabled: no credentials configured");
             }
 
+            let mut shutdown = false;
+
             loop {
                 tokio::select! {
                     biased;
 
-                    () = &mut self.fetch_handle => self.update_global_config(),
-                    Some(result) = self.internal_rx.recv() => self.handle_result(result),
+                    () = &mut self.fetch_handle, if !shutdown => self.update_global_config(),
+                    Some(result) = self.internal_rx.recv(), if !shutdown => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
-                    _ = shutdown.notified() => break,
+                    _ = shutdown_handle.notified() => shutdown = true,
 
                     else => break,
                 }
