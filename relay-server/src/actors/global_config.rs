@@ -289,9 +289,9 @@ mod tests {
 
     use crate::actors::global_config::{Get, GlobalConfigService};
 
-    /// Tests whether the service shuts down gracefully when the signal is
-    /// received, without requesting more global configs.
-    #[tokio::test(start_paused = true)]
+    /// Tests that the service can still handle requests after sending a
+    /// shutdown signal.
+    #[tokio::test]
     async fn test_service_shutdown() {
         for mode in &[ShutdownMode::Graceful, ShutdownMode::Immediate] {
             shutdown_service_with_mode(*mode).await;
@@ -308,8 +308,8 @@ mod tests {
         assert!(service.send(Get).await.is_ok());
 
         Controller::shutdown(mode);
-        tokio::time::advance(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
-        assert!(service.send(Get).await.is_err());
+        assert!(service.send(Get).await.is_ok());
     }
 }
