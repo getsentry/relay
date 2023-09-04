@@ -85,9 +85,6 @@ impl UpstreamQuery for GetGlobalConfig {
 pub struct Get;
 
 /// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
-///
-/// On Relay shutdown, the sender of the channel is dropped and receiving new
-/// updates errors.
 pub struct Subscribe;
 
 /// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].

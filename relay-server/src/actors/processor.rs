@@ -2807,11 +2807,6 @@ impl Service for EnvelopeProcessorService {
                 tokio::select! {
                    biased;
 
-                    // During Relay shutdown, the global config service stops
-                    // and drops the sender of the subscription, causing updates
-                    // to fail. Not to lose envelopes, the processor should
-                    // continue processing in-flight messages before the network
-                    // access is revoked.
                     Ok(()) = subscription.changed() => self.global_config = subscription.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
