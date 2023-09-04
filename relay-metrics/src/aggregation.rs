@@ -2210,15 +2210,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bucket_docs_roundtrip() {
-        let json = include_str!("../tests/fixtures/buckets.json").trim_end();
-        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
-
-        let serialized = serde_json::to_string_pretty(&buckets).unwrap();
-        assert_eq!(json, &serialized);
-    }
-
-    #[test]
     fn test_parse_buckets() {
         let json = r#"[
           {
@@ -2342,6 +2333,17 @@ mod tests {
 ]"#;
 
         let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+        let serialized = serde_json::to_string_pretty(&buckets).unwrap();
+        assert_eq!(json, serialized);
+    }
+
+    #[test]
+    fn test_bucket_docs_roundtrip() {
+        let json = include_str!("../tests/fixtures/buckets.json")
+            .trim_end()
+            .replace("\r\n", "\n");
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+
         let serialized = serde_json::to_string_pretty(&buckets).unwrap();
         assert_eq!(json, serialized);
     }
