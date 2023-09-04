@@ -141,6 +141,8 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
+    /// Disables the upstream fetch loop.
+    shutdown: bool,
 }
 
 impl GlobalConfigService {
@@ -155,6 +157,7 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
+            shutdown: false,
         }
     }
 
@@ -172,7 +175,7 @@ impl GlobalConfigService {
 
     /// Schedules the next global config request.
     fn schedule_fetch(&mut self) {
-        if self.fetch_handle.is_idle() {
+        if !self.shutdown && self.fetch_handle.is_idle() {
             self.fetch_handle
                 .set(self.config.global_config_fetch_interval());
         }
@@ -236,6 +239,11 @@ impl GlobalConfigService {
 
         self.schedule_fetch();
     }
+
+    fn handle_shutdown(&mut self) {
+        self.shutdown = true;
+        self.fetch_handle.reset();
+    }
 }
 
 impl Service for GlobalConfigService {
@@ -258,16 +266,14 @@ impl Service for GlobalConfigService {
                 relay_log::info!("fetching global configs disabled: no credentials configured");
             }
 
-            let mut shutdown = false;
-
             loop {
                 tokio::select! {
                     biased;
 
-                    () = &mut self.fetch_handle, if !shutdown => self.update_global_config(),
-                    Some(result) = self.internal_rx.recv(), if !shutdown => self.handle_result(result),
+                    () = &mut self.fetch_handle => self.update_global_config(),
+                    Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
-                    _ = shutdown_handle.notified() => shutdown = true,
+                    _ = shutdown_handle.notified() => self.handle_shutdown(),
 
                     else => break,
                 }
