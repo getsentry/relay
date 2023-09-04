@@ -30,6 +30,7 @@ criterion = { workspace = true }
 insta = { workspace = true }
 relay-statsd = { path = "../relay-statsd", features = ["test"] }
 relay-test = { path = "../relay-test" }
+similar-asserts = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 
 [[bench]]
