@@ -329,6 +329,7 @@
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
 <a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Utilities to deal with date-time types. (DateTime, Instant, SystemTime, etc)
 
 </span><span class="kw">use </span>std::fmt;
@@ -461,7 +462,8 @@
 
     <span class="doccomment">/// Returns the timestamp as chrono datetime.
     </span><span class="kw">pub fn </span>as_datetime(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt; {
-        NaiveDateTime::from_timestamp_opt(<span class="self">self</span>.<span class="number">0 </span><span class="kw">as </span>i64, <span class="number">0</span>).map(|n| DateTime::from_utc(n, Utc))
+        NaiveDateTime::from_timestamp_opt(<span class="self">self</span>.<span class="number">0 </span><span class="kw">as </span>i64, <span class="number">0</span>)
+            .map(|n| DateTime::from_naive_utc_and_offset(n, Utc))
     }
 
     <span class="doccomment">/// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.

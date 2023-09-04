@@ -2343,7 +2343,7 @@
             Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
                 <span class="comment">// NaiveDateTime parses &quot;%Y-%m-%dT%H:%M:%S%.f&quot;
                 </span><span class="kw">let </span>parsed = <span class="kw">match </span>value.parse::&lt;NaiveDateTime&gt;() {
-                    <span class="prelude-val">Ok</span>(dt) =&gt; <span class="prelude-val">Ok</span>(DateTime::from_utc(dt, Utc)),
+                    <span class="prelude-val">Ok</span>(dt) =&gt; <span class="prelude-val">Ok</span>(DateTime::from_naive_utc_and_offset(dt, Utc)),
 
                     <span class="comment">// XXX: This actually accepts more than RFC 3339. SDKs are strongly discouraged
                     // from exercising that freedom. We should only support RFC3339.
