@@ -194,7 +194,7 @@ mod tests {
         let parsed_time = DateTime::parse_from_rfc3339("2022-11-30T00:00:00Z").unwrap();
         let result = TransactionNameRule {
             pattern: LazyGlob::new("/auth/login/*/**".to_string()),
-            expiry: DateTime::from_naive_utc_and_offset(parsed_time.naive_utc(), Utc),
+            expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
             redaction: RedactionRule::Replace {
                 substitution: String::from(":id"),
             },
@@ -220,7 +220,7 @@ mod tests {
         let parsed_time = DateTime::parse_from_rfc3339("2022-11-30T00:00:00Z").unwrap();
         let result = TransactionNameRule {
             pattern: LazyGlob::new("/auth/login/*/**".to_string()),
-            expiry: DateTime::from_naive_utc_and_offset(parsed_time.naive_utc(), Utc),
+            expiry: DateTime::from_utc(parsed_time.naive_utc(), Utc),
             redaction: RedactionRule::Replace {
                 substitution: default_substitution(),
             },

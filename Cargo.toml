@@ -15,7 +15,7 @@ debug = true
 
 [workspace.dependencies]
 anyhow = "1.0.66"
-chrono = { version = "0.4.28", default-features = false, features = [
+chrono = { version = "=0.4.26", default-features = false, features = [ # 0.4.28 panics, see https://github.com/chronotope/chrono/issues/1253
     "std",
     "serde",
 ] }
