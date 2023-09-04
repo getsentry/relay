@@ -130,7 +130,8 @@ impl UnixTimestamp {
 
     /// Returns the timestamp as chrono datetime.
     pub fn as_datetime(self) -> Option<DateTime<Utc>> {
-        NaiveDateTime::from_timestamp_opt(self.0 as i64, 0).map(|n| DateTime::from_utc(n, Utc))
+        NaiveDateTime::from_timestamp_opt(self.0 as i64, 0)
+            .map(|n| DateTime::from_naive_utc_and_offset(n, Utc))
     }
 
     /// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.

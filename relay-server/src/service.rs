@@ -85,11 +85,6 @@ struct StateInner {
     config: Arc<Config>,
     buffer_guard: Arc<BufferGuard>,
     registry: Registry,
-    _aggregator_runtime: Arc<Runtime>,
-    _outcome_runtime: Arc<Runtime>,
-    _project_runtime: Arc<Runtime>,
-    _upstream_runtime: Arc<Runtime>,
-    _store_runtime: Option<Arc<Runtime>>,
 }
 
 /// Server state.
@@ -100,14 +95,8 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self> {
-        let upstream_runtime = create_runtime("upstream-rt", 1);
-        let project_runtime = create_runtime("project-rt", 1);
-        let aggregator_runtime = create_runtime("aggregator-rt", 1);
-        let outcome_runtime = create_runtime("outcome-rt", 1);
-        let mut _store_runtime = None;
-
-        let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&upstream_runtime);
+    pub fn start(config: Arc<Config>, runtimes: &Runtimes) -> Result<Self> {
+        let upstream_relay = UpstreamRelayService::new(config.clone()).start_in(&runtimes.upstream);
         let test_store = TestStoreService::new(config.clone()).start();
 
         let redis_pool = match config.redis() {
@@ -127,9 +116,9 @@ impl ServiceState {
             upstream_relay.clone(),
             envelope_manager.clone(),
         )?
-        .start_in(&outcome_runtime);
+        .start_in(&runtimes.outcome);
         let outcome_aggregator =
-            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&outcome_runtime);
+            OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&runtimes.outcome);
 
         let global_config =
             GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
@@ -151,7 +140,7 @@ impl ServiceState {
             config.secondary_aggregator_configs().clone(),
             Some(project_cache.clone().recipient()),
         )
-        .start_in(&aggregator_runtime);
+        .start_in(&runtimes.aggregator);
 
         #[allow(unused_mut)]
         let mut envelope_manager_service = EnvelopeManagerService::new(
@@ -164,11 +153,9 @@ impl ServiceState {
         );
 
         #[cfg(feature = "processing")]
-        if config.processing_enabled() {
-            let rt = create_runtime("store-rt", 1);
-            let store = StoreService::create(config.clone())?.start_in(&rt);
+        if let Some(ref rt) = runtimes.store {
+            let store = StoreService::create(config.clone())?.start_in(rt);
             envelope_manager_service.set_store_forwarder(store);
-            _store_runtime = Some(rt);
         }
 
         envelope_manager_service.spawn_handler(envelope_manager_rx);
@@ -183,7 +170,7 @@ impl ServiceState {
             test_store.clone(),
             upstream_relay.clone(),
         );
-        let guard = project_runtime.enter();
+        let guard = runtimes.project.enter();
         ProjectCacheService::new(
             config.clone(),
             buffer.clone(),
@@ -226,11 +213,6 @@ impl ServiceState {
             buffer_guard: buffer,
             config,
             registry,
-            _aggregator_runtime: Arc::new(aggregator_runtime),
-            _outcome_runtime: Arc::new(outcome_runtime),
-            _project_runtime: Arc::new(project_runtime),
-            _upstream_runtime: Arc::new(upstream_runtime),
-            _store_runtime: _store_runtime.map(Arc::new),
         };
 
         Ok(ServiceState {
@@ -294,6 +276,46 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+}
+
+/// Contains secondary service runtimes.
+#[derive(Debug)]
+pub struct Runtimes {
+    upstream: Runtime,
+    project: Runtime,
+    aggregator: Runtime,
+    outcome: Runtime,
+    #[cfg(feature = "processing")]
+    store: Option<Runtime>,
+}
+
+impl Runtimes {
+    /// Creates the secondary runtimes required by services.
+    #[allow(unused_variables)]
+    pub fn new(config: &Config) -> Self {
+        Self {
+            upstream: create_runtime("upstream-rt", 1),
+            project: create_runtime("project-rt", 1),
+            aggregator: create_runtime("aggregator-rt", 1),
+            outcome: create_runtime("outcome-rt", 1),
+            #[cfg(feature = "processing")]
+            store: config
+                .processing_enabled()
+                .then(|| create_runtime("store-rt", 1)),
+        }
+    }
+
+    /// Shuts down the runtime. Drops all futures immediately.
+    pub fn shutdown(self) {
+        self.upstream.shutdown_background();
+        self.project.shutdown_background();
+        self.aggregator.shutdown_background();
+        self.outcome.shutdown_background();
+        #[cfg(feature = "processing")]
+        if let Some(r) = self.store {
+            r.shutdown_background()
+        }
     }
 }
 
