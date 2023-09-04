@@ -670,55 +670,7 @@ pub struct ParseBucketError(#[source] serde_json::Error);
 /// metric type.
 ///
 /// ```json
-/// [
-///   {
-///     "timestamp": 1615889440,
-///     "width": 10,
-///     "name": "endpoint.response_time",
-///     "type": "d",
-///     "unit": "millisecond",
-///     "value": [36, 49, 57, 68],
-///     "tags": {
-///       "route": "user_index"
-///     }
-///   },
-///   {
-///     "timestamp": 1615889440,
-///     "width": 10,
-///     "name": "endpoint.hits",
-///     "type": "c",
-///     "value": 4,
-///     "tags": {
-///       "route": "user_index"
-///     }
-///   },
-///   {
-///     "timestamp": 1615889440,
-///     "width": 10,
-///     "name": "endpoint.parallel_requests",
-///     "type": "g",
-///     "value": {
-///       "max": 42.0,
-///       "min": 17.0,
-///       "sum": 2210.0,
-///       "last": 25.0,
-///       "count": 85
-///     }
-///   },
-///   {
-///     "timestamp": 1615889440,
-///     "width": 10,
-///     "name": "endpoint.users",
-///     "type": "s",
-///     "value": [
-///       3182887624,
-///       4267882815
-///     ],
-///     "tags": {
-///       "route": "user_index"
-///     }
-///   }
-/// ]
+#[doc = include_str!("../tests/fixtures/buckets.json")]
 /// ```
 ///
 /// To parse a submission payload, use [`Bucket::parse_all`].
@@ -2105,6 +2057,8 @@ impl Drop for AggregatorService {
 mod tests {
     use std::sync::{Arc, RwLock};
 
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[derive(Default)]
@@ -2253,6 +2207,15 @@ mod tests {
         assert_eq!(iter.next(), Some((1f64, 1)));
         assert_eq!(iter.next(), Some((2f64, 2)));
         assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_bucket_docs_roundtrip() {
+        let json = include_str!("../tests/fixtures/buckets.json").trim_end();
+        let buckets = Bucket::parse_all(json.as_bytes()).unwrap();
+
+        let serialized = serde_json::to_string_pretty(&buckets).unwrap();
+        assert_eq!(json, &serialized);
     }
 
     #[test]
