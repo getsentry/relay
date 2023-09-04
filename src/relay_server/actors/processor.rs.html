@@ -6794,8 +6794,8 @@
 
                 <span class="macro">tokio::select! </span>{
                    biased;
-                    <span class="comment">// TODO(iker): deal with the error when the sender of the channel is dropped.
-                    </span><span class="kw">_ </span>= subscription.changed() =&gt; <span class="self">self</span>.global_config = subscription.borrow().clone(),
+
+                    <span class="prelude-val">Ok</span>(()) = subscription.changed() =&gt; <span class="self">self</span>.global_config = subscription.borrow().clone(),
                     (<span class="prelude-val">Some</span>(message), <span class="prelude-val">Ok</span>(permit)) = next_msg =&gt; {
                         <span class="kw">let </span>service = <span class="self">self</span>.clone();
                         tokio::task::spawn_blocking(<span class="kw">move </span>|| {

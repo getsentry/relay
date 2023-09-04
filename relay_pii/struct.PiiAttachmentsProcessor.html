@@ -5,12 +5,12 @@
 </div></details><details class="toggle method-toggle" open><summary><section id="method.scrub_utf8_filepath" class="method"><a class="srclink rightside" href="../src/relay_pii/attachments.rs.html#475-482">source</a><h4 class="code-header">pub fn <a href="#method.scrub_utf8_filepath" class="fn">scrub_utf8_filepath</a>(
     &amp;self,
     path: &amp;mut <a class="primitive" href="https://doc.rust-lang.org/1.72.0/std/primitive.str.html">str</a>,
-    state: &amp;ProcessingState&lt;'_&gt;
+    state: &amp;<a class="struct" href="../relay_event_schema/processor/attrs/struct.ProcessingState.html" title="struct relay_event_schema::processor::attrs::ProcessingState">ProcessingState</a>&lt;'_&gt;
 ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.72.0/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Scrub a filepath, preserving the basename.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.scrub_utf16_filepath" class="method"><a class="srclink rightside" href="../src/relay_pii/attachments.rs.html#485-507">source</a><h4 class="code-header">pub fn <a href="#method.scrub_utf16_filepath" class="fn">scrub_utf16_filepath</a>(
     &amp;self,
     path: &amp;mut WStr&lt;LittleEndian&gt;,
-    state: &amp;ProcessingState&lt;'_&gt;
+    state: &amp;<a class="struct" href="../relay_event_schema/processor/attrs/struct.ProcessingState.html" title="struct relay_event_schema::processor::attrs::ProcessingState">ProcessingState</a>&lt;'_&gt;
 ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.72.0/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Scrub a filepath, preserving the basename.</p>
 </div></details></div></details><details class="toggle implementors-toggle" open><summary><section id="impl-PiiAttachmentsProcessor%3C'_%3E" class="impl"><a class="srclink rightside" href="../src/relay_pii/minidumps.rs.html#241-325">source</a><a href="#impl-PiiAttachmentsProcessor%3C'_%3E" class="anchor">§</a><h3 class="code-header">impl <a class="struct" href="struct.PiiAttachmentsProcessor.html" title="struct relay_pii::PiiAttachmentsProcessor">PiiAttachmentsProcessor</a>&lt;'_&gt;</h3></section></summary><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.scrub_minidump" class="method"><a class="srclink rightside" href="../src/relay_pii/minidumps.rs.html#252-324">source</a><h4 class="code-header">pub fn <a href="#method.scrub_minidump" class="fn">scrub_minidump</a>(
     &amp;self,
