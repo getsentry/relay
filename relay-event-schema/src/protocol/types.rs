@@ -1324,4 +1324,36 @@ mod tests {
 }"#
         );
     }
+
+    #[test]
+    fn test_timestamp_bad_timezone() {
+        #[derive(Debug, FromValue, Default, Empty, IntoValue)]
+        struct Helper {
+            foo: Annotated<Timestamp>,
+        }
+
+        let x: Annotated<Helper> =
+            Annotated::from_json(r#"{"foo": "2023-01-02T14:00:00øøø"}"#).unwrap();
+        assert_eq!(
+            x.to_json_pretty().unwrap(),
+            r#"{
+  "foo": null,
+  "_meta": {
+    "foo": {
+      "": {
+        "err": [
+          [
+            "invalid_data",
+            {
+              "reason": "input contains invalid characters"
+            }
+          ]
+        ],
+        "val": "2023-01-02T14:00:00øøø"
+      }
+    }
+  }
+}"#
+        );
+    }
 }
