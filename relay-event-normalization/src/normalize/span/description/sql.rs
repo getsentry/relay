@@ -92,11 +92,12 @@ static ALREADY_NORMALIZED_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"/\?|\$1
 
 /// Normalizes the given SQL-query-like string.
 pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
-    let mut parsed = parse_query(db_system, string).ok()?; // TODO: fallback to regexes
+    let mut parsed = dbg!(parse_query(db_system, string).ok())?; // TODO: fallback to regexes
     let mut visitor = NormalizeVisitor;
     parsed.visit(&mut visitor);
-    Some(parsed[0].to_string().to_string()) // TODO: if empty? // FIXME: [0]
-                                            // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
+    Some(parsed.iter().map(Statement::to_string).join("; "))
+
+    // let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
 
     // let mut string = Cow::from(string.trim());
 
@@ -248,7 +249,7 @@ pub fn parse_query(
         .and_then(sqlparser::dialect::dialect_from_str)
         .unwrap_or_else(|| Box::new(GenericDialect {}));
 
-    let parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, "1");
+    let parsable_query = dbg!(SQL_PLACEHOLDER_REGEX.replace_all(query, "1"));
     sqlparser::parser::Parser::parse_sql(&*dialect, &parsable_query)
 }
 
@@ -647,7 +648,7 @@ mod tests {
 
     scrub_sql_test!(
         bytesa,
-        r#"SELECT "t"."x", "t"."arr"::bytea, "t"."c", WHERE "t"."id" IN (%s, %s)"#,
+        r#"SELECT "t"."x", "t"."arr"::bytea, "t"."c" WHERE "t"."id" IN (%s, %s)"#,
         "SELECT x, arr, c WHERE id IN (%s)"
     );
 
@@ -655,6 +656,12 @@ mod tests {
         collapse_list_cutoff,
         r#"SELECT "t"."a", "t"."b", "t..."#,
         "SELECT .."
+    );
+
+    scrub_sql_test!(
+        multiple_statements,
+        r#"SELECT 1; select 2"#,
+        "SELECT %s; SELECT %s"
     );
 
     scrub_sql_test!(
