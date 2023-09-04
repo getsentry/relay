@@ -15,7 +15,7 @@ use std::sync::Arc;
 use relay_config::Config;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -141,6 +141,8 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
+    /// Disables the upstream fetch loop.
+    shutdown: bool,
 }
 
 impl GlobalConfigService {
@@ -155,6 +157,7 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
+            shutdown: false,
         }
     }
 
@@ -172,7 +175,7 @@ impl GlobalConfigService {
 
     /// Schedules the next global config request.
     fn schedule_fetch(&mut self) {
-        if self.fetch_handle.is_idle() {
+        if !self.shutdown && self.fetch_handle.is_idle() {
             self.fetch_handle
                 .set(self.config.global_config_fetch_interval());
         }
@@ -236,6 +239,11 @@ impl GlobalConfigService {
 
         self.schedule_fetch();
     }
+
+    fn handle_shutdown(&mut self) {
+        self.shutdown = true;
+        self.fetch_handle.reset();
+    }
 }
 
 impl Service for GlobalConfigService {
@@ -243,6 +251,8 @@ impl Service for GlobalConfigService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
+            let mut shutdown_handle = Controller::shutdown_handle();
+
             relay_log::info!("global config service starting");
 
             if self.config.has_credentials() {
@@ -263,11 +273,51 @@ impl Service for GlobalConfigService {
                     () = &mut self.fetch_handle => self.update_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
+                    _ = shutdown_handle.notified() => self.handle_shutdown(),
 
                     else => break,
                 }
             }
             relay_log::info!("global config service stopped");
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use relay_config::Config;
+    use relay_system::{Controller, Service, ShutdownMode};
+    use relay_test::mock_service;
+
+    use crate::actors::global_config::{Get, GlobalConfigService};
+
+    /// Tests that the service can still handle requests after sending a
+    /// shutdown signal.
+    #[tokio::test]
+    async fn shutdown_service() {
+        relay_test::setup();
+        tokio::time::pause();
+
+        let (upstream, _) = mock_service("upstream", 0, |state, _| {
+            *state += 1;
+
+            if *state > 1 {
+                panic!("should not receive requests after shutdown");
+            }
+        });
+
+        Controller::start(Duration::from_secs(1));
+        let config = Arc::<Config>::default();
+        let service = GlobalConfigService::new(config.clone(), upstream).start();
+
+        assert!(service.send(Get).await.is_ok());
+
+        Controller::shutdown(ShutdownMode::Immediate);
+        tokio::time::sleep(config.global_config_fetch_interval() * 2).await;
+
+        assert!(service.send(Get).await.is_ok());
     }
 }
