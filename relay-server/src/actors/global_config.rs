@@ -13,6 +13,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use relay_config::Config;
+use relay_config::RelayMode;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
@@ -146,8 +147,39 @@ pub struct GlobalConfigService {
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let (global_config_watch, _) = watch::channel(Arc::default());
         let (internal_tx, internal_rx) = mpsc::channel(1);
+
+        let (global_config_watch, _) = match (
+            config.relay_mode(),
+            config.has_credentials(),
+            config.global_config(),
+        ) {
+            (RelayMode::Proxy | RelayMode::Static, true, None) | (RelayMode::Managed, true, _) => {
+                relay_log::info!("global config service starting");
+                // This request will trigger the request intervals when internal_rx receives the
+                // result from upstream.
+                Self::request_global_config(upstream.clone(), internal_tx.clone());
+                watch::channel(Arc::new(GlobalConfig::default()))
+            }
+            (RelayMode::Proxy | RelayMode::Static, false, None)
+            | (RelayMode::Managed, false, _) => {
+                // NOTE(iker): not making a request results in the sleep handler
+                // not being reset, so no new requests are made.
+                relay_log::info!("global config service starting with fetching disabled: no credentials configured");
+                watch::channel(Arc::new(GlobalConfig::default()))
+            }
+            (RelayMode::Proxy | RelayMode::Static | RelayMode::Capture, _, Some(global_config)) => {
+                relay_log::info!("global config service starting with fetching disabled: using static global config");
+                watch::channel(global_config.clone())
+            }
+            (RelayMode::Capture, _, None) => {
+                relay_log::info!(
+                    "global config service starting with fetching disabled: using default config"
+                );
+                watch::channel(Arc::new(GlobalConfig::default()))
+            }
+        };
+
         Self {
             config,
             global_config_watch,
@@ -182,12 +214,10 @@ impl GlobalConfigService {
     ///
     /// We check if we have credentials before sending,
     /// otherwise we would log an [`UpstreamRequestError::NoCredentials`] error.
-    fn update_global_config(&mut self) {
-        self.fetch_handle.reset();
-
-        let upstream_relay = self.upstream.clone();
-        let internal_tx = self.internal_tx.clone();
-
+    fn request_global_config(
+        upstream_relay: Addr<UpstreamRelay>,
+        internal_tx: mpsc::Sender<UpstreamQueryResult>,
+    ) {
         tokio::spawn(async move {
             metric!(timer(RelayTimers::GlobalConfigRequestDuration), {
                 let query = GetGlobalConfig::new();
@@ -206,7 +236,7 @@ impl GlobalConfigService {
     /// 1. Whether the request to the upstream was successful.
     /// 2. If the request was successful, it then checks whether the returned
     /// global config is valid and contains the expected data.
-    fn handle_result(&mut self, result: UpstreamQueryResult) {
+    fn handle_upstream_result(&mut self, result: UpstreamQueryResult) {
         match result {
             Ok(Ok(config)) => {
                 let mut success = false;
@@ -243,33 +273,15 @@ impl Service for GlobalConfigService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            match (self.config.has_credentials(), self.config.global_config()) {
-                (true, None) => {
-                    // NOTE(iker): if this first request fails it's possible the default
-                    // global config is forwarded. This is not ideal, but we accept it
-                    // for now.
-                    relay_log::info!("global config service starting");
-                    self.update_global_config();
-                }
-                (false, None) => {
-                    // NOTE(iker): not making a request results in the sleep handler
-                    // not being reset, so no new requests are made.
-                    relay_log::info!("global config service starting with fetching disabled: no credentials configured");
-                }
-                (_, Some(global_config)) => {
-                    relay_log::info!("global config service starting with fetching disabled: using static global config");
-                    self.global_config_watch
-                        .send(global_config.clone())
-                        .unwrap();
-                }
-            }
-
             loop {
                 tokio::select! {
                     biased;
-
-                    () = &mut self.fetch_handle => self.update_global_config(),
-                    Some(result) = self.internal_rx.recv() => self.handle_result(result),
+                    () = &mut self.fetch_handle => {
+                        Self::request_global_config(self.upstream.clone(), self.internal_tx.clone());
+                        // Disable new requests interval until we receive the result from upstream.
+                        self.fetch_handle.reset();
+                    }
+                    Some(result) = self.internal_rx.recv() => self.handle_upstream_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
 
                     else => break,
