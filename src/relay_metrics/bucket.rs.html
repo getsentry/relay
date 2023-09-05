@@ -1425,6 +1425,33 @@
 <a href="#1425" id="1425">1425</a>
 <a href="#1426" id="1426">1426</a>
 <a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet};
 <span class="kw">use </span>std::iter::FusedIterator;
 <span class="kw">use </span>std::{fmt, mem};
@@ -2095,6 +2122,11 @@
     <span class="prelude-val">Some</span>(map)
 }
 
+<span class="doccomment">/// Parses a unix UTC timestamp.
+</span><span class="kw">fn </span>parse_timestamp(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt; {
+    string.parse().ok().map(UnixTimestamp::from_secs)
+}
+
 <span class="doccomment">/// An aggregation of metric values.
 ///
 /// As opposed to single metric values, bucket aggregations can carry multiple values. See
@@ -2153,9 +2185,9 @@
 </span><span class="kw">pub struct </span>Bucket {
     <span class="doccomment">/// The start time of the time window.
     ///
-    /// If a timestamp is not supplied in the item header of the envelope, the
-    /// default timestamp supplied to [`Bucket::parse`] or [`Bucket::parse_all`]
-    /// is associated with the metric. It is then aligned with the aggregation window.
+    /// If a timestamp is not supplied as part of the submission payload, the default timestamp
+    /// supplied to [`Bucket::parse`] or [`Bucket::parse_all`] is associated with the metric. It is
+    /// then aligned with the aggregation window.
     </span><span class="kw">pub </span>timestamp: UnixTimestamp,
     <span class="doccomment">/// The length of the time window in seconds.
     </span><span class="kw">pub </span>width: u64,
@@ -2204,8 +2236,14 @@
         };
 
         <span class="kw">for </span>component <span class="kw">in </span>components {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="string">&#39;#&#39;</span>) = component.chars().next() {
-                bucket.tags = parse_tags(component.get(<span class="number">1</span>..)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+            <span class="kw">match </span>component.chars().next() {
+                <span class="prelude-val">Some</span>(<span class="string">&#39;#&#39;</span>) =&gt; {
+                    bucket.tags = parse_tags(component.get(<span class="number">1</span>..)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Some</span>(<span class="string">&#39;T&#39;</span>) =&gt; {
+                    bucket.timestamp = parse_timestamp(component.get(<span class="number">1</span>..)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+                }
+                <span class="kw">_ </span>=&gt; (),
             }
         }
 
@@ -2620,6 +2658,22 @@
     }
 
     <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_timestamp() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|d|T1615889449&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">assert_eq!</span>(metric.timestamp, UnixTimestamp::from_secs(<span class="number">1615889449</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_sample_rate() {
+        <span class="comment">// Sample rate should be ignored
+        </span><span class="kw">let </span>s = <span class="string">&quot;transactions/foo:17.5|d|@0.1&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        Bucket::parse(s.as_bytes(), timestamp).unwrap();
+    }
+
+    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_invalid_name() {
         <span class="kw">let </span>s = <span class="string">&quot;foo#bar:42|c&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
@@ -2690,7 +2744,7 @@
         <span class="kw">let </span>text = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/buckets.statsd.txt&quot;</span>).trim_end();
         <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/buckets.json&quot;</span>).trim_end();
 
-        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">1615889449</span>);
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">0</span>);
         <span class="kw">let </span>statsd_metrics = Bucket::parse_all(text.as_bytes(), timestamp)
             .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()
             .unwrap();

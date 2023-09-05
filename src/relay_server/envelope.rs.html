@@ -1697,20 +1697,6 @@
 <a href="#1697" id="1697">1697</a>
 <a href="#1698" id="1698">1698</a>
 <a href="#1699" id="1699">1699</a>
-<a href="#1700" id="1700">1700</a>
-<a href="#1701" id="1701">1701</a>
-<a href="#1702" id="1702">1702</a>
-<a href="#1703" id="1703">1703</a>
-<a href="#1704" id="1704">1704</a>
-<a href="#1705" id="1705">1705</a>
-<a href="#1706" id="1706">1706</a>
-<a href="#1707" id="1707">1707</a>
-<a href="#1708" id="1708">1708</a>
-<a href="#1709" id="1709">1709</a>
-<a href="#1710" id="1710">1710</a>
-<a href="#1711" id="1711">1711</a>
-<a href="#1712" id="1712">1712</a>
-<a href="#1713" id="1713">1713</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1751,7 +1737,6 @@
 
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::{DateTime, Utc};
-<span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::ErrorBoundary;
 <span class="kw">use </span>relay_event_schema::protocol::{EventId, EventType};
 <span class="kw">use </span>relay_protocol::Value;
@@ -2183,13 +2168,6 @@
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>sample_rates: <span class="prelude-ty">Option</span>&lt;Value&gt;,
 
-    <span class="doccomment">/// A custom timestamp associated with the item.
-    ///
-    /// For metrics, this field can be used to backdate a submission.
-    /// The given timestamp determines the bucket into which the metric will be aggregated.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span>timestamp: <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt;,
-
     <span class="doccomment">/// Flag indicating if metrics have already been extracted from the item.
     ///
     /// In order to only extract metrics once from an item while through a
@@ -2222,7 +2200,6 @@
                 filename: <span class="prelude-val">None</span>,
                 rate_limited: <span class="bool-val">false</span>,
                 sample_rates: <span class="prelude-val">None</span>,
-                timestamp: <span class="prelude-val">None</span>,
                 other: BTreeMap::new(),
                 metrics_extracted: <span class="bool-val">false</span>,
             },
@@ -2360,11 +2337,6 @@
         <span class="kw">if </span><span class="macro">matches!</span>(sample_rates, Value::Array(<span class="kw-2">ref </span>a) <span class="kw">if </span>!a.is_empty()) {
             <span class="self">self</span>.headers.sample_rates = <span class="prelude-val">Some</span>(sample_rates);
         }
-    }
-
-    <span class="doccomment">/// Get custom timestamp for this item. Currently used to backdate metrics.
-    </span><span class="kw">pub fn </span>timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;UnixTimestamp&gt; {
-        <span class="self">self</span>.headers.timestamp
     }
 
     <span class="doccomment">/// Returns the metrics extracted flag.

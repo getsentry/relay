@@ -6625,13 +6625,13 @@
         <span class="kw">for </span>item <span class="kw">in </span>items {
             <span class="kw">let </span>payload = item.payload();
             <span class="kw">if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Statsd {
-                <span class="kw">let </span><span class="kw-2">mut </span>timestamp = item.timestamp().unwrap_or(received_timestamp);
-                clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>timestamp);
-
                 <span class="kw">let </span><span class="kw-2">mut </span>buckets = Vec::new();
-                <span class="kw">for </span>bucket_result <span class="kw">in </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload, timestamp) {
+                <span class="kw">for </span>bucket_result <span class="kw">in </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload, received_timestamp) {
                     <span class="kw">match </span>bucket_result {
-                        <span class="prelude-val">Ok</span>(bucket) =&gt; buckets.push(bucket),
+                        <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket) =&gt; {
+                            clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
+                            buckets.push(bucket);
+                        }
                         <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">relay_log::debug!</span>(
                             error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                             <span class="string">&quot;failed to parse metric bucket from statsd format&quot;</span>,

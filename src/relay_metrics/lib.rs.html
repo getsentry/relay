@@ -75,6 +75,8 @@
 <a href="#75" id="75">75</a>
 <a href="#76" id="76">76</a>
 <a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.
 //!
 //! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
@@ -101,16 +103,18 @@
 //!
 //! ```text
 //! {}
-//! {&quot;type&quot;: &quot;statsd&quot;, &quot;timestamp&quot;: 1615889440, ...}
+//! {&quot;type&quot;: &quot;statsd&quot;, ...}
 </span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/buckets.statsd.txt&quot;</span>)]
 </span><span class="doccomment">//! ...
 //! ```
 //!
 //! Note that the name format used in the statsd protocol is different from the MRI: Metric names
-//! are not prefixed with `&lt;ty&gt;:` as the type is somewhere else in the protocol.
+//! are not prefixed with `&lt;ty&gt;:` as the type is somewhere else in the protocol. If no metric
+//! namespace is specified, the `&quot;custom&quot;` namespace is assumed.
 //!
-//! The timestamp in the item header is used to send backdated metrics. If it is omitted,
-//! the `received` time of the envelope is assumed.
+//! Optionally, a timestamp can be added to every line of the submitted envelope. The timestamp has
+//! to be a valid Unix timestamp (UTC) and must be prefixed with `T`. If it is omitted, the
+//! `received` time of the envelope is assumed.
 //!
 //! # Aggregation
 //!
