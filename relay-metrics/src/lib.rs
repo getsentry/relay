@@ -26,7 +26,7 @@
 //! ```text
 //! {}
 //! {"type": "metrics", "timestamp": 1615889440, ...}
-#![doc = include_str!("../tests/fixtures/metrics.statsd.txt")]
+#![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
 //! ...
 //! ```
 //!

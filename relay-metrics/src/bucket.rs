@@ -5,12 +5,12 @@ use std::{fmt, mem};
 use float_ord::FloatOrd;
 use relay_common::time::UnixTimestamp;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
-use crate::{
-    parse_name_unit, parse_tags, CounterType, DistributionType, GaugeType,
-    MetricResourceIdentifier, MetricType, MetricValue, MetricsContainer, SetType,
+use crate::protocol::{
+    self, CounterType, DistributionType, GaugeType, MetricResourceIdentifier, MetricType,
+    MetricValue, MetricsContainer, SetType,
 };
+use crate::ParseMetricError;
 
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
@@ -628,7 +628,7 @@ fn parse_gauge(string: &str) -> Option<GaugeValue> {
 ///
 /// The metric type is never part of this string and must be supplied separately.
 fn parse_mri(string: &str, ty: MetricType) -> Option<MetricResourceIdentifier> {
-    let (name_and_namespace, unit) = parse_name_unit(string)?;
+    let (name_and_namespace, unit) = protocol::parse_name_unit(string)?;
 
     let (raw_namespace, name) = name_and_namespace
         .split_once('/')
@@ -642,10 +642,28 @@ fn parse_mri(string: &str, ty: MetricType) -> Option<MetricResourceIdentifier> {
     })
 }
 
-/// Error returned when parsing or serializing a [`Bucket`].
-#[derive(Debug, Error)]
-#[error("failed to parse metric bucket")]
-pub struct ParseBucketError(());
+/// Parses tags in the format `tag1,tag2:value`.
+///
+/// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
+fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
+    let mut map = BTreeMap::new();
+
+    for pair in string.split(',') {
+        let mut name_value = pair.splitn(2, ':');
+
+        let name = name_value.next()?;
+        if !protocol::is_valid_tag_key(name) {
+            continue;
+        }
+
+        let mut value = name_value.next().unwrap_or_default().to_owned();
+        protocol::validate_tag_value(&mut value);
+
+        map.insert(name.to_owned(), value);
+    }
+
+    Some(map)
+}
 
 /// An aggregation of metric values.
 ///
@@ -668,6 +686,31 @@ pub struct ParseBucketError(());
 ///
 /// # Submission Protocol
 ///
+/// ```text
+/// <name>[@unit]:<value>[:<value>...]|<type>|#<tag_key>:<tag_value>,<tag>
+/// ```
+///
+/// See the field documentation on this struct for more information on the components. An example
+/// submission looks like this:
+///
+/// ```text
+#[doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
+/// ```
+///
+/// To parse a submission payload, use [`Bucket::parse_all`].
+///
+/// # JSON Representation
+///
+/// In addition to the submission protocol, metrics can be represented as structured data in JSON.
+/// In addition to the field values from the submission protocol, a timestamp is added to every
+/// metric (see [crate documentation](crate)).
+///
+/// ```json
+#[doc = include_str!("../tests/fixtures/buckets.json")]
+/// ```
+///
+/// # Submission Protocol
+///
 /// Buckets are always represented as JSON. The data type of the `value` field is determined by the
 /// metric type.
 ///
@@ -676,9 +719,13 @@ pub struct ParseBucketError(());
 /// ```
 ///
 /// To parse a submission payload, use [`Bucket::parse_all`].
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Bucket {
     /// The start time of the time window.
+    ///
+    /// If a timestamp is not supplied in the item header of the envelope, the
+    /// default timestamp supplied to [`Bucket::parse`] or [`Bucket::parse_all`]
+    /// is associated with the metric. It is then aligned with the aggregation window.
     pub timestamp: UnixTimestamp,
     /// The length of the time window in seconds.
     pub width: u64,
@@ -747,9 +794,9 @@ impl Bucket {
     /// let bucket = Bucket::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
     ///     .expect("metric should parse");
     /// ```
-    pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseBucketError> {
-        let string = std::str::from_utf8(slice).or(Err(ParseBucketError(())))?;
-        Self::parse_str(string, timestamp).ok_or(ParseBucketError(()))
+    pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
+        let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
+        Self::parse_str(string, timestamp).ok_or(ParseMetricError(()))
     }
 
     /// Parses a set of metric aggregates from the raw protocol.
@@ -799,7 +846,7 @@ impl MetricsContainer for Bucket {
     }
 }
 
-/// Iterator over parsed metrics returned from [`Metric::parse_all`].
+/// Iterator over parsed metrics returned from [`Bucket::parse_all`].
 #[derive(Clone, Debug)]
 pub struct ParseBuckets<'a> {
     slice: &'a [u8],
@@ -817,7 +864,7 @@ impl Default for ParseBuckets<'_> {
 }
 
 impl Iterator for ParseBuckets<'_> {
-    type Item = Result<Bucket, ParseBucketError>;
+    type Item = Result<Bucket, ParseMetricError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -831,11 +878,11 @@ impl Iterator for ParseBuckets<'_> {
 
             let string = match std::str::from_utf8(current) {
                 Ok(string) => string.strip_suffix('\r').unwrap_or(string),
-                Err(_) => return Some(Err(ParseBucketError(()))),
+                Err(_) => return Some(Err(ParseMetricError(()))),
             };
 
             if !string.is_empty() {
-                return Some(Bucket::parse_str(string, self.timestamp).ok_or(ParseBucketError(())));
+                return Some(Bucket::parse_str(string, self.timestamp).ok_or(ParseMetricError(())));
             }
         }
     }
@@ -845,6 +892,10 @@ impl FusedIterator for ParseBuckets<'_> {}
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
+    use crate::protocol::{DurationUnit, MetricUnit};
+
     use super::*;
 
     #[test]
@@ -918,6 +969,243 @@ mod tests {
         assert_eq!(iter.next(), Some((1f64, 1)));
         assert_eq!(iter.next(), Some((2f64, 2)));
         assert_eq!(iter.next(), None);
+    }
+    #[test]
+    fn test_parse_garbage() {
+        let s = "x23-408j17z4232@#34d\nc3456y7^😎";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let result = Bucket::parse(s.as_bytes(), timestamp);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_counter() {
+        let s = "transactions/foo:42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Bucket {
+            timestamp: UnixTimestamp(4711),
+            width: 0,
+            name: "c:transactions/foo@none",
+            value: Counter(
+                42.0,
+            ),
+            tags: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_distribution() {
+        let s = "transactions/foo:17.5|d";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Bucket {
+            timestamp: UnixTimestamp(4711),
+            width: 0,
+            name: "d:transactions/foo@none",
+            value: Distribution(
+                {
+                    17.5: 1,
+                },
+            ),
+            tags: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_histogram() {
+        let s = "transactions/foo:17.5|h"; // common alias for distribution
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(metric.value, BucketValue::Distribution(dist![17.5]));
+    }
+
+    #[test]
+    fn test_parse_set() {
+        let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r#"
+            Metric {
+                name: "s:transactions/foo@none",
+                value: Set(
+                    4267882815,
+                ),
+                timestamp: UnixTimestamp(4711),
+                tags: {},
+            }
+            "#);
+    }
+
+    #[test]
+    fn test_parse_gauge() {
+        let s = "transactions/foo:42|g";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Bucket {
+            timestamp: UnixTimestamp(4711),
+            width: 0,
+            name: "g:transactions/foo@none",
+            value: Gauge(
+                GaugeValue {
+                    max: 42.0,
+                    min: 42.0,
+                    sum: 42.0,
+                    last: 42.0,
+                    count: 1,
+                },
+            ),
+            tags: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_implicit_namespace() {
+        let s = "foo:42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Bucket {
+            timestamp: UnixTimestamp(4711),
+            width: 0,
+            name: "c:custom/foo@none",
+            value: Counter(
+                42.0,
+            ),
+            tags: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_unit() {
+        let s = "transactions/foo@second:17.5|d";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
+    }
+
+    #[test]
+    fn test_parse_unit_regression() {
+        let s = "transactions/foo@s:17.5|d";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
+        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
+    }
+
+    #[test]
+    fn test_parse_tags() {
+        let s = "transactions/foo:17.5|d|#foo,bar:baz";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric.tags, @r#"
+            {
+                "bar": "baz",
+                "foo": "",
+            }
+            "#);
+    }
+
+    #[test]
+    fn test_parse_invalid_name() {
+        let s = "foo#bar:42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp);
+        assert!(metric.is_err());
+    }
+
+    #[test]
+    fn test_parse_empty_name() {
+        let s = ":42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp);
+        assert!(metric.is_err());
+    }
+
+    #[test]
+    fn test_parse_invalid_name_with_leading_digit() {
+        let s = "64bit:42|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp);
+        assert!(metric.is_err());
+    }
+
+    #[test]
+    fn test_parse_all() {
+        let s = "transactions/foo:42|c\nbar:17|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+
+        let metrics: Vec<Bucket> = Bucket::parse_all(s.as_bytes(), timestamp)
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        assert_eq!(metrics.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_all_crlf() {
+        let s = "transactions/foo:42|c\r\nbar:17|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+
+        let metrics: Vec<Bucket> = Bucket::parse_all(s.as_bytes(), timestamp)
+            .collect::<Result<_, _>>()
+            .unwrap();
+
+        assert_eq!(metrics.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_all_empty_lines() {
+        let s = "transactions/foo:42|c\n\n\nbar:17|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+
+        let metric_count = Bucket::parse_all(s.as_bytes(), timestamp).count();
+        assert_eq!(metric_count, 2);
+    }
+
+    #[test]
+    fn test_parse_all_trailing() {
+        let s = "transactions/foo:42|c\nbar:17|c\n";
+        let timestamp = UnixTimestamp::from_secs(4711);
+
+        let metric_count = Bucket::parse_all(s.as_bytes(), timestamp).count();
+        assert_eq!(metric_count, 2);
+    }
+
+    #[test]
+    fn test_metrics_docs() {
+        let text = include_str!("../tests/fixtures/buckets.statsd.txt").trim_end();
+        let json = include_str!("../tests/fixtures/buckets.json").trim_end();
+
+        let timestamp = UnixTimestamp::from_secs(1615889449);
+        let statsd_metrics = Bucket::parse_all(text.as_bytes(), timestamp)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        let json_metrics: Vec<Bucket> = serde_json::from_str(json).unwrap();
+
+        assert_eq!(statsd_metrics, json_metrics);
+    }
+
+    #[test]
+    #[ignore = "set hashing not implemented"]
+    fn test_set_docs() {
+        let text = include_str!("../tests/fixtures/set.statsd.txt").trim_end();
+        let json = include_str!("../tests/fixtures/set.json").trim_end();
+
+        let timestamp = UnixTimestamp::from_secs(1615889449);
+        let statsd_metric = Bucket::parse(text.as_bytes(), timestamp).unwrap();
+        let json_metric: Bucket = serde_json::from_str(json).unwrap();
+
+        assert_eq!(statsd_metric, json_metric);
     }
 
     #[test]
