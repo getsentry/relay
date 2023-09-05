@@ -449,6 +449,12 @@ mod tests {
     );
 
     scrub_sql_test!(
+        parameters_values_with_quotes,
+        r#"INSERT INTO "a" ("b") VALUES (1)"#,
+        "INSERT INTO a (..) VALUES (%s)"
+    );
+
+    scrub_sql_test!(
         parameters_in,
         "select column FROM table1 WHERE id IN (1, 2, 3)",
         "SELECT column FROM table1 WHERE id IN (%s)"

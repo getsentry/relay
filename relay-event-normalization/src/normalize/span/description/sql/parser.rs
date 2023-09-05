@@ -45,6 +45,11 @@ impl NormalizeVisitor {
         Value::Number("%s".into(), false)
     }
 
+    /// Placeholder for a list of items that has been scrubbed.
+    fn ellipsis() -> Ident {
+        Ident::new("..")
+    }
+
     /// Check if a selected item can be erased into `..`. Currently we only collapse simple
     /// columns (`col1` or `col1 AS foo`).
     fn is_collapsible(item: &SelectItem) -> bool {
@@ -66,10 +71,9 @@ impl NormalizeVisitor {
             1 => {
                 output.append(collapse);
             }
-            _ => output.push(SelectItem::UnnamedExpr(Expr::Value(Value::Number(
-                "..".into(),
-                false,
-            )))),
+            _ => {
+                output.push(SelectItem::UnnamedExpr(Expr::Identifier(Self::ellipsis())));
+            }
         }
     }
 
@@ -113,6 +117,13 @@ impl NormalizeVisitor {
             }
         }
     }
+
+    fn simplify_compound_identifier(parts: &mut Vec<Ident>) {
+        if let Some(mut last) = parts.pop() {
+            last.quote_style = None;
+            *parts = vec![last];
+        }
+    }
 }
 
 impl VisitorMut for NormalizeVisitor {
@@ -130,10 +141,7 @@ impl VisitorMut for NormalizeVisitor {
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
             // `"table"."col"` is replaced by `col`.
             Expr::CompoundIdentifier(parts) => {
-                if let Some(mut last) = parts.pop() {
-                    last.quote_style = None;
-                    *parts = vec![last];
-                }
+                Self::simplify_compound_identifier(parts);
             }
             // `"col"` is replaced by `col`.
             Expr::Identifier(ident) => {
@@ -141,6 +149,7 @@ impl VisitorMut for NormalizeVisitor {
             }
             // Recurse into subqueries.
             Expr::Subquery(query) => Self::transform_query(query),
+            // Remove negative sign, e.g. `-100` becomes `%s`.
             Expr::UnaryOp {
                 op: UnaryOperator::Minus,
                 expr: inner,
@@ -161,11 +170,21 @@ impl VisitorMut for NormalizeVisitor {
             }
             // `INSERT INTO col1, col2 VALUES (val1, val2)` becomes `INSERT INTO .. VALUES (%s)`.
             Statement::Insert {
-                columns, source, ..
+                table_name,
+                columns,
+                source,
+                ..
             } => {
-                *columns = vec![Ident::new("..")];
+                Self::simplify_compound_identifier(&mut table_name.0);
+                *columns = vec![Self::ellipsis()];
                 if let SetExpr::Values(v) = &mut *source.body {
                     v.rows = vec![vec![Expr::Value(Self::placeholder())]]
+                }
+            }
+            // `UPDATE "foo"."bar"` becomes `UPDATE bar`.
+            Statement::Update { assignments, .. } => {
+                for assignment in assignments.iter_mut() {
+                    Self::simplify_compound_identifier(&mut assignment.id);
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
