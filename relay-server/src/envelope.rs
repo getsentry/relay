@@ -38,7 +38,6 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{EventId, EventType};
 use relay_protocol::Value;
@@ -470,13 +469,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sample_rates: Option<Value>,
 
-    /// A custom timestamp associated with the item.
-    ///
-    /// For metrics, this field can be used to backdate a submission.
-    /// The given timestamp determines the bucket into which the metric will be aggregated.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    timestamp: Option<UnixTimestamp>,
-
     /// Flag indicating if metrics have already been extracted from the item.
     ///
     /// In order to only extract metrics once from an item while through a
@@ -509,7 +501,6 @@ impl Item {
                 filename: None,
                 rate_limited: false,
                 sample_rates: None,
-                timestamp: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
             },
@@ -647,11 +638,6 @@ impl Item {
         if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
             self.headers.sample_rates = Some(sample_rates);
         }
-    }
-
-    /// Get custom timestamp for this item. Currently used to backdate metrics.
-    pub fn timestamp(&self) -> Option<UnixTimestamp> {
-        self.headers.timestamp
     }
 
     /// Returns the metrics extracted flag.

@@ -1,6 +1,6 @@
 [
   {
-    "timestamp": 1615889449,
+    "timestamp": 1615889440,
     "width": 0,
     "name": "d:custom/endpoint.response_time@millisecond",
     "type": "d",
@@ -15,7 +15,7 @@
     }
   },
   {
-    "timestamp": 1615889449,
+    "timestamp": 1615889440,
     "width": 0,
     "name": "c:custom/endpoint.hits@none",
     "type": "c",
@@ -25,7 +25,7 @@
     }
   },
   {
-    "timestamp": 1615889449,
+    "timestamp": 1615889440,
     "width": 0,
     "name": "g:custom/endpoint.parallel_requests@none",
     "type": "g",
@@ -41,7 +41,7 @@
     }
   },
   {
-    "timestamp": 1615889449,
+    "timestamp": 1615889440,
     "width": 0,
     "name": "s:custom/endpoint.users@none",
     "type": "s",

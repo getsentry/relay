@@ -1,4 +1,4 @@
-endpoint.response_time@millisecond:36:49:57:68|d|#route:user_index
-endpoint.hits:4|c|#route:user_index
-endpoint.parallel_requests:25:17:42:220:85|g|#route:user_index
-endpoint.users:3182887624:4267882815|s|#route:user_index
+endpoint.response_time@millisecond:36:49:57:68|d|#route:user_index|T1615889440
+endpoint.hits:4|c|#route:user_index|T1615889440
+endpoint.parallel_requests:25:17:42:220:85|g|#route:user_index|T1615889440
+endpoint.users:3182887624:4267882815|s|#route:user_index|T1615889440
