@@ -506,25 +506,6 @@
 <a href="#506" id="506">506</a>
 <a href="#507" id="507">507</a>
 <a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
@@ -832,7 +813,7 @@
 ///
 /// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon
 /// parsing, they are hashed and only used as hashes subsequently.
-</span><span class="kw">fn </span>hash_set_value(string: <span class="kw-2">&amp;</span>str) -&gt; u32 {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hash_set_value(string: <span class="kw-2">&amp;</span>str) -&gt; u32 {
     <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
     hasher.write(string.as_bytes());
     hasher.finish32()
@@ -844,25 +825,6 @@
 /// submission and cannot store multiple values.
 ///
 /// See the [crate documentation](crate) for general information on Metrics.
-///
-/// # Hashing of Sets
-///
-/// Set values can be specified as strings in the submission protocol. They are always hashed
-/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
-/// 32-bit integer, it will be used directly, instead.
-///
-/// **Example**:
-///
-/// ```text
-</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.statsd.txt&quot;</span>)]
-</span><span class="doccomment">/// ```
-///
-/// The above submission is represented as:
-///
-/// ```json
-</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.json&quot;</span>)]
-</span><span class="doccomment">/// ```
-
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>Metric {
     <span class="doccomment">/// The metric resource identifier, in short MRI.

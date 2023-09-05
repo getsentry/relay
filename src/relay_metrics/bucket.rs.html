@@ -1452,6 +1452,28 @@
 <a href="#1452" id="1452">1452</a>
 <a href="#1453" id="1453">1453</a>
 <a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{btree_map, BTreeMap, BTreeSet};
 <span class="kw">use </span>std::iter::FusedIterator;
 <span class="kw">use </span>std::{fmt, mem};
@@ -1911,6 +1933,8 @@
 /// Set values can be specified as strings in the submission protocol. They are always hashed
 /// into a 32-bit value and the original value is dropped. If the submission protocol contains a
 /// 32-bit integer, it will be used directly, instead.
+///
+/// See the [bucket docs](crate::Bucket) for more information on set hashing.
 </span><span class="kw">pub type </span>SetValue = BTreeSet&lt;SetType&gt;;
 
 <span class="doccomment">/// The [aggregated value](Bucket::value) of a metric bucket.
@@ -2043,8 +2067,10 @@
 </span><span class="kw">fn </span>parse_set(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;SetValue&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>set = SetValue::default();
     <span class="kw">for </span>component <span class="kw">in </span>string.split(VALUE_SEPARATOR) {
-        <span class="comment">// TODO: Support value hashing
-        </span>set.insert(component.parse().ok()<span class="question-mark">?</span>);
+        <span class="kw">let </span>hash = component
+            .parse()
+            .unwrap_or_else(|<span class="kw">_</span>| protocol::hash_set_value(component));
+        set.insert(hash);
     }
     <span class="prelude-val">Some</span>(set)
 }
@@ -2181,6 +2207,24 @@
 </span><span class="doccomment">/// ```
 ///
 /// To parse a submission payload, use [`Bucket::parse_all`].
+///
+/// # Hashing of Sets
+///
+/// Set values can be specified as strings in the submission protocol. They are always hashed
+/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+/// 32-bit integer, it will be used directly, instead.
+///
+/// **Example**:
+///
+/// ```text
+</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.statsd.txt&quot;</span>)]
+</span><span class="doccomment">/// ```
+///
+/// The above submission is represented as:
+///
+/// ```json
+</span><span class="attr">#[doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.json&quot;</span>)]
+</span><span class="doccomment">/// ```
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 </span><span class="kw">pub struct </span>Bucket {
     <span class="doccomment">/// The start time of the time window.
@@ -2532,21 +2576,22 @@
     }
 
     <span class="attr">#[test]
-    #[ignore = <span class="string">&quot;set hashing not implemented&quot;</span>]
     </span><span class="kw">fn </span>test_parse_set_hashed() {
         <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s&quot;</span>;
         <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
         <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(metric, @<span class="string">r#&quot;
-            Metric {
-                name: &quot;s:transactions/foo@none&quot;,
-                value: Set(
-                    4267882815,
-                ),
-                timestamp: UnixTimestamp(4711),
-                tags: {},
-            }
-            &quot;#</span>);
+        <span class="macro">assert_eq!</span>(metric.value, BucketValue::Set([<span class="number">4267882815</span>].into()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_parse_set_hashed_packed() {
+        <span class="kw">let </span>s = <span class="string">&quot;transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658:00449b66-d91f-4fb8-b324-4c8bdf2499f6|s&quot;</span>;
+        <span class="kw">let </span>timestamp = UnixTimestamp::from_secs(<span class="number">4711</span>);
+        <span class="kw">let </span>metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        <span class="macro">assert_eq!</span>(
+            metric.value,
+            BucketValue::Set([<span class="number">181348692</span>, <span class="number">4267882815</span>].into())
+        );
     }
 
     <span class="attr">#[test]
@@ -2755,7 +2800,6 @@
     }
 
     <span class="attr">#[test]
-    #[ignore = <span class="string">&quot;set hashing not implemented&quot;</span>]
     </span><span class="kw">fn </span>test_set_docs() {
         <span class="kw">let </span>text = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.statsd.txt&quot;</span>).trim_end();
         <span class="kw">let </span>json = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/set.json&quot;</span>).trim_end();
