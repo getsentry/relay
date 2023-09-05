@@ -24,16 +24,18 @@
 //!
 //! ```text
 //! {}
-//! {"type": "statsd", "timestamp": 1615889440, ...}
+//! {"type": "statsd", ...}
 #![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
 //! ...
 //! ```
 //!
 //! Note that the name format used in the statsd protocol is different from the MRI: Metric names
-//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol.
+//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol. If no metric
+//! namespace is specified, the `"custom"` namespace is assumed.
 //!
-//! The timestamp in the item header is used to send backdated metrics. If it is omitted,
-//! the `received` time of the envelope is assumed.
+//! Optionally, a timestamp can be added to every line of the submitted envelope. The timestamp has
+//! to be a valid Unix timestamp (UTC) and must be prefixed with `T`. If it is omitted, the
+//! `received` time of the envelope is assumed.
 //!
 //! # Aggregation
 //!

@@ -2629,13 +2629,13 @@ impl EnvelopeProcessorService {
         for item in items {
             let payload = item.payload();
             if item.ty() == &ItemType::Statsd {
-                let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
-                clock_drift_processor.process_timestamp(&mut timestamp);
-
                 let mut buckets = Vec::new();
-                for bucket_result in Bucket::parse_all(&payload, timestamp) {
+                for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
                     match bucket_result {
-                        Ok(bucket) => buckets.push(bucket),
+                        Ok(mut bucket) => {
+                            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                            buckets.push(bucket);
+                        }
                         Err(error) => relay_log::debug!(
                             error = &error as &dyn Error,
                             "failed to parse metric bucket from statsd format",

@@ -668,6 +668,11 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
     Some(map)
 }
 
+/// Parses a unix UTC timestamp.
+fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
+    string.parse().ok().map(UnixTimestamp::from_secs)
+}
+
 /// An aggregation of metric values.
 ///
 /// As opposed to single metric values, bucket aggregations can carry multiple values. See
@@ -726,9 +731,9 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 pub struct Bucket {
     /// The start time of the time window.
     ///
-    /// If a timestamp is not supplied in the item header of the envelope, the
-    /// default timestamp supplied to [`Bucket::parse`] or [`Bucket::parse_all`]
-    /// is associated with the metric. It is then aligned with the aggregation window.
+    /// If a timestamp is not supplied as part of the submission payload, the default timestamp
+    /// supplied to [`Bucket::parse`] or [`Bucket::parse_all`] is associated with the metric. It is
+    /// then aligned with the aggregation window.
     pub timestamp: UnixTimestamp,
     /// The length of the time window in seconds.
     pub width: u64,
@@ -777,8 +782,14 @@ impl Bucket {
         };
 
         for component in components {
-            if let Some('#') = component.chars().next() {
-                bucket.tags = parse_tags(component.get(1..)?)?;
+            match component.chars().next() {
+                Some('#') => {
+                    bucket.tags = parse_tags(component.get(1..)?)?;
+                }
+                Some('T') => {
+                    bucket.timestamp = parse_timestamp(component.get(1..)?)?;
+                }
+                _ => (),
             }
         }
 
@@ -1193,6 +1204,22 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_timestamp() {
+        let s = "transactions/foo:17.5|d|T1615889449";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(metric.timestamp, UnixTimestamp::from_secs(1615889449));
+    }
+
+    #[test]
+    fn test_parse_sample_rate() {
+        // Sample rate should be ignored
+        let s = "transactions/foo:17.5|d|@0.1";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        Bucket::parse(s.as_bytes(), timestamp).unwrap();
+    }
+
+    #[test]
     fn test_parse_invalid_name() {
         let s = "foo#bar:42|c";
         let timestamp = UnixTimestamp::from_secs(4711);
@@ -1263,7 +1290,7 @@ mod tests {
         let text = include_str!("../tests/fixtures/buckets.statsd.txt").trim_end();
         let json = include_str!("../tests/fixtures/buckets.json").trim_end();
 
-        let timestamp = UnixTimestamp::from_secs(1615889449);
+        let timestamp = UnixTimestamp::from_secs(0);
         let statsd_metrics = Bucket::parse_all(text.as_bytes(), timestamp)
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
