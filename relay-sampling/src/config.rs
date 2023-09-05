@@ -97,7 +97,7 @@ pub enum SamplingValue {
     /// until a sample rate rule is found. The matched rule's factor will be multiplied with the
     /// accumulated factors before moving onto the next possible match.
     Factor {
-        /// The factor to apply on another matched sample rate.
+        /// The fator to apply on another matched sample rate.
         value: f64,
     },
 }
