@@ -1,2 +1,0 @@
-endpoint.response_time@millisecond:57.0|d|#route:user_index
-endpoint.hits:1.0|c|#route:user_index
