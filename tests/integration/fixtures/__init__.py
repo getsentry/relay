@@ -225,7 +225,7 @@ class SentryLike:
         envelope.add_item(
             Item(
                 payload=PayloadRef(bytes=payload.encode()),
-                type="metrics",
+                type="statsd",
                 headers=None if timestamp is None else {"timestamp": timestamp},
             )
         )

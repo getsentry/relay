@@ -97,7 +97,7 @@ pub enum ItemType {
     /// Aggregated session data.
     Sessions,
     /// Individual metrics in text encoding.
-    Metrics,
+    Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
     /// Client internal report (eg: outcomes).
@@ -147,7 +147,7 @@ impl fmt::Display for ItemType {
             Self::UserReport => write!(f, "user_report"),
             Self::Session => write!(f, "session"),
             Self::Sessions => write!(f, "sessions"),
-            Self::Metrics => write!(f, "metrics"),
+            Self::Statsd => write!(f, "statsd"),
             Self::MetricBuckets => write!(f, "metric_buckets"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
@@ -175,7 +175,7 @@ impl std::str::FromStr for ItemType {
             "user_report" => Self::UserReport,
             "session" => Self::Session,
             "sessions" => Self::Sessions,
-            "metrics" => Self::Metrics,
+            "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
@@ -552,7 +552,7 @@ impl Item {
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Metrics | ItemType::MetricBuckets => None,
+            ItemType::Statsd | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::Profile => Some(if indexed {
@@ -722,7 +722,7 @@ impl Item {
             ItemType::UserReport
             | ItemType::Session
             | ItemType::Sessions
-            | ItemType::Metrics
+            | ItemType::Statsd
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::ReplayEvent
@@ -753,7 +753,7 @@ impl Item {
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
-            ItemType::Metrics => false,
+            ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,

@@ -11,8 +11,7 @@
 //! looks like this:
 //!
 //! ```text
-//! endpoint.response_time@millisecond:57|d|#route:user_index
-//! endpoint.hits:1|c|#route:user_index
+#![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
 //! ```
 //!
 //! The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
@@ -25,7 +24,7 @@
 //!
 //! ```text
 //! {}
-//! {"type": "metrics", "timestamp": 1615889440, ...}
+//! {"type": "statsd", "timestamp": 1615889440, ...}
 #![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
 //! ...
 //! ```
