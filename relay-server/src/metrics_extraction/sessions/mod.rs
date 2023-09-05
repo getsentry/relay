@@ -474,14 +474,15 @@ mod tests {
             );
         }
 
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: "c:sessions/session@none",
                 value: Counter(
                     135.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
@@ -489,12 +490,13 @@ mod tests {
                     "session.status": "init",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: "c:sessions/session@none",
                 value: Counter(
                     12.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
@@ -502,12 +504,13 @@ mod tests {
                     "session.status": "errored_preaggr",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: "c:sessions/session@none",
                 value: Counter(
                     5.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
@@ -515,12 +518,13 @@ mod tests {
                     "session.status": "abnormal",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: "c:sessions/session@none",
                 value: Counter(
                     7.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
@@ -528,12 +532,13 @@ mod tests {
                     "session.status": "crashed",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
                 name: "c:sessions/session@none",
                 value: Counter(
                     15.0,
                 ),
-                timestamp: UnixTimestamp(1581084961),
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
@@ -541,12 +546,13 @@ mod tests {
                     "session.status": "init",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
                 name: "c:sessions/session@none",
                 value: Counter(
                     3.0,
                 ),
-                timestamp: UnixTimestamp(1581084961),
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
@@ -554,12 +560,15 @@ mod tests {
                     "session.status": "errored_preaggr",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
                 name: "s:sessions/user@none",
                 value: Set(
-                    3097475539,
+                    {
+                        3097475539,
+                    },
                 ),
-                timestamp: UnixTimestamp(1581084961),
                 tags: {
                     "environment": "development",
                     "release": "my-project-name@1.0.0",
@@ -568,6 +577,6 @@ mod tests {
                 },
             },
         ]
-        "#);
+        "###);
     }
 }

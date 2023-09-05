@@ -168,18 +168,19 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {},
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -204,18 +205,21 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "d:transactions/duration@none",
                 value: Distribution(
-                    2000.0,
+                    {
+                        2000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {},
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -242,18 +246,21 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "s:transactions/users@none",
                 value: Set(
-                    943162418,
+                    {
+                        943162418,
+                    },
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {},
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -292,14 +299,15 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {
                     "fast": "no",
                     "id": "4711",
@@ -307,7 +315,7 @@ mod tests {
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -345,20 +353,21 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {
                     "fast": "yes",
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -400,19 +409,20 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {
                     "fast": "yes",
                 },
             },
         ]
-        "#);
+        "###);
     }
 }
