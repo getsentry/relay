@@ -1016,7 +1016,7 @@ impl FromValue for Timestamp {
             Annotated(Some(Value::String(value)), mut meta) => {
                 // NaiveDateTime parses "%Y-%m-%dT%H:%M:%S%.f"
                 let parsed = match value.parse::<NaiveDateTime>() {
-                    Ok(dt) => Ok(DateTime::from_utc(dt, Utc)),
+                    Ok(dt) => Ok(DateTime::from_naive_utc_and_offset(dt, Utc)),
 
                     // XXX: This actually accepts more than RFC 3339. SDKs are strongly discouraged
                     // from exercising that freedom. We should only support RFC3339.

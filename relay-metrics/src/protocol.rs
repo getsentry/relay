@@ -374,8 +374,7 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 /// submission looks like this:
 ///
 /// ```text
-/// endpoint.response_time@millisecond:57|d|#route:user_index
-/// endpoint.hits:1|c|#route:user_index
+#[doc = include_str!("../tests/fixtures/metrics.statsd.txt")]
 /// ```
 ///
 /// To parse a submission payload, use [`Metric::parse_all`].
@@ -387,16 +386,7 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 /// metric (see [crate documentation](crate)).
 ///
 /// ```json
-/// {
-///   "name": "endpoint.response_time",
-///   "unit": "millisecond",
-///   "value": 57,
-///   "type": "d",
-///   "timestamp": 1615889449,
-///   "tags": {
-///     "route": "user_index"
-///   }
-/// }
+#[doc = include_str!("../tests/fixtures/metrics.json")]
 /// ```
 ///
 /// # Hashing of Sets
@@ -408,17 +398,13 @@ fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
 /// **Example**:
 ///
 /// ```text
-/// endpoint.users:e2546e4c-ecd0-43ad-ae27-87960e57a658|s
+#[doc = include_str!("../tests/fixtures/set.statsd.txt")]
 /// ```
 ///
 /// The above submission is represented as:
 ///
 /// ```json
-/// {
-///   "name": "endpoint.users",
-///   "value": 4267882815,
-///   "type": "s"
-/// }
+#[doc = include_str!("../tests/fixtures/set.json")]
 /// ```
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -590,7 +576,8 @@ pub trait MetricsContainer {
     fn name(&self) -> &str;
 
     /// Returns the number of raw data points in this container.
-    /// See [`crate::aggregation::BucketValue::len()`].
+    ///
+    /// See [`BucketValue::len`](crate::BucketValue::len).
     fn len(&self) -> usize;
 
     /// Returns `true` if this container contains no values.
@@ -669,6 +656,8 @@ impl FusedIterator for ParseMetrics<'_> {}
 
 #[cfg(test)]
 mod tests {
+    use similar_asserts::assert_eq;
+
     use super::*;
 
     #[test]
@@ -928,5 +917,32 @@ mod tests {
 
         let metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
         assert_eq!(metric_count, 2);
+    }
+
+    #[test]
+    fn test_metrics_docs() {
+        let text = include_str!("../tests/fixtures/metrics.statsd.txt").trim_end();
+        let json = include_str!("../tests/fixtures/metrics.json").trim_end();
+
+        let timestamp = UnixTimestamp::from_secs(1615889449);
+        let statsd_metrics = Metric::parse_all(text.as_bytes(), timestamp)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        let json_metrics: Vec<Metric> = serde_json::from_str(json).unwrap();
+
+        assert_eq!(statsd_metrics, json_metrics);
+    }
+
+    #[test]
+    fn test_set_docs() {
+        let text = include_str!("../tests/fixtures/set.statsd.txt").trim_end();
+        let json = include_str!("../tests/fixtures/set.json").trim_end();
+
+        let timestamp = UnixTimestamp::from_secs(1615889449);
+        let statsd_metric = Metric::parse(text.as_bytes(), timestamp).unwrap();
+        let json_metric: Metric = serde_json::from_str(json).unwrap();
+
+        assert_eq!(statsd_metric, json_metric);
     }
 }

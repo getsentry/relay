@@ -26,7 +26,7 @@
 //! ```text
 //! {}
 //! {"type": "metrics", "timestamp": 1615889440, ...}
-//! endpoint.response_time@millisecond:57|d|#route:user_index
+#![doc = include_str!("../tests/fixtures/metrics.statsd.txt")]
 //! ...
 //! ```
 //!
@@ -48,29 +48,7 @@
 //! Aggregate buckets are encoded in JSON with the following schema:
 //!
 //! ```json
-//! [
-//!   {
-//!     "name": "endpoint.response_time",
-//!     "unit": "millisecond",
-//!     "value": [36, 49, 57, 68],
-//!     "type": "d",
-//!     "timestamp": 1615889440,
-//!     "width": 10,
-//!     "tags": {
-//!       "route": "user_index"
-//!     }
-//!   },
-//!   {
-//!     "name": "endpoint.hits",
-//!     "value": 4,
-//!     "type": "c",
-//!     "timestamp": 1615889440,
-//!     "width": 10,
-//!     "tags": {
-//!       "route": "user_index"
-//!     }
-//!   }
-//! ]
+#![doc = include_str!("../tests/fixtures/buckets.json")]
 //! ```
 //!
 //! # Ingestion
@@ -80,31 +58,21 @@
 //! separate message:
 //!
 //! ```json
-//! {
-//!   "org_id": 1,
-//!   "project_id": 42,
-//!   "name": "endpoint.response_time",
-//!   "unit": "millisecond",
-//!   "value": [36, 49, 57, 68],
-//!   "type": "d",
-//!   "timestamp": 1615889440,
-//!   "tags": {
-//!     "route": "user_index"
-//!   }
-//! }
+#![doc = include_str!("../tests/fixtures/kafka.json")]
 //! ```
 #![warn(missing_docs)]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png",
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
-#![allow(clippy::derive_partial_eq_without_eq)]
 
 mod aggregation;
+mod bucket;
 mod protocol;
 mod router;
 mod statsd;
 
 pub use aggregation::*;
+pub use bucket::*;
 pub use protocol::*;
 pub use router::*;

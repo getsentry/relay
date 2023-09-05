@@ -478,6 +478,20 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "boolean",
                 "null"
               ]
+            },
+            "view_names": {
+              "description": " The names of the currently visible views.",
+              "default": null,
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           },
           "additionalProperties": false

@@ -275,7 +275,7 @@ use relay_config::Config;
 use relay_system::{Controller, Service};
 
 use crate::actors::server::HttpServer;
-use crate::service::ServiceState;
+use crate::service::{Runtimes, ServiceState};
 
 /// Runs a relay web server and spawns all internal worker threads.
 ///
@@ -286,29 +286,32 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     let config = Arc::new(config);
     relay_log::info!("relay server starting");
 
-    // Create the main tokio runtime that all services run in.
+    // Creates the main runtime.
     let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
+
+    // Create secondary service runtimes.
+    //
+    // Runtimes must not be dropped within other runtimes, so keep them alive here.
+    let runtimes = Runtimes::new(&config);
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    let service = main_runtime.block_on(async {
+    main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone())?;
+        let service = ServiceState::start(config.clone(), &runtimes)?;
         HttpServer::new(config, service.clone())?.start();
         Controller::shutdown_handle().finished().await;
-        anyhow::Ok(service)
+        anyhow::Ok(())
     })?;
-
-    // TODO: Temporary workaround for dropping runtimes inside ServiceState. Dropping them within
-    // `main_runtime` causes panics. Consider removing the internal runtimes in favor of
-    // spawn_blocking and improved resource management.
-    drop(service);
 
     // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
     // not exit by themselves, and the shutdown timeout should have given them enough time to
     // complete their tasks. The additional 100ms allow services to run their error handlers.
     main_runtime.shutdown_timeout(Duration::from_millis(100));
+
+    // Shutdown all runtimes.
+    runtimes.shutdown();
 
     relay_log::info!("relay shutdown complete");
     Ok(())
