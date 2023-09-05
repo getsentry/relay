@@ -19,6 +19,9 @@
 
 - Support ingestion of custom metrics when the `organizations:custom-metrics` feature flag is enabled. ([#2443](https://github.com/getsentry/relay/pull/2443))
 - Merge span metrics and standalone spans extraction options. ([#2447](https://github.com/getsentry/relay/pull/2447))
+- Support parsing aggregated metric buckets directly from statsd payloads. ([#2468](https://github.com/getsentry/relay/pull/2468), [#2472](https://github.com/getsentry/relay/pull/2472))
+- Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
+- Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
 
 ## 23.8.0
 

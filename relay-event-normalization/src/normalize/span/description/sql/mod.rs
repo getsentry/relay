@@ -97,14 +97,32 @@ pub fn scrub_queries(db_system: Option<&str>, string: &str) -> Option<String> {
     let (res, mode) = scrub_queries_inner(db_system, string);
     relay_statsd::metric!(
         timer(Timers::SpanDescriptionNormalizeSQL) = t.elapsed(),
-        mode = mode
+        mode = mode.as_str(),
     );
     res
 }
 
-fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>, &'static str) {
+/// The scrubbing mode that was applied to an SQL string.
+#[derive(Debug)]
+enum Mode {
+    /// The SQL parser was able to parse & sanitize the string.
+    Parser,
+    /// SQL parsing failed and the scrubber fell back to a sequence of regexes.
+    Regex,
+}
+
+impl Mode {
+    fn as_str(&self) -> &str {
+        match self {
+            Mode::Parser => "parser",
+            Mode::Regex => "regex",
+        }
+    }
+}
+
+fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>, Mode) {
     if let Ok(queries) = normalize_parsed_queries(db_system, string) {
-        return (Some(queries), "parser");
+        return (Some(queries), Mode::Parser);
     }
 
     let mark_as_scrubbed = ALREADY_NORMALIZED_REGEX.is_match(string);
@@ -133,7 +151,7 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
         Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
         Cow::Borrowed(_) => None,
     };
-    (result, "regex")
+    (result, Mode::Regex)
 }
 
 #[cfg(test)]
