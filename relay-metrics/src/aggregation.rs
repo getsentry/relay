@@ -1531,10 +1531,10 @@ mod tests {
         assert_eq!(
             value,
             BucketValue::Gauge(GaugeValue {
-                max: 43.,
-                min: 42.,
-                sum: 85.,
                 last: 43.,
+                min: 42.,
+                max: 43.,
+                sum: 85.,
                 count: 2,
             })
         );
@@ -1572,10 +1572,10 @@ mod tests {
         assert_eq!(
             value,
             BucketValue::Gauge(GaugeValue {
-                max: 43.,
-                min: 42.,
-                sum: 85.,
                 last: 43.,
+                min: 42.,
+                max: 43.,
+                sum: 85.,
                 count: 2,
             })
         );
@@ -1601,10 +1601,10 @@ mod tests {
             expected_bucket_value_size + 3 * (8 + 4)
         );
         let gauge = BucketValue::Gauge(GaugeValue {
-            max: 43.,
-            min: 42.,
-            sum: 85.,
             last: 43.,
+            min: 42.,
+            max: 43.,
+            sum: 85.,
             count: 2,
         });
         assert_eq!(gauge.cost(), expected_bucket_value_size);

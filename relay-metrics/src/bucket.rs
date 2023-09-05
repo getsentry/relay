@@ -15,16 +15,16 @@ use crate::ParseMetricError;
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct GaugeValue {
-    /// The maximum value reported in the bucket.
-    pub max: GaugeType,
-    /// The minimum value reported in the bucket.
-    pub min: GaugeType,
-    /// The sum of all values reported in the bucket.
-    pub sum: GaugeType,
     /// The last value reported in the bucket.
     ///
     /// This aggregation is not commutative.
     pub last: GaugeType,
+    /// The minimum value reported in the bucket.
+    pub min: GaugeType,
+    /// The maximum value reported in the bucket.
+    pub max: GaugeType,
+    /// The sum of all values reported in the bucket.
+    pub sum: GaugeType,
     /// The number of times this bucket was updated with a new value.
     pub count: u64,
 }
@@ -33,29 +33,29 @@ impl GaugeValue {
     /// Creates a gauge snapshot from a single value.
     pub fn single(value: GaugeType) -> Self {
         Self {
-            max: value,
-            min: value,
-            sum: value,
             last: value,
+            min: value,
+            max: value,
+            sum: value,
             count: 1,
         }
     }
 
     /// Inserts a new value into the gauge.
     pub fn insert(&mut self, value: GaugeType) {
-        self.max = self.max.max(value);
-        self.min = self.min.min(value);
-        self.sum += value;
         self.last = value;
+        self.min = self.min.min(value);
+        self.max = self.max.max(value);
+        self.sum += value;
         self.count += 1;
     }
 
     /// Merges two gauge snapshots.
     pub fn merge(&mut self, other: Self) {
-        self.max = self.max.max(other.max);
-        self.min = self.min.min(other.min);
-        self.sum += other.sum;
         self.last = other.last;
+        self.min = self.min.min(other.min);
+        self.max = self.max.max(other.max);
+        self.sum += other.sum;
         self.count += other.count;
     }
 
@@ -495,10 +495,10 @@ pub enum BucketValue {
     ///
     /// ```text
     /// 1, 2, 3, 2 => {
-    ///   max: 3,
-    ///   min: 1,
-    ///   sum: 8,
     ///   last: 2
+    ///   min: 1,
+    ///   max: 3,
+    ///   sum: 8,
     ///   count: 4,
     /// }
     /// ```
@@ -599,21 +599,21 @@ fn parse_set(string: &str) -> Option<SetValue> {
 fn parse_gauge(string: &str) -> Option<GaugeValue> {
     let mut components = string.split(':');
 
-    let first = components.next()?.parse().ok()?;
+    let last = components.next()?.parse().ok()?;
     Some(if let Some(min) = components.next() {
         GaugeValue {
-            max: first,
+            last,
             min: min.parse().ok()?,
+            max: components.next()?.parse().ok()?,
             sum: components.next()?.parse().ok()?,
-            last: components.next()?.parse().ok()?,
             count: components.next()?.parse().ok()?,
         }
     } else {
         GaugeValue {
-            max: first,
-            min: first,
-            sum: first,
-            last: first,
+            last,
+            min: last,
+            max: last,
+            sum: last,
             count: 1,
         }
     })
@@ -1104,10 +1104,10 @@ mod tests {
             name: "g:transactions/foo@none",
             value: Gauge(
                 GaugeValue {
-                    max: 42.0,
-                    min: 42.0,
-                    sum: 42.0,
                     last: 42.0,
+                    min: 42.0,
+                    max: 42.0,
+                    sum: 42.0,
                     count: 1,
                 },
             ),
@@ -1118,7 +1118,7 @@ mod tests {
 
     #[test]
     fn test_parse_gauge_packed() {
-        let s = "transactions/foo:42:17:220:25:85|g";
+        let s = "transactions/foo:25:17:42:220:85|g";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
         insta::assert_debug_snapshot!(metric, @r###"
@@ -1128,10 +1128,10 @@ mod tests {
             name: "g:transactions/foo@none",
             value: Gauge(
                 GaugeValue {
-                    max: 42.0,
-                    min: 17.0,
-                    sum: 220.0,
                     last: 25.0,
+                    min: 17.0,
+                    max: 42.0,
+                    sum: 220.0,
                     count: 85,
                 },
             ),
@@ -1384,10 +1384,10 @@ mod tests {
     "name": "endpoint.parallel_requests",
     "type": "g",
     "value": {
-      "max": 42.0,
-      "min": 17.0,
-      "sum": 2210.0,
       "last": 25.0,
+      "min": 17.0,
+      "max": 42.0,
+      "sum": 2210.0,
       "count": 85
     }
   },
