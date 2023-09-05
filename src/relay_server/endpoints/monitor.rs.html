@@ -83,14 +83,12 @@
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, FromRequest, Path, Query};
-<span class="kw">use </span>axum::http::StatusCode;
+</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Path, Query};
+<span class="kw">use </span>axum::http::{Request, StatusCode};
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{on, MethodFilter, MethodRouter};
+<span class="kw">use </span>axum::{Json, RequestExt};
+<span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
 <span class="kw">use </span>relay_monitors::{CheckIn, CheckInStatus};
@@ -99,7 +97,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 
 <span class="attr">#[derive(Debug, Deserialize)]
@@ -115,52 +113,46 @@
     duration: <span class="prelude-ty">Option</span>&lt;f64&gt;,
 }
 
-<span class="attr">#[derive(Debug, FromRequest)]
-#[from_request(state(ServiceState))]
-</span><span class="kw">struct </span>MonitorParams {
-    meta: RequestMeta,
-    <span class="attr">#[from_request(via(Path))]
-    </span>path: MonitorPath,
-    <span class="attr">#[from_request(via(Query))]
-    </span>query: MonitorQuery,
-}
-
-<span class="kw">impl </span>MonitorParams {
-    <span class="kw">fn </span>extract_envelope(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-        <span class="kw">let </span><span class="self">Self </span>{ meta, path, query } = <span class="self">self</span>;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::CheckIn);
-        item.set_payload(
-            ContentType::Json,
-            serde_json::to_vec(<span class="kw-2">&amp;</span>CheckIn {
-                check_in_id: query.check_in_id.unwrap_or_default(),
-                monitor_slug: path.monitor_slug,
-                status: query.status,
-                environment: query.environment,
-                duration: query.duration,
-                monitor_config: <span class="prelude-val">None</span>,
-                contexts: <span class="prelude-val">None</span>,
-            })
-            .map_err(BadStoreRequest::InvalidJson)<span class="question-mark">?</span>,
-        );
-        envelope.add_item(item);
-
-        <span class="prelude-val">Ok</span>(envelope)
-    }
-}
-
-<span class="kw">async fn </span>handle(
+<span class="kw">async fn </span>handle&lt;B&gt;(
     state: ServiceState,
-    params: MonitorParams,
-) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, BadStoreRequest&gt; {
-    <span class="kw">let </span>envelope = params.extract_envelope()<span class="question-mark">?</span>;
+    content_type: RawContentType,
+    meta: RequestMeta,
+    Path(path): Path&lt;MonitorPath&gt;,
+    request: Request&lt;B&gt;,
+) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt;
+<span class="kw">where
+    </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
+    B::Data: Send + Into&lt;Bytes&gt;,
+    B::Error: Into&lt;axum::BoxError&gt;,
+{
+    <span class="kw">let </span>check_in = <span class="kw">if </span>content_type.as_ref().starts_with(<span class="string">&quot;application/json&quot;</span>) {
+        <span class="kw">let </span>Json(<span class="kw-2">mut </span>check_in): Json&lt;CheckIn&gt; = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
+        check_in.monitor_slug = path.monitor_slug;
+        check_in
+    } <span class="kw">else </span>{
+        <span class="kw">let </span>Query(query): Query&lt;MonitorQuery&gt; = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
+        CheckIn {
+            check_in_id: query.check_in_id.unwrap_or_default(),
+            monitor_slug: path.monitor_slug,
+            status: query.status,
+            environment: query.environment,
+            duration: query.duration,
+            monitor_config: <span class="prelude-val">None</span>,
+            contexts: <span class="prelude-val">None</span>,
+        }
+    };
+
+    <span class="kw">let </span>json = serde_json::to_vec(<span class="kw-2">&amp;</span>check_in).map_err(BadStoreRequest::InvalidJson)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), meta);
+    <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::CheckIn);
+    item.set_payload(ContentType::Json, json);
+    envelope.add_item(item);
 
     <span class="comment">// Never respond with a 429
     </span><span class="kw">match </span>common::handle_envelope(<span class="kw-2">&amp;</span>state, envelope).<span class="kw">await </span>{
         <span class="prelude-val">Ok</span>(<span class="kw">_</span>) | <span class="prelude-val">Err</span>(BadStoreRequest::RateLimited(<span class="kw">_</span>)) =&gt; (),
-        <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(error),
+        <span class="prelude-val">Err</span>(error) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(error.into()),
     };
 
     <span class="comment">// Event will be proccessed by Sentry, respond with a 202
@@ -170,7 +162,7 @@
 <span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
 <span class="kw">where
     </span>B: axum::body::HttpBody + Send + <span class="lifetime">&#39;static</span>,
-    B::Data: Send,
+    B::Data: Send + Into&lt;Bytes&gt;,
     B::Error: Into&lt;axum::BoxError&gt;,
 {
     on(MethodFilter::GET | MethodFilter::POST, handle)

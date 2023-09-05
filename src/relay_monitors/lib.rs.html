@@ -317,6 +317,7 @@
 <a href="#317" id="317">317</a>
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Monitors protocol and processing for Sentry.
 //!
 //! [Monitors] allow you to monitor the uptime and performance of any scheduled, recurring job in
@@ -448,6 +449,7 @@
     </span><span class="kw">pub </span>check_in_id: Uuid,
 
     <span class="doccomment">/// Identifier of the monitor for this check-in.
+    </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>monitor_slug: String,
 
     <span class="doccomment">/// Status of this check-in. Defaults to `&quot;unknown&quot;`.
