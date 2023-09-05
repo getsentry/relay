@@ -997,6 +997,14 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_counter_packed() {
+        let s = "transactions/foo:42:17:21|c";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(metric.value, BucketValue::Counter(80.0));
+    }
+
+    #[test]
     fn test_parse_distribution() {
         let s = "transactions/foo:17.5|d";
         let timestamp = UnixTimestamp::from_secs(4711);
@@ -1017,6 +1025,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_distribution_packed() {
+        let s = "transactions/foo:17.5:21.9:42.7|d";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(
+            metric.value,
+            BucketValue::Distribution(dist![17.5, 21.9, 42.7])
+        );
+    }
+
+    #[test]
     fn test_parse_histogram() {
         let s = "transactions/foo:17.5|h"; // common alias for distribution
         let timestamp = UnixTimestamp::from_secs(4711);
@@ -1026,6 +1045,27 @@ mod tests {
 
     #[test]
     fn test_parse_set() {
+        let s = "transactions/foo:4267882815|s";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Bucket {
+            timestamp: UnixTimestamp(4711),
+            width: 0,
+            name: "s:transactions/foo@none",
+            value: Set(
+                {
+                    4267882815,
+                },
+            ),
+            tags: {},
+        }
+        "###);
+    }
+
+    #[test]
+    #[ignore = "set hashing not implemented"]
+    fn test_parse_set_hashed() {
         let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
@@ -1039,6 +1079,17 @@ mod tests {
                 tags: {},
             }
             "#);
+    }
+
+    #[test]
+    fn test_parse_set_packed() {
+        let s = "transactions/foo:3182887624:4267882815|s";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(
+            metric.value,
+            BucketValue::Set([3182887624, 4267882815].into())
+        )
     }
 
     #[test]
@@ -1058,6 +1109,30 @@ mod tests {
                     sum: 42.0,
                     last: 42.0,
                     count: 1,
+                },
+            ),
+            tags: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_parse_gauge_packed() {
+        let s = "transactions/foo:42:17:220:25:85|g";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        insta::assert_debug_snapshot!(metric, @r###"
+        Bucket {
+            timestamp: UnixTimestamp(4711),
+            width: 0,
+            name: "g:transactions/foo@none",
+            value: Gauge(
+                GaugeValue {
+                    max: 42.0,
+                    min: 17.0,
+                    sum: 220.0,
+                    last: 25.0,
+                    count: 85,
                 },
             ),
             tags: {},
