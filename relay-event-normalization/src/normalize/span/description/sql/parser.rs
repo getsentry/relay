@@ -3,8 +3,8 @@ use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use sqlparser::ast::{
-    Expr, Ident, Query, SelectItem, SetExpr, Statement, TableFactor, UnaryOperator, Value,
-    VisitMut, VisitorMut,
+    Assignment, Expr, Ident, Query, SelectItem, SetExpr, Statement, TableFactor, UnaryOperator,
+    Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -28,10 +28,15 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
     parsed.visit(&mut NormalizeVisitor);
 
-    Ok(parsed
+    let concatenated = parsed
         .iter()
         .map(|statement| statement.to_string())
-        .join("; "))
+        .join("; ");
+
+    // Insert placeholders that the SQL serializer cannot provide.
+    let replaced = concatenated.replace("___UPDATE_LHS___ = NULL", "..");
+
+    Ok(replaced)
 }
 
 /// A visitor that normalizes the SQL AST in-place.
@@ -181,10 +186,21 @@ impl VisitorMut for NormalizeVisitor {
                     v.rows = vec![vec![Expr::Value(Self::placeholder())]]
                 }
             }
-            // `UPDATE "foo"."bar"` becomes `UPDATE bar`.
+            // Simple lists of col = value assignments are collapsed to `..`.
             Statement::Update { assignments, .. } => {
-                for assignment in assignments.iter_mut() {
-                    Self::simplify_compound_identifier(&mut assignment.id);
+                if assignments.len() > 1
+                    && assignments
+                        .iter()
+                        .all(|a| matches!(a.value, Expr::Value(_)))
+                {
+                    *assignments = vec![Assignment {
+                        id: vec![Ident::new("___UPDATE_LHS___")],
+                        value: Expr::Value(Value::Null),
+                    }]
+                } else {
+                    for assignment in assignments.iter_mut() {
+                        Self::simplify_compound_identifier(&mut assignment.id);
+                    }
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.

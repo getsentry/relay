@@ -215,6 +215,18 @@ mod tests {
     );
 
     scrub_sql_test!(
+        update_single,
+        "UPDATE `foo` SET a = 1 WHERE true",
+        "UPDATE foo SET a = %s WHERE %s"
+    );
+
+    scrub_sql_test!(
+        update_multiple,
+        "UPDATE foo SET a = 1, `foo`.`b` = 2 WHERE true",
+        "UPDATE foo SET .. WHERE %s"
+    );
+
+    scrub_sql_test!(
         mixed,
         "UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true",
         "UPDATE foo SET a = %s, b = log(e + %s) * %s + %s WHERE %s"
