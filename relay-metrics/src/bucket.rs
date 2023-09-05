@@ -457,6 +457,8 @@ macro_rules! dist {
 /// Set values can be specified as strings in the submission protocol. They are always hashed
 /// into a 32-bit value and the original value is dropped. If the submission protocol contains a
 /// 32-bit integer, it will be used directly, instead.
+///
+/// See the [bucket docs](crate::Bucket) for more information on set hashing.
 pub type SetValue = BTreeSet<SetType>;
 
 /// The [aggregated value](Bucket::value) of a metric bucket.
@@ -589,8 +591,10 @@ fn parse_distribution(string: &str) -> Option<DistributionValue> {
 fn parse_set(string: &str) -> Option<SetValue> {
     let mut set = SetValue::default();
     for component in string.split(VALUE_SEPARATOR) {
-        // TODO: Support value hashing
-        set.insert(component.parse().ok()?);
+        let hash = component
+            .parse()
+            .unwrap_or_else(|_| protocol::hash_set_value(component));
+        set.insert(hash);
     }
     Some(set)
 }
@@ -727,6 +731,24 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// ```
 ///
 /// To parse a submission payload, use [`Bucket::parse_all`].
+///
+/// # Hashing of Sets
+///
+/// Set values can be specified as strings in the submission protocol. They are always hashed
+/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
+/// 32-bit integer, it will be used directly, instead.
+///
+/// **Example**:
+///
+/// ```text
+#[doc = include_str!("../tests/fixtures/set.statsd.txt")]
+/// ```
+///
+/// The above submission is represented as:
+///
+/// ```json
+#[doc = include_str!("../tests/fixtures/set.json")]
+/// ```
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Bucket {
     /// The start time of the time window.
@@ -1078,21 +1100,22 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "set hashing not implemented"]
     fn test_parse_set_hashed() {
         let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
         let timestamp = UnixTimestamp::from_secs(4711);
         let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-            Metric {
-                name: "s:transactions/foo@none",
-                value: Set(
-                    4267882815,
-                ),
-                timestamp: UnixTimestamp(4711),
-                tags: {},
-            }
-            "#);
+        assert_eq!(metric.value, BucketValue::Set([4267882815].into()));
+    }
+
+    #[test]
+    fn test_parse_set_hashed_packed() {
+        let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658:00449b66-d91f-4fb8-b324-4c8bdf2499f6|s";
+        let timestamp = UnixTimestamp::from_secs(4711);
+        let metric = Bucket::parse(s.as_bytes(), timestamp).unwrap();
+        assert_eq!(
+            metric.value,
+            BucketValue::Set([181348692, 4267882815].into())
+        );
     }
 
     #[test]
@@ -1301,7 +1324,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "set hashing not implemented"]
     fn test_set_docs() {
         let text = include_str!("../tests/fixtures/set.statsd.txt").trim_end();
         let json = include_str!("../tests/fixtures/set.json").trim_end();
