@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
 - Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
 - Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
 
@@ -14,10 +15,6 @@
 - Support on-demand metrics for alerts and widgets in external Relays. ([#2440](https://github.com/getsentry/relay/pull/2440))
 - Prevent sporadic data loss in `EnvelopeProcessorService`. ([#2454](https://github.com/getsentry/relay/pull/2454))
 - Prevent panic when android trace contains invalid start time. ([#2457](https://github.com/getsentry/relay/pull/2457))
-
-**Features**:
-
-- Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
 
 **Internal**:
 

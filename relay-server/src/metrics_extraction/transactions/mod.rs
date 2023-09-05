@@ -900,7 +900,7 @@ mod tests {
         relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig {
-                dynamic_measurements_config: Some(config),
+                measurements: Some(config),
                 ..Default::default()
             },
         )

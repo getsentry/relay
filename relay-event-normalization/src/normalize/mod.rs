@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
@@ -322,10 +321,12 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    builtin_measurement_keys: Vec<&BuiltinMeasurementKey>,
-    max_custom_measurements: &usize,
+    measurements_config: DynamicMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
+    let builtin_measurement_keys = measurements_config.builtin_measurement_keys().collect_vec();
+    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(&0);
+
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
 
@@ -466,18 +467,7 @@ fn normalize_measurements(
         normalize_app_start_measurements(measurements);
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
-            let builtin_measurement_keys =
-                measurements_config.builtin_measurement_keys().collect_vec();
-            let max_custom_measurements =
-                measurements_config.max_custom_measurements().unwrap_or(&0);
-
-            remove_invalid_measurements(
-                measurements,
-                meta,
-                builtin_measurement_keys,
-                max_custom_measurements,
-                max_mri_len,
-            );
+            remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
         }
 
         let duration_millis = match (event.start_timestamp.0, event.timestamp.0) {
@@ -873,7 +863,7 @@ pub struct LightNormalizationConfig<'a> {
     /// Has an optional [`MeasurementsConfig`] from both the project and the global level.
     /// If at least one is provided, then normalization will truncate custom measurements
     /// and add units of known built-in measurements.
-    pub dynamic_measurements_config: Option<DynamicMeasurementsConfig<'a>>,
+    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -941,7 +931,7 @@ impl Default for LightNormalizationConfig<'_> {
             span_description_rules: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
-            dynamic_measurements_config: None,
+            measurements: None,
         }
     }
 }
@@ -979,7 +969,7 @@ impl<'a> DynamicMeasurementsConfig<'a> {
             (None, None) => None,
             (None, Some(global)) => Some(&global.max_custom_measurements),
             (Some(project), None) => Some(&project.max_custom_measurements),
-            (Some(project), Some(global)) => Some(min(
+            (Some(project), Some(global)) => Some(std::cmp::min(
                 &project.max_custom_measurements,
                 &global.max_custom_measurements,
             )),
@@ -1073,11 +1063,7 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(
-            event,
-            config.dynamic_measurements_config,
-            config.max_name_and_unit_len,
-        ); // Measurements are part of the metric extraction
+        normalize_measurements(event, config.measurements, config.max_name_and_unit_len); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
@@ -3503,8 +3489,7 @@ mod tests {
         remove_invalid_measurements(
             &mut measurements,
             &mut meta,
-            dynamic_config.builtin_measurement_keys().collect_vec(),
-            dynamic_config.max_custom_measurements().unwrap(),
+            dynamic_config,
             max_name_and_unit_len,
         );
 

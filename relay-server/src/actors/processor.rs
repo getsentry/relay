@@ -2438,7 +2438,7 @@ impl EnvelopeProcessorService {
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
-                dynamic_measurements_config: Some(DynamicMeasurementsConfig::new(
+                measurements: Some(DynamicMeasurementsConfig::new(
                     state.project_state.config().measurements.as_ref(),
                     self.global_config.measurements.as_ref(),
                 )),
