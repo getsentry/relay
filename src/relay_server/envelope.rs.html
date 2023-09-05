@@ -1810,7 +1810,7 @@
     <span class="doccomment">/// Aggregated session data.
     </span>Sessions,
     <span class="doccomment">/// Individual metrics in text encoding.
-    </span>Metrics,
+    </span>Statsd,
     <span class="doccomment">/// Buckets of preaggregated metrics encoded as JSON.
     </span>MetricBuckets,
     <span class="doccomment">/// Client internal report (eg: outcomes).
@@ -1860,7 +1860,7 @@
             <span class="self">Self</span>::UserReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;user_report&quot;</span>),
             <span class="self">Self</span>::Session =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;session&quot;</span>),
             <span class="self">Self</span>::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
-            <span class="self">Self</span>::Metrics =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;metrics&quot;</span>),
+            <span class="self">Self</span>::Statsd =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;statsd&quot;</span>),
             <span class="self">Self</span>::MetricBuckets =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;metric_buckets&quot;</span>),
             <span class="self">Self</span>::ClientReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;client_report&quot;</span>),
             <span class="self">Self</span>::Profile =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;profile&quot;</span>),
@@ -1888,7 +1888,7 @@
             <span class="string">&quot;user_report&quot; </span>=&gt; <span class="self">Self</span>::UserReport,
             <span class="string">&quot;session&quot; </span>=&gt; <span class="self">Self</span>::Session,
             <span class="string">&quot;sessions&quot; </span>=&gt; <span class="self">Self</span>::Sessions,
-            <span class="string">&quot;metrics&quot; </span>=&gt; <span class="self">Self</span>::Metrics,
+            <span class="string">&quot;statsd&quot; </span>=&gt; <span class="self">Self</span>::Statsd,
             <span class="string">&quot;metric_buckets&quot; </span>=&gt; <span class="self">Self</span>::MetricBuckets,
             <span class="string">&quot;client_report&quot; </span>=&gt; <span class="self">Self</span>::ClientReport,
             <span class="string">&quot;profile&quot; </span>=&gt; <span class="self">Self</span>::Profile,
@@ -2265,7 +2265,7 @@
             ItemType::UnrealReport =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
             ItemType::Attachment =&gt; <span class="prelude-val">Some</span>(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions =&gt; <span class="prelude-val">None</span>,
-            ItemType::Metrics | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
+            ItemType::Statsd | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
             ItemType::FormData =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
             ItemType::Profile =&gt; <span class="prelude-val">Some</span>(<span class="kw">if </span>indexed {
@@ -2435,7 +2435,7 @@
             </span>ItemType::UserReport
             | ItemType::Session
             | ItemType::Sessions
-            | ItemType::Metrics
+            | ItemType::Statsd
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::ReplayEvent
@@ -2466,7 +2466,7 @@
             ItemType::ReplayEvent =&gt; <span class="bool-val">true</span>,
             ItemType::Session =&gt; <span class="bool-val">false</span>,
             ItemType::Sessions =&gt; <span class="bool-val">false</span>,
-            ItemType::Metrics =&gt; <span class="bool-val">false</span>,
+            ItemType::Statsd =&gt; <span class="bool-val">false</span>,
             ItemType::MetricBuckets =&gt; <span class="bool-val">false</span>,
             ItemType::ClientReport =&gt; <span class="bool-val">false</span>,
             ItemType::ReplayRecording =&gt; <span class="bool-val">false</span>,

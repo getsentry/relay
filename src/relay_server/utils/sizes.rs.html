@@ -162,7 +162,7 @@
                 }
             }
             ItemType::UserReport =&gt; (),
-            ItemType::Metrics =&gt; (),
+            ItemType::Statsd =&gt; (),
             ItemType::MetricBuckets =&gt; (),
             ItemType::Span =&gt; {
                 <span class="kw">if </span>item.len() &gt; config.max_span_size() {
