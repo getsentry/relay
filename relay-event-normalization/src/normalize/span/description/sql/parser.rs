@@ -61,9 +61,7 @@ impl NormalizeVisitor {
             SelectItem::ExprWithAlias { expr, .. } => {
                 matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
             }
-            SelectItem::QualifiedWildcard(_, _) => todo!(),
-            SelectItem::Wildcard(_) => todo!(),
-            // _ => false,
+            _ => false,
         }
     }
 
