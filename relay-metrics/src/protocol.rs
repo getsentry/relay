@@ -305,7 +305,7 @@ pub(crate) fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
 ///
 /// Sets only guarantee 32-bit accuracy, but arbitrary strings are allowed on the protocol. Upon
 /// parsing, they are hashed and only used as hashes subsequently.
-fn hash_set_value(string: &str) -> u32 {
+pub(crate) fn hash_set_value(string: &str) -> u32 {
     let mut hasher = FnvHasher::default();
     hasher.write(string.as_bytes());
     hasher.finish32()
@@ -317,25 +317,6 @@ fn hash_set_value(string: &str) -> u32 {
 /// submission and cannot store multiple values.
 ///
 /// See the [crate documentation](crate) for general information on Metrics.
-///
-/// # Hashing of Sets
-///
-/// Set values can be specified as strings in the submission protocol. They are always hashed
-/// into a 32-bit value and the original value is dropped. If the submission protocol contains a
-/// 32-bit integer, it will be used directly, instead.
-///
-/// **Example**:
-///
-/// ```text
-#[doc = include_str!("../tests/fixtures/set.statsd.txt")]
-/// ```
-///
-/// The above submission is represented as:
-///
-/// ```json
-#[doc = include_str!("../tests/fixtures/set.json")]
-/// ```
-
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Metric {
     /// The metric resource identifier, in short MRI.
