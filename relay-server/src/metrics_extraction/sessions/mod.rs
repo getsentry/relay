@@ -2,7 +2,7 @@ use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-use relay_metrics::Metric;
+use relay_metrics::Bucket;
 use uuid::Uuid;
 
 use crate::metrics_extraction::sessions::types::{
@@ -28,7 +28,7 @@ pub fn extract_session_metrics<T: SessionLike>(
     attributes: &SessionAttributes,
     session: &T,
     client: Option<&str>,
-    target: &mut Vec<Metric>,
+    target: &mut Vec<Bucket>,
     extract_abnormal_mechanism: bool,
 ) {
     let timestamp = match UnixTimestamp::from_datetime(session.started()) {
@@ -179,7 +179,7 @@ pub fn extract_session_metrics<T: SessionLike>(
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
-    use relay_metrics::MetricValue;
+    use relay_metrics::BucketValue;
 
     use super::*;
 
@@ -239,7 +239,7 @@ mod tests {
         let session_metric = &metrics[0];
         assert_eq!(session_metric.timestamp, started());
         assert_eq!(session_metric.name, "c:sessions/session@none");
-        assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+        assert!(matches!(session_metric.value, BucketValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "init");
         assert_eq!(session_metric.tags["release"], "1.0.0");
         assert_eq!(session_metric.tags["sdk"], client);
@@ -247,7 +247,7 @@ mod tests {
         let user_metric = &metrics[1];
         assert_eq!(user_metric.timestamp, started());
         assert_eq!(user_metric.name, "s:sessions/user@none");
-        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert!(matches!(user_metric.value, BucketValue::Set(_)));
         assert!(!user_metric.tags.contains_key("session.status"));
         assert_eq!(user_metric.tags["release"], "1.0.0");
         assert_eq!(user_metric.tags["sdk"], client);
@@ -276,7 +276,7 @@ mod tests {
         assert_eq!(metrics.len(), 1);
         let user_metric = &metrics[0];
         assert_eq!(user_metric.name, "s:sessions/user@none");
-        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert!(matches!(user_metric.value, BucketValue::Set(_)));
         assert!(!user_metric.tags.contains_key("session.status"));
     }
 
@@ -316,13 +316,13 @@ mod tests {
             let session_metric = &metrics[expected_metrics - 2];
             assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "s:sessions/error@none");
-            assert!(matches!(session_metric.value, MetricValue::Set(_)));
+            assert!(matches!(session_metric.value, BucketValue::Set(_)));
             assert_eq!(session_metric.tags.len(), 1); // Only the release tag
 
             let user_metric = &metrics[expected_metrics - 1];
             assert_eq!(user_metric.timestamp, started());
             assert_eq!(user_metric.name, "s:sessions/user@none");
-            assert!(matches!(user_metric.value, MetricValue::Set(_)));
+            assert!(matches!(user_metric.value, BucketValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "errored");
             assert_eq!(user_metric.tags["release"], "1.0.0");
         }
@@ -357,13 +357,13 @@ mod tests {
         let session_metric = &metrics[2];
         assert_eq!(session_metric.timestamp, started());
         assert_eq!(session_metric.name, "c:sessions/session@none");
-        assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+        assert!(matches!(session_metric.value, BucketValue::Counter(_)));
         assert_eq!(session_metric.tags["session.status"], "crashed");
 
         let user_metric = &metrics[3];
         assert_eq!(user_metric.timestamp, started());
         assert_eq!(user_metric.name, "s:sessions/user@none");
-        assert!(matches!(user_metric.value, MetricValue::Set(_)));
+        assert!(matches!(user_metric.value, BucketValue::Set(_)));
         assert_eq!(user_metric.tags["session.status"], "crashed");
     }
 
@@ -408,7 +408,7 @@ mod tests {
             let session_metric = &metrics[2];
             assert_eq!(session_metric.timestamp, started());
             assert_eq!(session_metric.name, "c:sessions/session@none");
-            assert!(matches!(session_metric.value, MetricValue::Counter(_)));
+            assert!(matches!(session_metric.value, BucketValue::Counter(_)));
             assert_eq!(session_metric.tags["session.status"], "abnormal");
 
             let session_metric_tag_keys: Vec<String> =
@@ -418,7 +418,7 @@ mod tests {
             let user_metric = &metrics[3];
             assert_eq!(user_metric.timestamp, started());
             assert_eq!(user_metric.name, "s:sessions/user@none");
-            assert!(matches!(user_metric.value, MetricValue::Set(_)));
+            assert!(matches!(user_metric.value, BucketValue::Set(_)));
             assert_eq!(user_metric.tags["session.status"], "abnormal");
 
             let user_metric_tag_keys: Vec<String> = user_metric.tags.keys().cloned().collect();

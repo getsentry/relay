@@ -7,7 +7,7 @@ use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
-use relay_metrics::{DurationUnit, Metric};
+use relay_metrics::{Bucket, DurationUnit};
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -203,10 +203,10 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 #[derive(Debug, Default)]
 pub struct ExtractedMetrics {
     /// Metrics associated with the project of the envelope.
-    pub project_metrics: Vec<Metric>,
+    pub project_metrics: Vec<Bucket>,
 
     /// Metrics associated with the project of the trace parent.
-    pub sampling_metrics: Vec<Metric>,
+    pub sampling_metrics: Vec<Bucket>,
 }
 
 impl ExtractedMetrics {
@@ -396,7 +396,7 @@ mod tests {
         MeasurementsConfig,
     };
     use relay_event_schema::protocol::User;
-    use relay_metrics::MetricValue;
+    use relay_metrics::BucketValue;
     use relay_protocol::Annotated;
 
     use super::*;
@@ -853,7 +853,7 @@ mod tests {
 
         let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        assert_eq!(duration_metric.value, MetricValue::Distribution(59000.0));
+        assert_eq!(duration_metric.value, BucketValue::distribution(59000.0));
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");

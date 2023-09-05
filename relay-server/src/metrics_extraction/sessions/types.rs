@@ -3,7 +3,9 @@ use std::fmt::{self, Display};
 
 use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::SessionStatus;
-use relay_metrics::{CounterType, Metric, MetricNamespace, MetricUnit, MetricValue};
+use relay_metrics::{
+    Bucket, BucketValue, CounterType, MetricNamespace, MetricResourceIdentifier, MetricUnit,
+};
 use uuid::Uuid;
 
 use crate::metrics_extraction::IntoMetric;
@@ -93,29 +95,36 @@ impl From<SessionSessionTags> for BTreeMap<String, String> {
 }
 
 impl IntoMetric for SessionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
         let name = self.to_string();
 
         let (value, tags) = match self {
             SessionMetric::Error {
                 session_id: id,
                 tags,
-            } => (MetricValue::set_from_display(id), tags.into()),
+            } => (BucketValue::set_from_display(id), tags.into()),
             SessionMetric::User { distinct_id, tags } => {
-                (MetricValue::set_from_display(distinct_id), tags.into())
+                (BucketValue::set_from_display(distinct_id), tags.into())
             }
             SessionMetric::Session { counter, tags } => {
-                (MetricValue::Counter(counter), tags.into())
+                (BucketValue::Counter(counter), tags.into())
             }
         };
-        Metric::new_mri(
-            MetricNamespace::Sessions,
-            name,
-            MetricUnit::None,
-            value,
+
+        let mri = MetricResourceIdentifier {
+            ty: value.ty(),
+            namespace: MetricNamespace::Sessions,
+            name: &name,
+            unit: MetricUnit::None,
+        };
+
+        Bucket {
             timestamp,
+            width: 0,
+            name: mri.to_string(),
+            value,
             tags,
-        )
+        }
     }
 }
 
