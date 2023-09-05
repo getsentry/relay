@@ -3,12 +3,13 @@ use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use sqlparser::ast::{
-    Expr, Ident, Query, SelectItem, SetExpr, Statement, TableFactor, UnaryOperator, Value,
-    VisitMut, VisitorMut,
+    Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins,
+    UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
-/// Derive the SQL dialect from `span.system` and try to parse the query into an AST.
+/// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
+/// and try to parse the query into an AST.
 pub fn parse_query(
     db_system: Option<&str>,
     query: &str,
@@ -60,7 +61,9 @@ impl NormalizeVisitor {
             SelectItem::ExprWithAlias { expr, .. } => {
                 matches!(expr, Expr::Identifier(_) | Expr::CompoundIdentifier(_))
             }
-            _ => false,
+            SelectItem::QualifiedWildcard(_, _) => todo!(),
+            SelectItem::Wildcard(_) => todo!(),
+            // _ => false,
         }
     }
 
@@ -80,40 +83,47 @@ impl NormalizeVisitor {
     /// Normalizes `SELECT ...` queries.
     fn transform_query(query: &mut Query) {
         if let SetExpr::Select(select) = &mut *query.body {
-            // Track collapsible selected items (e.g. `SELECT col1, col2`).
-            let mut collapse = vec![];
+            Self::transform_select(&mut *select);
+            Self::transform_from(&mut select.from);
+        }
+    }
 
-            // Iterate over selected item.
-            for mut item in std::mem::take(&mut select.projection) {
-                // Normalize aliases.
-                if let SelectItem::ExprWithAlias { ref mut alias, .. } = &mut item {
-                    alias.quote_style = None;
-                }
-                if Self::is_collapsible(&item) {
-                    collapse.push(item);
-                } else {
-                    Self::collapse_items(&mut collapse, &mut select.projection);
-                    collapse.clear();
-                    select.projection.push(item);
-                }
+    fn transform_select(select: &mut Select) {
+        // Track collapsible selected items (e.g. `SELECT col1, col2`).
+        let mut collapse = vec![];
+
+        // Iterate over selected item.
+        for mut item in std::mem::take(&mut select.projection) {
+            // Normalize aliases.
+            if let SelectItem::ExprWithAlias { ref mut alias, .. } = &mut item {
+                alias.quote_style = None;
             }
-            Self::collapse_items(&mut collapse, &mut select.projection);
+            if Self::is_collapsible(&item) {
+                collapse.push(item);
+            } else {
+                Self::collapse_items(&mut collapse, &mut select.projection);
+                collapse.clear();
+                select.projection.push(item);
+            }
+        }
+        Self::collapse_items(&mut collapse, &mut select.projection);
+    }
 
-            // Iterate "FROM".
-            for from in select.from.iter_mut() {
-                match &mut from.relation {
-                    // Recurse into subqueries.
-                    TableFactor::Derived { subquery, .. } => {
-                        Self::transform_query(subquery);
-                    }
-                    // Strip quotes from identifiers in table names.
-                    TableFactor::Table { name, .. } => {
-                        for ident in &mut name.0 {
-                            ident.quote_style = None;
-                        }
-                    }
-                    _ => (),
+    fn transform_from(from: &mut [TableWithJoins]) {
+        // Iterate "FROM".
+        for from in from {
+            match &mut from.relation {
+                // Recurse into subqueries.
+                TableFactor::Derived { subquery, .. } => {
+                    Self::transform_query(subquery);
                 }
+                // Strip quotes from identifiers in table names.
+                TableFactor::Table { name, .. } => {
+                    for ident in &mut name.0 {
+                        ident.quote_style = None;
+                    }
+                }
+                _ => (),
             }
         }
     }
