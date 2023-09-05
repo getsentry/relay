@@ -429,7 +429,7 @@ pub struct ProcessEnvelope {
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
 ///
 /// This parses and validates the metrics:
-///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are
+///  - For [`Metrics`](ItemType::Statsd), each metric is parsed separately, and invalid metrics are
 ///    ignored independently.
 ///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
 ///    dropped together on parsing failure.
@@ -1632,7 +1632,7 @@ impl EnvelopeProcessorService {
             // Aggregate data is never considered as part of deduplication
             ItemType::Session => false,
             ItemType::Sessions => false,
-            ItemType::Metrics => false,
+            ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
@@ -2628,7 +2628,7 @@ impl EnvelopeProcessorService {
 
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::Metrics {
+            if item.ty() == &ItemType::Statsd {
                 let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(&mut timestamp);
 
