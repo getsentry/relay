@@ -158,6 +158,18 @@ impl VisitorMut for NormalizeVisitor {
                     *expr = Expr::Value(Self::placeholder())
                 }
             }
+            // Simplify `CASE WHEN..` expressions.
+            Expr::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                operand.take();
+                *conditions = vec![Expr::Identifier(Self::ellipsis())];
+                *results = vec![Expr::Identifier(Self::ellipsis())];
+                else_result.take();
+            }
             _ => {}
         }
         ControlFlow::Continue(())
