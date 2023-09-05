@@ -1846,7 +1846,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>payload = item.payload();
 
-        <span class="kw">for </span>bucket <span class="kw">in </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
+        <span class="kw">for </span>bucket <span class="kw">in </span>serde_json::from_slice::&lt;Vec&lt;Bucket&gt;&gt;(<span class="kw-2">&amp;</span>payload).unwrap_or_default() {
             <span class="self">self</span>.send_metric_message(
                 org_id,
                 MetricKafkaMessage {

@@ -773,7 +773,7 @@
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(ContentType::Json, Bucket::serialize_all(<span class="kw-2">&amp;</span>buckets).unwrap());
+        item.set_payload(ContentType::Json, serde_json::to_vec(<span class="kw-2">&amp;</span>buckets).unwrap());
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">None</span>, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 

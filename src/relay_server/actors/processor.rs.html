@@ -3986,6 +3986,14 @@
 <a href="#3986" id="3986">3986</a>
 <a href="#3987" id="3987">3987</a>
 <a href="#3988" id="3988">3988</a>
+<a href="#3989" id="3989">3989</a>
+<a href="#3990" id="3990">3990</a>
+<a href="#3991" id="3991">3991</a>
+<a href="#3992" id="3992">3992</a>
+<a href="#3993" id="3993">3993</a>
+<a href="#3994" id="3994">3994</a>
+<a href="#3995" id="3995">3995</a>
+<a href="#3996" id="3996">3996</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6620,15 +6628,23 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>timestamp = item.timestamp().unwrap_or(received_timestamp);
                 clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>timestamp);
 
-                <span class="kw">let </span>metrics =
-                    Metric::parse_all(<span class="kw-2">&amp;</span>payload, timestamp).filter_map(|result| result.ok());
+                <span class="kw">let </span><span class="kw-2">mut </span>buckets = Vec::new();
+                <span class="kw">for </span>bucket_result <span class="kw">in </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload, timestamp) {
+                    <span class="kw">match </span>bucket_result {
+                        <span class="prelude-val">Ok</span>(bucket) =&gt; buckets.push(bucket),
+                        <span class="prelude-val">Err</span>(error) =&gt; <span class="macro">relay_log::debug!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">&quot;failed to parse metric bucket from statsd format&quot;</span>,
+                        ),
+                    }
+                }
 
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metrics into project cache&quot;</span>);
+                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;inserting metric buckets into project cache&quot;</span>);
                 <span class="self">self</span>.inner
                     .project_cache
-                    .send(InsertMetrics::new(public_key, metrics));
+                    .send(MergeBuckets::new(public_key, buckets));
             } <span class="kw">else if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::MetricBuckets {
-                <span class="kw">match </span>Bucket::parse_all(<span class="kw-2">&amp;</span>payload) {
+                <span class="kw">match </span>serde_json::from_slice::&lt;Vec&lt;Bucket&gt;&gt;(<span class="kw-2">&amp;</span>payload) {
                     <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>buckets) =&gt; {
                         <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
                             clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
