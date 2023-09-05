@@ -12,6 +12,8 @@ use crate::protocol::{
 };
 use crate::ParseMetricError;
 
+const VALUE_SEPARATOR: char = ':';
+
 /// A snapshot of values within a [`Bucket`].
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct GaugeValue {
@@ -568,7 +570,7 @@ impl From<MetricValue> for BucketValue {
 /// Parses a list of counter values separated by colons and sums them up.
 fn parse_counter(string: &str) -> Option<CounterType> {
     let mut sum = CounterType::default();
-    for component in string.split(':') {
+    for component in string.split(VALUE_SEPARATOR) {
         sum += component.parse::<CounterType>().ok()?;
     }
     Some(sum)
@@ -577,7 +579,7 @@ fn parse_counter(string: &str) -> Option<CounterType> {
 /// Parses a distribution from a list of floating point values separated by colons.
 fn parse_distribution(string: &str) -> Option<DistributionValue> {
     let mut dist = DistributionValue::default();
-    for component in string.split(':') {
+    for component in string.split(VALUE_SEPARATOR) {
         dist.insert(component.parse().ok()?);
     }
     Some(dist)
@@ -586,7 +588,8 @@ fn parse_distribution(string: &str) -> Option<DistributionValue> {
 /// Parses a set of hashed numeric values.
 fn parse_set(string: &str) -> Option<SetValue> {
     let mut set = SetValue::default();
-    for component in string.split(':') {
+    for component in string.split(VALUE_SEPARATOR) {
+        // TODO: Support value hashing
         set.insert(component.parse().ok()?);
     }
     Some(set)
@@ -597,7 +600,7 @@ fn parse_set(string: &str) -> Option<SetValue> {
 /// The gauge can either be given as a single floating point value, or as a list of exactly five
 /// values in the order of [`GaugeValue`] fields.
 fn parse_gauge(string: &str) -> Option<GaugeValue> {
-    let mut components = string.split(':');
+    let mut components = string.split(VALUE_SEPARATOR);
 
     let last = components.next()?.parse().ok()?;
     Some(if let Some(min) = components.next() {

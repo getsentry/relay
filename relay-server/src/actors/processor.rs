@@ -2638,7 +2638,7 @@ impl EnvelopeProcessorService {
                         Ok(bucket) => buckets.push(bucket),
                         Err(error) => relay_log::debug!(
                             error = &error as &dyn Error,
-                            "failed to parse metric bucket from statsd",
+                            "failed to parse metric bucket from statsd format",
                         ),
                     }
                 }

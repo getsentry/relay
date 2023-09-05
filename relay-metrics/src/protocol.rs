@@ -234,6 +234,7 @@ pub struct MetricResourceIdentifier<'a> {
 impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
+        // Note that this is NOT `VALUE_SEPARATOR`:
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
