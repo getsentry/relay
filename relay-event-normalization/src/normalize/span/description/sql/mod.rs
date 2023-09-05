@@ -292,8 +292,9 @@ mod tests {
         r#"SELECT foo, count(*) from table WHERE sku = %s"#
     );
 
-    scrub_sql_test!(
+    scrub_sql_test_with_dialect!(
         strip_prefixes_mysql,
+        "mysql",
         r#"SELECT `table`.`foo`, count(*) from `table` WHERE sku = %s"#,
         r#"SELECT foo, count(*) FROM table WHERE sku = %s"#
     );

@@ -3,7 +3,8 @@ use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use sqlparser::ast::{
-    Expr, Ident, Query, SelectItem, SetExpr, Statement, TableFactor, Value, VisitMut, VisitorMut,
+    Expr, Ident, Query, SelectItem, SetExpr, Statement, TableFactor, UnaryOperator, Value,
+    VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -140,6 +141,14 @@ impl VisitorMut for NormalizeVisitor {
             }
             // Recurse into subqueries.
             Expr::Subquery(query) => Self::transform_query(query),
+            Expr::UnaryOp {
+                op: UnaryOperator::Minus,
+                expr: inner,
+            } => {
+                if let Expr::Value(_) = **inner {
+                    *expr = Expr::Value(Self::placeholder())
+                }
+            }
             _ => {}
         }
         ControlFlow::Continue(())
