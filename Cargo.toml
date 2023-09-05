@@ -15,7 +15,8 @@ debug = true
 
 [workspace.dependencies]
 anyhow = "1.0.66"
-chrono = { version = "0.4.28", default-features = false, features = [
+# Temporarily get chrono from git until https://github.com/chronotope/chrono/pull/1254 has been released.
+chrono = { git = "https://github.com/chronotope/chrono.git", rev = "5a6b2b40a781c19ad34a3593313468d922fceeea", default-features = false, features = [
     "std",
     "serde",
 ] }
