@@ -700,27 +700,6 @@
 <a href="#700" id="700">700</a>
 <a href="#701" id="701">701</a>
 <a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -731,10 +710,11 @@
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span, TraceContext};
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
-<span class="kw">use </span>sqlparser::ast::{ObjectName, Visit, Visitor};
-<span class="kw">use </span>sqlparser::dialect::GenericDialect;
+<span class="kw">use </span>sqlparser::ast::Visit;
+<span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <span class="kw">use </span>url::Url;
 
+<span class="kw">use </span><span class="kw">crate</span>::span::description::parse_query;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
 };
@@ -1081,22 +1061,9 @@
     Regex::new(<span class="string">r#&quot;(?i)(from|into|update)(\s|&quot;)+(?P&lt;table&gt;(\w+(\.\w+)*))(\s|&quot;)+&quot;#</span>).unwrap()
 });
 
-<span class="doccomment">/// Used to replace placeholders (parameters) by dummy values such that the query can be parsed.
-</span><span class="kw">static </span>SQL_PLACEHOLDER_REGEX: Lazy&lt;Regex&gt; =
-    Lazy::new(|| Regex::new(<span class="string">r&quot;(?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+)&quot;</span>).unwrap());
-
 <span class="doccomment">/// Returns a sorted, comma-separated list of SQL tables, if any.
 </span><span class="kw">fn </span>sql_tables_from_query(db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, query: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="comment">// See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
-    //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
-    </span><span class="kw">let </span>dialect = db_system
-        .and_then(sqlparser::dialect::dialect_from_str)
-        .unwrap_or_else(|| Box::new(GenericDialect {}));
-
-    <span class="comment">// Parameters such as &quot;%s&quot; cannot be parsed by sqlparser.
-    </span><span class="kw">let </span>parsable_query = SQL_PLACEHOLDER_REGEX.replace_all(query, <span class="string">&quot;1&quot;</span>);
-
-    <span class="kw">match </span>sqlparser::parser::Parser::parse_sql(<span class="kw-2">&amp;*</span>dialect, <span class="kw-2">&amp;</span>parsable_query) {
+    <span class="kw">match </span>parse_query(db_system, query) {
         <span class="prelude-val">Ok</span>(ast) =&gt; {
             <span class="kw">let </span><span class="kw-2">mut </span>visitor = SqlTableNameVisitor {
                 table_names: Default::default(),
@@ -1315,15 +1282,6 @@
         <span class="string">&quot;post&quot;</span>,
         <span class="string">&quot;POST&quot;
     </span>);
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>find_placeholders() {
-        <span class="kw">let </span>s = <span class="string">&quot;? NULL ?? &#39;str&#39; %s %(name1)s :c0 $4 xx&quot;</span>;
-        <span class="macro">assert_eq!</span>(
-            SQL_PLACEHOLDER_REGEX.replace_all(s, <span class="string">&quot;1&quot;</span>),
-            <span class="string">&quot;1 NULL 1 &#39;str&#39; 1 1 1 1 xx&quot;
-        </span>);
-    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_table_select() {
