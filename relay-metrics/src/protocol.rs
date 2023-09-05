@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::fmt;
 use std::hash::Hasher as _;
-use std::iter::FusedIterator;
 
 use hash32::{FnvHasher, Hasher as _};
 use serde::{Deserialize, Serialize};
@@ -141,15 +141,17 @@ impl std::str::FromStr for MetricType {
 
 relay_common::impl_str_serde!(MetricType, "a metric type string");
 
-/// An error returned by [`Metric::parse`] and [`Metric::parse_all`].
+/// An error returned when metrics or MRIs cannot be parsed.
 #[derive(Clone, Copy, Debug)]
-pub struct ParseMetricError(());
+pub struct ParseMetricError(pub(crate) ());
 
 impl fmt::Display for ParseMetricError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "failed to parse metric")
     }
 }
+
+impl Error for ParseMetricError {}
 
 /// The namespace of a metric.
 ///
@@ -232,6 +234,7 @@ pub struct MetricResourceIdentifier<'a> {
 impl<'a> MetricResourceIdentifier<'a> {
     /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
     pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
+        // Note that this is NOT `VALUE_SEPARATOR`:
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
         let ty = raw_ty.parse()?;
 
@@ -283,7 +286,7 @@ pub(crate) fn validate_tag_value(tag_value: &mut String) {
 ///
 /// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if the name or value are
 /// invalid.
-fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
+pub(crate) fn parse_name_unit(string: &str) -> Option<(&str, MetricUnit)> {
     let mut components = string.split('@');
     let name = components.next()?;
     if !relay_base_schema::metrics::is_valid_metric_name(name) {
@@ -308,86 +311,12 @@ fn hash_set_value(string: &str) -> u32 {
     hasher.finish32()
 }
 
-/// Parses a metric value given its type.
-///
-/// Returns `None` if the value is invalid for the given type.
-fn parse_value(string: &str, ty: MetricType) -> Option<MetricValue> {
-    Some(match ty {
-        MetricType::Counter => MetricValue::Counter(string.parse().ok()?),
-        MetricType::Distribution => MetricValue::Distribution(string.parse().ok()?),
-        MetricType::Set => {
-            MetricValue::Set(string.parse().unwrap_or_else(|_| hash_set_value(string)))
-        }
-        MetricType::Gauge => MetricValue::Gauge(string.parse().ok()?),
-    })
-}
-
-/// Parses the `name[@unit]:value` part of a metric string.
-///
-/// Returns [`MetricUnit::None`] if no unit is specified. Returns `None` if any of the components is
-/// invalid.
-fn parse_name_unit_value(string: &str, ty: MetricType) -> Option<(&str, MetricUnit, MetricValue)> {
-    let mut components = string.splitn(2, ':');
-    let (name, unit) = components.next().and_then(parse_name_unit)?;
-    let value = components.next().and_then(|s| parse_value(s, ty))?;
-    Some((name, unit, value))
-}
-
-/// Parses tags in the format `tag1,tag2:value`.
-///
-/// Tag values are optional. For tags with missing values, an empty `""` value is assumed.
-fn parse_tags(string: &str) -> Option<BTreeMap<String, String>> {
-    let mut map = BTreeMap::new();
-
-    for pair in string.split(',') {
-        let mut name_value = pair.splitn(2, ':');
-
-        let name = name_value.next()?;
-        if !is_valid_tag_key(name) {
-            continue;
-        }
-
-        let mut value = name_value.next().unwrap_or_default().to_owned();
-
-        validate_tag_value(&mut value);
-
-        map.insert(name.to_owned(), value);
-    }
-
-    Some(map)
-}
-
 /// A single metric value representing the payload sent from clients.
 ///
 /// As opposed to bucketed metric aggregations, this single metrics always represent a single
 /// submission and cannot store multiple values.
 ///
 /// See the [crate documentation](crate) for general information on Metrics.
-///
-/// # Submission Protocol
-///
-/// ```text
-/// <name>[@unit]:<value>|<type>|#<tag_key>:<tag_value>,<tag>
-/// ```
-///
-/// See the field documentation on this struct for more information on the components. An example
-/// submission looks like this:
-///
-/// ```text
-#[doc = include_str!("../tests/fixtures/metrics.statsd.txt")]
-/// ```
-///
-/// To parse a submission payload, use [`Metric::parse_all`].
-///
-/// # JSON Representation
-///
-/// In addition to the submission protocol, metrics can be represented as structured data in JSON.
-/// In addition to the field values from the submission protocol, a timestamp is added to every
-/// metric (see [crate documentation](crate)).
-///
-/// ```json
-#[doc = include_str!("../tests/fixtures/metrics.json")]
-/// ```
 ///
 /// # Hashing of Sets
 ///
@@ -447,10 +376,6 @@ pub struct Metric {
     #[serde(flatten)]
     pub value: MetricValue,
     /// The timestamp for this metric value.
-    ///
-    /// If a timestamp is not supplied in the item header of the envelope, the
-    /// default timestamp supplied to [`Metric::parse`] or [`Metric::parse_all`]
-    /// is associated with the metric.
     pub timestamp: UnixTimestamp,
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
     ///
@@ -490,83 +415,6 @@ impl Metric {
             timestamp,
             tags,
         }
-    }
-
-    /// Parse statsd-compatible payload of format
-    /// ```text
-    /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
-    /// ```
-    fn parse_str(string: &str, timestamp: UnixTimestamp) -> Option<Self> {
-        let mut components = string.split('|');
-
-        let name_value_str = components.next()?;
-        let ty = components.next().and_then(|s| s.parse().ok())?;
-        let (name_and_namespace, unit, value) = parse_name_unit_value(name_value_str, ty)?;
-        let (raw_namespace, name) = name_and_namespace
-            .split_once('/')
-            .unwrap_or(("custom", name_and_namespace));
-
-        let mut metric = Self::new_mri(
-            raw_namespace.parse().ok()?,
-            name,
-            unit,
-            value,
-            timestamp,
-            BTreeMap::new(),
-        );
-
-        for component in components {
-            if let Some('#') = component.chars().next() {
-                metric.tags = parse_tags(component.get(1..)?)?;
-            }
-        }
-
-        Some(metric)
-    }
-
-    /// Parses a single metric value from the raw protocol.
-    ///
-    /// See the [`Metric`] for more information on the protocol.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use relay_metrics::{Metric, UnixTimestamp};
-    ///
-    /// let metric = Metric::parse(b"response_time@millisecond:57|d", UnixTimestamp::now())
-    ///     .expect("metric should parse");
-    /// ```
-    pub fn parse(slice: &[u8], timestamp: UnixTimestamp) -> Result<Self, ParseMetricError> {
-        let string = std::str::from_utf8(slice).or(Err(ParseMetricError(())))?;
-        Self::parse_str(string, timestamp).ok_or(ParseMetricError(()))
-    }
-
-    /// Parses a set of metric values from the raw protocol.
-    ///
-    /// Returns a metric result for each line in `slice`, ignoring empty lines. Both UNIX newlines
-    /// (`\n`) and Windows newlines (`\r\n`) are supported.
-    ///
-    /// It is possible to continue consuming the iterator after `Err` is yielded.
-    ///
-    /// See the [`Metric`] for more information on the protocol.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use relay_metrics::{Metric, UnixTimestamp};
-    ///
-    /// let data = br#"
-    /// endpoint.response_time@millisecond:57|d
-    /// endpoint.hits:1|c
-    /// "#;
-    ///
-    /// for metric_result in Metric::parse_all(data, UnixTimestamp::now()) {
-    ///     let metric = metric_result.expect("metric should parse");
-    ///     println!("Metric {}: {}", metric.name, metric.value);
-    /// }
-    /// ```
-    pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseMetrics<'_> {
-        ParseMetrics { slice, timestamp }
     }
 }
 
@@ -610,50 +458,6 @@ impl MetricsContainer for Metric {
     }
 }
 
-/// Iterator over parsed metrics returned from [`Metric::parse_all`].
-#[derive(Clone, Debug)]
-pub struct ParseMetrics<'a> {
-    slice: &'a [u8],
-    timestamp: UnixTimestamp,
-}
-
-impl Default for ParseMetrics<'_> {
-    fn default() -> Self {
-        Self {
-            slice: &[],
-            // The timestamp will never be returned.
-            timestamp: UnixTimestamp::from_secs(4711),
-        }
-    }
-}
-
-impl Iterator for ParseMetrics<'_> {
-    type Item = Result<Metric, ParseMetricError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.slice.is_empty() {
-                return None;
-            }
-
-            let mut split = self.slice.splitn(2, |&b| b == b'\n');
-            let current = split.next()?;
-            self.slice = split.next().unwrap_or_default();
-
-            let string = match std::str::from_utf8(current) {
-                Ok(string) => string.strip_suffix('\r').unwrap_or(string),
-                Err(_) => return Some(Err(ParseMetricError(()))),
-            };
-
-            if !string.is_empty() {
-                return Some(Metric::parse_str(string, self.timestamp).ok_or(ParseMetricError(())));
-            }
-        }
-    }
-}
-
-impl FusedIterator for ParseMetrics<'_> {}
-
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;
@@ -664,162 +468,6 @@ mod tests {
     fn test_sizeof_unit() {
         assert_eq!(std::mem::size_of::<MetricUnit>(), 16);
         assert_eq!(std::mem::align_of::<MetricUnit>(), 1);
-    }
-
-    #[test]
-    fn test_parse_garbage() {
-        let s = "x23-408j17z4232@#34d\nc3456y7^😎";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let result = Metric::parse(s.as_bytes(), timestamp);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_counter() {
-        let s = "transactions/foo:42|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-        Metric {
-            name: "c:transactions/foo@none",
-            value: Counter(
-                42.0,
-            ),
-            timestamp: UnixTimestamp(4711),
-            tags: {},
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_distribution() {
-        let s = "transactions/foo:17.5|d";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-        Metric {
-            name: "d:transactions/foo@none",
-            value: Distribution(
-                17.5,
-            ),
-            timestamp: UnixTimestamp(4711),
-            tags: {},
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_histogram() {
-        let s = "transactions/foo:17.5|h"; // common alias for distribution
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        assert_eq!(metric.value, MetricValue::Distribution(17.5));
-    }
-
-    #[test]
-    fn test_parse_set() {
-        let s = "transactions/foo:e2546e4c-ecd0-43ad-ae27-87960e57a658|s";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-        Metric {
-            name: "s:transactions/foo@none",
-            value: Set(
-                4267882815,
-            ),
-            timestamp: UnixTimestamp(4711),
-            tags: {},
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_gauge() {
-        let s = "transactions/foo:42|g";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-        Metric {
-            name: "g:transactions/foo@none",
-            value: Gauge(
-                42.0,
-            ),
-            timestamp: UnixTimestamp(4711),
-            tags: {},
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_implicit_namespace() {
-        let s = "foo:42|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-        Metric {
-            name: "c:custom/foo@none",
-            value: Counter(
-                42.0,
-            ),
-            timestamp: UnixTimestamp(4711),
-            tags: {},
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_unit() {
-        let s = "transactions/foo@second:17.5|d";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
-    }
-
-    #[test]
-    fn test_parse_unit_regression() {
-        let s = "transactions/foo@s:17.5|d";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        let mri = MetricResourceIdentifier::parse(&metric.name).unwrap();
-        assert_eq!(mri.unit, MetricUnit::Duration(DurationUnit::Second));
-    }
-
-    #[test]
-    fn test_parse_tags() {
-        let s = "transactions/foo:17.5|d|#foo,bar:baz";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp).unwrap();
-        insta::assert_debug_snapshot!(metric.tags, @r#"
-        {
-            "bar": "baz",
-            "foo": "",
-        }
-        "#);
-    }
-
-    #[test]
-    fn test_parse_invalid_name() {
-        let s = "foo#bar:42|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp);
-        assert!(metric.is_err());
-    }
-
-    #[test]
-    fn test_parse_empty_name() {
-        let s = ":42|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp);
-        assert!(metric.is_err());
-    }
-
-    #[test]
-    fn test_parse_invalid_name_with_leading_digit() {
-        let s = "64bit:42|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-        let metric = Metric::parse(s.as_bytes(), timestamp);
-        assert!(metric.is_err());
     }
 
     #[test]
@@ -875,74 +523,5 @@ mod tests {
             tags: {},
         }
         "#);
-    }
-
-    #[test]
-    fn test_parse_all() {
-        let s = "transactions/foo:42|c\nbar:17|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-
-        let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
-            .collect::<Result<_, _>>()
-            .unwrap();
-
-        assert_eq!(metrics.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_all_crlf() {
-        let s = "transactions/foo:42|c\r\nbar:17|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-
-        let metrics: Vec<Metric> = Metric::parse_all(s.as_bytes(), timestamp)
-            .collect::<Result<_, _>>()
-            .unwrap();
-
-        assert_eq!(metrics.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_all_empty_lines() {
-        let s = "transactions/foo:42|c\n\n\nbar:17|c";
-        let timestamp = UnixTimestamp::from_secs(4711);
-
-        let metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
-        assert_eq!(metric_count, 2);
-    }
-
-    #[test]
-    fn test_parse_all_trailing() {
-        let s = "transactions/foo:42|c\nbar:17|c\n";
-        let timestamp = UnixTimestamp::from_secs(4711);
-
-        let metric_count = Metric::parse_all(s.as_bytes(), timestamp).count();
-        assert_eq!(metric_count, 2);
-    }
-
-    #[test]
-    fn test_metrics_docs() {
-        let text = include_str!("../tests/fixtures/metrics.statsd.txt").trim_end();
-        let json = include_str!("../tests/fixtures/metrics.json").trim_end();
-
-        let timestamp = UnixTimestamp::from_secs(1615889449);
-        let statsd_metrics = Metric::parse_all(text.as_bytes(), timestamp)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let json_metrics: Vec<Metric> = serde_json::from_str(json).unwrap();
-
-        assert_eq!(statsd_metrics, json_metrics);
-    }
-
-    #[test]
-    fn test_set_docs() {
-        let text = include_str!("../tests/fixtures/set.statsd.txt").trim_end();
-        let json = include_str!("../tests/fixtures/set.json").trim_end();
-
-        let timestamp = UnixTimestamp::from_secs(1615889449);
-        let statsd_metric = Metric::parse(text.as_bytes(), timestamp).unwrap();
-        let json_metric: Metric = serde_json::from_str(json).unwrap();
-
-        assert_eq!(statsd_metric, json_metric);
     }
 }
