@@ -20,6 +20,7 @@
 
 - Support ingestion of custom metrics when the `organizations:custom-metrics` feature flag is enabled. ([#2443](https://github.com/getsentry/relay/pull/2443))
 - Merge span metrics and standalone spans extraction options. ([#2447](https://github.com/getsentry/relay/pull/2447))
+- Support parsing aggregated metric buckets directly from statsd payloads. ([#2468](https://github.com/getsentry/relay/pull/2468))
 
 ## 23.8.0
 

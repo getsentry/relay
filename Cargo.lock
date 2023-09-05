@@ -95,7 +95,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b6b53e6d20664ddcbc06b80f29c64330f3c3aa01b597a8743f4368623a03718"
 dependencies = [
- "chrono",
+ "chrono 0.4.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "log",
  "nom",
  "serde",
@@ -122,7 +122,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e2e9a7b2d67ca2b6e886b610ae20ac845cf37980df84892e38f6046e8fc225f"
 dependencies = [
- "chrono",
+ "chrono 0.4.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static",
  "regex",
 ]
@@ -476,6 +476,18 @@ name = "chrono"
 version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95ed24df0632f708f5f6d8082675bef2596f7084dee3dd55f632290bf35bfe0f"
+dependencies = [
+ "android-tzdata",
+ "iana-time-zone",
+ "num-traits",
+ "serde",
+ "windows-targets 0.48.0",
+]
+
+[[package]]
+name = "chrono"
+version = "0.4.28"
+source = "git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea#5a6b2b40a781c19ad34a3593313468d922fceeea"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -3046,7 +3058,7 @@ dependencies = [
 name = "relay-auth"
 version = "23.8.0"
 dependencies = [
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "data-encoding",
  "ed25519-dalek",
  "hmac",
@@ -3086,7 +3098,7 @@ name = "relay-cabi"
 version = "0.8.29"
 dependencies = [
  "anyhow",
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "json-forensics",
  "lru",
  "once_cell",
@@ -3111,7 +3123,7 @@ dependencies = [
 name = "relay-common"
 version = "23.8.0"
 dependencies = [
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "globset",
  "lru",
  "once_cell",
@@ -3188,7 +3200,7 @@ name = "relay-event-normalization"
 version = "23.8.0"
 dependencies = [
  "bytecount",
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "dynfmt",
  "insta",
  "itertools",
@@ -3219,7 +3231,7 @@ name = "relay-event-schema"
 version = "23.8.0"
 dependencies = [
  "bytecount",
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "cookie",
  "debugid",
  "enumset",
@@ -3303,7 +3315,7 @@ dependencies = [
 name = "relay-log"
 version = "23.8.0"
 dependencies = [
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "console",
  "relay-crash",
  "sentry",
@@ -3382,7 +3394,7 @@ name = "relay-profiling"
 version = "23.8.0"
 dependencies = [
  "android_trace_log",
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "data-encoding",
  "insta",
  "relay-event-schema",
@@ -3466,7 +3478,7 @@ dependencies = [
 name = "relay-sampling"
 version = "23.8.0"
 dependencies = [
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "insta",
  "rand",
  "rand_pcg",
@@ -3493,7 +3505,7 @@ dependencies = [
  "brotli",
  "bytecount",
  "bytes",
- "chrono",
+ "chrono 0.4.28 (git+https://github.com/chronotope/chrono.git?rev=5a6b2b40a781c19ad34a3593313468d922fceeea)",
  "data-encoding",
  "flate2",
  "futures",
@@ -3785,7 +3797,7 @@ version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1847b767a3d62d95cbf3d8a9f0e421cf57a0d8aa4f411d4b16525afb0284d4ed"
 dependencies = [
- "chrono",
+ "chrono 0.4.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "dyn-clone",
  "schemars_derive",
  "serde",
@@ -4572,7 +4584,7 @@ checksum = "dfafda6f24906ce579407407046298bc9cd5ed608227694657cb186d4faca1da"
 dependencies = [
  "anylog",
  "bytes",
- "chrono",
+ "chrono 0.4.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "elementtree",
  "flate2",
  "lazy_static",

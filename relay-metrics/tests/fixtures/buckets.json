@@ -1,8 +1,8 @@
 [
   {
-    "timestamp": 1615889440,
-    "width": 10,
-    "name": "endpoint.response_time",
+    "timestamp": 1615889449,
+    "width": 0,
+    "name": "d:custom/endpoint.response_time@millisecond",
     "type": "d",
     "value": [
       36.0,
@@ -15,9 +15,9 @@
     }
   },
   {
-    "timestamp": 1615889440,
-    "width": 10,
-    "name": "endpoint.hits",
+    "timestamp": 1615889449,
+    "width": 0,
+    "name": "c:custom/endpoint.hits@none",
     "type": "c",
     "value": 4.0,
     "tags": {
@@ -25,22 +25,25 @@
     }
   },
   {
-    "timestamp": 1615889440,
-    "width": 10,
-    "name": "endpoint.parallel_requests",
+    "timestamp": 1615889449,
+    "width": 0,
+    "name": "g:custom/endpoint.parallel_requests@none",
     "type": "g",
     "value": {
-      "max": 42.0,
-      "min": 17.0,
-      "sum": 2210.0,
       "last": 25.0,
+      "min": 17.0,
+      "max": 42.0,
+      "sum": 220.0,
       "count": 85
+    },
+    "tags": {
+      "route": "user_index"
     }
   },
   {
-    "timestamp": 1615889440,
-    "width": 10,
-    "name": "endpoint.users",
+    "timestamp": 1615889449,
+    "width": 0,
+    "name": "s:custom/endpoint.users@none",
     "type": "s",
     "value": [
       3182887624,
