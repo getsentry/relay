@@ -11,6 +11,27 @@ def generate_check_in(slug):
     }
 
 
+def test_monitor_ingest(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    mini_sentry.add_basic_project_config(42)
+
+    check_in = generate_check_in("my-monitor")
+    relay.send_check_in(42, check_in)
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    assert len(envelope.items) == 1
+    item = envelope.items[0]
+    assert item.headers["type"] == "check_in"
+
+    check_in = json.loads(item.get_bytes().decode())
+    assert check_in == {
+        "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+        "monitor_slug": "my-monitor",
+        "status": "in_progress",
+        "duration": 21.0,
+    }
+
+
 def test_monitors_with_processing(
     mini_sentry, relay_with_processing, monitors_consumer
 ):
