@@ -8,9 +8,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -27,9 +27,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -45,9 +45,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -69,9 +69,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -92,9 +92,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -116,9 +116,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -139,9 +139,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -163,9 +163,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -186,9 +186,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -209,9 +209,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -231,9 +231,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -256,9 +256,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -280,9 +280,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -306,9 +306,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -331,9 +331,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -357,9 +357,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -382,9 +382,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -408,9 +408,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -433,9 +433,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -459,9 +459,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -484,9 +484,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -510,9 +510,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -535,9 +535,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -561,9 +561,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -586,9 +586,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -611,9 +611,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -635,9 +635,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -659,9 +659,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -682,9 +682,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -708,9 +708,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -733,9 +733,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -756,9 +756,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -778,9 +778,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -804,9 +804,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -829,9 +829,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -855,9 +855,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -880,9 +880,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -904,9 +904,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -927,9 +927,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -951,9 +951,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -974,9 +974,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -999,9 +999,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1023,9 +1023,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1046,9 +1046,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1068,9 +1068,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1092,9 +1092,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1115,9 +1115,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1139,9 +1139,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1162,9 +1162,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1186,9 +1186,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1209,9 +1209,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
@@ -1231,9 +1231,9 @@ expression: metrics
         width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            {
-                2000.0: 1,
-            },
+            [
+                2000.0,
+            ],
         ),
         tags: {
             "environment": "fake_environment",
