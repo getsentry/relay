@@ -11,7 +11,7 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
-admin = ["axum/ws"]
+dashboard = ["axum/ws"]
 default = []
 processing = [
     "dep:minidump",

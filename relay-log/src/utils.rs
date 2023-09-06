@@ -1,14 +1,14 @@
 use std::error::Error;
 use std::fmt;
 
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 use once_cell::sync::Lazy;
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 use tokio::sync::broadcast;
 use tracing::Level;
 
 /// Channel to deliver logs.
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 pub static LOGS: Lazy<broadcast::Sender<Vec<u8>>> = Lazy::new(|| {
     let (tx, _) = broadcast::channel(2000);
     tx

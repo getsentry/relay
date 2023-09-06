@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{level_filters::LevelFilter, Level};
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 use crate::LOGS;
 
 /// The full release name including the Relay version and SHA.
@@ -199,10 +199,10 @@ fn get_default_filters() -> EnvFilter {
     env_filter
 }
 
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 struct LogsWriter;
 
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 impl std::io::Write for LogsWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let tx = &*LOGS;
@@ -217,7 +217,7 @@ impl std::io::Write for LogsWriter {
 }
 
 /// Returns the log writer.
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 fn make_logs_writer() -> impl std::io::Write {
     LogsWriter
 }
@@ -245,7 +245,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         .with_writer(std::io::stderr)
         .with_target(true);
 
-    #[cfg(feature = "admin")]
+    #[cfg(feature = "dashboard")]
     let dashboard_subscriber = tracing_subscriber::fmt::layer()
         .with_writer(make_logs_writer)
         .with_target(true)
@@ -278,7 +278,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         });
 
     // Also add dashboard subscriber if the feature is enabled.
-    #[cfg(feature = "admin")]
+    #[cfg(feature = "dashboard")]
     let trsub = trsub.with(dashboard_subscriber);
 
     trsub.init();

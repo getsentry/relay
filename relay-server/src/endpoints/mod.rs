@@ -9,7 +9,7 @@ mod envelope;
 mod events;
 mod forward;
 mod health_check;
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 mod logs;
 mod minidump;
 mod monitor;
@@ -18,7 +18,7 @@ mod project_configs;
 mod public_keys;
 mod security_report;
 mod statics;
-#[cfg(feature = "admin")]
+#[cfg(feature = "dashboard")]
 mod stats;
 mod store;
 mod unreal;
@@ -42,7 +42,7 @@ where
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
         .route("/api/relay/events/:event_id/", get(events::handle));
-    #[cfg(feature = "admin")]
+    #[cfg(feature = "dashboard")]
     let internal_routes = internal_routes
         .route("/api/relay/logs/", get(logs::handle))
         .route("/api/relay/stats/", get(stats::handle));
