@@ -34,6 +34,7 @@ pub struct ProfileMetadata {
 
     platform: String,
     profile_id: EventId,
+    timestamp: DateTime<Utc>,
 
     #[serde(default, skip_serializing_if = "String::is_empty")]
     release: String,
