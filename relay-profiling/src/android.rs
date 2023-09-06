@@ -341,4 +341,21 @@ mod tests {
             assert_eq!(transaction.name, "some-random-transaction".to_string());
         }
     }
+
+    #[test]
+    fn test_timestamp() {
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let profile = parse_profile(payload);
+
+        assert!(profile.is_ok());
+
+        let mut ap = profile.unwrap();
+        let now = Some(Utc::now());
+        ap.metadata.timestamp = now;
+        let data = serde_json::to_vec(&ap);
+        let updated = parse_profile(&(data.unwrap())[..]);
+
+        assert!(updated.is_ok());
+        assert_eq!(updated.unwrap().metadata.timestamp, now);
+    }
 }
