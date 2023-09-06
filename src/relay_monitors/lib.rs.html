@@ -445,7 +445,7 @@
 </span><span class="attr">#[derive(Debug, Deserialize, Serialize)]
 </span><span class="kw">pub struct </span>CheckIn {
     <span class="doccomment">/// Unique identifier of this check-in.
-    </span><span class="attr">#[serde(serialize_with = <span class="string">&quot;uuid_simple&quot;</span>)]
+    </span><span class="attr">#[serde(default, serialize_with = <span class="string">&quot;uuid_simple&quot;</span>)]
     </span><span class="kw">pub </span>check_in_id: Uuid,
 
     <span class="doccomment">/// Identifier of the monitor for this check-in.
