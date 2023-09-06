@@ -2744,9 +2744,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.17.0"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f61fba1741ea2b3d6a1e3178721804bb716a68a6aeba1149b5d52e3d464ea66"
+checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
 name = "oorandom"
@@ -3490,10 +3490,12 @@ dependencies = [
  "gloo-console 0.3.0",
  "gloo-net 0.4.0",
  "instant",
+ "once_cell",
  "reqwasm",
  "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
  "yew",
  "yew-router",
 ]

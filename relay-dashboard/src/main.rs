@@ -4,12 +4,11 @@ use std::time::Duration;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
-use crate::utils::buffering_socket;
+use crate::utils::{buffering_socket, window_location};
 
 mod stats;
 mod utils;
 
-const RELAY_URL: &str = "localhost:3001"; // TODO: make configurable
 const MAX_LOG_SIZE: usize = 1000;
 
 #[derive(Clone, Routable, PartialEq)]
@@ -87,11 +86,13 @@ fn main() {
 fn logs() -> Html {
     let update_trigger = use_force_update();
     let log_entries = use_mut_ref(VecDeque::new);
+
     {
         let log_entries = log_entries.clone();
         use_effect_with_deps(
             move |_| {
-                let url = format!("ws://{RELAY_URL}/api/relay/logs/");
+                let relay_address = window_location();
+                let url = format!("ws://{relay_address}/api/relay/logs/");
                 let interval = Duration::from_millis(100);
                 buffering_socket(url, interval, move |messages| {
                     let shrink_to = MAX_LOG_SIZE.saturating_sub(messages.len());

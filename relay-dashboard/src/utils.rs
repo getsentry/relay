@@ -6,6 +6,21 @@ use gloo_net::websocket::State;
 use gloo_net::websocket::{futures::WebSocket, Message};
 use yew::platform::time::sleep;
 
+static RELAY_URL: once_cell::sync::OnceCell<String> = once_cell::sync::OnceCell::new();
+
+/// Returns the origin location from the browser window.
+///
+/// If the window cannot be found, return the default: "localhost:3001".
+/// Since this app is always should be opened in the broweser, we can safely assume that the window
+/// will be present when the location is requested.
+pub fn window_location() -> &'static String {
+    RELAY_URL.get_or_init(|| {
+        web_sys::window()
+            .and_then(|w| w.location().host().ok())
+            .unwrap_or("localhost:3001".to_string())
+    })
+}
+
 /// Buffers socket messages and flushes them in batches.
 pub fn buffering_socket(
     url: String,

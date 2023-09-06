@@ -3,14 +3,14 @@
 use instant::Duration;
 use yew::prelude::*;
 
-use crate::utils::buffering_socket;
-use crate::RELAY_URL;
+use crate::utils::{buffering_socket, window_location};
 
 #[function_component(Stats)]
 pub(crate) fn stats() -> Html {
     use_effect_with_deps(
         move |_| {
-            let url = format!("ws://{RELAY_URL}/api/relay/stats/");
+            let relay_address = window_location();
+            let url = format!("ws://{relay_address}/api/relay/stats/");
             let interval = Duration::from_millis(100);
             buffering_socket(url, interval, move |messages| {
                 for message in messages {
