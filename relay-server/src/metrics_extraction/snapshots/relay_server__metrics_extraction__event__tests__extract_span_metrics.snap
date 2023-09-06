@@ -1,5 +1,5 @@
 ---
-source: relay-server/src/metrics_extraction/spans/mod.rs
+source: relay-server/src/metrics_extraction/event.rs
 expression: metrics
 ---
 [
@@ -604,7 +604,9 @@ expression: metrics
             "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
             "span.domain": "from_date",
+            "span.group": "e4ea457c8e7e4109",
             "span.module": "db",
             "span.op": "db.sql.query",
             "span.status": "ok",
@@ -625,7 +627,9 @@ expression: metrics
             "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
             "span.domain": "from_date",
+            "span.group": "e4ea457c8e7e4109",
             "span.module": "db",
             "span.op": "db.sql.query",
             "span.status": "ok",

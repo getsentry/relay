@@ -345,7 +345,7 @@ impl EnvelopeManagerService {
         };
 
         let mut item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(ContentType::Json, Bucket::serialize_all(&buckets).unwrap());
+        item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 

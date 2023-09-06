@@ -572,7 +572,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let payload = item.payload();
 
-        for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
+        for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
             self.send_metric_message(
                 org_id,
                 MetricKafkaMessage {
