@@ -2,9 +2,27 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
+- Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
+- The Crons monitor check-in APIs have learned to accept JSON via POST. This allows for monitor upserts by specifying the `monitor_config` in the JSON body. ([#2448](https://github.com/getsentry/relay/pull/2448))
+
 **Bug Fixes**:
 
 - Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
+- Fixes the `TraceContext.status` not being defaulted to `unknown` before the new metrics extraction pipeline. ([#2436](https://github.com/getsentry/relay/pull/2436))
+- Support on-demand metrics for alerts and widgets in external Relays. ([#2440](https://github.com/getsentry/relay/pull/2440))
+- Prevent sporadic data loss in `EnvelopeProcessorService`. ([#2454](https://github.com/getsentry/relay/pull/2454))
+- Prevent panic when android trace contains invalid start time. ([#2457](https://github.com/getsentry/relay/pull/2457))
+
+**Internal**:
+
+- Support ingestion of custom metrics when the `organizations:custom-metrics` feature flag is enabled. ([#2443](https://github.com/getsentry/relay/pull/2443))
+- Merge span metrics and standalone spans extraction options. ([#2447](https://github.com/getsentry/relay/pull/2447))
+- Support parsing aggregated metric buckets directly from statsd payloads. ([#2468](https://github.com/getsentry/relay/pull/2468), [#2472](https://github.com/getsentry/relay/pull/2472))
+- Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
+- Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
 
 ## 23.8.0
 
@@ -102,7 +120,7 @@
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
 - Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
 
-- Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
+- Relay now supports a simplified cron check-in API. ([#2153](https://github.com/getsentry/relay/pull/2153))
 
 ## 23.5.1
 

@@ -2,9 +2,8 @@
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::Event;
-use relay_sampling::{
-    merge_configs_and_match, DynamicSamplingContext, MatchedRuleIds, SamplingMatch,
-};
+use relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
+use relay_sampling::DynamicSamplingContext;
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
@@ -31,7 +30,7 @@ impl SamplingResult {
                 matched_rule_ids,
                 seed,
             }) => {
-                let random_number = relay_sampling::pseudo_random_from_uuid(seed);
+                let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
                 relay_log::trace!(
                     sample_rate,
                     random_number,
@@ -69,7 +68,7 @@ fn get_sampling_match_result(
     let root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
-    merge_configs_and_match(
+    relay_sampling::evaluation::merge_configs_and_match(
         processing_enabled,
         sampling_config,
         root_sampling_config,
@@ -153,14 +152,14 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
-    use relay_common::uuid::Uuid;
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::Annotated;
-    use relay_sampling::{
-        EqCondOptions, EqCondition, RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode,
-        SamplingRule, SamplingValue,
+    use relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
+    use relay_sampling::config::{
+        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
     use similar_asserts::assert_eq;
+    use uuid::Uuid;
 
     use super::*;
     use crate::testutils::project_state_with_config;

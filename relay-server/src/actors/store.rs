@@ -9,7 +9,6 @@ use bytes::Bytes;
 use once_cell::sync::OnceCell;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
-use relay_common::uuid::Uuid;
 use relay_config::Config;
 use relay_event_schema::protocol::{
     self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
@@ -21,9 +20,9 @@ use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
+use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::service::ServiceError;
 use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
@@ -60,12 +59,8 @@ impl Producer {
         for topic in KafkaTopic::iter()
             .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
         {
-            let kafka_config = &config
-                .kafka_config(*topic)
-                .map_err(|_| ServiceError::Kafka)?;
-            client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServiceError::Kafka)?
+            let kafka_config = &config.kafka_config(*topic)?;
+            client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
         }
 
         Ok(Self {
@@ -544,22 +539,15 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
         let (topic, namespace) = match mri.map(|mri| mri.namespace) {
-            Ok(namespace @ MetricNamespace::Transactions) => {
-                (KafkaTopic::MetricsTransactions, namespace)
-            }
-            Ok(namespace @ MetricNamespace::Spans) => (KafkaTopic::MetricsTransactions, namespace),
             Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
-                    |scope| {
-                        scope.set_extra("metric_message.name", message.name.into());
-                    },
-                    || {
-                        relay_log::error!("store service dropping unknown metric usecase");
-                    },
+                    |scope| scope.set_extra("metric_message.name", message.name.into()),
+                    || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
             }
+            Ok(namespace) => (KafkaTopic::MetricsGeneric, namespace),
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
@@ -584,7 +572,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let payload = item.payload();
 
-        for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
+        for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
             self.send_metric_message(
                 org_id,
                 MetricKafkaMessage {

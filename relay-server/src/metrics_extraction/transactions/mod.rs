@@ -1,14 +1,13 @@
 use std::collections::BTreeMap;
 
 use relay_base_schema::events::EventType;
-use relay_base_schema::spans::SpanStatus;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
 use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
-use relay_metrics::{DurationUnit, Metric};
+use relay_metrics::{Bucket, DurationUnit};
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -24,13 +23,6 @@ pub mod types;
 /// Placeholder for transaction names in metrics that is used when SDKs are likely sending high
 /// cardinality data such as raw URLs.
 const PLACEHOLDER_UNPARAMETERIZED: &str = "<< unparameterized >>";
-
-/// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-///
-/// Must be consistent with `process_trace_context` in [`relay_event_normalization`].
-fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
-    *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
-}
 
 /// Extract HTTP method
 /// See <https://github.com/getsentry/snuba/blob/2e038c13a50735d58cc9397a29155ab5422a62e5/snuba/datasets/errors_processor.py#L64-L67>.
@@ -152,9 +144,11 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
     tags.insert(CommonTag::Platform, platform.to_string());
 
     if let Some(trace_context) = event.context::<TraceContext>() {
-        let status = extract_transaction_status(trace_context);
-
-        tags.insert(CommonTag::TransactionStatus, status.to_string());
+        // We assume that the trace context status is automatically set to unknown inside of the
+        // light event normalization step.
+        if let Some(status) = trace_context.status.value() {
+            tags.insert(CommonTag::TransactionStatus, status.to_string());
+        }
 
         if let Some(op) = normalize_utils::extract_transaction_op(trace_context) {
             tags.insert(CommonTag::TransactionOp, op);
@@ -209,10 +203,10 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
 #[derive(Debug, Default)]
 pub struct ExtractedMetrics {
     /// Metrics associated with the project of the envelope.
-    pub project_metrics: Vec<Metric>,
+    pub project_metrics: Vec<Bucket>,
 
     /// Metrics associated with the project of the trace parent.
-    pub sampling_metrics: Vec<Metric>,
+    pub sampling_metrics: Vec<Bucket>,
 }
 
 impl ExtractedMetrics {
@@ -402,7 +396,7 @@ mod tests {
         MeasurementsConfig,
     };
     use relay_event_schema::protocol::User;
-    use relay_metrics::MetricValue;
+    use relay_metrics::BucketValue;
     use relay_protocol::Annotated;
 
     use super::*;
@@ -538,14 +532,17 @@ mod tests {
         ]
         "#);
 
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.foo@none",
                 value: Distribution(
-                    420.69,
+                    {
+                        420.69: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -561,12 +558,15 @@ mod tests {
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
-                    3000.0,
+                    {
+                        3000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -583,12 +583,15 @@ mod tests {
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 value: Distribution(
-                    2000.0,
+                    {
+                        2000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -604,12 +607,15 @@ mod tests {
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    {
+                        59000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -625,12 +631,15 @@ mod tests {
                     "transaction.status": "ok",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "s:transactions/user@none",
                 value: Set(
-                    933084975,
+                    {
+                        933084975,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "browser.name": "Chrome",
                     "dist": "foo",
@@ -647,7 +656,7 @@ mod tests {
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -689,14 +698,17 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
-                    1.1,
+                    {
+                        1.1: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
@@ -704,36 +716,45 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.foo@none",
                 value: Distribution(
-                    8.8,
+                    {
+                        8.8: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.stall_count@none",
                 value: Distribution(
-                    3.3,
+                    {
+                        3.3: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    {
+                        59000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
                     "transaction": "<unlabeled transaction>",
@@ -741,7 +762,7 @@ mod tests {
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -780,14 +801,17 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.fcp@second",
                 value: Distribution(
-                    1.1,
+                    {
+                        1.1: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
@@ -795,12 +819,15 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/measurements.lcp@none",
                 value: Distribution(
-                    2.2,
+                    {
+                        2.2: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
@@ -808,12 +835,15 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    59000.0,
+                    {
+                        59000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "platform": "other",
                     "transaction": "<unlabeled transaction>",
@@ -821,7 +851,7 @@ mod tests {
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -859,7 +889,7 @@ mod tests {
 
         let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
-        assert_eq!(duration_metric.value, MetricValue::Distribution(59000.0));
+        assert_eq!(duration_metric.value, BucketValue::distribution(59000.0));
 
         assert_eq!(duration_metric.tags.len(), 4);
         assert_eq!(duration_metric.tags["release"], "1.2.3");
@@ -919,26 +949,32 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
                 name: "d:transactions/measurements.a_custom1@none",
                 value: Distribution(
-                    41.0,
+                    {
+                        41.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "platform": "other",
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
                 name: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
-                    0.123,
+                    {
+                        0.123: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "other",
@@ -946,24 +982,30 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
                 name: "d:transactions/measurements.g_custom2@second",
                 value: Distribution(
-                    42.0,
+                    {
+                        42.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "platform": "other",
                     "transaction": "foo",
                     "transaction.status": "unknown",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    2000.0,
+                    {
+                        2000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "platform": "other",
                     "transaction": "foo",
@@ -971,7 +1013,7 @@ mod tests {
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1015,7 +1057,11 @@ mod tests {
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}}
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
         }
         "#;
 
@@ -1040,7 +1086,7 @@ mod tests {
         assert_eq!(
             extracted.project_metrics[0].tags,
             BTreeMap::from([
-                ("transaction.status".to_string(), "unknown".to_string()),
+                ("transaction.status".to_string(), "ok".to_string()),
                 ("platform".to_string(), "other".to_string())
             ])
         );
@@ -1048,12 +1094,17 @@ mod tests {
 
     #[test]
     fn test_span_tags() {
+        // Status is normalized upstream in the light normalization step.
         let json = r#"
         {
             "type": "transaction",
             "timestamp": "2021-04-26T08:00:00+0100",
             "start_timestamp": "2021-04-26T07:59:01+0100",
-            "contexts": {"trace": {}},
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            },
             "spans": [
                 {
                     "description": "<OrganizationContext>",
@@ -1103,7 +1154,7 @@ mod tests {
         assert_eq!(
             extracted.project_metrics[0].tags,
             BTreeMap::from([
-                ("transaction.status".to_string(), "unknown".to_string()),
+                ("transaction.status".to_string(), "ok".to_string()),
                 ("platform".to_string(), "other".to_string()),
                 ("http.status_code".to_string(), "200".to_string())
             ])
@@ -1164,21 +1215,22 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.sampling_metrics, @r#"
+        insta::assert_debug_snapshot!(extracted.sampling_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "c:transactions/count_per_root_project@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1619420400),
                 tags: {
                     "decision": "keep",
                     "transaction": "root_transaction",
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1555,31 +1607,37 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(extracted.project_metrics, @r#"
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
                 name: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
-                    41.0,
+                    {
+                        41.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "measurement_rating": "good",
                     "platform": "javascript",
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    2000.0,
+                    {
+                        2000.0: 1,
+                    },
                 ),
-                timestamp: UnixTimestamp(1619420402),
                 tags: {
                     "platform": "javascript",
                     "satisfaction": "tolerated",
                 },
             },
         ]
-        "#);
+        "###);
     }
 }

@@ -1,13 +1,18 @@
 //! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
+use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, TraceContext};
 use relay_protocol::{Annotated, Value};
+use sqlparser::ast::Visit;
+use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
+use crate::span::description::parse_query;
 use crate::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
 };
@@ -177,6 +182,16 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
 /// and rely on Sentry conventions and heuristics.
 pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
     let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
+
+    let system = span
+        .data
+        .value()
+        .and_then(|v| v.get("db.system"))
+        .and_then(|system| system.as_str());
+    if let Some(sys) = system {
+        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
+    }
+
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
@@ -264,8 +279,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         } else if span_op.starts_with("db") {
             span.description
                 .value()
-                .and_then(|query| sql_table_from_query(query))
-                .map(|t| t.to_lowercase())
+                .and_then(|query| sql_tables_from_query(system, query))
         } else {
             None
         };
@@ -289,15 +303,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated.into());
         }
-    }
-
-    let system = span
-        .data
-        .value()
-        .and_then(|v| v.get("db.system"))
-        .and_then(|system| system.as_str());
-    if let Some(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
     }
 
     if let Some(span_status) = span.status.value() {
@@ -354,11 +359,48 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?i)(from|into|update)(\s|")+(?P<table>(\w+(\.\w+)*))(\s|")+"#).unwrap()
 });
 
-/// Returns the table in the SQL query, if any.
-///
-/// If multiple tables exist, only the first one is returned.
-fn sql_table_from_query(query: &str) -> Option<&str> {
-    extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX)
+/// Returns a sorted, comma-separated list of SQL tables, if any.
+fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
+    match parse_query(db_system, query) {
+        Ok(ast) => {
+            let mut visitor = SqlTableNameVisitor {
+                table_names: Default::default(),
+            };
+            ast.visit(&mut visitor);
+            let mut s = String::with_capacity(visitor.table_names.iter().map(String::len).sum());
+            for (i, name) in visitor.table_names.into_iter().enumerate() {
+                if i == 0 {
+                    write!(&mut s, "{name}").ok();
+                } else {
+                    write!(&mut s, ",{name}").ok();
+                }
+            }
+            (!s.is_empty()).then_some(s)
+        }
+        Err(e) => {
+            relay_log::debug!("Failed to parse SQL: {e}");
+            extract_captured_substring(query, &SQL_TABLE_EXTRACTOR_REGEX).map(str::to_lowercase)
+        }
+    }
+}
+
+/// Visitor that finds table names in parsed SQL queries.
+struct SqlTableNameVisitor {
+    /// maintains sorted list of unique table names.
+    /// Having a defined order reduces cardinality in the resulting tag (see [`sql_tables_from_query`]).
+    table_names: BTreeSet<String>,
+}
+
+impl Visitor for SqlTableNameVisitor {
+    type Break = ();
+
+    fn pre_visit_relation(&mut self, relation: &ObjectName) -> ControlFlow<Self::Break> {
+        if let Some(name) = relation.0.last() {
+            let last = name.value.split('.').last().unwrap_or(&name.value);
+            self.table_names.insert(last.to_lowercase());
+        }
+        ControlFlow::Continue(())
+    }
 }
 
 /// Regex with a capture group to extract the HTTP method from a string.
@@ -542,31 +584,90 @@ mod tests {
     #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "b"
+        );
     }
 
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(sql_tables_from_query(None, query).unwrap(), "b");
+    }
+
+    #[test]
+    fn extract_table_multiple() {
+        let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "a,b,c"
+        );
+    }
+
+    #[test]
+    fn extract_table_multiple_mysql() {
+        let query =
+            r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
+        assert_eq!(
+            sql_tables_from_query(Some("mysql"), query).unwrap(),
+            "a,b,c"
+        );
+    }
+
+    #[test]
+    fn extract_table_multiple_advanced() {
+        let query = r#"
+SELECT "sentry_grouprelease"."id", "sentry_grouprelease"."project_id",
+  "sentry_grouprelease"."group_id", "sentry_grouprelease"."release_id",
+  "sentry_grouprelease"."environment", "sentry_grouprelease"."first_seen",
+  "sentry_grouprelease"."last_seen"
+FROM "sentry_grouprelease"
+WHERE (
+  "sentry_grouprelease"."group_id" = %s AND "sentry_grouprelease"."release_id" IN (
+    SELECT V0."release_id"
+    FROM "sentry_environmentrelease" V0
+    WHERE (
+      V0."organization_id" = %s AND V0."release_id" IN (
+        SELECT U0."release_id"
+        FROM "sentry_release_project" U0
+        WHERE U0."project_id" = %s
+      )
+    )
+    ORDER BY V0."first_seen" DESC
+    LIMIT 1
+  )
+)
+LIMIT 1
+            "#;
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "sentry_environmentrelease,sentry_grouprelease,sentry_release_project"
+        );
     }
 
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a.b");
+        assert_eq!(sql_tables_from_query(None, query).unwrap(), "b");
     }
 
     #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a");
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "a"
+        );
     }
 
     #[test]
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
-        assert_eq!(sql_table_from_query(query).unwrap(), "a");
+        assert_eq!(
+            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            "a"
+        );
     }
 
     #[test]

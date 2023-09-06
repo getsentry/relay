@@ -43,6 +43,10 @@ pub struct AppContext {
     /// A flag indicating whether the app is in foreground or not. An app is in foreground when it's visible to the user.
     pub in_foreground: Annotated<bool>,
 
+    /// The names of the currently visible views.
+    #[metastructure(skip_serialization = "empty")]
+    pub view_names: Annotated<Vec<Annotated<String>>>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -85,7 +89,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    pub(crate) fn test_app_context_roundtrip() {
+    fn test_app_context_roundtrip() {
         let json = r#"{
   "app_start_time": "2018-02-08T22:21:57Z",
   "device_app_hash": "4c793e3776474877ae30618378e9662a",
@@ -96,6 +100,10 @@ mod tests {
   "app_build": "100001",
   "app_memory": 22883948,
   "in_foreground": true,
+  "view_names": [
+    "FooViewController",
+    "BarViewController"
+  ],
   "other": "value",
   "type": "app"
 }"#;
@@ -109,6 +117,10 @@ mod tests {
             app_build: Annotated::new("100001".to_string().into()),
             app_memory: Annotated::new(22883948),
             in_foreground: Annotated::new(true),
+            view_names: Annotated::new(vec![
+                Annotated::new("FooViewController".to_string()),
+                Annotated::new("BarViewController".to_string()),
+            ]),
             other: {
                 let mut map = Object::new();
                 map.insert(

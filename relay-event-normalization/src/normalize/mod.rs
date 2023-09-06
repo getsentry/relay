@@ -15,10 +15,10 @@ use relay_event_schema::processor::{
     self, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
-    AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, DeviceClass, Event, EventId,
-    EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags, TraceContext, User,
-    VALID_PLATFORMS,
+    AsPair, Breadcrumb, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass,
+    Event, EventId, EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement,
+    Measurements, ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags,
+    TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, Value,
@@ -786,6 +786,22 @@ fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     }
 }
 
+/// Normalizes incoming contexts for the downstream metric extraction.
+fn normalize_contexts(contexts: &mut Contexts, _: &mut Meta) -> ProcessingResult {
+    for annotated in &mut contexts.0.values_mut() {
+        if let Some(ContextInner(Context::Trace(context))) = annotated.value_mut() {
+            normalize_trace_context(context)?
+        }
+    }
+
+    Ok(())
+}
+
+fn normalize_trace_context(context: &mut TraceContext) -> ProcessingResult {
+    context.status.get_or_insert_with(|| SpanStatus::Unknown);
+    Ok(())
+}
+
 /// Configuration for [`light_normalize_event`].
 #[derive(Clone, Debug)]
 pub struct LightNormalizationConfig<'a> {
@@ -998,6 +1014,9 @@ pub fn light_normalize_event(
             config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+
+        // Some contexts need to be normalized before metrics extraction takes place.
+        processor::apply(&mut event.contexts, normalize_contexts)?;
 
         if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
@@ -1254,19 +1273,6 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         Ok(())
     }
 
-    fn process_trace_context(
-        &mut self,
-        context: &mut TraceContext,
-        _meta: &mut Meta,
-        _state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        context
-            .status
-            .value_mut()
-            .get_or_insert(SpanStatus::Unknown);
-        Ok(())
-    }
-
     fn process_contexts(
         &mut self,
         contexts: &mut Contexts,
@@ -1388,7 +1394,6 @@ mod tests {
 
     use chrono::TimeZone;
     use insta::assert_debug_snapshot;
-    use relay_common::uuid::Uuid;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
         Csp, DebugMeta, DeviceContext, Frame, Geo, LenientString, LogEntry, PairList,
@@ -1399,6 +1404,7 @@ mod tests {
     };
     use serde_json::json;
     use similar_asserts::assert_eq;
+    use uuid::Uuid;
 
     use crate::user_agent::ClientHints;
 
@@ -1984,6 +1990,40 @@ mod tests {
                 )),
             ]))
         );
+    }
+
+    #[test]
+    fn test_transaction_status_defaulted_to_unknown() {
+        let mut object = Object::new();
+        let trace_context = TraceContext {
+            // We assume the status to be null.
+            status: Annotated::empty(),
+            ..TraceContext::default()
+        };
+        object.insert(
+            "trace".to_string(),
+            Annotated::new(ContextInner(Context::Trace(Box::new(trace_context)))),
+        );
+
+        let mut event = Annotated::new(Event {
+            contexts: Annotated::new(Contexts(object)),
+            ..Event::default()
+        });
+        let config = StoreConfig {
+            ..StoreConfig::default()
+        };
+        let mut processor = NormalizeProcessor::new(Arc::new(config), None);
+        let config = LightNormalizationConfig::default();
+        light_normalize_event(&mut event, config).unwrap();
+        process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
+
+        let event = event.value().unwrap();
+
+        let event_trace_context = event.context::<TraceContext>().unwrap();
+        assert_eq!(
+            event_trace_context.status,
+            Annotated::new(SpanStatus::Unknown)
+        )
     }
 
     #[test]

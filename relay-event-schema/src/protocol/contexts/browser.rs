@@ -56,7 +56,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    pub(crate) fn test_browser_context_roundtrip() {
+    fn test_browser_context_roundtrip() {
         let json = r#"{
   "name": "Google Chrome",
   "version": "67.0.3396.99",

@@ -11,35 +11,34 @@ publish = false
 
 [dependencies]
 bytecount = "0.6.0"
-chrono = { version = "0.4.24", default-features = false, features = [
-    "clock",
-    "std",
-    "serde",
-] }
+chrono = { workspace = true, features = ["clock"] }
 dynfmt = { version = "0.1.4", features = ["python", "curly"] }
-itertools = "0.10.5"
+itertools = { workspace = true }
 maxminddb = "0.23.0"
 md5 = "0.7.0"
-once_cell = "1.13.1"
-regex = "1.9.1"
+once_cell = { workspace = true }
+regex = { workspace = true }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-log = { path = "../relay-log" }
 relay-protocol = { path = "../relay-protocol" }
+relay-statsd = { path = "../relay-statsd" }
 relay-ua = { path = "../relay-ua" }
-sentry-release-parser = { version = "1.3.1" }
-serde = { version = "1.0.114", features = ["derive"] }
-serde_json = "1.0.55"
+sentry-release-parser = "1.3.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
 serde_urlencoded = "0.7.1"
-smallvec = { version = "1.4.0", features = ["serde"] }
-thiserror = "1.0.38"
-url = "2.1.1"
+smallvec = { workspace = true }
+sqlparser = { version = "0.37.0", features = ["visitor"] }
+thiserror = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
-insta = { version = "1.31.0", features = ["json", "redactions", "ron", "yaml"] }
+insta = { workspace = true }
 relay-protocol = { path = "../relay-protocol", features = ["test"] }
-similar-asserts = "1.4.2"
+similar-asserts = { workspace = true }
 
 [features]
 default = ["mmap"]

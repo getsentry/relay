@@ -34,14 +34,15 @@ use relay_event_schema::protocol::{
     UserReport, Values,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace};
+use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
-use relay_sampling::{DynamicSamplingContext, MatchedRuleIds};
+use relay_sampling::evaluation::MatchedRuleIds;
+use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use serde_json::Value as SerdeValue;
@@ -229,7 +230,7 @@ impl ExtractedMetrics {
         let project_key = envelope.meta().public_key();
 
         if !self.project_metrics.is_empty() {
-            project_cache.send(InsertMetrics::new(project_key, self.project_metrics));
+            project_cache.send(MergeBuckets::new(project_key, self.project_metrics));
         }
 
         if !self.sampling_metrics.is_empty() {
@@ -240,7 +241,7 @@ impl ExtractedMetrics {
             // dependent_project_with_tracing  -> metrics goes to root
             // root_project_with_tracing       -> metrics goes to root == self
             let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(InsertMetrics::new(
+            project_cache.send(MergeBuckets::new(
                 sampling_project_key,
                 self.sampling_metrics,
             ));
@@ -382,7 +383,7 @@ enum ClientReportField {
 fn outcome_from_parts(field: ClientReportField, reason: &str) -> Result<Outcome, ()> {
     match field {
         ClientReportField::FilteredSampling => match reason.strip_prefix("Sampled:") {
-            Some(rule_ids) => MatchedRuleIds::from_string(rule_ids)
+            Some(rule_ids) => MatchedRuleIds::parse(rule_ids)
                 .map(Outcome::FilteredSampling)
                 .map_err(|_| ()),
             None => Err(()),
@@ -428,7 +429,7 @@ pub struct ProcessEnvelope {
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
 ///
 /// This parses and validates the metrics:
-///  - For [`Metrics`](ItemType::Metrics), each metric is parsed separately, and invalid metrics are
+///  - For [`Metrics`](ItemType::Statsd), each metric is parsed separately, and invalid metrics are
 ///    ignored independently.
 ///  - For [`MetricBuckets`](ItemType::MetricBuckets), the entire list of buckets is parsed and
 ///    dropped together on parsing failure.
@@ -655,7 +656,7 @@ impl EnvelopeProcessorService {
         client_addr: Option<net::IpAddr>,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Metric>,
+        extracted_metrics: &mut Vec<Bucket>,
     ) -> bool {
         let mut changed = false;
         let payload = item.payload();
@@ -764,7 +765,7 @@ impl EnvelopeProcessorService {
         client_addr: Option<net::IpAddr>,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Metric>,
+        extracted_metrics: &mut Vec<Bucket>,
     ) -> bool {
         let mut changed = false;
         let payload = item.payload();
@@ -1631,7 +1632,7 @@ impl EnvelopeProcessorService {
             // Aggregate data is never considered as part of deduplication
             ItemType::Session => false,
             ItemType::Sessions => false,
-            ItemType::Metrics => false,
+            ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::Profile => false,
@@ -2252,7 +2253,7 @@ impl EnvelopeProcessorService {
         // Check feature flag.
         if !state
             .project_state
-            .has_feature(Feature::ExtractStandaloneSpans)
+            .has_feature(Feature::SpanMetricsExtraction)
         {
             return;
         };
@@ -2627,19 +2628,27 @@ impl EnvelopeProcessorService {
 
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::Metrics {
-                let mut timestamp = item.timestamp().unwrap_or(received_timestamp);
-                clock_drift_processor.process_timestamp(&mut timestamp);
+            if item.ty() == &ItemType::Statsd {
+                let mut buckets = Vec::new();
+                for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
+                    match bucket_result {
+                        Ok(mut bucket) => {
+                            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                            buckets.push(bucket);
+                        }
+                        Err(error) => relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket from statsd format",
+                        ),
+                    }
+                }
 
-                let metrics =
-                    Metric::parse_all(&payload, timestamp).filter_map(|result| result.ok());
-
-                relay_log::trace!("inserting metrics into project cache");
+                relay_log::trace!("inserting metric buckets into project cache");
                 self.inner
                     .project_cache
-                    .send(InsertMetrics::new(public_key, metrics));
+                    .send(MergeBuckets::new(public_key, buckets));
             } else if item.ty() == &ItemType::MetricBuckets {
-                match Bucket::parse_all(&payload) {
+                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
                     Ok(mut buckets) => {
                         for bucket in &mut buckets {
                             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
@@ -2795,13 +2804,18 @@ impl Service for EnvelopeProcessorService {
             };
 
             loop {
-                let next_msg = async { tokio::join!(rx.recv(), semaphore.clone().acquire_owned()) };
+                let next_msg = async {
+                    let permit_result = semaphore.clone().acquire_owned().await;
+                    // `permit_result` might get dropped when this future is cancelled while awaiting
+                    // `rx.recv()`. This is OK though: No envelope is received so the permit is not
+                    // required.
+                    (rx.recv().await, permit_result)
+                };
 
                 tokio::select! {
                    biased;
 
-                    // TODO(iker): deal with the error when the sender of the channel is dropped.
-                    _ = subscription.changed() => self.global_config = subscription.borrow().clone(),
+                    Ok(()) = subscription.changed() => self.global_config = subscription.borrow().clone(),
                     (Some(message), Ok(permit)) = next_msg => {
                         let service = self.clone();
                         tokio::task::spawn_blocking(move || {
@@ -2823,18 +2837,18 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{DateTime, TimeZone, Utc};
-    use relay_common::glob2::LazyGlob;
-    use similar_asserts::assert_eq;
-
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
-    use relay_common::uuid::Uuid;
+    use relay_common::glob2::LazyGlob;
     use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_sampling::{
-        RuleCondition, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+    use relay_sampling::condition::RuleCondition;
+    use relay_sampling::config::{
+        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
     use relay_test::mock_service;
+    use similar_asserts::assert_eq;
+    use uuid::Uuid;
 
     use crate::actors::test_store::TestStore;
     use crate::extractors::RequestMeta;
@@ -2854,7 +2868,7 @@ mod tests {
         client_addr: Option<net::IpAddr>,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: ClockDriftProcessor,
-        extracted_metrics: Vec<Metric>,
+        extracted_metrics: Vec<Bucket>,
     }
 
     impl<'a> TestProcessSessionArguments<'a> {
@@ -3970,8 +3984,7 @@ mod tests {
                 tags,
             };
 
-            let metric: Metric = measurement.into_metric(UnixTimestamp::now());
-
+            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
             metric.name.len() - unit.to_string().len() - name.len()
         };
         assert_eq!(

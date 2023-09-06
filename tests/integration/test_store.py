@@ -1189,17 +1189,19 @@ def test_spans(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = ["projects:extract-standalone-spans"]
+    project_config["config"]["features"] = ["projects:span-metrics-extraction"]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - timedelta(milliseconds=500)
     event["spans"] = [
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": 1000,
-            "timestamp": 3000,
+            "start_timestamp": start.isoformat(),
+            "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
     ]
@@ -1213,14 +1215,25 @@ def test_spans(
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
         "span": {
+            "data": {
+                "description.scrubbed": "GET *",
+                "span.category": "http",
+                "span.description": "GET *",
+                "span.group": "37e3d9fab1ae9162",
+                "span.module": "http",
+                "span.op": "http",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
             "description": "GET /api/0/organizations/?member=1",
+            "exclusive_time": 500.0,
             "is_segment": False,
             "op": "http",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "segment_id": "968cff94913ebb07",
             "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": 1000.0,
-            "timestamp": 3000.0,
+            "start_timestamp": start.timestamp(),
+            "timestamp": end.timestamp(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
     }
@@ -1231,6 +1244,7 @@ def test_spans(
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
         "span": {
+            "exclusive_time": 2000.0,
             "is_segment": True,
             "op": "hi",
             "segment_id": "968cff94913ebb07",

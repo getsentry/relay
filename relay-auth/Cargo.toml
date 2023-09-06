@@ -11,13 +11,14 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-chrono = { version = "0.4.24", default-features = false, features = ["std", "serde"] }
+chrono = { workspace = true }
+data-encoding = "2.3.3"
 ed25519-dalek = { version = "2.0.0", features = ["rand_core"] }
-thiserror = "1.0.38"
 hmac = "0.12.1"
 rand = "0.8.5"
 relay-common = { path = "../relay-common" }
-serde = { version = "1.0.114", features = ["derive"] }
-serde_json = "1.0.55"
+serde = { workspace = true }
+serde_json = { workspace = true }
 sha2 = "0.10.6"
-data-encoding = "2.3.3"
+thiserror = { workspace = true }
+uuid = { workspace = true }

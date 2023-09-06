@@ -10,12 +10,12 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use relay_common::uuid::Uuid;
 use relay_event_schema::processor::{ProcessingResult, ProcessingState, Processor};
 use relay_event_schema::protocol::{Event, IpAddr, SpanAttribute};
 use relay_protocol::Meta;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use uuid::Uuid;
 
 mod clock_drift;
 mod event_error;
@@ -26,6 +26,7 @@ mod regexes;
 mod remove_other;
 pub mod replay;
 mod schema;
+mod statsd;
 mod transactions;
 mod trimming;
 
@@ -37,7 +38,7 @@ pub use user_agent::*;
 pub use self::clock_drift::*;
 pub use self::geo::*;
 
-pub use sentry_release_parser::{validate_environment, validate_release, Release as ParsedRelease};
+pub use sentry_release_parser::{validate_environment, validate_release};
 
 /// Configuration for the [`StoreProcessor`].
 #[derive(Serialize, Deserialize, Debug, Default)]
