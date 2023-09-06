@@ -150,7 +150,7 @@ impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (internal_tx, internal_rx) = mpsc::channel(1);
-        let (global_config_watch, _) = watch::channel(Arc::new(GlobalConfig::default()));
+        let (global_config_watch, _) = watch::channel(Arc::default());
 
         Self {
             config,
@@ -251,41 +251,36 @@ impl Service for GlobalConfigService {
         tokio::spawn(async move {
             let mut shutdown_handle = Controller::shutdown_handle();
 
-            let config = &self.config;
             relay_log::info!("global config service starting");
-            match (
-                config.relay_mode(),
-                config.has_credentials(),
-                config.global_config(),
-            ) {
-                (RelayMode::Managed, true, global_config) => {
-                    if global_config.is_some() {
-                        relay_log::info!("ignoring static global config in managed mode");
+
+            match self.config.relay_mode() {
+                RelayMode::Managed => {
+                    if self.config.has_credentials() {
+                        if self.config.global_config().is_some() {
+                            relay_log::info!("ignoring static global config in managed mode");
+                        }
+                        relay_log::info!("serving global configs fetched from upstream");
+                        self.request_global_config();
+                    } else {
+                        relay_log::info!(
+                            "serving default global configs due to lacking credentials"
+                        );
                     }
-                    relay_log::info!("serving global configs fetched from upstream");
-                    // This request will trigger the request intervals when internal_rx receives the
-                    // result from upstream.
-                    self.request_global_config();
                 }
-                (RelayMode::Managed, false, _) => {
-                    // NOTE(iker): not making a request results in the sleep handler
-                    // not being reset, so no new requests are made.
-                    relay_log::info!("serving default global configs due to lacking credentials");
-                }
-                (
-                    RelayMode::Proxy | RelayMode::Static | RelayMode::Capture,
-                    _,
-                    Some(global_config),
-                ) => {
-                    relay_log::info!("serving static global config loaded from file");
-                    self.global_config_watch.send(global_config.clone()).ok();
-                }
-                (RelayMode::Proxy | RelayMode::Static | RelayMode::Capture, _, None) => {
-                    relay_log::info!(
+                RelayMode::Static | RelayMode::Proxy | RelayMode::Capture => {
+                    match self.config.global_config() {
+                        Some(from_file) => {
+                            relay_log::info!("serving static global config loaded from file");
+                            self.global_config_watch.send(from_file.clone()).ok();
+                        }
+                        None => {
+                            relay_log::info!(
                         "serving default global configs due to lacking static global config file"
                     );
+                        }
+                    }
                 }
-            };
+            }
 
             loop {
                 tokio::select! {
