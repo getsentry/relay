@@ -348,6 +348,7 @@ mod tests {
         let profile = parse_profile(payload);
 
         assert!(profile.is_ok());
+        assert!(profile.as_ref().unwrap().metadata.timestamp.is_none());
 
         let mut ap = profile.unwrap();
         let now = Some(Utc::now());
