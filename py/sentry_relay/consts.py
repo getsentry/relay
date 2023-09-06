@@ -23,6 +23,7 @@ class DataCategory(IntEnum):
     MONITOR = 10
     PROFILE_INDEXED = 11
     SPAN = 12
+    MONITOR_SEAT = 13
     UNKNOWN = -1
     # end generated
 
