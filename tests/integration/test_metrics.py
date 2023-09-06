@@ -63,8 +63,8 @@ def test_metrics(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = "transactions/foo:42|c\ntransactions/bar:17|c"
-    relay.send_metrics(project_id, metrics_payload, timestamp)
+    metrics_payload = f"transactions/foo:42|c\ntransactions/bar:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
@@ -99,8 +99,8 @@ def test_metrics_backdated(mini_sentry, relay):
     mini_sentry.add_basic_project_config(project_id)
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp()) - 24 * 60 * 60
-    metrics_payload = "transactions/foo:42|c"
-    relay.send_metrics(project_id, metrics_payload, timestamp)
+    metrics_payload = f"transactions/foo:42|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.captured_events.get(timeout=2)
     assert len(envelope.items) == 1
@@ -150,9 +150,8 @@ def test_metrics_partition_key(mini_sentry, relay, flush_partitions, expected_he
         },
     )
 
-    timestamp = 999994711
-    metrics_payload = "transactions/foo:42|c"
-    relay.send_metrics(project_id, metrics_payload, timestamp)
+    metrics_payload = "transactions/foo:42|c|T999994711"
+    relay.send_metrics(project_id, metrics_payload)
 
     mini_sentry.captured_events.get(timeout=3)
 
@@ -172,8 +171,8 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     project_config["config"]["features"] = ["organizations:custom-metrics"]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = "transactions/foo:42|c\nbar@second:17|c"
-    relay.send_metrics(project_id, metrics_payload, timestamp)
+    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 2)
 
@@ -241,10 +240,11 @@ def test_metrics_with_sharded_kafka(
     m1 = metrics_consumer(topic="metrics-1")
     m2 = metrics_consumer(topic="metrics-2")
 
-    metrics_payload = "transactions/foo:42|c\ntransactions/bar@second:17|c"
-
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    relay.send_metrics(project_id, metrics_payload, timestamp)
+    metrics_payload = (
+        f"transactions/foo:42|c\ntransactions/bar@second:17|c|T{timestamp}"
+    )
+    relay.send_metrics(project_id, metrics_payload)
 
     # There must be no messages in the metrics-1, since the shard was not picked up
     m1.assert_empty()
@@ -293,10 +293,10 @@ def test_metrics_full(mini_sentry, relay, relay_with_processing, metrics_consume
 
     # Send two events to downstream and one to upstream
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    downstream.send_metrics(project_id, "transactions/foo:7|c", timestamp)
-    downstream.send_metrics(project_id, "transactions/foo:5|c", timestamp)
+    downstream.send_metrics(project_id, f"transactions/foo:7|c|T{timestamp}")
+    downstream.send_metrics(project_id, f"transactions/foo:5|c|T{timestamp}")
 
-    upstream.send_metrics(project_id, "transactions/foo:3|c", timestamp)
+    upstream.send_metrics(project_id, f"transactions/foo:3|c|T{timestamp}")
 
     metric, _ = metrics_consumer.get_metric(timeout=6)
     metric.pop("timestamp")
@@ -1034,19 +1034,19 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     # Backdated metric will be flushed immediately due to debounce delay
     past_timestamp = timestamp - 1000
-    metrics_payload = "transactions/foo:42|c"
-    relay.send_metrics(project_id, metrics_payload, past_timestamp)
+    metrics_payload = f"transactions/foo:42|c|T{past_timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
 
     # Future timestamp will not be flushed regularly, only through force flush
-    metrics_payload = "transactions/bar:17|c"
     future_timestamp = timestamp + 30
-    relay.send_metrics(project_id, metrics_payload, future_timestamp)
+    metrics_payload = f"transactions/bar:17|c|T{future_timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
     relay.shutdown(sig=signal.SIGTERM)
 
     # Try to send another metric (will be rejected)
-    metrics_payload = "transactions/zap:666|c"
+    metrics_payload = f"transactions/zap:666|c|T{timestamp}"
     with pytest.raises(requests.ConnectionError):
-        relay.send_metrics(project_id, metrics_payload, timestamp)
+        relay.send_metrics(project_id, metrics_payload)
 
     envelope = mini_sentry.captured_events.get(timeout=5)
     assert len(envelope.items) == 1
@@ -1373,8 +1373,8 @@ def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_con
     # NOTE: "organizations:custom-metrics" missing from features
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = "transactions/foo:42|c\nbar@second:17|c"
-    relay.send_metrics(project_id, metrics_payload, timestamp)
+    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_name(metrics_consumer, 1)
 
