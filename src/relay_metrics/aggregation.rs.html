@@ -2393,10 +2393,6 @@
 <a href="#2393" id="2393">2393</a>
 <a href="#2394" id="2394">2394</a>
 <a href="#2395" id="2395">2395</a>
-<a href="#2396" id="2396">2396</a>
-<a href="#2397" id="2397">2397</a>
-<a href="#2398" id="2398">2398</a>
-<a href="#2399" id="2399">2399</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2421,7 +2417,8 @@
     MetricTimers,
 };
 <span class="kw">use crate</span>::{
-    protocol, Bucket, BucketValue, Metric, MetricNamespace, MetricResourceIdentifier, MetricValue,
+    protocol, Bucket, BucketValue, DistributionValue, Metric, MetricNamespace,
+    MetricResourceIdentifier, MetricValue,
 };
 
 <span class="doccomment">/// Interval for the flush cycle of the [`AggregatorService`].
@@ -2446,12 +2443,12 @@
 }
 
 <span class="kw">impl </span>MergeValue <span class="kw">for </span>BucketValue {
-    <span class="kw">fn </span>merge_into(<span class="self">self</span>, bucket_value: <span class="kw-2">&amp;mut </span>BucketValue) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
+    <span class="kw">fn </span>merge_into(<span class="self">self</span>, bucket_value: <span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
         <span class="kw">match </span>(bucket_value, <span class="self">self</span>) {
-            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) =&gt; <span class="kw-2">*</span>lhs += rhs,
-            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) =&gt; lhs.extend(<span class="kw-2">&amp;</span>rhs),
-            (BucketValue::Set(lhs), BucketValue::Set(rhs)) =&gt; lhs.extend(rhs),
-            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) =&gt; lhs.merge(rhs),
+            (<span class="self">Self</span>::Counter(lhs), <span class="self">Self</span>::Counter(rhs)) =&gt; <span class="kw-2">*</span>lhs += rhs,
+            (<span class="self">Self</span>::Distribution(lhs), <span class="self">Self</span>::Distribution(rhs)) =&gt; lhs.extend_from_slice(<span class="kw-2">&amp;</span>rhs),
+            (<span class="self">Self</span>::Set(lhs), <span class="self">Self</span>::Set(rhs)) =&gt; lhs.extend(rhs),
+            (<span class="self">Self</span>::Gauge(lhs), <span class="self">Self</span>::Gauge(rhs)) =&gt; lhs.merge(rhs),
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidTypes.into()),
         }
 
@@ -2466,7 +2463,7 @@
                 <span class="kw-2">*</span>counter += value;
             }
             (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) =&gt; {
-                distribution.insert(value);
+                distribution.push(value);
             }
             (BucketValue::Set(set), MetricValue::Set(value)) =&gt; {
                 set.insert(value);
@@ -2524,12 +2521,14 @@
     <span class="kw">match </span>bucket.value {
         BucketValue::Counter(<span class="kw">_</span>) =&gt; (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(bucket)),
         BucketValue::Distribution(<span class="kw-2">ref mut </span>distribution) =&gt; {
-            <span class="kw">let </span>org = std::mem::take(distribution);
-            <span class="kw">let </span><span class="kw-2">mut </span>new_bucket = bucket.clone();
+            <span class="kw">let </span><span class="kw-2">mut </span>org = std::mem::take(distribution);
 
-            <span class="kw">let </span><span class="kw-2">mut </span>iter = org.iter_values();
-            bucket.value = BucketValue::Distribution((<span class="kw-2">&amp;mut </span>iter).take(split_at).collect());
-            new_bucket.value = BucketValue::Distribution(iter.collect());
+            <span class="kw">let </span><span class="kw-2">mut </span>new_bucket = bucket.clone();
+            new_bucket.value =
+                BucketValue::Distribution(DistributionValue::from_slice(<span class="kw-2">&amp;</span>org[split_at..]));
+
+            org.truncate(split_at);
+            bucket.value = BucketValue::Distribution(org);
 
             (<span class="prelude-val">Some</span>(bucket), <span class="prelude-val">Some</span>(new_bucket))
         }
@@ -3908,7 +3907,7 @@
         BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">2.</span>, <span class="number">4.</span>])
             .merge_into(<span class="kw-2">&amp;mut </span>value)
             .unwrap();
-        <span class="macro">assert_eq!</span>(value, BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">2.</span>, <span class="number">3.</span>, <span class="number">4.</span>]));
+        <span class="macro">assert_eq!</span>(value, BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>, <span class="number">2.</span>, <span class="number">4.</span>]));
     }
 
     <span class="attr">#[test]
@@ -3995,10 +3994,7 @@
             expected_bucket_value_size + <span class="number">5 </span>* expected_set_entry_size
         );
         <span class="kw">let </span>distribution = BucketValue::Distribution(<span class="macro">dist!</span>[<span class="number">1.</span>, <span class="number">2.</span>, <span class="number">3.</span>]);
-        <span class="macro">assert_eq!</span>(
-            distribution.cost(),
-            expected_bucket_value_size + <span class="number">3 </span>* (<span class="number">8 </span>+ <span class="number">4</span>)
-        );
+        <span class="macro">assert_eq!</span>(distribution.cost(), expected_bucket_value_size + <span class="number">3 </span>* <span class="number">8</span>);
         <span class="kw">let </span>gauge = BucketValue::Gauge(GaugeValue {
             last: <span class="number">43.</span>,
             min: <span class="number">42.</span>,
@@ -4251,14 +4247,10 @@
             </span>(
                 <span class="string">&quot;d:transactions/foo@none&quot;</span>,
                 MetricValue::Distribution(<span class="number">1.0</span>),
-                fixed_cost + <span class="number">12</span>,
+                fixed_cost + <span class="number">8</span>,
             ), <span class="comment">// New bucket + 1 element
-            </span>(<span class="string">&quot;d:transactions/foo@none&quot;</span>, MetricValue::Distribution(<span class="number">1.0</span>), <span class="number">0</span>), <span class="comment">// no new element
-            </span>(
-                <span class="string">&quot;d:transactions/foo@none&quot;</span>,
-                MetricValue::Distribution(<span class="number">2.0</span>),
-                <span class="number">12</span>,
-            ), <span class="comment">// 1 new element
+            </span>(<span class="string">&quot;d:transactions/foo@none&quot;</span>, MetricValue::Distribution(<span class="number">1.0</span>), <span class="number">8</span>), <span class="comment">// duplicate element
+            </span>(<span class="string">&quot;d:transactions/foo@none&quot;</span>, MetricValue::Distribution(<span class="number">2.0</span>), <span class="number">8</span>), <span class="comment">// 1 new element
             </span>(
                 <span class="string">&quot;g:transactions/foo@none&quot;</span>,
                 MetricValue::Gauge(<span class="number">0.3</span>),
