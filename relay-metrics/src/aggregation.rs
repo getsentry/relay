@@ -22,7 +22,8 @@ use crate::statsd::{
     MetricTimers,
 };
 use crate::{
-    protocol, Bucket, BucketValue, Metric, MetricNamespace, MetricResourceIdentifier, MetricValue,
+    protocol, Bucket, BucketValue, DistributionValue, Metric, MetricNamespace,
+    MetricResourceIdentifier, MetricValue,
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -47,12 +48,12 @@ trait MergeValue: Into<BucketValue> {
 }
 
 impl MergeValue for BucketValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
+    fn merge_into(self, bucket_value: &mut Self) -> Result<(), AggregateMetricsError> {
         match (bucket_value, self) {
-            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => *lhs += rhs,
-            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(rhs),
-            (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
-            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
+            (Self::Counter(lhs), Self::Counter(rhs)) => *lhs += rhs,
+            (Self::Distribution(lhs), Self::Distribution(rhs)) => lhs.extend_from_slice(&rhs),
+            (Self::Set(lhs), Self::Set(rhs)) => lhs.extend(rhs),
+            (Self::Gauge(lhs), Self::Gauge(rhs)) => lhs.merge(rhs),
             _ => return Err(AggregateMetricsErrorKind::InvalidTypes.into()),
         }
 
@@ -128,7 +129,8 @@ fn split_at(mut bucket: Bucket, size: usize) -> (Option<Bucket>, Option<Bucket>)
             let mut org = std::mem::take(distribution);
 
             let mut new_bucket = bucket.clone();
-            new_bucket.value = BucketValue::Distribution(org[split_at..].into());
+            new_bucket.value =
+                BucketValue::Distribution(DistributionValue::from_slice(&org[split_at..]));
 
             org.truncate(split_at);
             bucket.value = BucketValue::Distribution(org);
