@@ -564,6 +564,24 @@
 <a href="#564" id="564">564</a>
 <a href="#565" id="565">565</a>
 <a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1122,6 +1140,24 @@
         multiple_statements,
         <span class="string">r#&quot;SELECT 1; select 2&quot;#</span>,
         <span class="string">&quot;SELECT %s; SELECT %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        case_when,
+        <span class="string">&quot;UPDATE tbl SET foo = CASE WHEN 1 THEN 10 WHEN 2 THEN 20 ELSE 30 END&quot;</span>,
+        <span class="string">&quot;UPDATE tbl SET foo = CASE WHEN .. THEN .. END&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        case_when_nested,
+        <span class="string">r#&quot;UPDATE
+            tbl
+        SET &quot;tbl&quot;.&quot;foo&quot; = CASE
+            WHEN 1 THEN 10
+            WHEN 2 THEN (CASE WHEN 22 THEN 222 END)
+            ELSE 30
+        END&quot;#</span>,
+        <span class="string">&quot;UPDATE tbl SET foo = CASE WHEN .. THEN .. END&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
