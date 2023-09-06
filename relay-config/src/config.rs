@@ -5,14 +5,12 @@ use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 use std::{env, fmt, fs, io};
 
 use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
-use relay_dynamic_config::GlobalConfig;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
@@ -1252,7 +1250,6 @@ impl ConfigObject for ConfigValues {
 pub struct Config {
     values: ConfigValues,
     credentials: Option<Credentials>,
-    global_config: Option<Arc<GlobalConfig>>,
     path: PathBuf,
 }
 
@@ -1279,7 +1276,6 @@ impl Config {
             } else {
                 None
             },
-            global_config: GlobalConfig::load(&path)?.map(Arc::new),
             path: path.clone(),
         };
 
@@ -1298,7 +1294,6 @@ impl Config {
             values: serde_json::from_value(value)
                 .with_context(|| ConfigError::new(ConfigErrorKind::BadJson))?,
             credentials: None,
-            global_config: None,
             path: PathBuf::new(),
         })
     }
@@ -1473,11 +1468,6 @@ impl Config {
     /// Return the current credentials
     pub fn credentials(&self) -> Option<&Credentials> {
         self.credentials.as_ref()
-    }
-
-    /// Return the optional statically configured global config.
-    pub fn global_config(&self) -> Option<Arc<GlobalConfig>> {
-        self.global_config.clone()
     }
 
     /// Set new credentials.
@@ -2032,7 +2022,6 @@ impl Default for Config {
             values: ConfigValues::default(),
             credentials: None,
             path: PathBuf::new(),
-            global_config: None,
         }
     }
 }

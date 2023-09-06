@@ -3143,7 +3143,6 @@ dependencies = [
  "num_cpus",
  "relay-auth",
  "relay-common",
- "relay-dynamic-config",
  "relay-kafka",
  "relay-log",
  "relay-metrics",

@@ -251,12 +251,19 @@ impl Service for GlobalConfigService {
         tokio::spawn(async move {
             let mut shutdown_handle = Controller::shutdown_handle();
 
-            relay_log::info!("global config service starting");
+            let global_config = match GlobalConfig::load(self.config.path()) {
+                Ok(global_config) => global_config,
+                Err(e) => {
+                    relay_log::error!("failed to load global config from file: {}", e);
+                    None
+                }
+            };
 
+            relay_log::info!("global config service starting");
             match self.config.relay_mode() {
                 RelayMode::Managed => {
                     if self.config.has_credentials() {
-                        if self.config.global_config().is_some() {
+                        if global_config.is_some() {
                             relay_log::info!("ignoring static global config in managed mode");
                         }
                         relay_log::info!("serving global configs fetched from upstream");
@@ -267,19 +274,17 @@ impl Service for GlobalConfigService {
                         );
                     }
                 }
-                RelayMode::Static | RelayMode::Proxy | RelayMode::Capture => {
-                    match self.config.global_config() {
-                        Some(from_file) => {
-                            relay_log::info!("serving static global config loaded from file");
-                            self.global_config_watch.send(from_file.clone()).ok();
-                        }
-                        None => {
-                            relay_log::info!(
+                RelayMode::Static | RelayMode::Proxy | RelayMode::Capture => match global_config {
+                    Some(from_file) => {
+                        relay_log::info!("serving static global config loaded from file");
+                        self.global_config_watch.send(Arc::new(from_file)).ok();
+                    }
+                    None => {
+                        relay_log::info!(
                         "serving default global configs due to lacking static global config file"
                     );
-                        }
                     }
-                }
+                },
             }
 
             loop {
