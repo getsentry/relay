@@ -56,7 +56,7 @@ pub enum DataCategory {
     /// Represents a monitor job that has scheduled monitor checkins. The seats are not ingested
     /// but we define it here to prevent clashing values since this data category enumeration
     /// is also used outside of Relay via the Python package.
-    MonitorSeat = 13
+    MonitorSeat = 13,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
