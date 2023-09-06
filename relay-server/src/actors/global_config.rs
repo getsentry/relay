@@ -156,15 +156,17 @@ impl GlobalConfigService {
             config.has_credentials(),
             config.global_config(),
         ) {
-            (RelayMode::Proxy | RelayMode::Static, true, None) | (RelayMode::Managed, true, _) => {
+            (RelayMode::Managed, true, global_config) => {
                 relay_log::info!("global config service starting");
+                if global_config.is_some() {
+                    relay_log::info!("ignoring static global config in managed mode");
+                }
                 // This request will trigger the request intervals when internal_rx receives the
                 // result from upstream.
                 Self::request_global_config(upstream.clone(), internal_tx.clone());
                 watch::channel(Arc::new(GlobalConfig::default()))
             }
-            (RelayMode::Proxy | RelayMode::Static, false, None)
-            | (RelayMode::Managed, false, _) => {
+            (RelayMode::Managed, false, _) => {
                 // NOTE(iker): not making a request results in the sleep handler
                 // not being reset, so no new requests are made.
                 relay_log::info!("global config service starting with fetching disabled: no credentials configured");
@@ -174,7 +176,7 @@ impl GlobalConfigService {
                 relay_log::info!("global config service starting with fetching disabled: using static global config");
                 watch::channel(global_config.clone())
             }
-            (RelayMode::Capture, _, None) => {
+            (RelayMode::Proxy | RelayMode::Static | RelayMode::Capture, _, None) => {
                 relay_log::info!(
                     "global config service starting with fetching disabled: using default config"
                 );
