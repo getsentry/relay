@@ -291,14 +291,16 @@ impl Service for GlobalConfigService {
                 tokio::select! {
                     biased;
                     () = &mut self.fetch_handle => {
-                        Self::request_global_config(self.upstream.clone(), self.internal_tx.clone());
-                        // Disable new requests interval until we receive the result from upstream.
+                        // Disable upstream requests timer until we receive result of query.
                         self.fetch_handle.reset();
+
+                        Self::request_global_config(self.upstream.clone(), self.internal_tx.clone());
                     }
                     Some(result) = self.internal_rx.recv() => {
-                        self.handle_upstream_result(result);
-                        // Start timer for making new global config request.
+                        // Enable upstream requests timer for global configs.
                         self.schedule_fetch();
+
+                        self.handle_upstream_result(result);
                     },
                     Some(message) = rx.recv() => self.handle_message(message),
                     _ = shutdown_handle.notified() => self.handle_shutdown(),
