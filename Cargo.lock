@@ -3373,23 +3373,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "relay-admin-dashboard"
-version = "0.1.0"
-dependencies = [
- "ansi-to-html",
- "futures",
- "gloo-console 0.3.0",
- "gloo-net 0.4.0",
- "instant",
- "reqwasm",
- "tokio",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "yew",
- "yew-router",
-]
-
-[[package]]
 name = "relay-auth"
 version = "23.8.0"
 dependencies = [
@@ -3496,6 +3479,23 @@ version = "23.8.0"
 dependencies = [
  "bindgen",
  "cmake",
+]
+
+[[package]]
+name = "relay-dashboard"
+version = "0.1.0"
+dependencies = [
+ "ansi-to-html",
+ "futures",
+ "gloo-console 0.3.0",
+ "gloo-net 0.4.0",
+ "instant",
+ "reqwasm",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "yew",
+ "yew-router",
 ]
 
 [[package]]

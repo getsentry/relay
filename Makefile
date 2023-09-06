@@ -189,4 +189,4 @@ gocd: ## Build GoCD pipelines
 .PHONY: gocd
 
 web: ## Install and run frontend DEV web server for admin dashboard
-	@ cargo install --locked trunk && cd relay-admin-dashboard && trunk serve --open
+	@ cargo install --locked trunk && cd relay-dashboard && trunk serve --open
