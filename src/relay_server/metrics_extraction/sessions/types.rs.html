@@ -128,12 +128,23 @@
 <a href="#128" id="128">128</a>
 <a href="#129" id="129">129</a>
 <a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_event_schema::protocol::SessionStatus;
-<span class="kw">use </span>relay_metrics::{CounterType, Metric, MetricNamespace, MetricUnit, MetricValue};
+<span class="kw">use </span>relay_metrics::{
+    Bucket, BucketValue, CounterType, MetricNamespace, MetricResourceIdentifier, MetricUnit,
+};
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
@@ -223,29 +234,36 @@
 }
 
 <span class="kw">impl </span>IntoMetric <span class="kw">for </span>SessionMetric {
-    <span class="kw">fn </span>into_metric(<span class="self">self</span>, timestamp: UnixTimestamp) -&gt; Metric {
+    <span class="kw">fn </span>into_metric(<span class="self">self</span>, timestamp: UnixTimestamp) -&gt; Bucket {
         <span class="kw">let </span>name = <span class="self">self</span>.to_string();
 
         <span class="kw">let </span>(value, tags) = <span class="kw">match </span><span class="self">self </span>{
             SessionMetric::Error {
                 session_id: id,
                 tags,
-            } =&gt; (MetricValue::set_from_display(id), tags.into()),
+            } =&gt; (BucketValue::set_from_display(id), tags.into()),
             SessionMetric::User { distinct_id, tags } =&gt; {
-                (MetricValue::set_from_display(distinct_id), tags.into())
+                (BucketValue::set_from_display(distinct_id), tags.into())
             }
             SessionMetric::Session { counter, tags } =&gt; {
-                (MetricValue::Counter(counter), tags.into())
+                (BucketValue::Counter(counter), tags.into())
             }
         };
-        Metric::new_mri(
-            MetricNamespace::Sessions,
-            name,
-            MetricUnit::None,
-            value,
+
+        <span class="kw">let </span>mri = MetricResourceIdentifier {
+            ty: value.ty(),
+            namespace: MetricNamespace::Sessions,
+            name: <span class="kw-2">&amp;</span>name,
+            unit: MetricUnit::None,
+        };
+
+        Bucket {
             timestamp,
+            width: <span class="number">0</span>,
+            name: mri.to_string(),
+            value,
             tags,
-        )
+        }
     }
 }
 

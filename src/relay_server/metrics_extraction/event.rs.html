@@ -524,7 +524,7 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
-<span class="kw">use </span>relay_metrics::Metric;
+<span class="kw">use </span>relay_metrics::Bucket;
 <span class="kw">use </span>relay_quotas::DataCategory;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::{<span class="self">self</span>, Extractable};
@@ -566,7 +566,7 @@
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-</span><span class="kw">pub fn </span>extract_metrics(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>MetricExtractionConfig) -&gt; Vec&lt;Metric&gt; {
+</span><span class="kw">pub fn </span>extract_metrics(event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>MetricExtractionConfig) -&gt; Vec&lt;Bucket&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = generic::extract_metrics(event, config);
 
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {

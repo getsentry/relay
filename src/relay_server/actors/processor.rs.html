@@ -3993,7 +3993,6 @@
 <a href="#3993" id="3993">3993</a>
 <a href="#3994" id="3994">3994</a>
 <a href="#3995" id="3995">3995</a>
-<a href="#3996" id="3996">3996</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4030,7 +4029,7 @@
     UserReport, Values,
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
-<span class="kw">use </span>relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace};
+<span class="kw">use </span>relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 <span class="kw">use </span>relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 <span class="kw">use </span>relay_profiling::ProfileError;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -4226,7 +4225,7 @@
         <span class="kw">let </span>project_key = envelope.meta().public_key();
 
         <span class="kw">if </span>!<span class="self">self</span>.project_metrics.is_empty() {
-            project_cache.send(InsertMetrics::new(project_key, <span class="self">self</span>.project_metrics));
+            project_cache.send(MergeBuckets::new(project_key, <span class="self">self</span>.project_metrics));
         }
 
         <span class="kw">if </span>!<span class="self">self</span>.sampling_metrics.is_empty() {
@@ -4237,7 +4236,7 @@
             // dependent_project_with_tracing  -&gt; metrics goes to root
             // root_project_with_tracing       -&gt; metrics goes to root == self
             </span><span class="kw">let </span>sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(InsertMetrics::new(
+            project_cache.send(MergeBuckets::new(
                 sampling_project_key,
                 <span class="self">self</span>.sampling_metrics,
             ));
@@ -4652,7 +4651,7 @@
         client_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: <span class="kw-2">&amp;</span>ClockDriftProcessor,
-        extracted_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+        extracted_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
     ) -&gt; bool {
         <span class="kw">let </span><span class="kw-2">mut </span>changed = <span class="bool-val">false</span>;
         <span class="kw">let </span>payload = item.payload();
@@ -4761,7 +4760,7 @@
         client_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: <span class="kw-2">&amp;</span>ClockDriftProcessor,
-        extracted_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+        extracted_metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
     ) -&gt; bool {
         <span class="kw">let </span><span class="kw-2">mut </span>changed = <span class="bool-val">false</span>;
         <span class="kw">let </span>payload = item.payload();
@@ -6864,7 +6863,7 @@
         client_addr: <span class="prelude-ty">Option</span>&lt;net::IpAddr&gt;,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: ClockDriftProcessor,
-        extracted_metrics: Vec&lt;Metric&gt;,
+        extracted_metrics: Vec&lt;Bucket&gt;,
     }
 
     <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; TestProcessSessionArguments&lt;<span class="lifetime">&#39;a</span>&gt; {
@@ -7980,8 +7979,7 @@
                 tags,
             };
 
-            <span class="kw">let </span>metric: Metric = measurement.into_metric(UnixTimestamp::now());
-
+            <span class="kw">let </span>metric: Bucket = measurement.into_metric(UnixTimestamp::now());
             metric.name.len() - unit.to_string().len() - name.len()
         };
         <span class="macro">assert_eq!</span>(

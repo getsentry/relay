@@ -391,6 +391,12 @@
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -636,7 +642,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
-    <span class="kw">use </span>relay_metrics::{Metric, MetricValue};
+    <span class="kw">use </span>relay_metrics::{Bucket, BucketValue};
     <span class="kw">use </span>relay_quotas::{Quota, QuotaScope};
     <span class="kw">use </span>smallvec::smallvec;
 
@@ -645,26 +651,29 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>profiles_limits_are_reported() {
         <span class="kw">let </span>metrics = <span class="macro">vec!</span>[
-            Metric {
+            Bucket {
                 <span class="comment">// transaction without profile
                 </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: Default::default(),
-                value: MetricValue::Distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123.0</span>),
             },
-            Metric {
+            Bucket {
                 <span class="comment">// transaction with profile
                 </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: MetricValue::Distribution(<span class="number">456.0</span>),
+                value: BucketValue::distribution(<span class="number">456.0</span>),
             },
-            Metric {
+            Bucket {
                 <span class="comment">// unrelated metric
                 </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
                 name: <span class="string">&quot;something_else&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: MetricValue::Distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123.0</span>),
             },
         ];
         <span class="kw">let </span>quotas = <span class="macro">vec!</span>[Quota {
@@ -713,26 +722,29 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>profiles_quota_is_enforced() {
         <span class="kw">let </span>metrics = <span class="macro">vec!</span>[
-            Metric {
+            Bucket {
                 <span class="comment">// transaction without profile
                 </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: Default::default(),
-                value: MetricValue::Distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123.0</span>),
             },
-            Metric {
+            Bucket {
                 <span class="comment">// transaction with profile
                 </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
                 name: <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: MetricValue::Distribution(<span class="number">456.0</span>),
+                value: BucketValue::distribution(<span class="number">456.0</span>),
             },
-            Metric {
+            Bucket {
                 <span class="comment">// unrelated metric
                 </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
                 name: <span class="string">&quot;something_else&quot;</span>.to_string(),
                 tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
-                value: MetricValue::Distribution(<span class="number">123.0</span>),
+                value: BucketValue::distribution(<span class="number">123.0</span>),
             },
         ];
         <span class="kw">let </span>quotas = <span class="macro">vec!</span>[Quota {

@@ -1100,6 +1100,7 @@
 <a href="#1100" id="1100">1100</a>
 <a href="#1101" id="1101">1101</a>
 <a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2025,7 +2026,7 @@
     <span class="kw">use </span>std::sync::Arc;
 
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
-    <span class="kw">use </span>relay_metrics::{BucketValue, MetricValue};
+    <span class="kw">use </span>relay_metrics::BucketValue;
     <span class="kw">use </span>relay_test::mock_service;
     <span class="kw">use </span>serde_json::json;
 
@@ -2129,10 +2130,11 @@
         project
     }
 
-    <span class="kw">fn </span>create_transaction_metric() -&gt; Metric {
-        Metric {
+    <span class="kw">fn </span>create_transaction_metric() -&gt; Bucket {
+        Bucket {
             name: <span class="string">&quot;d:transactions/foo&quot;</span>.to_string(),
-            value: MetricValue::Counter(<span class="number">1.0</span>),
+            width: <span class="number">0</span>,
+            value: BucketValue::counter(<span class="number">1.0</span>),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }

@@ -571,11 +571,20 @@
 <a href="#571" id="571">571</a>
 <a href="#572" id="572">572</a>
 <a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_event_schema::protocol::{
     AbnormalMechanism, SessionAttributes, SessionErrored, SessionLike, SessionStatus,
 };
-<span class="kw">use </span>relay_metrics::Metric;
+<span class="kw">use </span>relay_metrics::Bucket;
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::sessions::types::{
@@ -601,7 +610,7 @@
     attributes: <span class="kw-2">&amp;</span>SessionAttributes,
     session: <span class="kw-2">&amp;</span>T,
     client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
-    target: <span class="kw-2">&amp;mut </span>Vec&lt;Metric&gt;,
+    target: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
     extract_abnormal_mechanism: bool,
 ) {
     <span class="kw">let </span>timestamp = <span class="kw">match </span>UnixTimestamp::from_datetime(session.started()) {
@@ -752,7 +761,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_event_schema::protocol::{AbnormalMechanism, SessionAggregates, SessionUpdate};
-    <span class="kw">use </span>relay_metrics::MetricValue;
+    <span class="kw">use </span>relay_metrics::BucketValue;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -812,7 +821,7 @@
         <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
         <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
         <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;c:sessions/session@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Counter(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Counter(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;init&quot;</span>);
         <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
         <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;sdk&quot;</span>], client);
@@ -820,7 +829,7 @@
         <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">1</span>];
         <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
         <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
         <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">&quot;session.status&quot;</span>));
         <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
         <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;sdk&quot;</span>], client);
@@ -849,7 +858,7 @@
         </span><span class="macro">assert_eq!</span>(metrics.len(), <span class="number">1</span>);
         <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">0</span>];
         <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
         <span class="macro">assert!</span>(!user_metric.tags.contains_key(<span class="string">&quot;session.status&quot;</span>));
     }
 
@@ -889,13 +898,13 @@
             <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[expected_metrics - <span class="number">2</span>];
             <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
             <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;s:sessions/error@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Set(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(session_metric.tags.len(), <span class="number">1</span>); <span class="comment">// Only the release tag
 
             </span><span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[expected_metrics - <span class="number">1</span>];
             <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
             <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;errored&quot;</span>);
             <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;release&quot;</span>], <span class="string">&quot;1.0.0&quot;</span>);
         }
@@ -930,13 +939,13 @@
         <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">2</span>];
         <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
         <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;c:sessions/session@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Counter(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Counter(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;crashed&quot;</span>);
 
         <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">3</span>];
         <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
         <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
         <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;crashed&quot;</span>);
     }
 
@@ -981,7 +990,7 @@
             <span class="kw">let </span>session_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">2</span>];
             <span class="macro">assert_eq!</span>(session_metric.timestamp, started());
             <span class="macro">assert_eq!</span>(session_metric.name, <span class="string">&quot;c:sessions/session@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, MetricValue::Counter(<span class="kw">_</span>)));
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(session_metric.value, BucketValue::Counter(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(session_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;abnormal&quot;</span>);
 
             <span class="kw">let </span>session_metric_tag_keys: Vec&lt;String&gt; =
@@ -991,7 +1000,7 @@
             <span class="kw">let </span>user_metric = <span class="kw-2">&amp;</span>metrics[<span class="number">3</span>];
             <span class="macro">assert_eq!</span>(user_metric.timestamp, started());
             <span class="macro">assert_eq!</span>(user_metric.name, <span class="string">&quot;s:sessions/user@none&quot;</span>);
-            <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, MetricValue::Set(<span class="kw">_</span>)));
+            <span class="macro">assert!</span>(<span class="macro">matches!</span>(user_metric.value, BucketValue::Set(<span class="kw">_</span>)));
             <span class="macro">assert_eq!</span>(user_metric.tags[<span class="string">&quot;session.status&quot;</span>], <span class="string">&quot;abnormal&quot;</span>);
 
             <span class="kw">let </span>user_metric_tag_keys: Vec&lt;String&gt; = user_metric.tags.keys().cloned().collect();
@@ -1047,14 +1056,15 @@
             );
         }
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics, @<span class="string">r###&quot;
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: &quot;c:sessions/session@none&quot;,
                 value: Counter(
                     135.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
@@ -1062,12 +1072,13 @@
                     &quot;session.status&quot;: &quot;init&quot;,
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: &quot;c:sessions/session@none&quot;,
                 value: Counter(
                     12.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
@@ -1075,12 +1086,13 @@
                     &quot;session.status&quot;: &quot;errored_preaggr&quot;,
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: &quot;c:sessions/session@none&quot;,
                 value: Counter(
                     5.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
@@ -1088,12 +1100,13 @@
                     &quot;session.status&quot;: &quot;abnormal&quot;,
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084960),
+                width: 0,
                 name: &quot;c:sessions/session@none&quot;,
                 value: Counter(
                     7.0,
                 ),
-                timestamp: UnixTimestamp(1581084960),
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
@@ -1101,12 +1114,13 @@
                     &quot;session.status&quot;: &quot;crashed&quot;,
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
                 name: &quot;c:sessions/session@none&quot;,
                 value: Counter(
                     15.0,
                 ),
-                timestamp: UnixTimestamp(1581084961),
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
@@ -1114,12 +1128,13 @@
                     &quot;session.status&quot;: &quot;init&quot;,
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
                 name: &quot;c:sessions/session@none&quot;,
                 value: Counter(
                     3.0,
                 ),
-                timestamp: UnixTimestamp(1581084961),
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
@@ -1127,12 +1142,15 @@
                     &quot;session.status&quot;: &quot;errored_preaggr&quot;,
                 },
             },
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1581084961),
+                width: 0,
                 name: &quot;s:sessions/user@none&quot;,
                 value: Set(
-                    3097475539,
+                    {
+                        3097475539,
+                    },
                 ),
-                timestamp: UnixTimestamp(1581084961),
                 tags: {
                     &quot;environment&quot;: &quot;development&quot;,
                     &quot;release&quot;: &quot;my-project-name@1.0.0&quot;,
@@ -1141,7 +1159,7 @@
                 },
             },
         ]
-        &quot;#</span>);
+        &quot;###</span>);
     }
 }
 </code></pre></div></section></main></body></html>

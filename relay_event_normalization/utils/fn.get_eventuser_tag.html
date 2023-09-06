@@ -6,7 +6,7 @@ column in Discover for Transactions, barring:</p>
 <p>imprecision caused by HLL sketching in Snuba, which we don’t have in events</p>
 </li>
 <li>
-<p>hash collisions in <code>MetricValue::set_from_display</code>, which we don’t have in events</p>
+<p>hash collisions in <code>BucketValue::set_from_display</code>, which we don’t have in events</p>
 </li>
 <li>
 <p>MD5-collisions caused by <code>EventUser.hash_from_tag</code>, which we don’t have in metrics</p>

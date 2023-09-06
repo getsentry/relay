@@ -11,7 +11,7 @@
 <a href="#11" id="11">11</a>
 <a href="#12" id="12">12</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_metrics::Metric;
+<span class="kw">use </span>relay_metrics::Bucket;
 
 <span class="kw">mod </span>generic;
 
@@ -20,6 +20,6 @@
 <span class="kw">pub mod </span>transactions;
 
 <span class="kw">pub trait </span>IntoMetric {
-    <span class="kw">fn </span>into_metric(<span class="self">self</span>, timestamp: UnixTimestamp) -&gt; Metric;
+    <span class="kw">fn </span>into_metric(<span class="self">self</span>, timestamp: UnixTimestamp) -&gt; Bucket;
 }
 </code></pre></div></section></main></body></html>

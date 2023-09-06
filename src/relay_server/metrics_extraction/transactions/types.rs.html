@@ -208,12 +208,22 @@
 <a href="#208" id="208">208</a>
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_metrics::{
-    CounterType, DistributionType, DurationUnit, Metric, MetricNamespace, MetricUnit, MetricValue,
+    Bucket, BucketValue, CounterType, DistributionType, DurationUnit, MetricNamespace,
+    MetricResourceIdentifier, MetricUnit,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
@@ -254,54 +264,60 @@
 }
 
 <span class="kw">impl </span>IntoMetric <span class="kw">for </span>TransactionMetric {
-    <span class="kw">fn </span>into_metric(<span class="self">self</span>, timestamp: UnixTimestamp) -&gt; Metric {
+    <span class="kw">fn </span>into_metric(<span class="self">self</span>, timestamp: UnixTimestamp) -&gt; Bucket {
         <span class="kw">let </span>namespace = MetricNamespace::Transactions;
-        <span class="kw">match </span><span class="self">self </span>{
-            TransactionMetric::User { value, tags } =&gt; Metric::new_mri(
-                namespace,
-                <span class="string">&quot;user&quot;</span>,
+
+        <span class="kw">let </span>(name, value, unit, tags) = <span class="kw">match </span><span class="self">self </span>{
+            TransactionMetric::User { value, tags } =&gt; (
+                Cow::Borrowed(<span class="string">&quot;user&quot;</span>),
+                BucketValue::set_from_str(<span class="kw-2">&amp;</span>value),
                 MetricUnit::None,
-                MetricValue::set_from_str(<span class="kw-2">&amp;</span>value),
-                timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Breakdown { value, tags, name } =&gt; Metric::new_mri(
-                namespace,
-                <span class="macro">format!</span>(<span class="string">&quot;breakdowns.{name}&quot;</span>).as_str(),
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(value),
-                timestamp,
-                tags.into(),
-            ),
-            TransactionMetric::CountPerRootProject { value, tags } =&gt; Metric::new_mri(
-                namespace,
-                <span class="string">&quot;count_per_root_project&quot;</span>,
-                MetricUnit::None,
-                MetricValue::Counter(value),
-                timestamp,
-                tags.into(),
-            ),
-            TransactionMetric::Duration { unit, value, tags } =&gt; Metric::new_mri(
-                namespace,
-                <span class="string">&quot;duration&quot;</span>,
+            TransactionMetric::Duration { unit, value, tags } =&gt; (
+                Cow::Borrowed(<span class="string">&quot;duration&quot;</span>),
+                BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
-                MetricValue::Distribution(value),
-                timestamp,
+                tags.into(),
+            ),
+            TransactionMetric::CountPerRootProject { value, tags } =&gt; (
+                Cow::Borrowed(<span class="string">&quot;count_per_root_project&quot;</span>),
+                BucketValue::counter(value),
+                MetricUnit::None,
+                tags.into(),
+            ),
+            TransactionMetric::Breakdown { name, value, tags } =&gt; (
+                Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;breakdowns.{name}&quot;</span>)),
+                BucketValue::distribution(value),
+                MetricUnit::Duration(DurationUnit::MilliSecond),
                 tags.into(),
             ),
             TransactionMetric::Measurement {
-                name: kind,
+                name,
                 value,
                 unit,
                 tags,
-            } =&gt; Metric::new_mri(
-                namespace,
-                <span class="macro">format!</span>(<span class="string">&quot;measurements.{kind}&quot;</span>).as_str(),
+            } =&gt; (
+                Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;measurements.{name}&quot;</span>)),
+                BucketValue::distribution(value),
                 unit,
-                MetricValue::Distribution(value),
-                timestamp,
                 tags.into(),
             ),
+        };
+
+        <span class="kw">let </span>mri = MetricResourceIdentifier {
+            ty: value.ty(),
+            namespace,
+            name: <span class="kw-2">&amp;</span>name,
+            unit,
+        };
+
+        Bucket {
+            timestamp,
+            width: <span class="number">0</span>,
+            name: mri.to_string(),
+            value,
+            tags,
         }
     }
 }
