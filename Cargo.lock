@@ -1280,12 +1280,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "float-ord"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ce81f49ae8a0482e4c55ea62ebbd7e5a686af544c00b9d090bba3ff9be97b3d"
-
-[[package]]
 name = "flume"
 version = "0.10.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3320,11 +3314,11 @@ version = "23.8.0"
 dependencies = [
  "bytecount",
  "criterion",
- "float-ord",
  "fnv",
  "hash32",
  "insta",
  "itertools",
+ "rand",
  "relay-base-schema",
  "relay-common",
  "relay-log",
@@ -3334,6 +3328,7 @@ dependencies = [
  "serde",
  "serde_json",
  "similar-asserts",
+ "smallvec",
  "thiserror",
  "tokio",
 ]
