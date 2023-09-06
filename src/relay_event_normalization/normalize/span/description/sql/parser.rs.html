@@ -292,13 +292,29 @@
 <a href="#292" id="292">292</a>
 <a href="#293" id="293">293</a>
 <a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>sqlparser::ast::{
-    Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor, TableWithJoins,
-    UnaryOperator, Value, VisitMut, VisitorMut,
+    Assignment, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
+    TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 <span class="kw">use </span>sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -323,10 +339,15 @@
     <span class="kw">let </span><span class="kw-2">mut </span>parsed = parse_query(db_system, string).map_err(|<span class="kw">_</span>| ())<span class="question-mark">?</span>;
     parsed.visit(<span class="kw-2">&amp;mut </span>NormalizeVisitor);
 
-    <span class="prelude-val">Ok</span>(parsed
+    <span class="kw">let </span>concatenated = parsed
         .iter()
         .map(|statement| statement.to_string())
-        .join(<span class="string">&quot;; &quot;</span>))
+        .join(<span class="string">&quot;; &quot;</span>);
+
+    <span class="comment">// Insert placeholders that the SQL serializer cannot provide.
+    </span><span class="kw">let </span>replaced = concatenated.replace(<span class="string">&quot;___UPDATE_LHS___ = NULL&quot;</span>, <span class="string">&quot;..&quot;</span>);
+
+    <span class="prelude-val">Ok</span>(replaced)
 }
 
 <span class="doccomment">/// A visitor that normalizes the SQL AST in-place.
@@ -495,10 +516,21 @@
                     v.rows = <span class="macro">vec!</span>[<span class="macro">vec!</span>[Expr::Value(<span class="self">Self</span>::placeholder())]]
                 }
             }
-            <span class="comment">// `UPDATE &quot;foo&quot;.&quot;bar&quot;` becomes `UPDATE bar`.
+            <span class="comment">// Simple lists of col = value assignments are collapsed to `..`.
             </span>Statement::Update { assignments, .. } =&gt; {
-                <span class="kw">for </span>assignment <span class="kw">in </span>assignments.iter_mut() {
-                    <span class="self">Self</span>::simplify_compound_identifier(<span class="kw-2">&amp;mut </span>assignment.id);
+                <span class="kw">if </span>assignments.len() &gt; <span class="number">1
+                    </span>&amp;&amp; assignments
+                        .iter()
+                        .all(|a| <span class="macro">matches!</span>(a.value, Expr::Value(<span class="kw">_</span>)))
+                {
+                    <span class="kw-2">*</span>assignments = <span class="macro">vec!</span>[Assignment {
+                        id: <span class="macro">vec!</span>[Ident::new(<span class="string">&quot;___UPDATE_LHS___&quot;</span>)],
+                        value: Expr::Value(Value::Null),
+                    }]
+                } <span class="kw">else </span>{
+                    <span class="kw">for </span>assignment <span class="kw">in </span>assignments.iter_mut() {
+                        <span class="self">Self</span>::simplify_compound_identifier(<span class="kw-2">&amp;mut </span>assignment.id);
+                    }
                 }
             }
             <span class="comment">// `SAVEPOINT foo` becomes `SAVEPOINT %s`.

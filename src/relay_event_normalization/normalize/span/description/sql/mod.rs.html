@@ -582,6 +582,18 @@
 <a href="#582" id="582">582</a>
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -814,6 +826,18 @@
         various_parameterized_cutoff,
         <span class="string">&quot;select count() from table1 where name in (&#39;foo&#39;, &#39;bar&#39;, &#39;ba&quot;</span>,
         <span class="string">&quot;select count() from table1 where name in (%s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        update_single,
+        <span class="string">&quot;UPDATE `foo` SET a = 1 WHERE true&quot;</span>,
+        <span class="string">&quot;UPDATE foo SET a = %s WHERE %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        update_multiple,
+        <span class="string">&quot;UPDATE foo SET a = 1, `foo`.`b` = 2 WHERE true&quot;</span>,
+        <span class="string">&quot;UPDATE foo SET .. WHERE %s&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
