@@ -1,7 +1,7 @@
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::MetricExtractionConfig;
 use relay_event_schema::protocol::{Event, Span};
-use relay_metrics::Metric;
+use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
 
 use crate::metrics_extraction::generic::{self, Extractable};
@@ -43,7 +43,7 @@ impl Extractable for Span {
 /// valid timestamps.
 ///
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
-pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Metric> {
+pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
 
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {

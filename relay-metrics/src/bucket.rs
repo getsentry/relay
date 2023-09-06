@@ -10,7 +10,7 @@ use crate::protocol::{
     self, CounterType, DistributionType, GaugeType, MetricResourceIdentifier, MetricType,
     MetricValue, MetricsContainer, SetType,
 };
-use crate::ParseMetricError;
+use crate::{hash_set_value, ParseMetricError};
 
 const VALUE_SEPARATOR: char = ':';
 
@@ -513,6 +513,36 @@ pub enum BucketValue {
 }
 
 impl BucketValue {
+    /// Returns a bucket value representing a counter with the given value.
+    pub fn counter(value: CounterType) -> Self {
+        Self::Counter(value)
+    }
+
+    /// Returns a bucket value representing a distribution with a single given value.
+    pub fn distribution(value: DistributionType) -> Self {
+        Self::Distribution(dist![value])
+    }
+
+    /// Returns a bucket value representing a set with a single given hash value.
+    pub fn set(value: SetType) -> Self {
+        Self::Set(std::iter::once(value).collect())
+    }
+
+    /// Returns a bucket value representing a set with a single given string value.
+    pub fn set_from_str(string: &str) -> Self {
+        Self::set(hash_set_value(string))
+    }
+
+    /// Returns a bucket value representing a set with a single given value.
+    pub fn set_from_display(display: impl fmt::Display) -> Self {
+        Self::set(hash_set_value(&display.to_string()))
+    }
+
+    /// Returns a bucket value representing a gauge with a single given value.
+    pub fn gauge(value: GaugeType) -> Self {
+        Self::Gauge(GaugeValue::single(value))
+    }
+
     /// Returns the type of this value.
     pub fn ty(&self) -> MetricType {
         match self {
@@ -561,10 +591,10 @@ impl BucketValue {
 impl From<MetricValue> for BucketValue {
     fn from(value: MetricValue) -> Self {
         match value {
-            MetricValue::Counter(value) => Self::Counter(value),
-            MetricValue::Distribution(value) => Self::Distribution(dist![value]),
-            MetricValue::Set(value) => Self::Set(std::iter::once(value).collect()),
-            MetricValue::Gauge(value) => Self::Gauge(GaugeValue::single(value)),
+            MetricValue::Counter(value) => Self::counter(value),
+            MetricValue::Distribution(value) => Self::distribution(value),
+            MetricValue::Set(value) => Self::set(value),
+            MetricValue::Gauge(value) => Self::gauge(value),
         }
     }
 }
@@ -616,13 +646,7 @@ fn parse_gauge(string: &str) -> Option<GaugeValue> {
             count: components.next()?.parse().ok()?,
         }
     } else {
-        GaugeValue {
-            last,
-            min: last,
-            max: last,
-            sum: last,
-            count: 1,
-        }
+        GaugeValue::single(last)
     })
 }
 

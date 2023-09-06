@@ -88,7 +88,7 @@ pub fn extract_http_status_code(event: &Event) -> Option<String> {
 /// column in Discover for Transactions, barring:
 ///
 /// * imprecision caused by HLL sketching in Snuba, which we don't have in events
-/// * hash collisions in `MetricValue::set_from_display`, which we don't have in events
+/// * hash collisions in `BucketValue::set_from_display`, which we don't have in events
 /// * MD5-collisions caused by `EventUser.hash_from_tag`, which we don't have in metrics
 ///
 ///   MD5 is used to efficiently look up the current event user for an event, and if there is a

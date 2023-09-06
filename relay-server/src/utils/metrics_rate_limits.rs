@@ -243,7 +243,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_metrics::{Metric, MetricValue};
+    use relay_metrics::{Bucket, BucketValue};
     use relay_quotas::{Quota, QuotaScope};
     use smallvec::smallvec;
 
@@ -252,26 +252,29 @@ mod tests {
     #[test]
     fn profiles_limits_are_reported() {
         let metrics = vec![
-            Metric {
+            Bucket {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.0),
             },
-            Metric {
+            Bucket {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(456.0),
+                value: BucketValue::distribution(456.0),
             },
-            Metric {
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.0),
             },
         ];
         let quotas = vec![Quota {
@@ -320,26 +323,29 @@ mod tests {
     #[test]
     fn profiles_quota_is_enforced() {
         let metrics = vec![
-            Metric {
+            Bucket {
                 // transaction without profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: Default::default(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.0),
             },
-            Metric {
+            Bucket {
                 // transaction with profile
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "d:transactions/duration@millisecond".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(456.0),
+                value: BucketValue::distribution(456.0),
             },
-            Metric {
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
+                width: 0,
                 name: "something_else".to_string(),
                 tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: MetricValue::Distribution(123.0),
+                value: BucketValue::distribution(123.0),
             },
         ];
         let quotas = vec![Quota {
