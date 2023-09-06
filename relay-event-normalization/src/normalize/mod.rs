@@ -956,10 +956,19 @@ impl<'a> DynamicMeasurementsConfig<'a> {
     /// Returns an iterator over the union of [`BuiltinMeasurementKey`]s from both the global and
     /// project-level [`MeasurementsConfig`]s, with the elements from project config coming first.
     pub fn builtin_measurement_keys(&'a self) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
-        let from_project = self.project.iter().flat_map(|c| &c.builtin_measurements);
-        let from_global = self.global.iter().flat_map(|c| &c.builtin_measurements);
+        let from_project = self
+            .project
+            .iter()
+            .flat_map(|c| &c.builtin_measurements)
+            .collect::<Vec<_>>();
+        let from_project_clone = from_project.clone();
+        let from_global = self
+            .global
+            .iter()
+            .flat_map(|c| &c.builtin_measurements)
+            .filter(move |&key| !from_project_clone.contains(&key));
 
-        from_project.chain(from_global).unique()
+        from_project.into_iter().chain(from_global)
     }
 
     /// Gets the max custom measurements value from the [`MeasurementsConfig`] from project level or

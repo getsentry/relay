@@ -15,7 +15,6 @@ default = []
 [dependencies]
 anyhow = { workspace = true }
 assert-json-diff = "2.0.2"
-itertools = { workspace = true }
 relay-auth = { path = "../relay-auth" }
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
