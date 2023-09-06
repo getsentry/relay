@@ -24,6 +24,7 @@
 - Improve performance when ingesting distribution metrics with a large number of data points. ([#2483](https://github.com/getsentry/relay/pull/2483))
 - Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
 - Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
+- Add a timestamp field to report profile's start time on Android. ([#2486](https://github.com/getsentry/relay/pull/2486))
 
 ## 23.8.0
 
