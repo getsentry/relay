@@ -212,9 +212,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@none",
                 value: Distribution(
-                    {
-                        2000.0: 1,
-                    },
+                    [
+                        2000.0,
+                    ],
                 ),
                 tags: {},
             },

@@ -539,9 +539,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.foo@none",
                 value: Distribution(
-                    {
-                        420.69: 1,
-                    },
+                    [
+                        420.69,
+                    ],
                 ),
                 tags: {
                     "browser.name": "Chrome",
@@ -563,9 +563,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
-                    {
-                        3000.0: 1,
-                    },
+                    [
+                        3000.0,
+                    ],
                 ),
                 tags: {
                     "browser.name": "Chrome",
@@ -588,9 +588,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
                 value: Distribution(
-                    {
-                        2000.0: 1,
-                    },
+                    [
+                        2000.0,
+                    ],
                 ),
                 tags: {
                     "browser.name": "Chrome",
@@ -612,9 +612,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    {
-                        59000.0: 1,
-                    },
+                    [
+                        59000.0,
+                    ],
                 ),
                 tags: {
                     "browser.name": "Chrome",
@@ -705,9 +705,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
-                    {
-                        1.1: 1,
-                    },
+                    [
+                        1.1,
+                    ],
                 ),
                 tags: {
                     "measurement_rating": "good",
@@ -721,9 +721,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.foo@none",
                 value: Distribution(
-                    {
-                        8.8: 1,
-                    },
+                    [
+                        8.8,
+                    ],
                 ),
                 tags: {
                     "platform": "other",
@@ -736,9 +736,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.stall_count@none",
                 value: Distribution(
-                    {
-                        3.3: 1,
-                    },
+                    [
+                        3.3,
+                    ],
                 ),
                 tags: {
                     "platform": "other",
@@ -751,9 +751,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    {
-                        59000.0: 1,
-                    },
+                    [
+                        59000.0,
+                    ],
                 ),
                 tags: {
                     "platform": "other",
@@ -808,9 +808,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.fcp@second",
                 value: Distribution(
-                    {
-                        1.1: 1,
-                    },
+                    [
+                        1.1,
+                    ],
                 ),
                 tags: {
                     "measurement_rating": "good",
@@ -824,9 +824,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.lcp@none",
                 value: Distribution(
-                    {
-                        2.2: 1,
-                    },
+                    [
+                        2.2,
+                    ],
                 ),
                 tags: {
                     "measurement_rating": "good",
@@ -840,9 +840,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    {
-                        59000.0: 1,
-                    },
+                    [
+                        59000.0,
+                    ],
                 ),
                 tags: {
                     "platform": "other",
@@ -956,9 +956,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.a_custom1@none",
                 value: Distribution(
-                    {
-                        41.0: 1,
-                    },
+                    [
+                        41.0,
+                    ],
                 ),
                 tags: {
                     "platform": "other",
@@ -971,9 +971,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.fcp@millisecond",
                 value: Distribution(
-                    {
-                        0.123: 1,
-                    },
+                    [
+                        0.123,
+                    ],
                 ),
                 tags: {
                     "measurement_rating": "good",
@@ -987,9 +987,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.g_custom2@second",
                 value: Distribution(
-                    {
-                        42.0: 1,
-                    },
+                    [
+                        42.0,
+                    ],
                 ),
                 tags: {
                     "platform": "other",
@@ -1002,9 +1002,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    {
-                        2000.0: 1,
-                    },
+                    [
+                        2000.0,
+                    ],
                 ),
                 tags: {
                     "platform": "other",
@@ -1614,9 +1614,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/measurements.lcp@millisecond",
                 value: Distribution(
-                    {
-                        41.0: 1,
-                    },
+                    [
+                        41.0,
+                    ],
                 ),
                 tags: {
                     "measurement_rating": "good",
@@ -1628,9 +1628,9 @@ mod tests {
                 width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
-                    {
-                        2000.0: 1,
-                    },
+                    [
+                        2000.0,
+                    ],
                 ),
                 tags: {
                     "platform": "javascript",
