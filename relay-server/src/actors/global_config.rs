@@ -187,7 +187,10 @@ impl GlobalConfigService {
     ///
     /// We check if we have credentials before sending,
     /// otherwise we would log an [`UpstreamRequestError::NoCredentials`] error.
-    fn request_global_config(&self) {
+    fn request_global_config(&mut self) {
+        // Disable upstream requests timer until we receive result of query.
+        self.fetch_handle.reset();
+
         let upstream_relay = self.upstream.clone();
         let internal_tx = self.internal_tx.clone();
 
@@ -236,6 +239,9 @@ impl GlobalConfigService {
                 "failed to send request to upstream"
             ),
         }
+
+        // Enable upstream requests timer for global configs.
+        self.schedule_fetch();
     }
 
     fn handle_shutdown(&mut self) {
@@ -290,18 +296,8 @@ impl Service for GlobalConfigService {
             loop {
                 tokio::select! {
                     biased;
-                    () = &mut self.fetch_handle => {
-                        // Disable upstream requests timer until we receive result of query.
-                        self.fetch_handle.reset();
-
-                        self.request_global_config();
-                    }
-                    Some(result) = self.internal_rx.recv() => {
-                        // Enable upstream requests timer for global configs.
-                        self.schedule_fetch();
-
-                        self.handle_upstream_result(result);
-                    },
+                    () = &mut self.fetch_handle => self.request_global_config(),
+                    Some(result) = self.internal_rx.recv() => self.handle_upstream_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
                     _ = shutdown_handle.notified() => self.handle_shutdown(),
 
