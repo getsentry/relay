@@ -236,8 +236,6 @@ impl GlobalConfigService {
                 "failed to send request to upstream"
             ),
         }
-
-        self.schedule_fetch();
     }
 
     fn handle_shutdown(&mut self) {
@@ -297,7 +295,11 @@ impl Service for GlobalConfigService {
                         // Disable new requests interval until we receive the result from upstream.
                         self.fetch_handle.reset();
                     }
-                    Some(result) = self.internal_rx.recv() => self.handle_upstream_result(result),
+                    Some(result) = self.internal_rx.recv() => {
+                        self.handle_upstream_result(result);
+                        // Start timer for making new global config request.
+                        self.schedule_fetch();
+                    },
                     Some(message) = rx.recv() => self.handle_message(message),
                     _ = shutdown_handle.notified() => self.handle_shutdown(),
 
