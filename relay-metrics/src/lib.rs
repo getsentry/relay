@@ -11,8 +11,7 @@
 //! looks like this:
 //!
 //! ```text
-//! endpoint.response_time@millisecond:57|d|#route:user_index
-//! endpoint.hits:1|c|#route:user_index
+#![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
 //! ```
 //!
 //! The metric type is part of its signature just like the unit. Therefore, it is allowed to reuse a
@@ -25,16 +24,18 @@
 //!
 //! ```text
 //! {}
-//! {"type": "metrics", "timestamp": 1615889440, ...}
+//! {"type": "statsd", ...}
 #![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]
 //! ...
 //! ```
 //!
 //! Note that the name format used in the statsd protocol is different from the MRI: Metric names
-//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol.
+//! are not prefixed with `<ty>:` as the type is somewhere else in the protocol. If no metric
+//! namespace is specified, the `"custom"` namespace is assumed.
 //!
-//! The timestamp in the item header is used to send backdated metrics. If it is omitted,
-//! the `received` time of the envelope is assumed.
+//! Optionally, a timestamp can be added to every line of the submitted envelope. The timestamp has
+//! to be a valid Unix timestamp (UTC) and must be prefixed with `T`. If it is omitted, the
+//! `received` time of the envelope is assumed.
 //!
 //! # Aggregation
 //!

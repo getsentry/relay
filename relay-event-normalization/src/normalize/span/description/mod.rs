@@ -1,5 +1,6 @@
 //! Span description scrubbing logic.
 mod sql;
+pub use sql::parse_query;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -30,7 +31,13 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
-            ("db", _) => sql::scrub_queries(description),
+            ("db", _) => sql::scrub_queries(
+                span.data
+                    .value()
+                    .and_then(|d| d.get("system"))
+                    .and_then(|v| v.as_str()),
+                description,
+            ),
             ("resource", _) => scrub_resource_identifiers(description),
             _ => None,
         });

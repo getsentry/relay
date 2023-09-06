@@ -26,6 +26,7 @@ mod regexes;
 mod remove_other;
 pub mod replay;
 mod schema;
+mod statsd;
 mod transactions;
 mod trimming;
 

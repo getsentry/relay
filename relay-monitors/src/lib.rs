@@ -129,6 +129,7 @@ pub struct CheckIn {
     pub check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.
+    #[serde(default)]
     pub monitor_slug: String,
 
     /// Status of this check-in. Defaults to `"unknown"`.
