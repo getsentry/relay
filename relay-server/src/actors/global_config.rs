@@ -187,10 +187,10 @@ impl GlobalConfigService {
     ///
     /// We check if we have credentials before sending,
     /// otherwise we would log an [`UpstreamRequestError::NoCredentials`] error.
-    fn request_global_config(
-        upstream_relay: Addr<UpstreamRelay>,
-        internal_tx: mpsc::Sender<UpstreamQueryResult>,
-    ) {
+    fn request_global_config(&self) {
+        let upstream_relay = self.upstream.clone();
+        let internal_tx = self.internal_tx.clone();
+
         tokio::spawn(async move {
             metric!(timer(RelayTimers::GlobalConfigRequestDuration), {
                 let query = GetGlobalConfig::new();
@@ -265,7 +265,7 @@ impl Service for GlobalConfigService {
                     relay_log::info!("serving global configs fetched from upstream");
                     // This request will trigger the request intervals when internal_rx receives the
                     // result from upstream.
-                    Self::request_global_config(self.upstream.clone(), self.internal_tx.clone());
+                    self.request_global_config();
                 }
                 (RelayMode::Managed, false, _) => {
                     // NOTE(iker): not making a request results in the sleep handler
@@ -294,7 +294,7 @@ impl Service for GlobalConfigService {
                         // Disable upstream requests timer until we receive result of query.
                         self.fetch_handle.reset();
 
-                        Self::request_global_config(self.upstream.clone(), self.internal_tx.clone());
+                        self.request_global_config();
                     }
                     Some(result) = self.internal_rx.recv() => {
                         // Enable upstream requests timer for global configs.
