@@ -16,7 +16,7 @@ pub struct GlobalConfig {
 }
 
 impl GlobalConfig {
-    /// The full filename of the global config file, including the file extension.
+    /// Returns the full filepath of the global config.
     fn path(base: &Path) -> PathBuf {
         base.join("global_config.json")
     }
