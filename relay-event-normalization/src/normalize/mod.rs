@@ -324,7 +324,6 @@ fn remove_invalid_measurements(
     measurements_config: DynamicMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
-    let builtin_measurement_keys = measurements_config.builtin_measurement_keys().collect_vec();
     let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(&0);
 
     let mut custom_measurements_count = 0;
@@ -362,7 +361,7 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in &builtin_measurement_keys {
+        for builtin_measurement in measurements_config.builtin_measurement_keys() {
             if &builtin_measurement.name == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
@@ -953,22 +952,20 @@ impl<'a> DynamicMeasurementsConfig<'a> {
         DynamicMeasurementsConfig { project, global }
     }
 
-    /// Returns an iterator over the union of [`BuiltinMeasurementKey`]s from both the global and
-    /// project-level [`MeasurementsConfig`]s, with the elements from project config coming first.
+    /// Returns an iterator over the merged builtin measurement keys.
+    ///
+    /// Items from the project config are prioritized over global config, and
+    /// there are no duplicates.
     pub fn builtin_measurement_keys(&'a self) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
-        let from_project = self
-            .project
-            .iter()
-            .flat_map(|c| &c.builtin_measurements)
-            .collect::<Vec<_>>();
-        let from_project_clone = from_project.clone();
+        let from_project = self.project.iter().flat_map(|c| &c.builtin_measurements);
+        let from_project_clone = from_project.clone().collect_vec();
         let from_global = self
             .global
             .iter()
             .flat_map(|c| &c.builtin_measurements)
             .filter(move |&key| !from_project_clone.contains(&key));
 
-        from_project.into_iter().chain(from_global)
+        from_project.chain(from_global)
     }
 
     /// Gets the max custom measurements value from the [`MeasurementsConfig`] from project level or
