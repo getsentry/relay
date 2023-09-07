@@ -556,9 +556,8 @@
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
-        transaction_range: <span class="prelude-val">None</span>,   <span class="comment">// only supported in relay
-        </span>measurements_config: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
-        </span>breakdowns_config: <span class="prelude-val">None</span>,   <span class="comment">// only supported in relay
+        transaction_range: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
+        </span>breakdowns_config: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
         </span>normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), <span class="comment">// only supported in relay
         </span>is_renormalize: config.is_renormalize.unwrap_or(<span class="bool-val">false</span>),
@@ -569,6 +568,7 @@
         span_description_rules: <span class="prelude-val">None</span>,
         geoip_lookup: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
         </span>enable_trimming: config.enable_trimming.unwrap_or_default(),
+        measurements: <span class="prelude-val">None</span>,
     };
     light_normalize_event(<span class="kw-2">&amp;mut </span>event, light_normalization_config)<span class="question-mark">?</span>;
     process_value(<span class="kw-2">&amp;mut </span>event, <span class="kw-2">&amp;mut *</span>processor, ProcessingState::root())<span class="question-mark">?</span>;

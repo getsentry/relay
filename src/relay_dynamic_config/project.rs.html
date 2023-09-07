@@ -170,6 +170,7 @@
 <a href="#170" id="170">170</a>
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
@@ -220,6 +221,7 @@
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>dynamic_sampling: <span class="prelude-ty">Option</span>&lt;SamplingConfig&gt;,
     <span class="doccomment">/// Configuration for measurements.
+    /// NOTE: do not access directly, use [`relay_event_normalization::DynamicMeasurementsConfig`].
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>measurements: <span class="prelude-ty">Option</span>&lt;MeasurementsConfig&gt;,
     <span class="doccomment">/// Configuration for operation breakdown. Will be emitted only if present.

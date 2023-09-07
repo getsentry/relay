@@ -1641,6 +1641,9 @@
 <a href="#1641" id="1641">1641</a>
 <a href="#1642" id="1642">1642</a>
 <a href="#1643" id="1643">1643</a>
+<a href="#1644" id="1644">1644</a>
+<a href="#1645" id="1645">1645</a>
+<a href="#1646" id="1646">1646</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -2035,8 +2038,8 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_dynamic_config::AcceptTransactionNames;
     <span class="kw">use </span>relay_event_normalization::{
-        set_default_transaction_source, BreakdownsConfig, LightNormalizationConfig,
-        MeasurementsConfig,
+        set_default_transaction_source, BreakdownsConfig, DynamicMeasurementsConfig,
+        LightNormalizationConfig, MeasurementsConfig,
     };
     <span class="kw">use </span>relay_event_schema::protocol::User;
     <span class="kw">use </span>relay_metrics::BucketValue;
@@ -2573,10 +2576,13 @@
             </span>}
         ))
         .unwrap();
+
+        <span class="kw">let </span>config = DynamicMeasurementsConfig::new(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config), <span class="prelude-val">None</span>);
+
         relay_event_normalization::light_normalize_event(
             <span class="kw-2">&amp;mut </span>event,
             LightNormalizationConfig {
-                measurements_config: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>measurements_config),
+                measurements: <span class="prelude-val">Some</span>(config),
                 ..Default::default()
             },
         )

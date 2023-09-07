@@ -3993,6 +3993,10 @@
 <a href="#3993" id="3993">3993</a>
 <a href="#3994" id="3994">3994</a>
 <a href="#3995" id="3995">3995</a>
+<a href="#3996" id="3996">3996</a>
+<a href="#3997" id="3997">3997</a>
+<a href="#3998" id="3998">3998</a>
+<a href="#3999" id="3999">3999</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4018,7 +4022,8 @@
 };
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
 <span class="kw">use </span>relay_event_normalization::{
-    ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
+    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
+    TransactionNameConfig,
 };
 <span class="kw">use </span>relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingState};
@@ -6411,7 +6416,6 @@
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
                 transaction_name_config: TransactionNameConfig {
@@ -6433,6 +6437,10 @@
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 enable_trimming: <span class="bool-val">true</span>,
+                measurements: <span class="prelude-val">Some</span>(DynamicMeasurementsConfig::new(
+                    state.project_state.config().measurements.as_ref(),
+                    <span class="self">self</span>.global_config.measurements.as_ref(),
+                )),
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingLightNormalization), {
