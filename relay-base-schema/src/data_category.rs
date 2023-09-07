@@ -78,6 +78,7 @@ impl DataCategory {
             "transaction_processed" => Self::TransactionProcessed,
             "transaction_indexed" => Self::TransactionIndexed,
             "monitor" => Self::Monitor,
+            "span" => Self::Span,
             _ => Self::Unknown,
         }
     }
