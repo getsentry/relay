@@ -257,21 +257,10 @@ impl Service for GlobalConfigService {
         tokio::spawn(async move {
             let mut shutdown_handle = Controller::shutdown_handle();
 
-            let global_config = match GlobalConfig::load(self.config.path()) {
-                Ok(global_config) => global_config,
-                Err(e) => {
-                    relay_log::error!("failed to load global config from file: {}", e);
-                    None
-                }
-            };
-
             relay_log::info!("global config service starting");
             match self.config.relay_mode() {
                 RelayMode::Managed => {
                     if self.config.has_credentials() {
-                        if global_config.is_some() {
-                            relay_log::info!("ignoring static global config in managed mode");
-                        }
                         relay_log::info!("serving global configs fetched from upstream");
                         self.request_global_config();
                     } else {
@@ -280,17 +269,25 @@ impl Service for GlobalConfigService {
                         );
                     }
                 }
-                RelayMode::Static | RelayMode::Proxy | RelayMode::Capture => match global_config {
-                    Some(from_file) => {
-                        relay_log::info!("serving static global config loaded from file");
-                        self.global_config_watch.send(Arc::new(from_file)).ok();
+                RelayMode::Static | RelayMode::Proxy | RelayMode::Capture => {
+                    match GlobalConfig::load(self.config.path()) {
+                        Ok(Some(from_file)) => {
+                            relay_log::info!("serving static global config loaded from file");
+                            self.global_config_watch.send(Arc::new(from_file)).ok();
+                        }
+                        Ok(None) => {
+                            relay_log::info!(
+            "serving default global configs due to lacking static global config file"
+        );
+                        }
+                        Err(e) => {
+                            relay_log::error!("failed to load global config from file: {}", e);
+                            relay_log::info!(
+            "serving default global configs due to failure to load global config from file"
+        );
+                        }
                     }
-                    None => {
-                        relay_log::info!(
-                        "serving default global configs due to lacking static global config file"
-                    );
-                    }
-                },
+                }
             }
 
             loop {
