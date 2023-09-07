@@ -322,6 +322,13 @@
 <a href="#322" id="322">322</a>
 <a href="#323" id="323">323</a>
 <a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 
@@ -422,9 +429,16 @@
         <span class="comment">// Iterate over selected item.
         </span><span class="kw">for </span><span class="kw-2">mut </span>item <span class="kw">in </span>std::mem::take(<span class="kw-2">&amp;mut </span>select.projection) {
             <span class="comment">// Normalize aliases.
-            </span><span class="kw">if let </span>SelectItem::ExprWithAlias { <span class="kw-2">ref mut </span>alias, .. } = <span class="kw-2">&amp;mut </span>item {
-                alias.quote_style = <span class="prelude-val">None</span>;
-            }
+            </span><span class="kw">let </span>item = <span class="kw">match </span>item {
+                <span class="comment">// Remove alias.
+                </span>SelectItem::ExprWithAlias { <span class="kw-2">ref mut </span>alias, .. } =&gt; {
+                    alias.quote_style = <span class="prelude-val">None</span>;
+                    item
+                }
+                <span class="comment">// Strip prefix, e.g. `&quot;mytable&quot;.*`.
+                </span>SelectItem::QualifiedWildcard(<span class="kw">_</span>, options) =&gt; SelectItem::Wildcard(options),
+                <span class="kw">_ </span>=&gt; item,
+            };
             <span class="kw">if </span><span class="self">Self</span>::is_collapsible(<span class="kw-2">&amp;</span>item) {
                 collapse.push(item);
             } <span class="kw">else </span>{

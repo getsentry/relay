@@ -612,6 +612,12 @@
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
 <a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1114,6 +1120,12 @@
         quotes_in_cast,
         <span class="string">r#&quot;SELECT UPPER(&quot;b&quot;.&quot;c&quot;::text)&quot;#</span>,
         <span class="string">&quot;SELECT UPPER(c)&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        qualified_wildcard,
+        <span class="string">r#&quot;SELECT &quot;foo&quot;.* FROM &quot;foo&quot;&quot;#</span>,
+        <span class="string">&quot;SELECT * FROM foo&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
