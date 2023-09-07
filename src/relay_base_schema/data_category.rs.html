@@ -151,6 +151,7 @@
 <a href="#151" id="151">151</a>
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -231,6 +232,7 @@
             <span class="string">&quot;transaction_processed&quot; </span>=&gt; <span class="self">Self</span>::TransactionProcessed,
             <span class="string">&quot;transaction_indexed&quot; </span>=&gt; <span class="self">Self</span>::TransactionIndexed,
             <span class="string">&quot;monitor&quot; </span>=&gt; <span class="self">Self</span>::Monitor,
+            <span class="string">&quot;span&quot; </span>=&gt; <span class="self">Self</span>::Span,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
