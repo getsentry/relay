@@ -212,7 +212,7 @@ impl GlobalConfigService {
     /// 1. Whether the request to the upstream was successful.
     /// 2. If the request was successful, it then checks whether the returned
     /// global config is valid and contains the expected data.
-    fn handle_upstream_result(&mut self, result: UpstreamQueryResult) {
+    fn handle_result(&mut self, result: UpstreamQueryResult) {
         match result {
             Ok(Ok(config)) => {
                 let mut success = false;
@@ -295,7 +295,7 @@ impl Service for GlobalConfigService {
                     biased;
 
                     () = &mut self.fetch_handle => self.request_global_config(),
-                    Some(result) = self.internal_rx.recv() => self.handle_upstream_result(result),
+                    Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
                     _ = shutdown_handle.notified() => self.handle_shutdown(),
 
