@@ -664,6 +664,7 @@ def test_transaction_metrics(
         },
     }
 
+    metrics["d:transactions/measurements.foo@none"]["value"].sort()
     assert metrics["d:transactions/measurements.foo@none"] == {
         **common,
         "name": "d:transactions/measurements.foo@none",

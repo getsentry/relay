@@ -233,6 +233,18 @@ mod tests {
     );
 
     scrub_sql_test!(
+        update_single,
+        "UPDATE `foo` SET a = 1 WHERE true",
+        "UPDATE foo SET a = %s WHERE %s"
+    );
+
+    scrub_sql_test!(
+        update_multiple,
+        "UPDATE foo SET a = 1, `foo`.`b` = 2 WHERE true",
+        "UPDATE foo SET .. WHERE %s"
+    );
+
+    scrub_sql_test!(
         mixed,
         "UPDATE foo SET a = %s, b = log(e + 5) * 600 + 12345 WHERE true",
         "UPDATE foo SET a = %s, b = log(e + %s) * %s + %s WHERE %s"
@@ -473,6 +485,24 @@ mod tests {
     );
 
     scrub_sql_test!(
+        quotes_in_join,
+        r#"SELECT "foo" FROM "a" JOIN "b" ON (b_id = b.id)"#,
+        "SELECT foo FROM a JOIN b ON (b_id = id)"
+    );
+
+    scrub_sql_test!(
+        quotes_in_function,
+        r#"SELECT UPPER("b"."c")"#,
+        "SELECT UPPER(c)"
+    );
+
+    scrub_sql_test!(
+        quotes_in_cast,
+        r#"SELECT UPPER("b"."c"::text)"#,
+        "SELECT UPPER(c)"
+    );
+
+    scrub_sql_test!(
         parameters_in,
         "select column FROM table1 WHERE id IN (1, 2, 3)",
         "SELECT column FROM table1 WHERE id IN (%s)"
@@ -556,6 +586,24 @@ mod tests {
         multiple_statements,
         r#"SELECT 1; select 2"#,
         "SELECT %s; SELECT %s"
+    );
+
+    scrub_sql_test!(
+        case_when,
+        "UPDATE tbl SET foo = CASE WHEN 1 THEN 10 WHEN 2 THEN 20 ELSE 30 END",
+        "UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
+    );
+
+    scrub_sql_test!(
+        case_when_nested,
+        r#"UPDATE
+            tbl
+        SET "tbl"."foo" = CASE
+            WHEN 1 THEN 10
+            WHEN 2 THEN (CASE WHEN 22 THEN 222 END)
+            ELSE 30
+        END"#,
+        "UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
     );
 
     scrub_sql_test!(

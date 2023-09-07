@@ -923,7 +923,7 @@ mod tests {
     use std::sync::Arc;
 
     use relay_common::time::UnixTimestamp;
-    use relay_metrics::{BucketValue, MetricValue};
+    use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
 
@@ -1027,10 +1027,11 @@ mod tests {
         project
     }
 
-    fn create_transaction_metric() -> Metric {
-        Metric {
+    fn create_transaction_metric() -> Bucket {
+        Bucket {
             name: "d:transactions/foo".to_string(),
-            value: MetricValue::Counter(1.0),
+            width: 0,
+            value: BucketValue::counter(1.0),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }

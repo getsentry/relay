@@ -15,8 +15,7 @@ debug = true
 
 [workspace.dependencies]
 anyhow = "1.0.66"
-# Temporarily get chrono from git until https://github.com/chronotope/chrono/pull/1254 has been released.
-chrono = { git = "https://github.com/chronotope/chrono.git", rev = "5a6b2b40a781c19ad34a3593313468d922fceeea", default-features = false, features = [
+chrono = { version = "0.4.29", default-features = false, features = [
     "std",
     "serde",
 ] }
@@ -26,6 +25,7 @@ futures = { version = "0.3", default-features = false, features = ["std"] }
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
 itertools = "0.10.5"
 once_cell = "1.13.1"
+rand = "0.8.5"
 regex = "1.9.1"
 serde = { version = "1.0.159", features = ["derive"] }
 serde_json = "1.0.93"

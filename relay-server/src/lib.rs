@@ -269,7 +269,6 @@ mod utils;
 mod testutils;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use relay_config::Config;
 use relay_system::{Controller, Service};
@@ -305,13 +304,8 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         anyhow::Ok(())
     })?;
 
-    // Shut down the tokio runtime 100ms after the shutdown timeout has completed. Our services do
-    // not exit by themselves, and the shutdown timeout should have given them enough time to
-    // complete their tasks. The additional 100ms allow services to run their error handlers.
-    main_runtime.shutdown_timeout(Duration::from_millis(100));
-
-    // Shutdown all runtimes.
-    runtimes.shutdown();
+    drop(runtimes);
+    drop(main_runtime);
 
     relay_log::info!("relay shutdown complete");
     Ok(())

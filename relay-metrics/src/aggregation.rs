@@ -22,7 +22,8 @@ use crate::statsd::{
     MetricTimers,
 };
 use crate::{
-    protocol, Bucket, BucketValue, Metric, MetricNamespace, MetricResourceIdentifier, MetricValue,
+    protocol, Bucket, BucketValue, DistributionValue, Metric, MetricNamespace,
+    MetricResourceIdentifier, MetricValue,
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -47,12 +48,12 @@ trait MergeValue: Into<BucketValue> {
 }
 
 impl MergeValue for BucketValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
+    fn merge_into(self, bucket_value: &mut Self) -> Result<(), AggregateMetricsError> {
         match (bucket_value, self) {
-            (BucketValue::Counter(lhs), BucketValue::Counter(rhs)) => *lhs += rhs,
-            (BucketValue::Distribution(lhs), BucketValue::Distribution(rhs)) => lhs.extend(&rhs),
-            (BucketValue::Set(lhs), BucketValue::Set(rhs)) => lhs.extend(rhs),
-            (BucketValue::Gauge(lhs), BucketValue::Gauge(rhs)) => lhs.merge(rhs),
+            (Self::Counter(lhs), Self::Counter(rhs)) => *lhs += rhs,
+            (Self::Distribution(lhs), Self::Distribution(rhs)) => lhs.extend_from_slice(&rhs),
+            (Self::Set(lhs), Self::Set(rhs)) => lhs.extend(rhs),
+            (Self::Gauge(lhs), Self::Gauge(rhs)) => lhs.merge(rhs),
             _ => return Err(AggregateMetricsErrorKind::InvalidTypes.into()),
         }
 
@@ -67,7 +68,7 @@ impl MergeValue for MetricValue {
                 *counter += value;
             }
             (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
-                distribution.insert(value);
+                distribution.push(value);
             }
             (BucketValue::Set(set), MetricValue::Set(value)) => {
                 set.insert(value);
@@ -125,12 +126,14 @@ fn split_at(mut bucket: Bucket, size: usize) -> (Option<Bucket>, Option<Bucket>)
     match bucket.value {
         BucketValue::Counter(_) => (None, Some(bucket)),
         BucketValue::Distribution(ref mut distribution) => {
-            let org = std::mem::take(distribution);
-            let mut new_bucket = bucket.clone();
+            let mut org = std::mem::take(distribution);
 
-            let mut iter = org.iter_values();
-            bucket.value = BucketValue::Distribution((&mut iter).take(split_at).collect());
-            new_bucket.value = BucketValue::Distribution(iter.collect());
+            let mut new_bucket = bucket.clone();
+            new_bucket.value =
+                BucketValue::Distribution(DistributionValue::from_slice(&org[split_at..]));
+
+            org.truncate(split_at);
+            bucket.value = BucketValue::Distribution(org);
 
             (Some(bucket), Some(new_bucket))
         }
@@ -1509,7 +1512,7 @@ mod tests {
         BucketValue::Distribution(dist![2., 4.])
             .merge_into(&mut value)
             .unwrap();
-        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 2., 3., 4.]));
+        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2., 4.]));
     }
 
     #[test]
@@ -1596,10 +1599,7 @@ mod tests {
             expected_bucket_value_size + 5 * expected_set_entry_size
         );
         let distribution = BucketValue::Distribution(dist![1., 2., 3.]);
-        assert_eq!(
-            distribution.cost(),
-            expected_bucket_value_size + 3 * (8 + 4)
-        );
+        assert_eq!(distribution.cost(), expected_bucket_value_size + 3 * 8);
         let gauge = BucketValue::Gauge(GaugeValue {
             last: 43.,
             min: 42.,
@@ -1852,14 +1852,10 @@ mod tests {
             (
                 "d:transactions/foo@none",
                 MetricValue::Distribution(1.0),
-                fixed_cost + 12,
+                fixed_cost + 8,
             ), // New bucket + 1 element
-            ("d:transactions/foo@none", MetricValue::Distribution(1.0), 0), // no new element
-            (
-                "d:transactions/foo@none",
-                MetricValue::Distribution(2.0),
-                12,
-            ), // 1 new element
+            ("d:transactions/foo@none", MetricValue::Distribution(1.0), 8), // duplicate element
+            ("d:transactions/foo@none", MetricValue::Distribution(2.0), 8), // 1 new element
             (
                 "g:transactions/foo@none",
                 MetricValue::Gauge(0.3),

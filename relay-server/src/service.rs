@@ -305,18 +305,6 @@ impl Runtimes {
                 .then(|| create_runtime("store-rt", 1)),
         }
     }
-
-    /// Shuts down the runtime. Drops all futures immediately.
-    pub fn shutdown(self) {
-        self.upstream.shutdown_background();
-        self.project.shutdown_background();
-        self.aggregator.shutdown_background();
-        self.outcome.shutdown_background();
-        #[cfg(feature = "processing")]
-        if let Some(r) = self.store {
-            r.shutdown_background()
-        }
-    }
 }
 
 #[axum::async_trait]

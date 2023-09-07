@@ -35,7 +35,7 @@ use relay_event_schema::protocol::{
     UserReport, Values,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace};
+use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -231,7 +231,7 @@ impl ExtractedMetrics {
         let project_key = envelope.meta().public_key();
 
         if !self.project_metrics.is_empty() {
-            project_cache.send(InsertMetrics::new(project_key, self.project_metrics));
+            project_cache.send(MergeBuckets::new(project_key, self.project_metrics));
         }
 
         if !self.sampling_metrics.is_empty() {
@@ -242,7 +242,7 @@ impl ExtractedMetrics {
             // dependent_project_with_tracing  -> metrics goes to root
             // root_project_with_tracing       -> metrics goes to root == self
             let sampling_project_key = utils::get_sampling_key(envelope).unwrap_or(project_key);
-            project_cache.send(InsertMetrics::new(
+            project_cache.send(MergeBuckets::new(
                 sampling_project_key,
                 self.sampling_metrics,
             ));
@@ -657,7 +657,7 @@ impl EnvelopeProcessorService {
         client_addr: Option<net::IpAddr>,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Metric>,
+        extracted_metrics: &mut Vec<Bucket>,
     ) -> bool {
         let mut changed = false;
         let payload = item.payload();
@@ -766,7 +766,7 @@ impl EnvelopeProcessorService {
         client_addr: Option<net::IpAddr>,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: &ClockDriftProcessor,
-        extracted_metrics: &mut Vec<Metric>,
+        extracted_metrics: &mut Vec<Bucket>,
     ) -> bool {
         let mut changed = false;
         let payload = item.payload();
@@ -2872,7 +2872,7 @@ mod tests {
         client_addr: Option<net::IpAddr>,
         metrics_config: SessionMetricsConfig,
         clock_drift_processor: ClockDriftProcessor,
-        extracted_metrics: Vec<Metric>,
+        extracted_metrics: Vec<Bucket>,
     }
 
     impl<'a> TestProcessSessionArguments<'a> {
@@ -3988,8 +3988,7 @@ mod tests {
                 tags,
             };
 
-            let metric: Metric = measurement.into_metric(UnixTimestamp::now());
-
+            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
             metric.name.len() - unit.to_string().len() - name.len()
         };
         assert_eq!(

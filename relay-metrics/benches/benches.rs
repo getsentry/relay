@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{AggregatorConfig, AggregatorService, Metric, MetricValue};
+use relay_metrics::{AggregatorConfig, AggregatorService, DistributionValue, Metric, MetricValue};
 
 /// Struct representing a testcase for which insert + flush are timed.
 struct MetricInput {
@@ -159,5 +159,22 @@ fn bench_insert_and_flush(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench_insert_and_flush);
+fn bench_distribution(c: &mut Criterion) {
+    let mut group = c.benchmark_group("DistributionValue");
+
+    for size in [1, 10, 100, 1000, 10_000, 100_000, 1_000_000] {
+        let values = std::iter::from_fn(|| Some(rand::random()))
+            .take(size as usize)
+            .collect::<Vec<f64>>();
+
+        group.throughput(criterion::Throughput::Elements(size));
+        group.bench_with_input(BenchmarkId::from_parameter(size), &values, |b, values| {
+            b.iter(|| DistributionValue::from_iter(black_box(values.iter().copied())))
+        });
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_insert_and_flush, bench_distribution);
 criterion_main!(benches);

@@ -35,6 +35,9 @@ pub struct ProfileMetadata {
     platform: String,
     profile_id: EventId,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timestamp: Option<DateTime<Utc>>,
+
     #[serde(default, skip_serializing_if = "String::is_empty")]
     release: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -337,5 +340,23 @@ mod tests {
         if let Some(transaction) = output.metadata.transaction {
             assert_eq!(transaction.name, "some-random-transaction".to_string());
         }
+    }
+
+    #[test]
+    fn test_timestamp() {
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let profile = parse_profile(payload);
+
+        assert!(profile.is_ok());
+        assert!(profile.as_ref().unwrap().metadata.timestamp.is_none());
+
+        let mut ap = profile.unwrap();
+        let now = Some(Utc::now());
+        ap.metadata.timestamp = now;
+        let data = serde_json::to_vec(&ap);
+        let updated = parse_profile(&(data.unwrap())[..]);
+
+        assert!(updated.is_ok());
+        assert_eq!(updated.unwrap().metadata.timestamp, now);
     }
 }

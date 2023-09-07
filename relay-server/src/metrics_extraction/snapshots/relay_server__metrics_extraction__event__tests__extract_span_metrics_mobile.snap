@@ -50,12 +50,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
         },
     ],
     [
-        Metric {
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
-                2000.0,
+                [
+                    2000.0,
+                ],
             ),
-            timestamp: UnixTimestamp(1597976302),
             tags: {
                 "device.class": "1",
                 "release": "1.2.3",
@@ -64,12 +67,15 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": "GET",
             },
         },
-        Metric {
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
             name: "d:spans/exclusive_time_light@millisecond",
             value: Distribution(
-                2000.0,
+                [
+                    2000.0,
+                ],
             ),
-            timestamp: UnixTimestamp(1597976302),
             tags: {
                 "device.class": "1",
                 "release": "1.2.3",
