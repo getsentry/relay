@@ -277,22 +277,23 @@ impl Service for GlobalConfigService {
                         }
                         Ok(None) => {
                             relay_log::info!(
-            "serving default global configs due to lacking static global config file"
-        );
+                                "serving default global configs due to lacking static global config file"
+                            );
                         }
                         Err(e) => {
                             relay_log::error!("failed to load global config from file: {}", e);
                             relay_log::info!(
-            "serving default global configs due to failure to load global config from file"
-        );
+                                "serving default global configs due to failure to load global config from file"
+                            );
                         }
                     }
                 }
-            }
+            };
 
             loop {
                 tokio::select! {
                     biased;
+
                     () = &mut self.fetch_handle => self.request_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_upstream_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
@@ -311,7 +312,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use relay_config::Config;
+    use relay_config::{Config, RelayMode};
     use relay_system::{Controller, Service, ShutdownMode};
     use relay_test::mock_service;
 
@@ -333,14 +334,69 @@ mod tests {
         });
 
         Controller::start(Duration::from_secs(1));
-        let config = Arc::<Config>::default();
-        let service = GlobalConfigService::new(config.clone(), upstream).start();
+        let mut config = Config::default();
+        config.update_credentials();
+        let fetch_interval = config.global_config_fetch_interval();
+
+        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
 
         assert!(service.send(Get).await.is_ok());
 
         Controller::shutdown(ShutdownMode::Immediate);
-        tokio::time::sleep(config.global_config_fetch_interval() * 2).await;
+        tokio::time::sleep(fetch_interval * 2).await;
 
         assert!(service.send(Get).await.is_ok());
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn managed_relay_makes_upstream_request() {
+        relay_test::setup();
+        tokio::time::pause();
+
+        let (upstream, handle) = mock_service("upstream", (), |(), _| {
+            panic!();
+        });
+
+        let mut config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "mode":  RelayMode::Managed
+            }
+        }))
+        .unwrap();
+        config.update_credentials();
+
+        let fetch_interval = config.global_config_fetch_interval();
+
+        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+        service.send(Get).await.unwrap();
+
+        tokio::time::sleep(fetch_interval * 2).await;
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn proxy_relay_does_not_make_upstream_request() {
+        relay_test::setup();
+        tokio::time::pause();
+
+        let (upstream, _) = mock_service("upstream", (), |(), _| {
+            panic!();
+        });
+
+        let mut config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "mode":  RelayMode::Proxy
+            }
+        }))
+        .unwrap();
+        config.update_credentials();
+
+        let fetch_interval = config.global_config_fetch_interval();
+
+        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+        service.send(Get).await.unwrap();
+
+        tokio::time::sleep(fetch_interval * 2).await;
     }
 }

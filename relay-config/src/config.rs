@@ -1465,6 +1465,12 @@ impl Config {
         Ok(())
     }
 
+    /// Updates the credentials without creating the file, for testing purposes.
+    pub fn update_credentials(&mut self) {
+        let creds = Credentials::generate();
+        self.credentials = Some(creds);
+    }
+
     /// Return the current credentials
     pub fn credentials(&self) -> Option<&Credentials> {
         self.credentials.as_ref()
