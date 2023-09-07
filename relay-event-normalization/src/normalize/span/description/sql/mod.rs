@@ -503,6 +503,12 @@ mod tests {
     );
 
     scrub_sql_test!(
+        qualified_wildcard,
+        r#"SELECT "foo".* FROM "foo""#,
+        "SELECT * FROM foo"
+    );
+
+    scrub_sql_test!(
         parameters_in,
         "select column FROM table1 WHERE id IN (1, 2, 3)",
         "SELECT column FROM table1 WHERE id IN (%s)"
