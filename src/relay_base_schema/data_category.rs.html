@@ -152,6 +152,14 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -205,6 +213,12 @@
     ///
     /// Used for spans processed independently of transactions.
     </span>Span = <span class="number">12</span>,
+    <span class="doccomment">/// Monitor Seat
+    ///
+    /// Represents a monitor job that has scheduled monitor checkins. The seats are not ingested
+    /// but we define it here to prevent clashing values since this data category enumeration
+    /// is also used outside of Relay via the Python package.
+    </span>MonitorSeat = <span class="number">13</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -233,6 +247,7 @@
             <span class="string">&quot;transaction_indexed&quot; </span>=&gt; <span class="self">Self</span>::TransactionIndexed,
             <span class="string">&quot;monitor&quot; </span>=&gt; <span class="self">Self</span>::Monitor,
             <span class="string">&quot;span&quot; </span>=&gt; <span class="self">Self</span>::Span,
+            <span class="string">&quot;monitor_seat&quot; </span>=&gt; <span class="self">Self</span>::MonitorSeat,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -254,6 +269,7 @@
             <span class="self">Self</span>::TransactionIndexed =&gt; <span class="string">&quot;transaction_indexed&quot;</span>,
             <span class="self">Self</span>::Monitor =&gt; <span class="string">&quot;monitor&quot;</span>,
             <span class="self">Self</span>::Span =&gt; <span class="string">&quot;span&quot;</span>,
+            <span class="self">Self</span>::MonitorSeat =&gt; <span class="string">&quot;monitor_seat&quot;</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
