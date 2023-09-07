@@ -232,14 +232,6 @@
 <a href="#232" id="232">232</a>
 <a href="#233" id="233">233</a>
 <a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="kw">use </span><span class="kw">crate</span>::BucketValue;
@@ -271,13 +263,6 @@
 
 <span class="doccomment">/// Counter metrics for Relay Metrics.
 </span><span class="kw">pub enum </span>MetricCounters {
-    <span class="doccomment">/// Incremented for every metric that is inserted.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
-    ///  - `metric_type`: The type of the metric (e.g. `&quot;counter&quot;`).
-    </span>InsertMetric,
-
     <span class="doccomment">/// Incremented every time two buckets or two metrics are merged.
     ///
     /// This metric is tagged with:
@@ -304,7 +289,6 @@
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>MetricCounters {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::InsertMetric =&gt; <span class="string">&quot;metrics.insert&quot;</span>,
             <span class="self">Self</span>::MergeHit =&gt; <span class="string">&quot;metrics.buckets.merge.hit&quot;</span>,
             <span class="self">Self</span>::MergeMiss =&gt; <span class="string">&quot;metrics.buckets.merge.miss&quot;</span>,
             <span class="self">Self</span>::BucketsDropped =&gt; <span class="string">&quot;metrics.buckets.dropped&quot;</span>,

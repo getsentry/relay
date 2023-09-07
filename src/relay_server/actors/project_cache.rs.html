@@ -1089,31 +1089,13 @@
 <a href="#1089" id="1089">1089</a>
 <a href="#1090" id="1090">1090</a>
 <a href="#1091" id="1091">1091</a>
-<a href="#1092" id="1092">1092</a>
-<a href="#1093" id="1093">1093</a>
-<a href="#1094" id="1094">1094</a>
-<a href="#1095" id="1095">1095</a>
-<a href="#1096" id="1096">1096</a>
-<a href="#1097" id="1097">1097</a>
-<a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a>
-<a href="#1100" id="1100">1100</a>
-<a href="#1101" id="1101">1101</a>
-<a href="#1102" id="1102">1102</a>
-<a href="#1103" id="1103">1103</a>
-<a href="#1104" id="1104">1104</a>
-<a href="#1105" id="1105">1105</a>
-<a href="#1106" id="1106">1106</a>
-<a href="#1107" id="1107">1107</a>
-<a href="#1108" id="1108">1108</a>
-<a href="#1109" id="1109">1109</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_metrics::{<span class="self">self</span>, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
+<span class="kw">use </span>relay_metrics::{<span class="self">self</span>, Aggregator, FlushBuckets, MergeBuckets};
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1305,8 +1287,8 @@
 /// information.
 ///
 /// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
-/// inspect contents of envelopes for ingestion, as well as [`InsertMetrics`] and [`MergeBuckets`]
-/// to aggregate metrics associated with a project.
+/// inspect contents of envelopes for ingestion, as well as [`MergeBuckets`] to aggregate metrics
+/// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 </span><span class="kw">pub enum </span>ProjectCache {
@@ -1319,7 +1301,6 @@
     ),
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
-    InsertMetrics(InsertMetrics),
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
@@ -1387,14 +1368,6 @@
 
     <span class="kw">fn </span>from_message(message: UpdateRateLimits, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::UpdateRateLimits(message)
-    }
-}
-
-<span class="kw">impl </span>FromMessage&lt;InsertMetrics&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span>Response = relay_system::NoResponse;
-
-    <span class="kw">fn </span>from_message(message: InsertMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::InsertMetrics(message)
     }
 }
 
@@ -1869,14 +1842,6 @@
             .merge_rate_limits(message.rate_limits);
     }
 
-    <span class="kw">fn </span>handle_insert_metrics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: InsertMetrics) {
-        <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
-        <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
-        <span class="comment">// Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        </span><span class="self">self</span>.get_or_create_project(message.project_key())
-            .insert_metrics(aggregator, outcome_aggregator, message.metrics());
-    }
-
     <span class="kw">fn </span>handle_merge_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: MergeBuckets) {
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="kw">let </span>outcome_aggregator = <span class="self">self</span>.services.outcome_aggregator.clone();
@@ -1911,7 +1876,6 @@
             }
             ProjectCache::ValidateEnvelope(message) =&gt; <span class="self">self</span>.handle_validate_envelope(message),
             ProjectCache::UpdateRateLimits(message) =&gt; <span class="self">self</span>.handle_rate_limits(message),
-            ProjectCache::InsertMetrics(message) =&gt; <span class="self">self</span>.handle_insert_metrics(message),
             ProjectCache::MergeBuckets(message) =&gt; <span class="self">self</span>.handle_merge_buckets(message),
             ProjectCache::FlushBuckets(message) =&gt; <span class="self">self</span>.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) =&gt; <span class="self">self</span>.handle_buffer_index(message),

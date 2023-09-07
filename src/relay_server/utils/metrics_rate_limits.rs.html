@@ -400,7 +400,7 @@
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
+<span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span>relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_system::Addr;
 
@@ -408,9 +408,9 @@
 
 <span class="doccomment">/// Contains all data necessary to rate limit metrics or metrics buckets.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>MetricsLimiter&lt;M: MetricsContainer, Q: AsRef&lt;Vec&lt;Quota&gt;&gt; = Vec&lt;Quota&gt;&gt; {
-    <span class="doccomment">/// A list of metrics or buckets.
-    </span>metrics: Vec&lt;M&gt;,
+</span><span class="kw">pub struct </span>MetricsLimiter&lt;Q: AsRef&lt;Vec&lt;Quota&gt;&gt; = Vec&lt;Quota&gt;&gt; {
+    <span class="doccomment">/// A list of aggregated metric buckets.
+    </span>metrics: Vec&lt;Bucket&gt;,
 
     <span class="doccomment">/// The quotas set on the current project.
     </span>quotas: Q,
@@ -433,18 +433,18 @@
 
 <span class="kw">const </span>PROFILE_TAG: <span class="kw-2">&amp;</span>str = <span class="string">&quot;has_profile&quot;</span>;
 
-<span class="kw">impl</span>&lt;M: MetricsContainer, Q: AsRef&lt;Vec&lt;Quota&gt;&gt;&gt; MetricsLimiter&lt;M, Q&gt; {
+<span class="kw">impl</span>&lt;Q: AsRef&lt;Vec&lt;Quota&gt;&gt;&gt; MetricsLimiter&lt;Q&gt; {
     <span class="doccomment">/// Create a new limiter instance.
     ///
     /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
-    </span><span class="kw">pub fn </span>create(buckets: Vec&lt;M&gt;, quotas: Q, scoping: Scoping) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;M&gt;&gt; {
+    </span><span class="kw">pub fn </span>create(buckets: Vec&lt;Bucket&gt;, quotas: Q, scoping: Scoping) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;Bucket&gt;&gt; {
         <span class="kw">let </span>counts: Vec&lt;<span class="kw">_</span>&gt; = buckets
             .iter()
             .map(|metric| {
-                <span class="kw">let </span>mri = <span class="kw">match </span>MetricResourceIdentifier::parse(metric.name()) {
+                <span class="kw">let </span>mri = <span class="kw">match </span>MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>metric.name) {
                     <span class="prelude-val">Ok</span>(mri) =&gt; mri,
                     <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid MRI: {}&quot;</span>, metric.name());
+                        <span class="macro">relay_log::error!</span>(<span class="string">&quot;invalid MRI: {}&quot;</span>, metric.name);
                         <span class="kw">return </span><span class="prelude-val">None</span>;
                     }
                 };
@@ -457,7 +457,7 @@
                 <span class="kw">if </span>mri.name == <span class="string">&quot;duration&quot; </span>{
                     <span class="comment">// The &quot;duration&quot; metric is extracted exactly once for every processed
                     // transaction, so we can use it to count the number of transactions.
-                    </span><span class="kw">let </span>count = metric.len();
+                    </span><span class="kw">let </span>count = metric.value.len();
                     <span class="kw">let </span>has_profile = metric.tag(PROFILE_TAG) == <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>);
                     <span class="prelude-val">Some</span>((count, has_profile))
                 } <span class="kw">else </span>{
@@ -634,7 +634,7 @@
     }
 
     <span class="doccomment">/// Consume this struct and return the contained metrics.
-    </span><span class="kw">pub fn </span>into_metrics(<span class="self">self</span>) -&gt; Vec&lt;M&gt; {
+    </span><span class="kw">pub fn </span>into_metrics(<span class="self">self</span>) -&gt; Vec&lt;Bucket&gt; {
         <span class="self">self</span>.metrics
     }
 }

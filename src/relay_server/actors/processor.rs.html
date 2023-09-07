@@ -4472,7 +4472,7 @@
 </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 #[derive(Debug)]
 </span><span class="kw">pub struct </span>RateLimitFlushBuckets {
-    <span class="kw">pub </span>bucket_limiter: MetricsLimiter&lt;Bucket&gt;,
+    <span class="kw">pub </span>bucket_limiter: MetricsLimiter,
     <span class="kw">pub </span>partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 

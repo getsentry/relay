@@ -1081,26 +1081,6 @@
 <a href="#1081" id="1081">1081</a>
 <a href="#1082" id="1082">1082</a>
 <a href="#1083" id="1083">1083</a>
-<a href="#1084" id="1084">1084</a>
-<a href="#1085" id="1085">1085</a>
-<a href="#1086" id="1086">1086</a>
-<a href="#1087" id="1087">1087</a>
-<a href="#1088" id="1088">1088</a>
-<a href="#1089" id="1089">1089</a>
-<a href="#1090" id="1090">1090</a>
-<a href="#1091" id="1091">1091</a>
-<a href="#1092" id="1092">1092</a>
-<a href="#1093" id="1093">1093</a>
-<a href="#1094" id="1094">1094</a>
-<a href="#1095" id="1095">1095</a>
-<a href="#1096" id="1096">1096</a>
-<a href="#1097" id="1097">1097</a>
-<a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a>
-<a href="#1100" id="1100">1100</a>
-<a href="#1101" id="1101">1101</a>
-<a href="#1102" id="1102">1102</a>
-<a href="#1103" id="1103">1103</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1109,10 +1089,7 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 <span class="kw">use </span>relay_filter::matches_any_origin;
-<span class="kw">use </span>relay_metrics::{
-    Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricsContainer,
-};
+<span class="kw">use </span>relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, BroadcastChannel};
@@ -1581,11 +1558,11 @@
     ///
     ///  - Removes metrics from unsupported or disabled use cases.
     ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
-    </span><span class="kw">fn </span>rate_limit_metrics&lt;T: MetricsContainer&gt;(
+    </span><span class="kw">fn </span>rate_limit_metrics(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="kw-2">mut </span>metrics: Vec&lt;T&gt;,
+        <span class="kw-2">mut </span>metrics: Vec&lt;Bucket&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-    ) -&gt; Vec&lt;T&gt; {
+    ) -&gt; Vec&lt;Bucket&gt; {
         <span class="self">self</span>.filter_metrics(<span class="kw-2">&amp;mut </span>metrics);
         <span class="kw">if </span>metrics.is_empty() {
             <span class="kw">return </span>metrics;
@@ -1605,14 +1582,14 @@
     }
 
     <span class="doccomment">/// Remove metric buckets that are not allowed to be ingested.
-    </span><span class="kw">fn </span>filter_metrics&lt;T: MetricsContainer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, metrics: <span class="kw-2">&amp;mut </span>Vec&lt;T&gt;) {
+    </span><span class="kw">fn </span>filter_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, metrics: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;) {
         <span class="kw">let </span><span class="prelude-val">Some</span>(state) = <span class="kw-2">&amp;</span><span class="self">self</span>.state <span class="kw">else </span>{
             <span class="kw">return</span>;
         };
 
         metrics.retain(|metric| {
-            <span class="kw">let </span><span class="prelude-val">Ok</span>(mri) = MetricResourceIdentifier::parse(metric.name()) <span class="kw">else </span>{
-                <span class="macro">relay_log::trace!</span>(mri = metric.name(), <span class="string">&quot;dropping metrics with invalid MRI&quot;</span>);
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(mri) = MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span>metric.name) <span class="kw">else </span>{
+                <span class="macro">relay_log::trace!</span>(mri = metric.name, <span class="string">&quot;dropping metrics with invalid MRI&quot;</span>);
                 <span class="kw">return </span><span class="bool-val">false</span>;
             };
 
@@ -1625,7 +1602,7 @@
             };
 
             <span class="kw">if </span>!verdict {
-                <span class="macro">relay_log::trace!</span>(mri = metric.name(), <span class="string">&quot;dropping metric in disabled namespace&quot;</span>);
+                <span class="macro">relay_log::trace!</span>(mri = metric.name, <span class="string">&quot;dropping metric in disabled namespace&quot;</span>);
             }
 
             verdict
@@ -1648,23 +1625,6 @@
             }
         } <span class="kw">else </span>{
             <span class="macro">relay_log::debug!</span>(<span class="string">&quot;dropping metric buckets, project disabled&quot;</span>);
-        }
-    }
-
-    <span class="doccomment">/// Inserts given [metrics](Metric) into the metrics aggregator.
-    ///
-    /// The metrics will be keyed underneath this project key.
-    </span><span class="kw">pub fn </span>insert_metrics(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        aggregator: Addr&lt;Aggregator&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        metrics: Vec&lt;Metric&gt;,
-    ) {
-        <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
-            <span class="kw">let </span>metrics = <span class="self">self</span>.rate_limit_metrics(metrics, outcome_aggregator);
-            <span class="kw">if </span>!metrics.is_empty() {
-                aggregator.send(InsertMetrics::new(<span class="self">self</span>.project_key, metrics));
-            }
         }
     }
 
