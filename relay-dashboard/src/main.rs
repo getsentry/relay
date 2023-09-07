@@ -13,9 +13,9 @@ const MAX_LOG_SIZE: usize = 1000;
 
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
-    #[at("/")]
+    #[at("/dashboard/")]
     Stats,
-    #[at("/tools")]
+    #[at("/dashboard/tools")]
     Tools,
     #[not_found]
     #[at("/404")]

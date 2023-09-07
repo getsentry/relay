@@ -22,3 +22,23 @@ Run frontend server for development:
 ```sh
 make web
 ```
+
+# Release
+
+Build the WASM app first in release mode:
+
+```sh
+make dashboard-release
+```
+
+or run inside of `relay-dashboard` folder:
+
+```sh
+trunk build --release 
+```
+
+And then build the relay with `dashboard` feature enabled to pick up the built assets and embed them into the resulting binary:
+
+```sh
+cargo b --all-features --all-targets --workspace --release
+```

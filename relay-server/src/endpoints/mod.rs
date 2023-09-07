@@ -5,6 +5,8 @@
 
 mod attachments;
 mod common;
+#[cfg(feature = "dashboard")]
+mod dashboard;
 mod envelope;
 mod events;
 mod forward;
@@ -38,6 +40,9 @@ where
     B::Data: Send + Into<Bytes>,
     B::Error: Into<axum::BoxError>,
 {
+    #[cfg(feature = "dashboard")]
+    let dashboard = Router::new().route("/dashboard/",get(dashboard::index_handle))
+        .route("/dashboard/*file", get(dashboard::handle));
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
@@ -80,8 +85,11 @@ where
         .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
         .route_layer(middlewares::cors());
 
-    Router::new()
-        .merge(internal_routes)
+    let router = Router::new();
+    #[cfg(feature = "dashboard")]
+    let router = router.merge(dashboard);
+
+    router.merge(internal_routes)
         .merge(web_routes)
         .merge(store_routes)
         // Forward all other API routes to the upstream. This will 404 for non-API routes.
