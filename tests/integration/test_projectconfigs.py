@@ -9,6 +9,7 @@ from collections import namedtuple
 import tempfile
 import os
 
+from .fixtures.mini_sentry import GLOBAL_CONFIG
 from sentry_relay.auth import PublicKey, SecretKey, generate_key_pair
 
 RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal"])
@@ -451,4 +452,4 @@ def test_get_global_config(mini_sentry, relay):
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
     data = get_response(relay, packed, signature, version="4")
 
-    assert data["global"] == {}
+    assert data["global"] == GLOBAL_CONFIG

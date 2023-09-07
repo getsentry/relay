@@ -126,9 +126,8 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
-        transaction_range: None,   // only supported in relay
-        measurements_config: None, // only supported in relay
-        breakdowns_config: None,   // only supported in relay
+        transaction_range: None, // only supported in relay
+        breakdowns_config: None, // only supported in relay
         normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), // only supported in relay
         is_renormalize: config.is_renormalize.unwrap_or(false),
@@ -139,6 +138,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         span_description_rules: None,
         geoip_lookup: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
+        measurements: None,
     };
     light_normalize_event(&mut event, light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;

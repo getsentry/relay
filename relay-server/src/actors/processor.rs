@@ -23,7 +23,8 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    ClockDriftProcessor, LightNormalizationConfig, MeasurementsConfig, TransactionNameConfig,
+    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
+    TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
@@ -2416,7 +2417,6 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                measurements_config: state.project_state.config.measurements.as_ref(),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
@@ -2438,6 +2438,10 @@ impl EnvelopeProcessorService {
                 span_description_rules: state.project_state.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 enable_trimming: true,
+                measurements: Some(DynamicMeasurementsConfig::new(
+                    state.project_state.config().measurements.as_ref(),
+                    self.global_config.measurements.as_ref(),
+                )),
             };
 
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
