@@ -44,23 +44,33 @@ mod request;
 mod stacktrace;
 
 /// Defines a builtin measurement.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BuiltinMeasurementKey {
     name: String,
     unit: MetricUnit,
 }
 
+impl BuiltinMeasurementKey {
+    /// Creates a new [`BuiltinMeasurementKey`].
+    pub fn new(name: impl Into<String>, unit: MetricUnit) -> Self {
+        Self {
+            name: name.into(),
+            unit,
+        }
+    }
+}
+
 /// Configuration for measurements normalization.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MeasurementsConfig {
     /// A list of measurements that are built-in and are not subject to custom measurement limits.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    builtin_measurements: Vec<BuiltinMeasurementKey>,
+    pub builtin_measurements: Vec<BuiltinMeasurementKey>,
 
     /// The maximum number of measurements allowed per event that are not known measurements.
-    max_custom_measurements: usize,
+    pub max_custom_measurements: usize,
 }
 
 impl MeasurementsConfig {
@@ -311,9 +321,11 @@ fn normalize_breakdowns(event: &mut Event, breakdowns_config: Option<&Breakdowns
 fn remove_invalid_measurements(
     measurements: &mut Measurements,
     meta: &mut Meta,
-    measurements_config: &MeasurementsConfig,
+    measurements_config: DynamicMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
+    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
+
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
 
@@ -349,7 +361,7 @@ fn remove_invalid_measurements(
         }
 
         // Check if this is a builtin measurement:
-        for builtin_measurement in &measurements_config.builtin_measurements {
+        for builtin_measurement in measurements_config.builtin_measurement_keys() {
             if &builtin_measurement.name == name {
                 // If the unit matches a built-in measurement, we allow it.
                 // If the name matches but the unit is wrong, we do not even accept it as a custom measurement,
@@ -359,7 +371,7 @@ fn remove_invalid_measurements(
         }
 
         // For custom measurements, check the budget:
-        if custom_measurements_count < measurements_config.max_custom_measurements {
+        if custom_measurements_count < max_custom_measurements {
             custom_measurements_count += 1;
             return true;
         }
@@ -444,7 +456,7 @@ fn normalize_units(measurements: &mut Measurements) {
 /// Ensure measurements interface is only present for transaction events.
 fn normalize_measurements(
     event: &mut Event,
-    measurements_config: Option<&MeasurementsConfig>,
+    measurements_config: Option<DynamicMeasurementsConfig>,
     max_mri_len: Option<usize>,
 ) {
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -847,9 +859,10 @@ pub struct LightNormalizationConfig<'a> {
 
     /// Configuration for measurement normalization in transaction events.
     ///
-    /// If provided, normalization truncates custom measurements and adds units of known built-in
-    /// measurements.
-    pub measurements_config: Option<&'a MeasurementsConfig>,
+    /// Has an optional [`MeasurementsConfig`] from both the project and the global level.
+    /// If at least one is provided, then normalization will truncate custom measurements
+    /// and add units of known built-in measurements.
+    pub measurements: Option<DynamicMeasurementsConfig<'a>>,
 
     /// Emit breakdowns based on given configuration.
     pub breakdowns_config: Option<&'a BreakdownsConfig>,
@@ -906,7 +919,6 @@ impl Default for LightNormalizationConfig<'_> {
             max_secs_in_future: Default::default(),
             transaction_range: Default::default(),
             max_name_and_unit_len: Default::default(),
-            measurements_config: Default::default(),
             breakdowns_config: Default::default(),
             normalize_user_agent: Default::default(),
             transaction_name_config: Default::default(),
@@ -918,6 +930,61 @@ impl Default for LightNormalizationConfig<'_> {
             span_description_rules: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
+            measurements: None,
+        }
+    }
+}
+
+/// Container for global and project level [`MeasurementsConfig`]. The purpose is to handle
+/// the merging logic.
+#[derive(Clone, Debug)]
+pub struct DynamicMeasurementsConfig<'a> {
+    project: Option<&'a MeasurementsConfig>,
+    global: Option<&'a MeasurementsConfig>,
+}
+
+impl<'a> DynamicMeasurementsConfig<'a> {
+    /// Constructor for [`DynamicMeasurementsConfig`].
+    pub fn new(
+        project: Option<&'a MeasurementsConfig>,
+        global: Option<&'a MeasurementsConfig>,
+    ) -> Self {
+        DynamicMeasurementsConfig { project, global }
+    }
+
+    /// Returns an iterator over the merged builtin measurement keys.
+    ///
+    /// Items from the project config are prioritized over global config, and
+    /// there are no duplicates.
+    pub fn builtin_measurement_keys(
+        &'a self,
+    ) -> impl Iterator<Item = &'a BuiltinMeasurementKey> + '_ {
+        let project = self
+            .project
+            .map(|p| p.builtin_measurements.as_slice())
+            .unwrap_or_default();
+
+        let global = self
+            .global
+            .map(|g| g.builtin_measurements.as_slice())
+            .unwrap_or_default();
+
+        project
+            .iter()
+            .chain(global.iter().filter(|key| !project.contains(key)))
+    }
+
+    /// Gets the max custom measurements value from the [`MeasurementsConfig`] from project level or
+    /// global level. If both of them are available, it will choose the most restrictive.
+    pub fn max_custom_measurements(&'a self) -> Option<usize> {
+        match (&self.project, &self.global) {
+            (None, None) => None,
+            (None, Some(global)) => Some(global.max_custom_measurements),
+            (Some(project), None) => Some(project.max_custom_measurements),
+            (Some(project), Some(global)) => Some(std::cmp::min(
+                project.max_custom_measurements,
+                global.max_custom_measurements,
+            )),
         }
     }
 }
@@ -1008,11 +1075,7 @@ pub fn light_normalize_event(
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
-        normalize_measurements(
-            event,
-            config.measurements_config,
-            config.max_name_and_unit_len,
-        ); // Measurements are part of the metric extraction
+        normalize_measurements(event, config.measurements, config.max_name_and_unit_len); // Measurements are part of the metric extraction
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
@@ -1414,6 +1477,58 @@ mod tests {
         fn default() -> Self {
             NormalizeProcessor::new(Arc::new(StoreConfig::default()), None)
         }
+    }
+
+    #[test]
+    fn test_merge_builtin_measurement_keys() {
+        let foo = BuiltinMeasurementKey::new("foo", MetricUnit::Duration(DurationUnit::Hour));
+        let bar = BuiltinMeasurementKey::new("bar", MetricUnit::Duration(DurationUnit::Day));
+        let baz = BuiltinMeasurementKey::new("baz", MetricUnit::Duration(DurationUnit::Week));
+
+        let proj = MeasurementsConfig {
+            builtin_measurements: vec![foo.clone(), bar.clone()],
+            max_custom_measurements: 4,
+        };
+
+        let glob = MeasurementsConfig {
+            // The 'bar' here will be ignored since it's a duplicate from the project level.
+            builtin_measurements: vec![baz.clone(), bar.clone()],
+            max_custom_measurements: 4,
+        };
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
+
+        let keys = dynamic_config.builtin_measurement_keys().collect_vec();
+
+        assert_eq!(keys, vec![&foo, &bar, &baz]);
+    }
+
+    #[test]
+    fn test_max_custom_measurement() {
+        // Empty configs will return a None value for max measurements.
+        let dynamic_config = DynamicMeasurementsConfig::new(None, None);
+        assert!(dynamic_config.max_custom_measurements().is_none());
+
+        let proj = MeasurementsConfig {
+            builtin_measurements: vec![],
+            max_custom_measurements: 3,
+        };
+
+        let glob = MeasurementsConfig {
+            builtin_measurements: vec![],
+            max_custom_measurements: 4,
+        };
+
+        // If only project level measurement config is there, return its max custom measurement variable.
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), None);
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
+
+        // Same logic for when only global level measurement config exists.
+        let dynamic_config = DynamicMeasurementsConfig::new(None, Some(&glob));
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 4);
+
+        // If both is available, pick the smallest number.
+        let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
     }
 
     #[test]
@@ -2754,7 +2869,7 @@ mod tests {
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        let config: MeasurementsConfig = serde_json::from_value(json!({
+        let project_measurement_config: MeasurementsConfig = serde_json::from_value(json!({
             "builtinMeasurements": [
                 {"name": "frames_frozen", "unit": "none"},
                 {"name": "frames_slow", "unit": "none"}
@@ -2764,7 +2879,12 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_measurements(&mut event, Some(&config), None);
+        let dynamic_measurement_config = DynamicMeasurementsConfig {
+            project: Some(&project_measurement_config),
+            global: None,
+        };
+
+        normalize_measurements(&mut event, Some(dynamic_measurement_config), None);
 
         // Only two custom measurements are retained, in alphabetic order (1 and 2)
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
@@ -3369,6 +3489,11 @@ mod tests {
             ..Default::default()
         };
 
+        let dynamic_config = DynamicMeasurementsConfig {
+            project: Some(&measurements_config),
+            global: None,
+        };
+
         // Just for clarity.
         // Checks that there is 1 measurement before processing.
         assert_eq!(measurements.len(), 1);
@@ -3376,7 +3501,7 @@ mod tests {
         remove_invalid_measurements(
             &mut measurements,
             &mut meta,
-            &measurements_config,
+            dynamic_config,
             max_name_and_unit_len,
         );
 
