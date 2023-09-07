@@ -6,10 +6,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{
-    Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricsContainer,
-};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
@@ -478,11 +475,11 @@ impl Project {
     ///
     ///  - Removes metrics from unsupported or disabled use cases.
     ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
-    fn rate_limit_metrics<T: MetricsContainer>(
+    fn rate_limit_metrics(
         &self,
-        mut metrics: Vec<T>,
+        mut metrics: Vec<Bucket>,
         outcome_aggregator: Addr<TrackOutcome>,
-    ) -> Vec<T> {
+    ) -> Vec<Bucket> {
         self.filter_metrics(&mut metrics);
         if metrics.is_empty() {
             return metrics;
@@ -502,14 +499,14 @@ impl Project {
     }
 
     /// Remove metric buckets that are not allowed to be ingested.
-    fn filter_metrics<T: MetricsContainer>(&self, metrics: &mut Vec<T>) {
+    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
         let Some(state) = &self.state else {
             return;
         };
 
         metrics.retain(|metric| {
-            let Ok(mri) = MetricResourceIdentifier::parse(metric.name()) else {
-                relay_log::trace!(mri = metric.name(), "dropping metrics with invalid MRI");
+            let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
+                relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
                 return false;
             };
 
@@ -522,7 +519,7 @@ impl Project {
             };
 
             if !verdict {
-                relay_log::trace!(mri = metric.name(), "dropping metric in disabled namespace");
+                relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
             }
 
             verdict
@@ -545,23 +542,6 @@ impl Project {
             }
         } else {
             relay_log::debug!("dropping metric buckets, project disabled");
-        }
-    }
-
-    /// Inserts given [metrics](Metric) into the metrics aggregator.
-    ///
-    /// The metrics will be keyed underneath this project key.
-    pub fn insert_metrics(
-        &mut self,
-        aggregator: Addr<Aggregator>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metrics: Vec<Metric>,
-    ) {
-        if self.metrics_allowed() {
-            let metrics = self.rate_limit_metrics(metrics, outcome_aggregator);
-            if !metrics.is_empty() {
-                aggregator.send(InsertMetrics::new(self.project_key, metrics));
-            }
         }
     }
 

@@ -473,7 +473,7 @@ impl EncodeEnvelope {
 #[cfg(feature = "processing")]
 #[derive(Debug)]
 pub struct RateLimitFlushBuckets {
-    pub bucket_limiter: MetricsLimiter<Bucket>,
+    pub bucket_limiter: MetricsLimiter,
     pub partition_key: Option<u64>,
 }
 

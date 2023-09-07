@@ -4,14 +4,14 @@ use std::fmt;
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{AggregatorConfig, AggregatorService, DistributionValue, Metric, MetricValue};
+use relay_metrics::{AggregatorConfig, AggregatorService, Bucket, BucketValue, DistributionValue};
 
 /// Struct representing a testcase for which insert + flush are timed.
 struct MetricInput {
     num_metrics: usize,
     num_metric_names: usize,
     num_project_keys: usize,
-    metric: Metric,
+    bucket: Bucket,
 }
 
 impl MetricInput {
@@ -21,16 +21,16 @@ impl MetricInput {
     // In theory we could also create all vectors upfront instead of having a MetricInput struct,
     // but that would take a lot of memory. This way we can at least free some RAM between
     // benchmarks.
-    fn get_metrics(&self) -> Vec<(ProjectKey, Metric)> {
+    fn get_buckets(&self) -> Vec<(ProjectKey, Bucket)> {
         let mut rv = Vec::new();
 
         for i in 0..self.num_metrics {
             let key_id = i % self.num_project_keys;
             let metric_name = format!("c:transactions/foo{}", i % self.num_metric_names);
-            let mut metric = self.metric.clone();
-            metric.name = metric_name;
+            let mut bucket = self.bucket.clone();
+            bucket.name = metric_name;
             let key = ProjectKey::parse(&format!("{key_id:0width$x}", width = 32)).unwrap();
-            rv.push((key, metric));
+            rv.push((key, bucket));
         }
 
         rv
@@ -43,7 +43,7 @@ impl fmt::Display for MetricInput {
             f,
             "{} {:?} metrics with {} names, {} keys",
             self.num_metrics,
-            self.metric.value.ty(),
+            self.bucket.value.ty(),
             self.num_metric_names,
             self.num_project_keys
         )
@@ -58,10 +58,11 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         ..Default::default()
     };
 
-    let counter = Metric {
-        name: "c:transactions/foo@none".to_owned(),
-        value: MetricValue::Counter(42.),
+    let counter = Bucket {
         timestamp: UnixTimestamp::now(),
+        width: 0,
+        name: "c:transactions/foo@none".to_owned(),
+        value: BucketValue::counter(42.),
         tags: BTreeMap::new(),
     };
 
@@ -69,46 +70,46 @@ fn bench_insert_and_flush(c: &mut Criterion) {
         MetricInput {
             num_metrics: 1,
             num_metric_names: 1,
-            metric: counter.clone(),
+            bucket: counter.clone(),
             num_project_keys: 1,
         },
         // scaling num_metrics
         MetricInput {
             num_metrics: 100,
             num_metric_names: 1,
-            metric: counter.clone(),
+            bucket: counter.clone(),
             num_project_keys: 1,
         },
         MetricInput {
             num_metrics: 1000,
             num_metric_names: 1,
-            metric: counter.clone(),
+            bucket: counter.clone(),
             num_project_keys: 1,
         },
         // scaling num_metric_names
         MetricInput {
             num_metrics: 100,
             num_metric_names: 100,
-            metric: counter.clone(),
+            bucket: counter.clone(),
             num_project_keys: 1,
         },
         MetricInput {
             num_metrics: 1000,
             num_metric_names: 1000,
-            metric: counter.clone(),
+            bucket: counter.clone(),
             num_project_keys: 1,
         },
         // scaling num_project_keys
         MetricInput {
             num_metrics: 100,
             num_metric_names: 1,
-            metric: counter.clone(),
+            bucket: counter.clone(),
             num_project_keys: 100,
         },
         MetricInput {
             num_metrics: 1000,
             num_metric_names: 1,
-            metric: counter,
+            bucket: counter,
             num_project_keys: 1000,
         },
     ];
@@ -122,12 +123,12 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     || {
                         (
                             AggregatorService::new(config.clone(), None),
-                            input.get_metrics(),
+                            input.get_buckets(),
                         )
                     },
-                    |(mut aggregator, metrics)| {
-                        for (project_key, metric) in metrics {
-                            aggregator.insert(project_key, metric).unwrap();
+                    |(mut aggregator, buckets)| {
+                        for (project_key, bucket) in buckets {
+                            aggregator.merge(project_key, bucket).unwrap();
                         }
                     },
                     BatchSize::SmallInput,
@@ -142,8 +143,8 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let mut aggregator = AggregatorService::new(config.clone(), None);
-                        for (project_key, metric) in input.get_metrics() {
-                            aggregator.insert(project_key, metric).unwrap();
+                        for (project_key, bucket) in input.get_buckets() {
+                            aggregator.merge(project_key, bucket).unwrap();
                         }
                         aggregator
                     },

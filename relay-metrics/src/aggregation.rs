@@ -17,13 +17,11 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
 
+use crate::bucket::{Bucket, BucketValue, DistributionValue};
+use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{
     metric_name_tag, metric_type_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets,
     MetricTimers,
-};
-use crate::{
-    protocol, Bucket, BucketValue, DistributionValue, Metric, MetricNamespace,
-    MetricResourceIdentifier, MetricValue,
 };
 
 /// Interval for the flush cycle of the [`AggregatorService`].
@@ -36,54 +34,6 @@ const AVG_VALUE_SIZE: usize = 8;
 /// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
 /// and buckets larger will be split up.
 const BUCKET_SPLIT_FACTOR: usize = 32;
-
-/// A value that can be merged into a [`BucketValue`].
-///
-/// Currently either a [`MetricValue`] or another `BucketValue`.
-trait MergeValue: Into<BucketValue> {
-    /// Merges `self` into the given `bucket_value` and returns the additional cost for storing this value.
-    ///
-    /// Aggregation is performed according to the rules documented in [`BucketValue`].
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError>;
-}
-
-impl MergeValue for BucketValue {
-    fn merge_into(self, bucket_value: &mut Self) -> Result<(), AggregateMetricsError> {
-        match (bucket_value, self) {
-            (Self::Counter(lhs), Self::Counter(rhs)) => *lhs += rhs,
-            (Self::Distribution(lhs), Self::Distribution(rhs)) => lhs.extend_from_slice(&rhs),
-            (Self::Set(lhs), Self::Set(rhs)) => lhs.extend(rhs),
-            (Self::Gauge(lhs), Self::Gauge(rhs)) => lhs.merge(rhs),
-            _ => return Err(AggregateMetricsErrorKind::InvalidTypes.into()),
-        }
-
-        Ok(())
-    }
-}
-
-impl MergeValue for MetricValue {
-    fn merge_into(self, bucket_value: &mut BucketValue) -> Result<(), AggregateMetricsError> {
-        match (bucket_value, self) {
-            (BucketValue::Counter(counter), MetricValue::Counter(value)) => {
-                *counter += value;
-            }
-            (BucketValue::Distribution(distribution), MetricValue::Distribution(value)) => {
-                distribution.push(value);
-            }
-            (BucketValue::Set(set), MetricValue::Set(value)) => {
-                set.insert(value);
-            }
-            (BucketValue::Gauge(gauge), MetricValue::Gauge(value)) => {
-                gauge.insert(value);
-            }
-            _ => {
-                return Err(AggregateMetricsErrorKind::InvalidTypes.into());
-            }
-        }
-
-        Ok(())
-    }
-}
 
 /// Estimates the number of bytes needed to encode the tags.
 ///
@@ -710,37 +660,6 @@ pub struct FlushBuckets {
     pub buckets: Vec<Bucket>,
 }
 
-/// A message containing a list of [`Metric`]s to be inserted into the aggregator.
-#[derive(Debug)]
-pub struct InsertMetrics {
-    pub(crate) project_key: ProjectKey,
-    pub(crate) metrics: Vec<Metric>,
-}
-
-impl InsertMetrics {
-    /// Creates a new message containing a list of [`Metric`]s.
-    pub fn new<I>(project_key: ProjectKey, metrics: I) -> Self
-    where
-        I: IntoIterator<Item = Metric>,
-    {
-        Self {
-            project_key,
-            metrics: metrics.into_iter().collect(),
-        }
-    }
-
-    /// Returns the `ProjectKey` for the the current `InsertMetrics` message.
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
-
-    /// Returns the list of the metrics in the current `InsertMetrics` message, consuming the
-    /// message itself.
-    pub fn metrics(self) -> Vec<Metric> {
-        self.metrics
-    }
-}
-
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
@@ -774,8 +693,6 @@ impl MergeBuckets {
 pub enum Aggregator {
     /// The health check message which makes sure that the service can accept the requests now.
     AcceptsMetrics(AcceptsMetrics, Sender<bool>),
-    /// Insert metrics.
-    InsertMetrics(InsertMetrics),
     /// Merge the buckets.
     MergeBuckets(MergeBuckets),
 
@@ -793,6 +710,13 @@ impl FromMessage<AcceptsMetrics> for Aggregator {
     }
 }
 
+impl FromMessage<MergeBuckets> for Aggregator {
+    type Response = NoResponse;
+    fn from_message(message: MergeBuckets, _: ()) -> Self {
+        Self::MergeBuckets(message)
+    }
+}
+
 #[cfg(test)]
 impl FromMessage<BucketCountInquiry> for Aggregator {
     type Response = AsyncResponse<usize>;
@@ -801,21 +725,7 @@ impl FromMessage<BucketCountInquiry> for Aggregator {
     }
 }
 
-impl FromMessage<InsertMetrics> for Aggregator {
-    type Response = NoResponse;
-    fn from_message(message: InsertMetrics, _: ()) -> Self {
-        Self::InsertMetrics(message)
-    }
-}
-
-impl FromMessage<MergeBuckets> for Aggregator {
-    type Response = NoResponse;
-    fn from_message(message: MergeBuckets, _: ()) -> Self {
-        Self::MergeBuckets(message)
-    }
-}
-
-/// A collector of [`Metric`] submissions.
+/// A collector of [`Bucket`] submissions.
 ///
 /// # Aggregation
 ///
@@ -1005,16 +915,23 @@ impl AggregatorService {
         key
     }
 
-    /// Merges any mergeable value into the bucket at the given `key`.
+    /// Merge a preaggregated bucket into this aggregator.
     ///
     /// If no bucket exists for the given bucket key, a new bucket will be created.
-    fn merge_in<T: MergeValue>(
+    pub fn merge(
         &mut self,
-        key: BucketKey,
-        value: T,
+        project_key: ProjectKey,
+        bucket: Bucket,
     ) -> Result<(), AggregateMetricsError> {
-        let project_key = key.project_key;
-
+        let timestamp = self
+            .config
+            .get_bucket_timestamp(bucket.timestamp, bucket.width)?;
+        let key = BucketKey {
+            project_key,
+            timestamp,
+            metric_name: bucket.name,
+            tags: bucket.tags,
+        };
         let key = Self::validate_bucket_key(key, &self.config)?;
 
         // XXX: This is not a great implementation of cost enforcement.
@@ -1059,7 +976,9 @@ impl AggregatorService {
                 );
                 let bucket_value = &mut entry.get_mut().value;
                 let cost_before = bucket_value.cost();
-                value.merge_into(bucket_value)?;
+                bucket_value
+                    .merge(bucket.value)
+                    .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
                 let cost_after = bucket_value.cost();
                 added_cost = cost_after.saturating_sub(cost_before);
             }
@@ -1076,56 +995,15 @@ impl AggregatorService {
                 );
 
                 let flush_at = self.config.get_flush_time(entry.key());
-                let bucket = value.into();
-                added_cost = entry.key().cost() + bucket.cost();
-                entry.insert(QueuedBucket::new(flush_at, bucket));
+                let value = bucket.value;
+                added_cost = entry.key().cost() + value.cost();
+                entry.insert(QueuedBucket::new(flush_at, value));
             }
         }
 
         self.cost_tracker.add_cost(project_key, added_cost);
 
         Ok(())
-    }
-
-    /// Inserts a metric into the corresponding bucket in this aggregator.
-    ///
-    /// If no bucket exists for the given bucket key, a new bucket will be created.
-    pub fn insert(
-        &mut self,
-        project_key: ProjectKey,
-        metric: Metric,
-    ) -> Result<(), AggregateMetricsError> {
-        relay_statsd::metric!(
-            counter(MetricCounters::InsertMetric) += 1,
-            aggregator = &self.name,
-            metric_type = metric.value.ty().as_str(),
-        );
-        let key = BucketKey {
-            project_key,
-            timestamp: self.config.get_bucket_timestamp(metric.timestamp, 0)?,
-            metric_name: metric.name,
-            tags: metric.tags,
-        };
-        self.merge_in(key, metric.value)
-    }
-
-    /// Merge a preaggregated bucket into this aggregator.
-    ///
-    /// If no bucket exists for the given bucket key, a new bucket will be created.
-    pub fn merge(
-        &mut self,
-        project_key: ProjectKey,
-        bucket: Bucket,
-    ) -> Result<(), AggregateMetricsError> {
-        let key = BucketKey {
-            project_key,
-            timestamp: self
-                .config
-                .get_bucket_timestamp(bucket.timestamp, bucket.width)?,
-            metric_name: bucket.name,
-            tags: bucket.tags,
-        };
-        self.merge_in(key, bucket.value)
     }
 
     /// Merges all given `buckets` into this aggregator.
@@ -1327,18 +1205,6 @@ impl AggregatorService {
         sender.send(result);
     }
 
-    fn handle_insert_metrics(&mut self, msg: InsertMetrics) {
-        let InsertMetrics {
-            project_key,
-            metrics,
-        } = msg;
-        for metric in metrics {
-            if let Err(err) = self.insert(project_key, metric) {
-                relay_log::error!(error = &err as &dyn Error, "failed to insert metrics",);
-            }
-        }
-    }
-
     fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
         let MergeBuckets {
             project_key,
@@ -1352,7 +1218,6 @@ impl AggregatorService {
     fn handle_message(&mut self, msg: Aggregator) {
         match msg {
             Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
-            Aggregator::InsertMetrics(msg) => self.handle_insert_metrics(msg),
             Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
             Aggregator::BucketCountInquiry(_, sender) => sender.send(self.buckets.len()),
@@ -1490,98 +1355,14 @@ mod tests {
         }
     }
 
-    fn some_metric() -> Metric {
-        Metric {
-            name: "c:transactions/foo".to_owned(),
-            value: MetricValue::Counter(42.),
+    fn some_bucket() -> Bucket {
+        Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
+            width: 0,
+            name: "c:transactions/foo".to_owned(),
+            value: BucketValue::counter(42.),
             tags: BTreeMap::new(),
         }
-    }
-
-    #[test]
-    fn test_bucket_value_merge_counter() {
-        let mut value = BucketValue::Counter(42.);
-        BucketValue::Counter(43.).merge_into(&mut value).unwrap();
-        assert_eq!(value, BucketValue::Counter(85.));
-    }
-
-    #[test]
-    fn test_bucket_value_merge_distribution() {
-        let mut value = BucketValue::Distribution(dist![1., 2., 3.]);
-        BucketValue::Distribution(dist![2., 4.])
-            .merge_into(&mut value)
-            .unwrap();
-        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2., 4.]));
-    }
-
-    #[test]
-    fn test_bucket_value_merge_set() {
-        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
-        BucketValue::Set(vec![2, 3].into_iter().collect())
-            .merge_into(&mut value)
-            .unwrap();
-        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
-    }
-
-    #[test]
-    fn test_bucket_value_merge_gauge() {
-        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
-        BucketValue::Gauge(GaugeValue::single(43.))
-            .merge_into(&mut value)
-            .unwrap();
-
-        assert_eq!(
-            value,
-            BucketValue::Gauge(GaugeValue {
-                last: 43.,
-                min: 42.,
-                max: 43.,
-                sum: 85.,
-                count: 2,
-            })
-        );
-    }
-
-    #[test]
-    fn test_bucket_value_insert_counter() {
-        let mut value = BucketValue::Counter(42.);
-        MetricValue::Counter(43.).merge_into(&mut value).unwrap();
-        assert_eq!(value, BucketValue::Counter(85.));
-    }
-
-    #[test]
-    fn test_bucket_value_insert_distribution() {
-        let mut value = BucketValue::Distribution(dist![1., 2., 3.]);
-        MetricValue::Distribution(2.0)
-            .merge_into(&mut value)
-            .unwrap();
-        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2.]));
-    }
-
-    #[test]
-    fn test_bucket_value_insert_set() {
-        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
-        MetricValue::Set(3).merge_into(&mut value).unwrap();
-        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
-        MetricValue::Set(2).merge_into(&mut value).unwrap();
-        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
-    }
-
-    #[test]
-    fn test_bucket_value_insert_gauge() {
-        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
-        MetricValue::Gauge(43.).merge_into(&mut value).unwrap();
-        assert_eq!(
-            value,
-            BucketValue::Gauge(GaugeValue {
-                last: 43.,
-                min: 42.,
-                max: 43.,
-                sum: 85.,
-                count: 2,
-            })
-        );
     }
 
     #[test]
@@ -1639,12 +1420,12 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut aggregator = AggregatorService::new(test_config(), None);
 
-        let metric1 = some_metric();
+        let bucket1 = some_bucket();
 
-        let mut metric2 = metric1.clone();
-        metric2.value = MetricValue::Counter(43.);
-        aggregator.insert(project_key, metric1).unwrap();
-        aggregator.insert(project_key, metric2).unwrap();
+        let mut bucket2 = bucket1.clone();
+        bucket2.value = BucketValue::counter(43.);
+        aggregator.merge(project_key, bucket1).unwrap();
+        aggregator.merge(project_key, bucket2).unwrap();
 
         let buckets: Vec<_> = aggregator
             .buckets
@@ -1679,16 +1460,16 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let mut aggregator = AggregatorService::new(config, None);
 
-        let metric1 = some_metric();
+        let bucket1 = some_bucket();
 
-        let mut metric2 = metric1.clone();
-        metric2.timestamp = UnixTimestamp::from_secs(999994712);
+        let mut bucket2 = bucket1.clone();
+        bucket2.timestamp = UnixTimestamp::from_secs(999994712);
 
-        let mut metric3 = metric1.clone();
-        metric3.timestamp = UnixTimestamp::from_secs(999994721);
-        aggregator.insert(project_key, metric1).unwrap();
-        aggregator.insert(project_key, metric2).unwrap();
-        aggregator.insert(project_key, metric3).unwrap();
+        let mut bucket3 = bucket1.clone();
+        bucket3.timestamp = UnixTimestamp::from_secs(999994721);
+        aggregator.merge(project_key, bucket1).unwrap();
+        aggregator.merge(project_key, bucket2).unwrap();
+        aggregator.merge(project_key, bucket3).unwrap();
 
         let mut buckets: Vec<_> = aggregator
             .buckets
@@ -1740,8 +1521,8 @@ mod tests {
         let mut aggregator = AggregatorService::new(config, None);
 
         // It's OK to have same metric with different projects:
-        aggregator.insert(project_key1, some_metric()).unwrap();
-        aggregator.insert(project_key2, some_metric()).unwrap();
+        aggregator.merge(project_key1, some_bucket()).unwrap();
+        aggregator.merge(project_key2, some_bucket()).unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
     }
@@ -1822,10 +1603,11 @@ mod tests {
         let mut aggregator = AggregatorService::new(test_config(), None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        let metric = Metric {
-            name: "c:transactions/foo@none".to_owned(),
-            value: MetricValue::Counter(42.),
+        let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
+            width: 0,
+            name: "c:transactions/foo@none".to_owned(),
+            value: BucketValue::counter(42.),
             tags: BTreeMap::new(),
         };
         let bucket_key = BucketKey {
@@ -1838,37 +1620,37 @@ mod tests {
         for (metric_name, metric_value, expected_added_cost) in [
             (
                 "c:transactions/foo@none",
-                MetricValue::Counter(42.),
+                BucketValue::counter(42.),
                 fixed_cost,
             ),
-            ("c:transactions/foo@none", MetricValue::Counter(42.), 0), // counters have constant size
+            ("c:transactions/foo@none", BucketValue::counter(42.), 0), // counters have constant size
             (
                 "s:transactions/foo@none",
-                MetricValue::Set(123),
+                BucketValue::set(123),
                 fixed_cost + 4,
             ), // Added a new bucket + 1 element
-            ("s:transactions/foo@none", MetricValue::Set(123), 0), // Same element in set, no change
-            ("s:transactions/foo@none", MetricValue::Set(456), 4), // Different element in set -> +4
+            ("s:transactions/foo@none", BucketValue::set(123), 0), // Same element in set, no change
+            ("s:transactions/foo@none", BucketValue::set(456), 4), // Different element in set -> +4
             (
                 "d:transactions/foo@none",
-                MetricValue::Distribution(1.0),
+                BucketValue::distribution(1.0),
                 fixed_cost + 8,
             ), // New bucket + 1 element
-            ("d:transactions/foo@none", MetricValue::Distribution(1.0), 8), // duplicate element
-            ("d:transactions/foo@none", MetricValue::Distribution(2.0), 8), // 1 new element
+            ("d:transactions/foo@none", BucketValue::distribution(1.0), 8), // duplicate element
+            ("d:transactions/foo@none", BucketValue::distribution(2.0), 8), // 1 new element
             (
                 "g:transactions/foo@none",
-                MetricValue::Gauge(0.3),
+                BucketValue::gauge(0.3),
                 fixed_cost,
             ), // New bucket
-            ("g:transactions/foo@none", MetricValue::Gauge(0.2), 0), // gauge has constant size
+            ("g:transactions/foo@none", BucketValue::gauge(0.2), 0), // gauge has constant size
         ] {
-            let mut metric = metric.clone();
-            metric.value = metric_value;
-            metric.name = metric_name.to_string();
+            let mut bucket = bucket.clone();
+            bucket.value = metric_value;
+            bucket.name = metric_name.to_string();
 
             let current_cost = aggregator.cost_tracker.total_cost;
-            aggregator.insert(project_key, metric).unwrap();
+            aggregator.merge(project_key, bucket).unwrap();
             let total_cost = aggregator.cost_tracker.total_cost;
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
@@ -1965,12 +1747,12 @@ mod tests {
         };
         let aggregator = AggregatorService::new(config, Some(recipient)).start();
 
-        let mut metric = some_metric();
-        metric.timestamp = UnixTimestamp::now();
+        let mut bucket = some_bucket();
+        bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(InsertMetrics {
+        aggregator.send(MergeBuckets {
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            metrics: vec![metric],
+            buckets: vec![bucket],
         });
 
         let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
@@ -2005,12 +1787,12 @@ mod tests {
         };
         let aggregator = AggregatorService::new(config, Some(recipient)).start();
 
-        let mut metric = some_metric();
-        metric.timestamp = UnixTimestamp::now();
+        let mut bucket = some_bucket();
+        bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(InsertMetrics {
+        aggregator.send(MergeBuckets {
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            metrics: vec![metric],
+            buckets: vec![bucket],
         });
 
         assert_eq!(receiver.bucket_count(), 0);
@@ -2222,19 +2004,20 @@ mod tests {
             ..test_config()
         };
 
-        let metric = Metric {
-            name: "c:transactions/foo".to_owned(),
-            value: MetricValue::Counter(42.),
+        let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
+            width: 0,
+            name: "c:transactions/foo".to_owned(),
+            value: BucketValue::counter(42.),
             tags: BTreeMap::new(),
         };
 
         let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator.insert(project_key, metric.clone()).unwrap();
+        aggregator.merge(project_key, bucket.clone()).unwrap();
         assert_eq!(
-            aggregator.insert(project_key, metric).unwrap_err().kind,
+            aggregator.merge(project_key, bucket).unwrap_err().kind,
             AggregateMetricsErrorKind::TotalLimitExceeded
         );
     }
@@ -2247,19 +2030,20 @@ mod tests {
             ..test_config()
         };
 
-        let metric = Metric {
-            name: "c:transactions/foo".to_owned(),
-            value: MetricValue::Counter(42.),
+        let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
+            width: 0,
+            name: "c:transactions/foo".to_owned(),
+            value: BucketValue::counter(42.),
             tags: BTreeMap::new(),
         };
 
         let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator.insert(project_key, metric.clone()).unwrap();
+        aggregator.merge(project_key, bucket.clone()).unwrap();
         assert_eq!(
-            aggregator.insert(project_key, metric).unwrap_err().kind,
+            aggregator.merge(project_key, bucket).unwrap_err().kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
         );
     }
@@ -2272,25 +2056,27 @@ mod tests {
             ..test_config()
         };
 
-        let metric1 = Metric {
-            name: "c:transactions/foo".to_owned(),
-            value: MetricValue::Counter(42.),
+        let bucket1 = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
+            width: 0,
+            name: "c:transactions/foo".to_owned(),
+            value: BucketValue::counter(42.),
             tags: BTreeMap::new(),
         };
 
-        let metric2 = Metric {
-            name: "c:transactions/bar".to_owned(),
-            value: MetricValue::Counter(43.),
+        let bucket2 = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
+            width: 0,
+            name: "c:transactions/bar".to_owned(),
+            value: BucketValue::counter(43.),
             tags: BTreeMap::new(),
         };
 
         let mut aggregator = AggregatorService::new(config, None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
-            aggregator.insert(project_key, metric1).ok();
-            aggregator.insert(project_key, metric2).ok();
+            aggregator.merge(project_key, bucket1).ok();
+            aggregator.merge(project_key, bucket2).ok();
             aggregator.try_flush();
         });
         captures
