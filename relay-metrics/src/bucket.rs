@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::protocol::{
-    self, CounterType, DistributionType, GaugeType, MetricResourceIdentifier, MetricType,
-    MetricValue, MetricsContainer, SetType,
+    self, hash_set_value, CounterType, DistributionType, GaugeType, MetricResourceIdentifier,
+    MetricType, SetType,
 };
-use crate::{hash_set_value, ParseMetricError};
+use crate::ParseMetricError;
 
 const VALUE_SEPARATOR: char = ':';
 
@@ -136,7 +136,8 @@ pub type SetValue = BTreeSet<SetType>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
-    /// Aggregates [`MetricValue::Counter`] values by adding them into a single value.
+    /// Aggregates [`MetricValue::Counter`](crate::MetricValue::Counter) values by adding them into
+    /// a single value.
     ///
     /// ```text
     /// 2, 1, 3, 2 => 8
@@ -145,7 +146,8 @@ pub enum BucketValue {
     /// This variant serializes to a double precision float.
     #[serde(rename = "c")]
     Counter(CounterType),
-    /// Aggregates [`MetricValue::Distribution`] values by collecting their values.
+    /// Aggregates [`MetricValue::Distribution`](crate::MetricValue::Distribution) values by
+    /// collecting their values.
     ///
     /// ```text
     /// 2, 1, 3, 2 => [1, 2, 2, 3]
@@ -154,7 +156,8 @@ pub enum BucketValue {
     /// This variant serializes to a list of double precision floats, see [`DistributionValue`].
     #[serde(rename = "d")]
     Distribution(DistributionValue),
-    /// Aggregates [`MetricValue::Set`] values by storing their hash values in a set.
+    /// Aggregates [`MetricValue::Set`](crate::MetricValue::Set) values by storing their hash values
+    /// in a set.
     ///
     /// ```text
     /// 2, 1, 3, 2 => {1, 2, 3}
@@ -163,8 +166,8 @@ pub enum BucketValue {
     /// This variant serializes to a list of 32-bit integers.
     #[serde(rename = "s")]
     Set(SetValue),
-    /// Aggregates [`MetricValue::Gauge`] values always retaining the maximum, minimum, and last
-    /// value, as well as the sum and count of all values.
+    /// Aggregates [`MetricValue::Gauge`](crate::MetricValue::Gauge) values always retaining the
+    /// latest, minimum, and maximum value, as well as the sum and count of all values.
     ///
     /// **Note**: The "last" component of this aggregation is not commutative.
     ///
@@ -255,16 +258,21 @@ impl BucketValue {
 
         mem::size_of::<Self>() + allocated_cost
     }
-}
 
-impl From<MetricValue> for BucketValue {
-    fn from(value: MetricValue) -> Self {
-        match value {
-            MetricValue::Counter(value) => Self::counter(value),
-            MetricValue::Distribution(value) => Self::distribution(value),
-            MetricValue::Set(value) => Self::set(value),
-            MetricValue::Gauge(value) => Self::gauge(value),
+    /// Merges the given `bucket_value` into `self`.
+    ///
+    /// Returns `Ok(())` if the two bucket values can be merged. This is the case when both bucket
+    /// values are of the same variant. Otherwise, this returns `Err(other)`.
+    pub fn merge(&mut self, other: Self) -> Result<(), Self> {
+        match (self, other) {
+            (Self::Counter(slf), Self::Counter(other)) => *slf += other,
+            (Self::Distribution(slf), Self::Distribution(other)) => slf.extend_from_slice(&other),
+            (Self::Set(slf), Self::Set(other)) => slf.extend(other),
+            (Self::Gauge(slf), Self::Gauge(other)) => slf.merge(other),
+            (_, other) => return Err(other),
         }
+
+        Ok(())
     }
 }
 
@@ -555,23 +563,17 @@ impl Bucket {
     pub fn parse_all(slice: &[u8], timestamp: UnixTimestamp) -> ParseBuckets<'_> {
         ParseBuckets { slice, timestamp }
     }
-}
 
-impl MetricsContainer for Bucket {
-    fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    fn len(&self) -> usize {
-        self.value.len()
-    }
-
-    fn tag(&self, name: &str) -> Option<&str> {
+    /// Returns the value of the specified tag if it exists.
+    pub fn tag(&self, name: &str) -> Option<&str> {
         self.tags.get(name).map(|s| s.as_str())
     }
 
-    fn remove_tag(&mut self, name: &str) {
-        self.tags.remove(name);
+    /// Removes the value of the specified tag.
+    ///
+    /// If the tag exists, the removed value is returned.
+    pub fn remove_tag(&mut self, name: &str) -> Option<String> {
+        self.tags.remove(name)
     }
 }
 
@@ -637,6 +639,46 @@ mod tests {
             std::mem::size_of::<DistributionValue>() <= std::mem::size_of::<GaugeValue>(),
             "distribution value should not exceed gauge {}",
             std::mem::size_of::<DistributionValue>()
+        );
+    }
+
+    #[test]
+    fn test_bucket_value_merge_counter() {
+        let mut value = BucketValue::Counter(42.);
+        value.merge(BucketValue::Counter(43.)).unwrap();
+        assert_eq!(value, BucketValue::Counter(85.));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_distribution() {
+        let mut value = BucketValue::Distribution(dist![1., 2., 3.]);
+        value
+            .merge(BucketValue::Distribution(dist![2., 4.]))
+            .unwrap();
+        assert_eq!(value, BucketValue::Distribution(dist![1., 2., 3., 2., 4.]));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_set() {
+        let mut value = BucketValue::Set(vec![1, 2].into_iter().collect());
+        value.merge(BucketValue::Set([2, 3].into())).unwrap();
+        assert_eq!(value, BucketValue::Set(vec![1, 2, 3].into_iter().collect()));
+    }
+
+    #[test]
+    fn test_bucket_value_merge_gauge() {
+        let mut value = BucketValue::Gauge(GaugeValue::single(42.));
+        value.merge(BucketValue::gauge(43.)).unwrap();
+
+        assert_eq!(
+            value,
+            BucketValue::Gauge(GaugeValue {
+                last: 43.,
+                min: 42.,
+                max: 43.,
+                sum: 85.,
+                count: 2,
+            })
         );
     }
 

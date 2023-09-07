@@ -399,46 +399,6 @@ impl Metric {
     }
 }
 
-/// Common interface for `Metric` and `Bucket`.
-pub trait MetricsContainer {
-    /// Returns the full metric name (MRI) of this container.
-    fn name(&self) -> &str;
-
-    /// Returns the number of raw data points in this container.
-    ///
-    /// See [`BucketValue::len`](crate::BucketValue::len).
-    fn len(&self) -> usize;
-
-    /// Returns `true` if this container contains no values.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Returns the value of the given tag, if present.
-    fn tag(&self, name: &str) -> Option<&str>;
-
-    /// Removes the given tag, if present.
-    fn remove_tag(&mut self, name: &str);
-}
-
-impl MetricsContainer for Metric {
-    fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    fn len(&self) -> usize {
-        1
-    }
-
-    fn tag(&self, name: &str) -> Option<&str> {
-        self.tags.get(name).map(|s| s.as_str())
-    }
-
-    fn remove_tag(&mut self, name: &str) {
-        self.tags.remove(name);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;

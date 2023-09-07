@@ -98,9 +98,16 @@ impl NormalizeVisitor {
         // Iterate over selected item.
         for mut item in std::mem::take(&mut select.projection) {
             // Normalize aliases.
-            if let SelectItem::ExprWithAlias { ref mut alias, .. } = &mut item {
-                alias.quote_style = None;
-            }
+            let item = match item {
+                // Remove alias.
+                SelectItem::ExprWithAlias { ref mut alias, .. } => {
+                    alias.quote_style = None;
+                    item
+                }
+                // Strip prefix, e.g. `"mytable".*`.
+                SelectItem::QualifiedWildcard(_, options) => SelectItem::Wildcard(options),
+                _ => item,
+            };
             if Self::is_collapsible(&item) {
                 collapse.push(item);
             } else {
@@ -115,19 +122,26 @@ impl NormalizeVisitor {
     fn transform_from(from: &mut [TableWithJoins]) {
         // Iterate "FROM".
         for from in from {
-            match &mut from.relation {
-                // Recurse into subqueries.
-                TableFactor::Derived { subquery, .. } => {
-                    Self::transform_query(subquery);
-                }
-                // Strip quotes from identifiers in table names.
-                TableFactor::Table { name, .. } => {
-                    for ident in &mut name.0 {
-                        ident.quote_style = None;
-                    }
-                }
-                _ => (),
+            Self::transform_table_factor(&mut from.relation);
+            for join in &mut from.joins {
+                Self::transform_table_factor(&mut join.relation);
             }
+        }
+    }
+
+    fn transform_table_factor(table_factor: &mut TableFactor) {
+        match table_factor {
+            // Recurse into subqueries.
+            TableFactor::Derived { subquery, .. } => {
+                Self::transform_query(subquery);
+            }
+            // Strip quotes from identifiers in table names.
+            TableFactor::Table { name, .. } => {
+                for ident in &mut name.0 {
+                    ident.quote_style = None;
+                }
+            }
+            _ => {}
         }
     }
 
@@ -184,6 +198,13 @@ impl VisitorMut for NormalizeVisitor {
                 else_result.take();
             }
             _ => {}
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
+        if let Expr::CompoundIdentifier(parts) = expr {
+            Self::simplify_compound_identifier(parts);
         }
         ControlFlow::Continue(())
     }
