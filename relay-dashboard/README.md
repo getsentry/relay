@@ -34,7 +34,7 @@ make dashboard-release
 or run inside of `relay-dashboard` folder:
 
 ```sh
-trunk build --release 
+trunk build --release --public-url /dashboard/
 ```
 
 And then build the relay with `dashboard` feature enabled to pick up the built assets and embed them into the resulting binary:

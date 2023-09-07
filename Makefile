@@ -190,6 +190,8 @@ gocd: ## Build GoCD pipelines
 
 web: ## Install and run frontend DEV web server for admin dashboard.
 	@ cargo install --locked trunk && cd relay-dashboard && trunk serve --open --proxy-backend ws://localhost:3001/api/  --proxy-ws --public-url /dashboard/
+.PHONY: web
 
 dashboard-release: ## Build WASM app in release mode.
 	@ cargo install --locked trunk && cd relay-dashboard && trunk build --release --public-url /dashboard/
+.PHONY: dashboard-release
