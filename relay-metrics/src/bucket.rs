@@ -167,7 +167,7 @@ pub enum BucketValue {
     #[serde(rename = "s")]
     Set(SetValue),
     /// Aggregates [`MetricValue::Gauge`](crate::MetricValue::Gauge) values always retaining the
-    /// maximum, minimum, and last value, as well as the sum and count of all values.
+    /// latest, minimum, and maximum value, as well as the sum and count of all values.
     ///
     /// **Note**: The "last" component of this aggregation is not commutative.
     ///
