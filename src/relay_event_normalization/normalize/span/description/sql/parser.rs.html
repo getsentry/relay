@@ -308,6 +308,20 @@
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
 <a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 
@@ -425,19 +439,26 @@
     <span class="kw">fn </span>transform_from(from: <span class="kw-2">&amp;mut </span>[TableWithJoins]) {
         <span class="comment">// Iterate &quot;FROM&quot;.
         </span><span class="kw">for </span>from <span class="kw">in </span>from {
-            <span class="kw">match </span><span class="kw-2">&amp;mut </span>from.relation {
-                <span class="comment">// Recurse into subqueries.
-                </span>TableFactor::Derived { subquery, .. } =&gt; {
-                    <span class="self">Self</span>::transform_query(subquery);
-                }
-                <span class="comment">// Strip quotes from identifiers in table names.
-                </span>TableFactor::Table { name, .. } =&gt; {
-                    <span class="kw">for </span>ident <span class="kw">in </span><span class="kw-2">&amp;mut </span>name.<span class="number">0 </span>{
-                        ident.quote_style = <span class="prelude-val">None</span>;
-                    }
-                }
-                <span class="kw">_ </span>=&gt; (),
+            <span class="self">Self</span>::transform_table_factor(<span class="kw-2">&amp;mut </span>from.relation);
+            <span class="kw">for </span>join <span class="kw">in </span><span class="kw-2">&amp;mut </span>from.joins {
+                <span class="self">Self</span>::transform_table_factor(<span class="kw-2">&amp;mut </span>join.relation);
             }
+        }
+    }
+
+    <span class="kw">fn </span>transform_table_factor(table_factor: <span class="kw-2">&amp;mut </span>TableFactor) {
+        <span class="kw">match </span>table_factor {
+            <span class="comment">// Recurse into subqueries.
+            </span>TableFactor::Derived { subquery, .. } =&gt; {
+                <span class="self">Self</span>::transform_query(subquery);
+            }
+            <span class="comment">// Strip quotes from identifiers in table names.
+            </span>TableFactor::Table { name, .. } =&gt; {
+                <span class="kw">for </span>ident <span class="kw">in </span><span class="kw-2">&amp;mut </span>name.<span class="number">0 </span>{
+                    ident.quote_style = <span class="prelude-val">None</span>;
+                }
+            }
+            <span class="kw">_ </span>=&gt; {}
         }
     }
 
@@ -494,6 +515,13 @@
                 else_result.take();
             }
             <span class="kw">_ </span>=&gt; {}
+        }
+        ControlFlow::Continue(())
+    }
+
+    <span class="kw">fn </span>post_visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;mut </span>Expr) -&gt; ControlFlow&lt;<span class="self">Self</span>::Break&gt; {
+        <span class="kw">if let </span>Expr::CompoundIdentifier(parts) = expr {
+            <span class="self">Self</span>::simplify_compound_identifier(parts);
         }
         ControlFlow::Continue(())
     }
