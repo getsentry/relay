@@ -125,7 +125,7 @@ pub struct CheckInContexts {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckIn {
     /// Unique identifier of this check-in.
-    #[serde(serialize_with = "uuid_simple")]
+    #[serde(default, serialize_with = "uuid_simple")]
     pub check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.

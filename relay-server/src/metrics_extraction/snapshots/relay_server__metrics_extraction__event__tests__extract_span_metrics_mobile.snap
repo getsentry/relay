@@ -55,9 +55,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             width: 0,
             name: "d:spans/exclusive_time@millisecond",
             value: Distribution(
-                {
-                    2000.0: 1,
-                },
+                [
+                    2000.0,
+                ],
             ),
             tags: {
                 "device.class": "1",
@@ -72,9 +72,9 @@ expression: "(&event.value().unwrap().spans, metrics)"
             width: 0,
             name: "d:spans/exclusive_time_light@millisecond",
             value: Distribution(
-                {
-                    2000.0: 1,
-                },
+                [
+                    2000.0,
+                ],
             ),
             tags: {
                 "device.class": "1",
