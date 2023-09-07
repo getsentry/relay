@@ -324,7 +324,7 @@ fn remove_invalid_measurements(
     measurements_config: DynamicMeasurementsConfig,
     max_name_and_unit_len: Option<usize>,
 ) {
-    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(&0);
+    let max_custom_measurements = measurements_config.max_custom_measurements().unwrap_or(0);
 
     let mut custom_measurements_count = 0;
     let mut removed_measurements = Object::new();
@@ -371,7 +371,7 @@ fn remove_invalid_measurements(
         }
 
         // For custom measurements, check the budget:
-        if custom_measurements_count < *max_custom_measurements {
+        if custom_measurements_count < max_custom_measurements {
             custom_measurements_count += 1;
             return true;
         }
@@ -956,7 +956,9 @@ impl<'a> DynamicMeasurementsConfig<'a> {
     ///
     /// Items from the project config are prioritized over global config, and
     /// there are no duplicates.
-    pub fn builtin_measurement_keys(&'a self) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
+    pub fn builtin_measurement_keys(
+        &'a self,
+    ) -> impl Iterator<Item = &'a BuiltinMeasurementKey> + '_ {
         let project = self
             .project
             .map(|p| p.builtin_measurements.as_slice())
@@ -974,14 +976,14 @@ impl<'a> DynamicMeasurementsConfig<'a> {
 
     /// Gets the max custom measurements value from the [`MeasurementsConfig`] from project level or
     /// global level. If both of them are available, it will choose the most restrictive.
-    pub fn max_custom_measurements(&'a self) -> Option<&'a usize> {
+    pub fn max_custom_measurements(&'a self) -> Option<usize> {
         match (&self.project, &self.global) {
             (None, None) => None,
-            (None, Some(global)) => Some(&global.max_custom_measurements),
-            (Some(project), None) => Some(&project.max_custom_measurements),
+            (None, Some(global)) => Some(global.max_custom_measurements),
+            (Some(project), None) => Some(project.max_custom_measurements),
             (Some(project), Some(global)) => Some(std::cmp::min(
-                &project.max_custom_measurements,
-                &global.max_custom_measurements,
+                project.max_custom_measurements,
+                global.max_custom_measurements,
             )),
         }
     }
@@ -1518,15 +1520,15 @@ mod tests {
 
         // If only project level measurement config is there, return its max custom measurement variable.
         let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), None);
-        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &3);
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
 
         // Same logic for when only global level measurement config exists.
         let dynamic_config = DynamicMeasurementsConfig::new(None, Some(&glob));
-        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &4);
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 4);
 
         // If both is available, pick the smallest number.
         let dynamic_config = DynamicMeasurementsConfig::new(Some(&proj), Some(&glob));
-        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), &3);
+        assert_eq!(dynamic_config.max_custom_measurements().unwrap(), 3);
     }
 
     #[test]
