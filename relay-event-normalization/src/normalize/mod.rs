@@ -957,15 +957,19 @@ impl<'a> DynamicMeasurementsConfig<'a> {
     /// Items from the project config are prioritized over global config, and
     /// there are no duplicates.
     pub fn builtin_measurement_keys(&'a self) -> impl Iterator<Item = &'a BuiltinMeasurementKey> {
-        let from_project = self.project.iter().flat_map(|c| &c.builtin_measurements);
-        let from_project_clone = from_project.clone().collect_vec();
-        let from_global = self
-            .global
-            .iter()
-            .flat_map(|c| &c.builtin_measurements)
-            .filter(move |&key| !from_project_clone.contains(&key));
+        let project = self
+            .project
+            .map(|p| p.builtin_measurements.as_slice())
+            .unwrap_or_default();
 
-        from_project.chain(from_global)
+        let global = self
+            .global
+            .map(|g| g.builtin_measurements.as_slice())
+            .unwrap_or_default();
+
+        project
+            .iter()
+            .chain(global.iter().filter(|key| !project.contains(key)))
     }
 
     /// Gets the max custom measurements value from the [`MeasurementsConfig`] from project level or
