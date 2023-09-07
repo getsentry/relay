@@ -79,7 +79,7 @@ pub struct CustomMeasurementConfig {
 /// Maximum supported version of metrics extraction from transactions.
 ///
 /// The version is an integer scalar, incremented by one on each new version.
-const TRANSACTION_EXTRACT_VERSION: u16 = 1;
+const TRANSACTION_EXTRACT_VERSION: u16 = 2;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
