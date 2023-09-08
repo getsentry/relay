@@ -283,21 +283,20 @@ def test_validate_project_config():
 
 def test_global_config_equal_normalization():
     config = {"measurements": {"maxCustomMeasurements": 0}}
-    assert config == sentry_relay.normalize_global_config(json.dumps(config))
+    assert config == sentry_relay.normalize_global_config(config)
 
 
 def test_global_config_subset_normalized():
     config = {"measurements": {"builtinMeasurements": [], "maxCustomMeasurements": 0}}
-    normalized = sentry_relay.normalize_global_config(json.dumps(config))
+    normalized = sentry_relay.normalize_global_config(config)
     config["measurements"].pop("builtinMeasurements")
     assert config == normalized
 
 
 def test_global_config_unparsable():
     config = {"measurements": {"maxCustomMeasurements": -5}}
-    with pytest.raises(ValueError) as ex:
-        sentry_relay.normalize_global_config(json.dumps(config))
-    assert str(ex.value) == "Normalization error: incorrect input config"
+    with pytest.raises(json.decoder.JSONDecodeError):
+        sentry_relay.normalize_global_config(config)
 
 
 def test_run_dynamic_sampling_with_valid_params_and_match():

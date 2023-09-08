@@ -265,21 +265,17 @@ def validate_project_config(config, strict: bool):
 def normalize_global_config(config):
     """Normalize the global config.
 
-    Normalization consists on deserializing and serializing back the given
+    Normalization consists of deserializing and serializing back the given
     global config. If deserializing fails, throw an exception. Note that even if
     the roundtrip doesn't produce errors, the given config may differ from
     normalized one.
 
     :param config: the global config to validate.
     """
-    assert isinstance(config, str)
+    config = json.dumps(config)
     rv = rustcall(lib.normalize_global_config, encode_str(config))
-    try:
-        decoded = decode_str(rv, free=True)
-        parsed = json.loads(decoded)
-        return parsed
-    except Exception:
-        raise ValueError("Normalization error: incorrect input config")
+    decoded = decode_str(rv, free=True)
+    return json.loads(decoded)
 
 
 def run_dynamic_sampling(sampling_config, root_sampling_config, dsc, event):
