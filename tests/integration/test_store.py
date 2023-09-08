@@ -741,6 +741,48 @@ def test_processing_quota_transaction_indexing(
     metrics_consumer.assert_empty()
 
 
+def test_rate_limit_drop_indexed(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+):
+    """Indexed data is dropped even if the rate limit is for the general data category"""
+    relay = relay_with_processing(
+        {
+            "processing": {"max_rate_limit": 100},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "debounce_delay": 0,
+            },
+        }
+    )
+
+    tx_consumer = transactions_consumer()
+
+    project_id = 42
+    projectconfig = mini_sentry.add_full_project_config(project_id)
+    key_id = mini_sentry.get_dsn_public_key_configs(project_id)[0]["numericId"]
+    projectconfig["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "scope": "key",
+            "scopeId": str(key_id),
+            "categories": ["transaction"],
+            "limit": 0,
+            "window": 86400,
+            "reasonCode": "get_lost",
+        },
+    ]
+    projectconfig["config"]["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    relay.send_event(project_id, make_transaction({"message": "1st tx"}))
+
+    assert tx_consumer.poll(timeout=1) is None
+
+
 def test_events_buffered_before_auth(relay, mini_sentry):
     evt = threading.Event()
 
