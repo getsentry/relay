@@ -10,6 +10,7 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
+dashboard = ["relay-server/dashboard", "relay-log/dashboard"]
 default = []
 processing = ["relay-server/processing"]
 crash-handler = ["relay-log/crash-handler"]
