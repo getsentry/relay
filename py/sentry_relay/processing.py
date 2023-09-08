@@ -272,9 +272,9 @@ def normalize_global_config(config):
 
     :param config: the global config to validate.
     """
-    config = json.dumps(config)
-    rv = rustcall(lib.normalize_global_config, encode_str(config))
-    decoded = decode_str(rv, free=True)
+    serialized = json.dumps(config)
+    normalized = rustcall(lib.normalize_global_config, encode_str(serialized))
+    decoded = decode_str(normalized, free=True)
     return json.loads(decoded)
 
 
