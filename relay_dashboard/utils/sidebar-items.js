@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["buffering_socket","window_location"],"static":["RELAY_URL"],"struct":["AutoSocket"]};

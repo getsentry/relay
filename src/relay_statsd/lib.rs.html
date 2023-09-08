@@ -625,6 +625,45 @@
 <a href="#625" id="625">625</a>
 <a href="#626" id="626">626</a>
 <a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
 //!
 //! ## Defining Metrics
@@ -706,6 +745,10 @@
     </span><span class="kw">pub </span>default_tags: BTreeMap&lt;String, String&gt;,
     <span class="doccomment">/// Global sample rate.
     </span><span class="kw">pub </span>sample_rate: f32,
+    <span class="doccomment">/// Receiver for external listeners.
+    ///
+    /// Only available when the client was initialized with `init_basic`.
+    </span><span class="kw">pub </span>rx: <span class="prelude-ty">Option</span>&lt;crossbeam_channel::Receiver&lt;Vec&lt;u8&gt;&gt;&gt;,
 }
 
 <span class="kw">impl </span>Deref <span class="kw">for </span>MetricsClient {
@@ -788,12 +831,14 @@
 }
 
 <span class="doccomment">/// Set a test client for the period of the called function (only affects the current thread).
+</span><span class="comment">// TODO: replace usages with `init_basic`
 </span><span class="kw">pub fn </span>with_capturing_test_client(f: <span class="kw">impl </span>FnOnce()) -&gt; Vec&lt;String&gt; {
     <span class="kw">let </span>(rx, sink) = cadence::SpyMetricSink::new();
     <span class="kw">let </span>test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, sink),
         default_tags: Default::default(),
         sample_rate: <span class="number">1.0</span>,
+        rx: <span class="prelude-val">None</span>,
     };
 
     CURRENT_CLIENT.with(|cell| {
@@ -803,6 +848,37 @@
     });
 
     rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
+}
+
+<span class="comment">// Setup a simple metrics listener.
+//
+// Returns `None` if the global metrics client has already been configured.
+</span><span class="kw">pub fn </span>init_basic() -&gt; <span class="prelude-ty">Option</span>&lt;crossbeam_channel::Receiver&lt;Vec&lt;u8&gt;&gt;&gt; {
+    CURRENT_CLIENT.with(|cell| {
+        <span class="kw">if </span>cell.borrow().is_none() {
+            <span class="comment">// Setup basic observable metrics sink.
+            </span><span class="kw">let </span>(receiver, sink) = cadence::SpyMetricSink::new();
+            <span class="kw">let </span>test_client = MetricsClient {
+                statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, sink),
+                default_tags: Default::default(),
+                sample_rate: <span class="number">1.0</span>,
+                rx: <span class="prelude-val">Some</span>(receiver.clone()),
+            };
+            cell.replace(<span class="prelude-val">Some</span>(Arc::new(test_client)));
+        }
+    });
+
+    CURRENT_CLIENT.with(|cell| {
+        cell.borrow()
+            .as_deref()
+            .and_then(|client| <span class="kw">match </span><span class="kw-2">&amp;</span>client.rx {
+                <span class="prelude-val">Some</span>(rx) =&gt; <span class="prelude-val">Some</span>(rx.clone()),
+                <span class="prelude-val">None </span>=&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;Metrics client was already set up.&quot;</span>);
+                    <span class="prelude-val">None
+                </span>}
+            })
+    })
 }
 
 <span class="doccomment">/// Disable the client again.
@@ -854,6 +930,7 @@
         statsd_client,
         default_tags,
         sample_rate,
+        rx: <span class="prelude-val">None</span>,
     });
 }
 
@@ -1245,6 +1322,7 @@
             statsd_client: StatsdClient::from_sink(<span class="string">&quot;&quot;</span>, NopMetricSink),
             default_tags: Default::default(),
             sample_rate: <span class="number">1.0</span>,
+            rx: <span class="prelude-val">None</span>,
         });
         <span class="kw">let </span>client2 = with_client(|c| <span class="macro">format!</span>(<span class="string">&quot;{c:?}&quot;</span>));
 

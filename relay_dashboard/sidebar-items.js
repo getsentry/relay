@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_LOG_SIZE"],"enum":["Route"],"fn":["main","switch"],"mod":["stats","utils"],"struct":["Logs","Main","MenuBar","Stats","Tools"]};

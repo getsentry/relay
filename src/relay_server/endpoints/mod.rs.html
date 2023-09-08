@@ -78,6 +78,23 @@
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
@@ -85,10 +102,14 @@
 
 </span><span class="kw">mod </span>attachments;
 <span class="kw">mod </span>common;
+<span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+</span><span class="kw">mod </span>dashboard;
 <span class="kw">mod </span>envelope;
 <span class="kw">mod </span>events;
 <span class="kw">mod </span>forward;
 <span class="kw">mod </span>health_check;
+<span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+</span><span class="kw">mod </span>logs;
 <span class="kw">mod </span>minidump;
 <span class="kw">mod </span>monitor;
 <span class="kw">mod </span>outcomes;
@@ -96,6 +117,8 @@
 <span class="kw">mod </span>public_keys;
 <span class="kw">mod </span>security_report;
 <span class="kw">mod </span>statics;
+<span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+</span><span class="kw">mod </span>stats;
 <span class="kw">mod </span>store;
 <span class="kw">mod </span>unreal;
 
@@ -114,10 +137,18 @@
     B::Data: Send + Into&lt;Bytes&gt;,
     B::Error: Into&lt;axum::BoxError&gt;,
 {
+    <span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+    </span><span class="kw">let </span>dashboard = Router::new().route(<span class="string">&quot;/dashboard/&quot;</span>,get(dashboard::index_handle))
+        .route(<span class="string">&quot;/dashboard/*file&quot;</span>, get(dashboard::handle));
     <span class="comment">// Relay-internal routes pointing to /api/relay/
     </span><span class="kw">let </span>internal_routes = Router::new()
         .route(<span class="string">&quot;/api/relay/healthcheck/:kind/&quot;</span>, get(health_check::handle))
-        .route(<span class="string">&quot;/api/relay/events/:event_id/&quot;</span>, get(events::handle))
+        .route(<span class="string">&quot;/api/relay/events/:event_id/&quot;</span>, get(events::handle));
+    <span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+    </span><span class="kw">let </span>internal_routes = internal_routes
+        .route(<span class="string">&quot;/api/relay/logs/&quot;</span>, get(logs::handle))
+        .route(<span class="string">&quot;/api/relay/stats/&quot;</span>, get(stats::handle));
+    <span class="kw">let </span>internal_routes = internal_routes
         <span class="comment">// Fallback route, but with a name, and just on `/api/relay/*`.
         </span>.route(<span class="string">&quot;/api/relay/*not_found&quot;</span>, any(statics::not_found));
 
@@ -151,8 +182,11 @@
         .route(<span class="string">&quot;/api/:project_id/unreal/:sentry_key/&quot;</span>, unreal::route(config))
         .route_layer(middlewares::cors());
 
-    Router::new()
-        .merge(internal_routes)
+    <span class="kw">let </span>router = Router::new();
+    <span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
+    </span><span class="kw">let </span>router = router.merge(dashboard);
+
+    router.merge(internal_routes)
         .merge(web_routes)
         .merge(store_routes)
         <span class="comment">// Forward all other API routes to the upstream. This will 404 for non-API routes.
