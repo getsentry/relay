@@ -612,6 +612,11 @@ struct RelayStr relay_validate_project_config(const struct RelayStr *value,
                                               bool strict);
 
 /**
+ * Normalize a global config.
+ */
+struct RelayStr normalize_global_config(const struct RelayStr *value);
+
+/**
  * Runs dynamic sampling given the sampling config, root sampling config, DSC and event.
  *
  * Returns the sampling decision containing the sample_rate and the list of matched rule ids.

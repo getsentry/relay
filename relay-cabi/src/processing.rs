@@ -11,7 +11,7 @@ use std::slice;
 use chrono::Utc;
 use once_cell::sync::OnceCell;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
-use relay_dynamic_config::{validate_json, ProjectConfig};
+use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 use relay_event_normalization::{
     light_normalize_event, GeoIpLookup, LightNormalizationConfig, RawUserAgentInfo, StoreConfig,
     StoreProcessor,
@@ -326,6 +326,18 @@ pub unsafe extern "C" fn relay_validate_project_config(
     match validate_json::<ProjectConfig>(value, strict) {
         Ok(()) => RelayStr::default(),
         Err(e) => RelayStr::from_string(e.to_string()),
+    }
+}
+
+/// Normalize a global config.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+// pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> NormalizationResult {
+pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> RelayStr {
+    let value = (*value).as_str();
+    match normalize_json::<GlobalConfig>(value) {
+        Ok(normalized) => RelayStr::from_string(normalized),
+        Err(_) => RelayStr::default(),
     }
 }
 
