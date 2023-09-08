@@ -32,11 +32,6 @@ const ENDPOINT_V2: u16 = 2;
 /// returned, or a further poll ensues.
 const ENDPOINT_V3: u16 = 3;
 
-/// V4 version of this endpoint.
-///
-/// Can be used for fetching global configs.
-const ENDPOINT_V4: u16 = 4;
-
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
 struct VersionQuery {
@@ -76,9 +71,8 @@ impl ProjectStateWrapper {
 /// made by an external relay who's public key is not configured as authorised on the project.
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
-/// be in both collections.  This list is always empty before V3.
-///
-/// Version 4 adds a global config [`GlobalConfig`] if `global` is enabled.
+/// be in both collections. This list is always empty before V3. If `global` is
+/// enabled, version 3 also responds with [`GlobalConfig`].
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
@@ -176,7 +170,7 @@ async fn inner(
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V4
+    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
 }
 
 /// Endpoint handler for the project configs endpoint.
