@@ -295,8 +295,12 @@ def test_global_config_subset_normalized():
 
 def test_global_config_unparsable():
     config = {"measurements": {"maxCustomMeasurements": -5}}
-    with pytest.raises(json.decoder.JSONDecodeError):
+    with pytest.raises(ValueError) as e:
         sentry_relay.normalize_global_config(config)
+    assert (
+        str(e.value)
+        == "invalid value: integer `-5`, expected usize at line 1 column 45"
+    )
 
 
 def test_run_dynamic_sampling_with_valid_params_and_match():

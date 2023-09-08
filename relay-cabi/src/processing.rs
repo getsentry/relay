@@ -336,7 +336,7 @@ pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> Rela
     let value = (*value).as_str();
     match normalize_json::<GlobalConfig>(value) {
         Ok(normalized) => RelayStr::from_string(normalized),
-        Err(_) => RelayStr::default(),
+        Err(e) => RelayStr::from_string(e.to_string()),
     }
 }
 

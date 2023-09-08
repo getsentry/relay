@@ -274,8 +274,11 @@ def normalize_global_config(config):
     """
     serialized = json.dumps(config)
     normalized = rustcall(lib.normalize_global_config, encode_str(serialized))
-    decoded = decode_str(normalized, free=True)
-    return json.loads(decoded)
+    rv = decode_str(normalized, free=True)
+    try:
+        return json.loads(rv)
+    except json.JSONDecodeError:
+        raise ValueError(rv)
 
 
 def run_dynamic_sampling(sampling_config, root_sampling_config, dsc, event):
