@@ -29,13 +29,6 @@ impl SetMetric for MetricSets {
 
 /// Counter metrics for Relay Metrics.
 pub enum MetricCounters {
-    /// Incremented for every metric that is inserted.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_type`: The type of the metric (e.g. `"counter"`).
-    InsertMetric,
-
     /// Incremented every time two buckets or two metrics are merged.
     ///
     /// This metric is tagged with:
@@ -62,7 +55,6 @@ pub enum MetricCounters {
 impl CounterMetric for MetricCounters {
     fn name(&self) -> &'static str {
         match *self {
-            Self::InsertMetric => "metrics.insert",
             Self::MergeHit => "metrics.buckets.merge.hit",
             Self::MergeMiss => "metrics.buckets.merge.miss",
             Self::BucketsDropped => "metrics.buckets.dropped",

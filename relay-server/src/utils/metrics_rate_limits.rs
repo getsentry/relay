@@ -1,7 +1,7 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{MetricNamespace, MetricResourceIdentifier, MetricsContainer};
+use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
@@ -9,9 +9,9 @@ use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
 #[derive(Debug)]
-pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>> {
-    /// A list of metrics or buckets.
-    metrics: Vec<M>,
+pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
+    /// A list of aggregated metric buckets.
+    metrics: Vec<Bucket>,
 
     /// The quotas set on the current project.
     quotas: Q,
@@ -34,18 +34,18 @@ pub struct MetricsLimiter<M: MetricsContainer, Q: AsRef<Vec<Quota>> = Vec<Quota>
 
 const PROFILE_TAG: &str = "has_profile";
 
-impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
+impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
     /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
-    pub fn create(buckets: Vec<M>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<M>> {
+    pub fn create(buckets: Vec<Bucket>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<Bucket>> {
         let counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
-                let mri = match MetricResourceIdentifier::parse(metric.name()) {
+                let mri = match MetricResourceIdentifier::parse(&metric.name) {
                     Ok(mri) => mri,
                     Err(_) => {
-                        relay_log::error!("invalid MRI: {}", metric.name());
+                        relay_log::error!("invalid MRI: {}", metric.name);
                         return None;
                     }
                 };
@@ -58,7 +58,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
                 if mri.name == "duration" {
                     // The "duration" metric is extracted exactly once for every processed
                     // transaction, so we can use it to count the number of transactions.
-                    let count = metric.len();
+                    let count = metric.value.len();
                     let has_profile = metric.tag(PROFILE_TAG) == Some("true");
                     Some((count, has_profile))
                 } else {
@@ -235,7 +235,7 @@ impl<M: MetricsContainer, Q: AsRef<Vec<Quota>>> MetricsLimiter<M, Q> {
     }
 
     /// Consume this struct and return the contained metrics.
-    pub fn into_metrics(self) -> Vec<M> {
+    pub fn into_metrics(self) -> Vec<Bucket> {
         self.metrics
     }
 }

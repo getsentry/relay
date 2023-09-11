@@ -79,6 +79,10 @@ pub struct MetricsClient {
     pub default_tags: BTreeMap<String, String>,
     /// Global sample rate.
     pub sample_rate: f32,
+    /// Receiver for external listeners.
+    ///
+    /// Only available when the client was initialized with `init_basic`.
+    pub rx: Option<crossbeam_channel::Receiver<Vec<u8>>>,
 }
 
 impl Deref for MetricsClient {
@@ -161,12 +165,14 @@ pub fn set_client(client: MetricsClient) {
 }
 
 /// Set a test client for the period of the called function (only affects the current thread).
+// TODO: replace usages with `init_basic`
 pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     let (rx, sink) = cadence::SpyMetricSink::new();
     let test_client = MetricsClient {
         statsd_client: StatsdClient::from_sink("", sink),
         default_tags: Default::default(),
         sample_rate: 1.0,
+        rx: None,
     };
 
     CURRENT_CLIENT.with(|cell| {
@@ -176,6 +182,37 @@ pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
     });
 
     rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
+}
+
+// Setup a simple metrics listener.
+//
+// Returns `None` if the global metrics client has already been configured.
+pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
+    CURRENT_CLIENT.with(|cell| {
+        if cell.borrow().is_none() {
+            // Setup basic observable metrics sink.
+            let (receiver, sink) = cadence::SpyMetricSink::new();
+            let test_client = MetricsClient {
+                statsd_client: StatsdClient::from_sink("", sink),
+                default_tags: Default::default(),
+                sample_rate: 1.0,
+                rx: Some(receiver.clone()),
+            };
+            cell.replace(Some(Arc::new(test_client)));
+        }
+    });
+
+    CURRENT_CLIENT.with(|cell| {
+        cell.borrow()
+            .as_deref()
+            .and_then(|client| match &client.rx {
+                Some(rx) => Some(rx.clone()),
+                None => {
+                    relay_log::error!("Metrics client was already set up.");
+                    None
+                }
+            })
+    })
 }
 
 /// Disable the client again.
@@ -227,6 +264,7 @@ pub fn init<A: ToSocketAddrs>(
         statsd_client,
         default_tags,
         sample_rate,
+        rx: None,
     });
 }
 
@@ -618,6 +656,7 @@ mod tests {
             statsd_client: StatsdClient::from_sink("", NopMetricSink),
             default_tags: Default::default(),
             sample_rate: 1.0,
+            rx: None,
         });
         let client2 = with_client(|c| format!("{c:?}"));
 

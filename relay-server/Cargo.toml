@@ -11,6 +11,11 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
+dashboard = [
+  "axum/ws",
+  "dep:rust-embed",
+  "dep:mime_guess"
+]
 default = []
 processing = [
     "dep:minidump",
@@ -46,6 +51,7 @@ hashbrown = "0.13.2"
 itertools = { workspace = true }
 json-forensics = { version = "0.1.1" }
 mime = "0.3.16"
+mime_guess = { version = "2.0.4", optional = true }
 minidump = { version = "0.15.2", optional = true }
 multer = "2.0.4"
 once_cell = { workspace = true }
@@ -79,6 +85,7 @@ reqwest = { version = "0.11.1", features = [
     "native-tls-vendored",
 ] }
 rmp-serde = "1.1.1"
+rust-embed = { version = "8.0.0", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }

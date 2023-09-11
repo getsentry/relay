@@ -281,6 +281,28 @@ def test_validate_project_config():
     assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
 
 
+def test_global_config_equal_normalization():
+    config = {"measurements": {"maxCustomMeasurements": 0}}
+    assert config == sentry_relay.normalize_global_config(config)
+
+
+def test_global_config_subset_normalized():
+    config = {"measurements": {"builtinMeasurements": [], "maxCustomMeasurements": 0}}
+    normalized = sentry_relay.normalize_global_config(config)
+    config["measurements"].pop("builtinMeasurements")
+    assert config == normalized
+
+
+def test_global_config_unparsable():
+    config = {"measurements": {"maxCustomMeasurements": -5}}
+    with pytest.raises(ValueError) as e:
+        sentry_relay.normalize_global_config(config)
+    assert (
+        str(e.value)
+        == "invalid value: integer `-5`, expected usize at line 1 column 45"
+    )
+
+
 def test_run_dynamic_sampling_with_valid_params_and_match():
     sampling_config = """{
        "rules": [],
