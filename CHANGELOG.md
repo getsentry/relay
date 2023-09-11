@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Use static global configuration if file is provided. ([#2458](https://github.com/getsentry/relay/pull/2458))
+- Use static global configuration if file is provided and not in managed mode. ([#2458](https://github.com/getsentry/relay/pull/2458))
 - Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
 - Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
 - Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
