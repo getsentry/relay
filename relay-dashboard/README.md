@@ -11,6 +11,16 @@ Right now you can:
 
 # Development
 
+## Requirements
+
+First, install the WASM target:
+
+```sh
+rustup target add wasm32-unknown-unknown
+```
+
+## Running
+
 Run Relay:
 
 ```sh
