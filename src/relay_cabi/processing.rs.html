@@ -428,6 +428,17 @@
 <a href="#428" id="428">428</a>
 <a href="#429" id="429">429</a>
 <a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -441,7 +452,7 @@
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_common::glob::{glob_match_bytes, GlobOptions};
-<span class="kw">use </span>relay_dynamic_config::{validate_json, ProjectConfig};
+<span class="kw">use </span>relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::{
     light_normalize_event, GeoIpLookup, LightNormalizationConfig, RawUserAgentInfo, StoreConfig,
     StoreProcessor,
@@ -755,6 +766,17 @@
     <span class="kw">let </span>value = (<span class="kw-2">*</span>value).as_str();
     <span class="kw">match </span>validate_json::&lt;ProjectConfig&gt;(value, strict) {
         <span class="prelude-val">Ok</span>(()) =&gt; RelayStr::default(),
+        <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
+    }
+}
+
+<span class="doccomment">/// Normalize a global config.
+</span><span class="attr">#[no_mangle]
+#[relay_ffi::catch_unwind]
+</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>normalize_global_config(value: <span class="kw-2">*const </span>RelayStr) -&gt; RelayStr {
+    <span class="kw">let </span>value = (<span class="kw-2">*</span>value).as_str();
+    <span class="kw">match </span>normalize_json::&lt;GlobalConfig&gt;(value) {
+        <span class="prelude-val">Ok</span>(normalized) =&gt; RelayStr::from_string(normalized),
         <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
 }
