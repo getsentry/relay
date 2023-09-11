@@ -65,7 +65,7 @@ impl UpstreamQuery for GetGlobalConfig {
     }
 
     fn path(&self) -> std::borrow::Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
     }
 
     fn retry() -> bool {
@@ -85,6 +85,9 @@ impl UpstreamQuery for GetGlobalConfig {
 pub struct Get;
 
 /// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
+///
+/// The global config service must be up and running, else the subscription
+/// fails.
 pub struct Subscribe;
 
 /// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].

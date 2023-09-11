@@ -182,7 +182,7 @@ def test_pending_projects(mini_sentry, relay):
 
     def request_config():
         return relay.post(
-            "/api/0/relays/projectconfigs/?version=4",
+            "/api/0/relays/projectconfigs/?version=3",
             data=packed,
             headers={
                 "X-Sentry-Relay-Id": relay.relay_id,
@@ -450,6 +450,6 @@ def test_get_global_config(mini_sentry, relay):
 
     body = {"publicKeys": [], "global": True}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
-    data = get_response(relay, packed, signature, version="4")
+    data = get_response(relay, packed, signature, version="3")
 
     assert data["global"] == GLOBAL_CONFIG

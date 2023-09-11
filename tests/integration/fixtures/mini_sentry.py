@@ -315,8 +315,9 @@ def mini_sentry(request):  # noqa
 
         version = flask_request.args.get("version")
 
-        if version == "4" and flask_request.json.get("global"):
+        if version == "3" and flask_request.json.get("global"):
             global_ = GLOBAL_CONFIG
+
         if version in [None, "1"]:
             for project_id in flask_request.json["projects"]:
                 project_config = sentry.project_configs[int(project_id)]
