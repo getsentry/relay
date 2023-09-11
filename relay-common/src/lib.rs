@@ -14,3 +14,9 @@ pub mod glob3;
 pub mod time;
 
 pub use sentry_types::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
+
+#[derive(Clone, Copy, Default, Debug)]
+pub struct ReservoirCounter {
+    pub qty: usize,
+    pub target_reached: bool,
+}

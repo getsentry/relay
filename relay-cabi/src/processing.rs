@@ -4,6 +4,7 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
@@ -377,7 +378,13 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
     let match_result = if let (Ok(event), Ok(dsc)) = (event, dsc) {
-        SamplingMatch::match_against_rules(rules.iter(), event.value(), Some(&dsc), Utc::now())
+        SamplingMatch::match_against_rules(
+            rules.iter(),
+            event.value(),
+            Some(&dsc),
+            Utc::now(),
+            &BTreeMap::default(),
+        )
     } else {
         None
     };

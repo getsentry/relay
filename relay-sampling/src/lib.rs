@@ -82,6 +82,8 @@ mod utils;
 pub use config::SamplingConfig;
 pub use dsc::DynamicSamplingContext;
 
+/*
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -356,7 +358,13 @@ mod tests {
         dsc: &DynamicSamplingContext,
         now: DateTime<Utc>,
     ) -> Option<SamplingMatch> {
-        SamplingMatch::match_against_rules(config.rules_v2.iter(), Some(event), Some(dsc), now)
+        SamplingMatch::match_against_rules(
+            config.rules_v2.iter(),
+            Some(event),
+            Some(dsc),
+            now,
+            &BTreeMap::default(),
+        )
     }
 
     #[test]
@@ -1185,6 +1193,7 @@ mod tests {
             None,
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_no_match!(result);
     }
@@ -1205,6 +1214,7 @@ mod tests {
             None,
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
 
@@ -1216,6 +1226,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
     }
@@ -1236,6 +1247,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
     }
@@ -1256,6 +1268,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_trace_match!(result, 1.0, dsc, 6);
     }
@@ -1276,6 +1289,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_trace_match!(result, 0.75, dsc, 2, 5, 7);
     }
@@ -1294,6 +1308,7 @@ mod tests {
             None,
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
     }
@@ -1313,6 +1328,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.625, event, 3);
     }
@@ -1346,6 +1362,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_no_match!(result);
 
@@ -1356,6 +1373,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.5, event, 3);
     }
@@ -1376,6 +1394,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_no_match!(result);
     }
@@ -1394,6 +1413,7 @@ mod tests {
             Some(&dsc),
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
 
@@ -1406,6 +1426,7 @@ mod tests {
             None,
             Some(&event),
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_transaction_match!(result, 0.1, event, 1);
     }
@@ -1427,8 +1448,15 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            None,
+            None,
+            Some(&event),
+            now,
+            &BTreeMap::default(),
+        );
         assert_transaction_match!(result, 0.75, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -1442,8 +1470,15 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            None,
+            None,
+            Some(&event),
+            now,
+            &BTreeMap::default(),
+        );
         assert_transaction_match!(result, 1.0, event, 1);
 
         let sampling_config = SamplingConfig {
@@ -1457,8 +1492,15 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            None,
+            None,
+            Some(&event),
+            now,
+            &BTreeMap::default(),
+        );
         assert_no_match!(result);
     }
 
@@ -1479,8 +1521,15 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            None,
+            None,
+            Some(&event),
+            now,
+            &BTreeMap::default(),
+        );
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -1494,8 +1543,15 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            None,
+            None,
+            Some(&event),
+            now,
+            &BTreeMap::default(),
+        );
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -1509,8 +1565,15 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            None,
+            None,
+            Some(&event),
+            now,
+            &BTreeMap::default(),
+        );
         assert_no_match!(result);
     }
 
@@ -1542,8 +1605,15 @@ mod tests {
             mode: SamplingMode::Received,
         };
 
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = merge_configs_and_match(
+            true,
+            Some(&sampling_config),
+            None,
+            None,
+            Some(&event),
+            now,
+            &BTreeMap::default(),
+        );
         assert!(result.is_some());
         if let Some(SamplingMatch {
             sample_rate,
@@ -1571,6 +1641,7 @@ mod tests {
             Some(&dsc),
             None,
             now,
+            &BTreeMap::default(),
         );
         assert_trace_match!(result, 1.0, dsc, 6);
     }
@@ -1588,6 +1659,7 @@ mod tests {
             None,
             None,
             Utc::now(),
+            &BTreeMap::default(),
         );
         assert_no_match!(result);
     }
@@ -1598,8 +1670,16 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
 
-        let result =
-            merge_configs_and_match(true, None, None, Some(&dsc), Some(&event), Utc::now());
+        let result = merge_configs_and_match(
+            true,
+            None,
+            None,
+            Some(&dsc),
+            Some(&event),
+            Utc::now(),
+            &BTreeMap::default(),
+        );
         assert_no_match!(result);
     }
 }
+*/

@@ -7,6 +7,7 @@ use relay_config::{Config, RelayMode};
 use relay_metrics::{self, Aggregator, FlushBuckets, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
+use relay_sampling::config::RuleId;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
@@ -28,6 +29,16 @@ use crate::actors::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{self, BufferGuard, GarbageDisposal, ManagedEnvelope};
+
+pub struct UpdateCount {
+    pub project_key: ProjectKey,
+    pub rule_id: RuleId,
+}
+
+pub struct DisableReservoir {
+    pub project_key: ProjectKey,
+    pub rule_id: RuleId,
+}
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -201,6 +212,8 @@ pub struct SpoolHealth;
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
+    DisableReservoir(DisableReservoir),
+    UpdateReservoir(UpdateCount),
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
     GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
@@ -217,6 +230,22 @@ pub enum ProjectCache {
 }
 
 impl Interface for ProjectCache {}
+
+impl FromMessage<DisableReservoir> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: DisableReservoir, _: ()) -> Self {
+        Self::DisableReservoir(message)
+    }
+}
+
+impl FromMessage<UpdateCount> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: UpdateCount, _: ()) -> Self {
+        Self::UpdateReservoir(message)
+    }
+}
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -680,6 +709,9 @@ impl ProjectCacheBroker {
             ..
         }) = project.check_envelope(managed_envelope, self.services.outcome_aggregator.clone())
         {
+            let project_key = managed_envelope.scoping().project_key;
+            let reservoir_stuff = self.projects.get(&project_key).unwrap().reservoir_counts();
+
             let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
@@ -688,6 +720,7 @@ impl ProjectCacheBroker {
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
                 sampling_project_state: None,
+                reservoir_stuff,
             };
 
             if let Some(sampling_state) = sampling_state {
@@ -775,6 +808,16 @@ impl ProjectCacheBroker {
 
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
+            ProjectCache::DisableReservoir(msg) => {
+                if let Some(project) = self.projects.get_mut(&msg.project_key) {
+                    project.disable_reservoir(msg.rule_id);
+                }
+            }
+            ProjectCache::UpdateReservoir(msg) => {
+                if let Some(project) = self.projects.get_mut(&msg.project_key) {
+                    project.update_reservoir_count(msg.rule_id);
+                }
+            }
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),
             ProjectCache::Get(message, sender) => self.handle_get(message, sender),
             ProjectCache::GetCached(message, sender) => {

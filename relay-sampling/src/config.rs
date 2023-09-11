@@ -131,7 +131,7 @@ pub enum RuleType {
 ///
 /// This number must be unique within a Sentry organization, as it is recorded in outcomes and used
 /// to infer which sampling rule caused data to be dropped.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct RuleId(pub u32);
 
 impl fmt::Display for RuleId {
@@ -192,6 +192,9 @@ pub enum DecayingFunction {
     /// Apply the sample rate of the rule for the full time window with hard cutoff.
     #[default]
     Constant,
+
+    /// Bar foo
+    FooBar { max_qty: usize },
 }
 
 /// Defines which population of items a dynamic sample rate applies to.

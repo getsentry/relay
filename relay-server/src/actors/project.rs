@@ -1,13 +1,16 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
+use relay_common::ReservoirCounter;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_sampling::config::RuleId;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
@@ -393,6 +396,7 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
+    reservoir_counts: BTreeMap<RuleId, ReservoirCounter>,
 }
 
 impl Project {
@@ -408,7 +412,22 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            reservoir_counts: BTreeMap::default(),
         }
+    }
+
+    pub fn reservoir_counts(&self) -> BTreeMap<RuleId, ReservoirCounter> {
+        self.reservoir_counts.clone()
+    }
+
+    pub fn disable_reservoir(&mut self, rule_id: RuleId) {
+        if let Some(counter) = self.reservoir_counts.get_mut(&rule_id) {
+            counter.target_reached = true;
+        }
+    }
+
+    pub fn update_reservoir_count(&mut self, rule_id: RuleId) {
+        todo!()
     }
 
     /// If we know that a project is disabled, disallow metrics, too.

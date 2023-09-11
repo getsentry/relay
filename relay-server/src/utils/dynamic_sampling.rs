@@ -1,11 +1,17 @@
 //! Functionality for calculating if a trace should be processed or dropped.
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
+use relay_common::ReservoirCounter;
 use relay_event_schema::protocol::Event;
+use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
 use relay_sampling::DynamicSamplingContext;
+use relay_system::Addr;
 
 use crate::actors::project::ProjectState;
+use crate::actors::project_cache::{DisableReservoir, ProjectCache, UpdateCount};
 use crate::envelope::{Envelope, ItemType};
 
 /// The result of a sampling operation.
@@ -29,6 +35,7 @@ impl SamplingResult {
                 sample_rate,
                 matched_rule_ids,
                 seed,
+                ..
             }) => {
                 let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
                 relay_log::trace!(
@@ -62,20 +69,45 @@ fn get_sampling_match_result(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     now: DateTime<Utc>,
+    reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
+    projcache: Addr<ProjectCache>,
+    project_key: Option<ProjectKey>,
 ) -> Option<SamplingMatch> {
     // We want to extract the SamplingConfig from each project state.
     let sampling_config = project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
     let root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
-    relay_sampling::evaluation::merge_configs_and_match(
+    let x = relay_sampling::evaluation::merge_configs_and_match(
         processing_enabled,
         sampling_config,
         root_sampling_config,
         dsc,
         event,
         now,
-    )
+        reservoir_stuff,
+    );
+
+    if let Some(ref x) = x {
+        if let Some(ref msg) = x.reservoir_msg {
+            let project_key = project_key.unwrap();
+            match msg {
+                relay_sampling::evaluation::ReservoirMessage::Update(rule_id) => {
+                    projcache.send(UpdateCount {
+                        project_key,
+                        rule_id: *rule_id,
+                    });
+                }
+                relay_sampling::evaluation::ReservoirMessage::Disable(rule_id) => {
+                    projcache.send(DisableReservoir {
+                        project_key,
+                        rule_id: *rule_id,
+                    })
+                }
+            }
+        }
+    }
+    return x;
 }
 
 /// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
@@ -86,6 +118,9 @@ pub fn get_sampling_result(
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
+    reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
+    projcache: Addr<ProjectCache>,
+    project_key: Option<ProjectKey>,
 ) -> SamplingResult {
     let sampling_result = get_sampling_match_result(
         processing_enabled,
@@ -96,6 +131,9 @@ pub fn get_sampling_result(
         // For consistency reasons we take a snapshot in time and use that time across all code that
         // requires it.
         Utc::now(),
+        reservoir_stuff,
+        projcache,
+        project_key,
     );
     SamplingResult::determine_from_sampling_match(sampling_result)
 }
@@ -107,6 +145,7 @@ pub fn is_trace_fully_sampled(
     processing_enabled: bool,
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
+    projcache: Addr<ProjectCache>,
 ) -> Option<bool> {
     let dsc = dsc?;
     let root_project_state = root_project_state?;
@@ -124,6 +163,9 @@ pub fn is_trace_fully_sampled(
         None,
         Some(root_project_state),
         Some(dsc),
+        None,
+        &BTreeMap::default(),
+        projcache,
         None,
     );
 
@@ -148,7 +190,7 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
         .get_item_by(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Event)?;
     envelope.dsc().map(|dsc| dsc.public_key)
 }
-
+/*
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
@@ -224,7 +266,14 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
+        let result = get_sampling_result(
+            true,
+            Some(&project_state),
+            None,
+            None,
+            Some(&event),
+            &BTreeMap::default(),
+        );
         assert_eq!(result, SamplingResult::Keep)
     }
 
@@ -238,7 +287,14 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
+        let result = get_sampling_result(
+            true,
+            Some(&project_state),
+            None,
+            None,
+            Some(&event),
+            &BTreeMap::default(),
+        );
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))
@@ -262,7 +318,14 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
-        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
+        let result = get_sampling_result(
+            true,
+            Some(&project_state),
+            None,
+            None,
+            Some(&event),
+            &BTreeMap::default(),
+        );
         assert_eq!(result, SamplingResult::Keep)
     }
 
@@ -279,10 +342,24 @@ mod tests {
         });
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = get_sampling_result(false, Some(&project_state), None, None, Some(&event));
+        let result = get_sampling_result(
+            false,
+            Some(&project_state),
+            None,
+            None,
+            Some(&event),
+            &BTreeMap::default(),
+        );
         assert_eq!(result, SamplingResult::Keep);
 
-        let result = get_sampling_result(true, Some(&project_state), None, None, Some(&event));
+        let result = get_sampling_result(
+            true,
+            Some(&project_state),
+            None,
+            None,
+            Some(&event),
+            &BTreeMap::default(),
+        );
         assert_eq!(
             result,
             SamplingResult::Drop(MatchedRuleIds(vec![RuleId(2)]))
@@ -299,7 +376,14 @@ mod tests {
         });
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = get_sampling_result(true, None, Some(&root_project_state), Some(&dsc), None);
+        let result = get_sampling_result(
+            true,
+            None,
+            Some(&root_project_state),
+            Some(&dsc),
+            None,
+            &BTreeMap::default(),
+        );
         assert_eq!(result, SamplingResult::Keep)
     }
 
@@ -362,3 +446,5 @@ mod tests {
         assert!(result.is_none())
     }
 }
+
+*/

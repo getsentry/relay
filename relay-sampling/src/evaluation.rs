@@ -1,5 +1,6 @@
 //! Evaluation of dynamic sampling rules.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::num::ParseIntError;
 
@@ -8,6 +9,7 @@ use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
 use relay_base_schema::events::EventType;
+use relay_common::ReservoirCounter;
 use relay_event_schema::protocol::Event;
 use serde::Serialize;
 use uuid::Uuid;
@@ -79,13 +81,15 @@ pub fn merge_configs_and_match(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     now: DateTime<Utc>,
+    reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
 ) -> Option<SamplingMatch> {
     // We check if there are unsupported rules in any of the two configurations.
     check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
-    let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, now)?;
+    let mut match_result =
+        SamplingMatch::match_against_rules(rules, event, dsc, now, reservoir_stuff)?;
 
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
@@ -99,6 +103,7 @@ pub fn merge_configs_and_match(
         relay_log::error!("cannot sample without at least one sampling config");
         return None;
     };
+
     let sample_rate = match primary_config.mode {
         SamplingMode::Received => match_result.sample_rate,
         SamplingMode::Total => match dsc {
@@ -120,6 +125,12 @@ pub fn merge_configs_and_match(
     Some(match_result)
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub enum ReservoirMessage {
+    Update(RuleId),
+    Disable(RuleId),
+}
+
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SamplingMatch {
@@ -135,6 +146,9 @@ pub struct SamplingMatch {
 
     /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
     pub matched_rule_ids: MatchedRuleIds,
+
+    /// damn
+    pub reservoir_msg: Option<ReservoirMessage>,
 }
 
 impl SamplingMatch {
@@ -160,6 +174,7 @@ impl SamplingMatch {
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
+        reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
     ) -> Option<SamplingMatch>
     where
         I: Iterator<Item = &'a SamplingRule>,
@@ -196,7 +211,11 @@ impl SamplingMatch {
             };
 
             if matches {
-                if let Some(evaluator) = SamplingValueEvaluator::create(rule, now) {
+                if let Some(evaluator) = SamplingValueEvaluator::create(
+                    rule,
+                    now,
+                    reservoir_stuff.get(&rule.id).copied(),
+                ) {
                     matched_rule_ids.push(rule.id);
 
                     if rule.ty == RuleType::Trace {
@@ -218,6 +237,7 @@ impl SamplingMatch {
                                     None => return None,
                                 },
                                 matched_rule_ids: MatchedRuleIds(matched_rule_ids),
+                                reservoir_msg: None,
                             });
                         }
                     }
@@ -278,11 +298,18 @@ enum SamplingValueEvaluator {
     Constant {
         initial_value: f64,
     },
+    Reservoir {
+        done: bool,
+    },
 }
 
 impl SamplingValueEvaluator {
     /// Returns a [`SamplingValueEvaluator`] if the rule is active at the given time.
-    fn create(rule: &SamplingRule, now: DateTime<Utc>) -> Option<Self> {
+    fn create(
+        rule: &SamplingRule,
+        now: DateTime<Utc>,
+        max_stuff: Option<ReservoirCounter>,
+    ) -> Option<Self> {
         let sampling_base_value = rule.sampling_value.value();
 
         match rule.decaying_fn {
@@ -303,10 +330,26 @@ impl SamplingValueEvaluator {
                     }
                 }
             }
+            DecayingFunction::FooBar { max_qty } => {
+                // so we wanna sample it for sure, as long as we didnt exceed that limit thing
+                // then we wanna update the count ig
+                let Some(counter) = max_stuff else {
+                        relay_log::error!("rule id not found");
+                        return None;
+                };
+
+                if max_qty < counter.qty {
+                    // first update count or something
+                    return Some(Self::Reservoir { done: true });
+                } else {
+                    // if we surpassed, i guess send back that we remove the key ?
+                    return Some(Self::Reservoir { done: false });
+                }
+            }
             DecayingFunction::Constant => {
                 if rule.time_range.contains(now) {
                     return Some(Self::Constant {
-                        initial_value: sampling_base_value,
+                        initial_value: rule.sampling_value.value(),
                     });
                 }
             }
@@ -336,6 +379,13 @@ impl SamplingValueEvaluator {
                 initial_value + (interval * progress_ratio)
             }
             Self::Constant { initial_value } => *initial_value,
+            Self::Reservoir { done } => {
+                if *done {
+                    0.0
+                } else {
+                    1.0
+                }
+            }
         }
     }
 }

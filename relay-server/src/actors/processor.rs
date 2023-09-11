@@ -17,6 +17,7 @@ use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
+use relay_common::ReservoirCounter;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{
     ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
@@ -42,6 +43,7 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
+use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
@@ -307,6 +309,9 @@ struct ProcessEnvelopeState {
 
     /// Whether there is a profiling item in the envelope.
     has_profile: bool,
+
+    /// hey
+    reservoir_stuff: BTreeMap<RuleId, ReservoirCounter>,
 }
 
 impl ProcessEnvelopeState {
@@ -425,6 +430,7 @@ pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
+    pub reservoir_stuff: BTreeMap<relay_sampling::config::RuleId, ReservoirCounter>,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -1325,6 +1331,7 @@ impl EnvelopeProcessorService {
             envelope: mut managed_envelope,
             project_state,
             sampling_project_state,
+            ..
         } = message;
 
         let envelope = managed_envelope.envelope_mut();
@@ -1370,6 +1377,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             has_profile: false,
+            reservoir_stuff: message.reservoir_stuff,
         })
     }
 
@@ -2328,6 +2336,9 @@ impl EnvelopeProcessorService {
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
+            &state.reservoir_stuff,
+            self.inner.project_cache.clone(),
+            state.managed_envelope.scoping().project_key.into(),
         );
     }
 
@@ -2345,6 +2356,7 @@ impl EnvelopeProcessorService {
             self.inner.config.processing_enabled(),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
+            self.inner.project_cache.clone(),
         );
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
@@ -3069,6 +3081,7 @@ mod tests {
                 ),
                 has_profile: false,
                 event_metrics_extracted: false,
+                reservoir_stuff: BTreeMap::default(),
             }
         };
 
@@ -3135,6 +3148,7 @@ mod tests {
                     test_store.clone(),
                 ),
                 has_profile: false,
+                reservoir_stuff: BTreeMap::default(),
             };
 
             // TODO: This does not test if the sampling decision is actually applied. This should be
@@ -3318,6 +3332,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_stuff: BTreeMap::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3339,6 +3354,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
+            reservoir_stuff: BTreeMap::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3549,6 +3565,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
+            reservoir_stuff: BTreeMap::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3619,6 +3636,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_stuff: BTreeMap::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3667,6 +3685,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_stuff: BTreeMap::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3723,6 +3742,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_stuff: BTreeMap::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
