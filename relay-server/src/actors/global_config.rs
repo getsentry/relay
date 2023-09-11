@@ -85,6 +85,9 @@ impl UpstreamQuery for GetGlobalConfig {
 pub struct Get;
 
 /// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
+///
+/// The global config service must be up and running, else the subscription
+/// fails.
 pub struct Subscribe;
 
 /// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].

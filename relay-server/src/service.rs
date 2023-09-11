@@ -120,6 +120,9 @@ impl ServiceState {
         let outcome_aggregator =
             OutcomeAggregator::new(&config, outcome_producer.clone()).start_in(&runtimes.outcome);
 
+        // The global config service must start before dependant services are
+        // started. Messages like subscription requests to the global config
+        // service fail if the service is not running.
         let global_config =
             GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
 
