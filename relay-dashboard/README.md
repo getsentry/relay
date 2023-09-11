@@ -13,7 +13,7 @@ Right now you can:
 
 ## Requirements
 
-First, install the WASM target:
+In order to build the dashboard, an additional compilation target is required:
 
 ```sh
 rustup target add wasm32-unknown-unknown
