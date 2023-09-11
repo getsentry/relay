@@ -321,6 +321,9 @@
 <a href="#321" id="321">321</a>
 <a href="#322" id="322">322</a>
 <a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the Global Config service.
 //!
 //! The global config service is a Relay service to manage [`GlobalConfig`]s,
@@ -408,6 +411,9 @@
 </span><span class="kw">pub struct </span>Get;
 
 <span class="doccomment">/// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
+///
+/// The global config service must be up and running, else the subscription
+/// fails.
 </span><span class="kw">pub struct </span>Subscribe;
 
 <span class="doccomment">/// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].
