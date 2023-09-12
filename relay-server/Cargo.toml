@@ -119,7 +119,6 @@ zstd = { version = "0.12.3", optional = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
-relay-config = { path = "../relay-config", features = ["test"] }
 relay-event-schema = { path = "../relay-event-schema", features = [
     "jsonschema",
 ] }

@@ -12,7 +12,6 @@ publish = false
 [features]
 default = []
 processing = []
-test = []
 
 [dependencies]
 anyhow = { workspace = true }
