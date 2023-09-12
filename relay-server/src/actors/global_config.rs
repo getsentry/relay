@@ -329,7 +329,7 @@ mod tests {
 
         Controller::start(Duration::from_secs(1));
         let mut config = Config::default();
-        config.update_credentials();
+        config.regenerate_credentials(false).unwrap();
         let fetch_interval = config.global_config_fetch_interval();
 
         let service = GlobalConfigService::new(Arc::new(config), upstream).start();
@@ -348,7 +348,7 @@ mod tests {
         relay_test::setup();
         tokio::time::pause();
 
-        let (upstream, handle) = mock_service("wtf", (), |(), msg| {
+        let (upstream, handle) = mock_service("upstream", (), |(), _| {
             panic!();
         });
 
@@ -358,7 +358,7 @@ mod tests {
             }
         }))
         .unwrap();
-        config.update_credentials();
+        config.regenerate_credentials(false).unwrap();
 
         let fetch_interval = config.global_config_fetch_interval();
         let service = GlobalConfigService::new(Arc::new(config), upstream).start();
@@ -377,13 +377,12 @@ mod tests {
             panic!("upstream should not be called outside of managed mode");
         });
 
-        let mut config = Config::from_json_value(serde_json::json!({
+        let config = Config::from_json_value(serde_json::json!({
             "relay": {
                 "mode":  RelayMode::Proxy
             }
         }))
         .unwrap();
-        config.update_credentials();
 
         let fetch_interval = config.global_config_fetch_interval();
 
