@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use relay_event_normalization::MeasurementsConfig;
 use serde::{Deserialize, Serialize};

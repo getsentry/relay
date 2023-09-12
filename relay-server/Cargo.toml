@@ -11,12 +11,13 @@ license-file = "../LICENSE"
 publish = false
 
 [features]
+default = []
 dashboard = [
   "axum/ws",
   "dep:rust-embed",
-  "dep:mime_guess"
+  "dep:mime_guess",
+  "relay-log/dashboard",
 ]
-default = []
 processing = [
     "dep:minidump",
     "dep:symbolic-common",
