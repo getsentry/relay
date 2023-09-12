@@ -185,18 +185,20 @@ jobs:
       matrix:
         # the arm64 build takes too long, so disable for now
         arch: [amd64]
+        image_name: [relay, relay-pop]
 
-    name: Build Docker Image (${{ matrix.arch }})
+
+    name: Build Docker Image (${{ matrix.arch }}) for ${{ matrix.image_name }}
     runs-on: ubuntu-latest
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     env:
-      IMG_BASE: ghcr.io/getsentry/relay
+      IMG_BASE: ghcr.io/getsentry/${{ matrix.image_name }}
       IMG_DEPS: ghcr.io/getsentry/relay-deps:${{ matrix.arch }}
       # GITHUB_SHA in pull requests points to the merge commit
-      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+      IMG_VERSIONED: ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}
       ARCH: ${{ matrix.arch }}
 
     steps:
@@ -215,17 +217,17 @@ jobs:
         run: |
           # Get the latest stable rust toolchain version available
           TOOLCHAIN=$(curl -s 'https://static.rust-lang.org/dist/channel-rust-stable.toml' | awk '/\[pkg.rust\]/ {getline;print;}' | sed -r 's/^version = "([0-9.]+) .*/\1/')
-          ./scripts/build-docker-image.sh "$ARCH" "$TOOLCHAIN"
+          ./scripts/build-docker-image.sh "$ARCH" "$TOOLCHAIN" ${{ matrix.image_name }}
 
       - name: Export Docker Image
-        run: docker save -o relay-docker-image.tgz $IMG_VERSIONED
+        run: docker save -o ${{ matrix.image_name }}-docker-image.tgz $IMG_VERSIONED
 
       - name: Upload Docker Image to Artifact
         uses: actions/upload-artifact@v3
         with:
           retention-days: 1
-          name: relay-docker-image
-          path: relay-docker-image.tgz
+          name: ${{ matrix.image_name }}-docker-image
+          path: ${{ matrix.image_name }}-docker-image.tgz
 
       - name: Push to ghcr.io
         # Do not run this on forks as they do not have access to secrets
@@ -247,6 +249,10 @@ jobs:
     timeout-minutes: 5
     needs: build
 
+    strategy:
+      matrix:
+        image_name: [relay, relay-pop]
+
     name: Push GCR Docker Image
     runs-on: ubuntu-latest
 
@@ -262,16 +268,16 @@ jobs:
     env:
       # GITHUB_SHA in pull requests points to the merge commit
       REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      IMG_VERSIONED: ghcr.io/getsentry/relay:${{ github.event.pull_request.head.sha || github.sha }}
+      IMG_VERSIONED: ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Download Docker Image
         uses: actions/download-artifact@v3
         with:
-          name: relay-docker-image
+          name: ${{ matrix.image_name }}-docker-image
 
       - name: Import Docker Image
-        run: docker load -i relay-docker-image.tgz
+        run: docker load -i ${{ matrix.image_name }}-docker-image.tgz
 
       - name: Google Auth
         id: auth
@@ -294,17 +300,19 @@ jobs:
       - name: Push to us.gcr.io
         run: |
           set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:$REVISION"
-          docker push "us.gcr.io/sentryio/relay:$REVISION"
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/${{ matrix.image_name }}:$REVISION"
+          docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:$REVISION"
 
       - name: Push nightly to us.gcr.io
         if: github.ref == 'refs/heads/master'
         run: |
           set -euxo pipefail
-          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/relay:nightly"
-          docker push "us.gcr.io/sentryio/relay:nightly"
+          docker tag "$IMG_VERSIONED" "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
+          docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
 
       - name: Upload gocd deployment assets
+        # Collect assets only for processing Relay, since it contains more information.
+        if: matrix.image_name == 'relay'
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d" " -f2)"
