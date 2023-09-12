@@ -26,12 +26,8 @@ impl GlobalConfig {
         let path = folder_path.join("global_config.json");
 
         if path.exists() {
-            let global_config = {
-                let file = BufReader::new(File::open(path)?);
-                serde_json::from_reader(file)?
-            };
-
-            Ok(Some(global_config))
+            let file = BufReader::new(File::open(path)?);
+            Ok(Some(serde_json::from_reader(file)?))
         } else {
             Ok(None)
         }

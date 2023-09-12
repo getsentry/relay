@@ -293,7 +293,7 @@ impl SamplingValueEvaluator {
                 } = rule.time_range
                 {
                     // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if sampling_base_value > decayed_value && rule.time_range.contains(now) {
+                    if sampling_base_value > decayed_value && start <= now && now < end {
                         return Some(Self::Linear {
                             start,
                             end,
