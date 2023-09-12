@@ -614,7 +614,7 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    /// Parse a statsd-compatible payload.
+    /// Parses a statsd-compatible payload.
     ///
     /// ```text
     /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
