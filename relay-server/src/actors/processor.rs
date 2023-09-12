@@ -17,7 +17,6 @@ use once_cell::sync::OnceCell;
 use relay_auth::RelayVersion;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_common::time::UnixTimestamp;
-use relay_common::ReservoirCounter;
 use relay_config::{Config, HttpEncoding};
 use relay_dynamic_config::{
     ErrorBoundary, Feature, GlobalConfig, ProjectConfig, SessionMetricsConfig,
@@ -311,7 +310,7 @@ struct ProcessEnvelopeState {
     has_profile: bool,
 
     /// hey
-    reservoir_stuff: BTreeMap<RuleId, ReservoirCounter>,
+    reservoir_stuff: BTreeMap<RuleId, usize>,
 }
 
 impl ProcessEnvelopeState {
@@ -430,7 +429,7 @@ pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
-    pub reservoir_stuff: BTreeMap<relay_sampling::config::RuleId, ReservoirCounter>,
+    pub reservoir_stuff: BTreeMap<relay_sampling::config::RuleId, usize>,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -2361,7 +2360,7 @@ impl EnvelopeProcessorService {
             self.inner.project_cache.clone(),
         );
 
-        let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
+        let (Some(event), Some(sampled)) = (state.event.value(), sampled) else {
             return;
         };
 

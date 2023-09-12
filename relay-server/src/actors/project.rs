@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
-use relay_common::ReservoirCounter;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
@@ -396,7 +395,7 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
-    reservoir_counts: BTreeMap<RuleId, ReservoirCounter>,
+    reservoir_counts: BTreeMap<RuleId, usize>,
 }
 
 impl Project {
@@ -416,18 +415,15 @@ impl Project {
         }
     }
 
-    pub fn reservoir_counts(&self) -> BTreeMap<RuleId, ReservoirCounter> {
+    pub fn reservoir_counts(&self) -> BTreeMap<RuleId, usize> {
         self.reservoir_counts.clone()
     }
 
-    pub fn disable_reservoir(&mut self, rule_id: RuleId) {
-        if let Some(counter) = self.reservoir_counts.get_mut(&rule_id) {
-            counter.target_reached = true;
-        }
-    }
-
-    pub fn update_reservoir_count(&mut self, rule_id: RuleId) {
-        todo!()
+    pub fn increment_reservoir_count(&mut self, rule_id: RuleId) {
+        self.reservoir_counts
+            .entry(rule_id)
+            .and_modify(|c| *c += 1)
+            .or_insert(1);
     }
 
     /// If we know that a project is disabled, disallow metrics, too.

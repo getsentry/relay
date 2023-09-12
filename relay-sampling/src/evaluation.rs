@@ -9,7 +9,6 @@ use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
 use relay_base_schema::events::EventType;
-use relay_common::ReservoirCounter;
 use relay_event_schema::protocol::Event;
 use serde::Serialize;
 use uuid::Uuid;
@@ -81,7 +80,7 @@ pub fn merge_configs_and_match(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     now: DateTime<Utc>,
-    reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
+    reservoir_stuff: &BTreeMap<RuleId, usize>,
 ) -> Option<SamplingMatch> {
     // We check if there are unsupported rules in any of the two configurations.
     check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
@@ -90,6 +89,10 @@ pub fn merge_configs_and_match(
     let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
     let mut match_result =
         SamplingMatch::match_against_rules(rules, event, dsc, now, reservoir_stuff)?;
+
+    let SamplingMatch::Other{sample_rate, ..} = match_result else {
+        return Some(match_result);
+    };
 
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
@@ -104,11 +107,11 @@ pub fn merge_configs_and_match(
         return None;
     };
 
-    let sample_rate = match primary_config.mode {
-        SamplingMode::Received => match_result.sample_rate,
+    let new_sample_rate = match primary_config.mode {
+        SamplingMode::Received => sample_rate,
         SamplingMode::Total => match dsc {
-            Some(dsc) => dsc.adjusted_sample_rate(match_result.sample_rate),
-            None => match_result.sample_rate,
+            Some(dsc) => dsc.adjusted_sample_rate(sample_rate),
+            None => sample_rate,
         },
         SamplingMode::Unsupported => {
             if processing_enabled {
@@ -118,7 +121,8 @@ pub fn merge_configs_and_match(
             return None;
         }
     };
-    match_result.set_sample_rate(sample_rate);
+
+    match_result.set_sample_rate(new_sample_rate);
 
     // Only if we arrive at this stage, it means that we have found a match and we want to prepare
     // the data for making the sampling decision.
@@ -128,33 +132,40 @@ pub fn merge_configs_and_match(
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum ReservoirMessage {
     Update(RuleId),
-    Disable(RuleId),
 }
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct SamplingMatch {
-    /// The sample rate to use for the incoming event.
-    pub sample_rate: f64,
+pub enum SamplingMatch {
+    /// The rule is an inspection bias.
+    Bias { rule_id: RuleId },
+    /// Normal sampling.
+    Other {
+        /// The sample rate to use for the incoming event.
+        sample_rate: f64,
 
-    /// The seed to feed to the random number generator which allows the same number to be
-    /// generated given the same seed.
-    ///
-    /// This is especially important for trace sampling, even though we can have inconsistent
-    /// traces due to multi-matching.
-    pub seed: Uuid,
+        /// The seed to feed to the random number generator which allows the same number to be
+        /// generated given the same seed.
+        ///
+        /// This is especially important for trace sampling, even though we can have inconsistent
+        /// traces due to multi-matching.
+        seed: Uuid,
 
-    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-    pub matched_rule_ids: MatchedRuleIds,
-
-    /// damn
-    pub reservoir_msg: Option<ReservoirMessage>,
+        /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
+        matched_rule_ids: MatchedRuleIds,
+    },
 }
 
 impl SamplingMatch {
     /// Setter for `sample_rate`.
     pub fn set_sample_rate(&mut self, new_sample_rate: f64) {
-        self.sample_rate = new_sample_rate;
+        if let Self::Other {
+            ref mut sample_rate,
+            ..
+        } = self
+        {
+            *sample_rate = new_sample_rate;
+        }
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -174,7 +185,7 @@ impl SamplingMatch {
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
-        reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
+        reservoir_stuff: &BTreeMap<RuleId, usize>,
     ) -> Option<SamplingMatch>
     where
         I: Iterator<Item = &'a SamplingRule>,
@@ -224,20 +235,26 @@ impl SamplingMatch {
                         }
                     }
 
+                    if let SamplingValueEvaluator::InspectBias { target_is_reached } = evaluator {
+                        // When target is reached, we disable this rule, and sample accoridng to
+                        // other rules. This branch should only be reached in the time interval
+                        // between the target getting reached, and sentry removing the rule
+                        // through [`SamplingConfig`].
+                        if target_is_reached {
+                            continue;
+                        } else {
+                            return Some(SamplingMatch::Bias { rule_id: rule.id });
+                        }
+                    }
+
                     let value = evaluator.evaluate(now);
                     match rule.sampling_value {
                         SamplingValue::Factor { .. } => accumulated_factors *= value,
                         SamplingValue::SampleRate { .. } => {
-                            return Some(SamplingMatch {
+                            return Some(SamplingMatch::Other {
                                 sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
-                                seed: match seed {
-                                    Some(seed) => seed,
-                                    // In case we are not able to generate a seed, we will return a no
-                                    // match.
-                                    None => return None,
-                                },
+                                seed: seed?,
                                 matched_rule_ids: MatchedRuleIds(matched_rule_ids),
-                                reservoir_msg: None,
                             });
                         }
                     }
@@ -298,18 +315,14 @@ enum SamplingValueEvaluator {
     Constant {
         initial_value: f64,
     },
-    Reservoir {
-        done: bool,
+    InspectBias {
+        target_is_reached: bool,
     },
 }
 
 impl SamplingValueEvaluator {
     /// Returns a [`SamplingValueEvaluator`] if the rule is active at the given time.
-    fn create(
-        rule: &SamplingRule,
-        now: DateTime<Utc>,
-        max_stuff: Option<ReservoirCounter>,
-    ) -> Option<Self> {
+    fn create(rule: &SamplingRule, now: DateTime<Utc>, counter: Option<usize>) -> Option<Self> {
         let sampling_base_value = rule.sampling_value.value();
 
         match rule.decaying_fn {
@@ -330,20 +343,19 @@ impl SamplingValueEvaluator {
                     }
                 }
             }
-            DecayingFunction::FooBar { max_qty } => {
-                // so we wanna sample it for sure, as long as we didnt exceed that limit thing
-                // then we wanna update the count ig
-                let Some(counter) = max_stuff else {
-                        relay_log::error!("rule id not found");
-                        return None;
-                };
+            DecayingFunction::InspectionBias { reservoir_limit } => {
+                let counter = counter.unwrap_or_default();
 
-                if max_qty <= counter.qty {
-                    // the counter has reached the target, so we mark the target as done
-                    return Some(Self::Reservoir { done: true });
+                if counter >= reservoir_limit {
+                    // the counter has reached the target, so we return none
+                    return Some(Self::InspectBias {
+                        target_is_reached: true,
+                    });
                 } else {
                     // still below target :)
-                    return Some(Self::Reservoir { done: false });
+                    return Some(Self::InspectBias {
+                        target_is_reached: false,
+                    });
                 }
             }
             DecayingFunction::Constant => {
@@ -379,8 +391,8 @@ impl SamplingValueEvaluator {
                 initial_value + (interval * progress_ratio)
             }
             Self::Constant { initial_value } => *initial_value,
-            Self::Reservoir { done } => {
-                if *done {
+            Self::InspectBias { target_is_reached } => {
+                if *target_is_reached {
                     0.0
                 } else {
                     1.0

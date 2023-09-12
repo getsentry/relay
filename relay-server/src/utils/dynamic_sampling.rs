@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
-use relay_common::ReservoirCounter;
 use relay_event_schema::protocol::Event;
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
@@ -30,13 +29,18 @@ pub enum SamplingResult {
 
 impl SamplingResult {
     fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
+        let Some(sampling_match) = sampling_match else {
+            relay_log::trace!("keeping event that didn't match the configuration");
+            return SamplingResult::Keep;
+        };
+
         match sampling_match {
-            Some(SamplingMatch {
+            SamplingMatch::Bias { .. } => return SamplingResult::Keep,
+            SamplingMatch::Other {
                 sample_rate,
-                matched_rule_ids,
                 seed,
-                ..
-            }) => {
+                matched_rule_ids,
+            } => {
                 let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
                 relay_log::trace!(
                     sample_rate,
@@ -52,10 +56,6 @@ impl SamplingResult {
                     SamplingResult::Keep
                 }
             }
-            None => {
-                relay_log::trace!("keeping event that didn't match the configuration");
-                SamplingResult::Keep
-            }
         }
     }
 }
@@ -68,7 +68,7 @@ pub fn get_sampling_result(
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
-    reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
+    reservoir_stuff: &BTreeMap<RuleId, usize>,
     projcache: Addr<ProjectCache>,
     project_key: Option<ProjectKey>,
 ) -> SamplingResult {
@@ -88,25 +88,16 @@ pub fn get_sampling_result(
         reservoir_stuff,
     );
 
-    if let Some(ref x) = sampling_match {
-        if let Some(ref msg) = x.reservoir_msg {
-            let project_key = project_key.unwrap();
-            match msg {
-                relay_sampling::evaluation::ReservoirMessage::Update(rule_id) => {
-                    projcache.send(UpdateCount {
-                        project_key,
-                        rule_id: *rule_id,
-                    });
-                }
-                relay_sampling::evaluation::ReservoirMessage::Disable(rule_id) => {
-                    projcache.send(DisableReservoir {
-                        project_key,
-                        rule_id: *rule_id,
-                    })
-                }
-            }
+    if let Some(SamplingMatch::Bias { rule_id }) = sampling_match {
+        projcache.send(UpdateCount {
+            project_key: project_key.unwrap(),
+            rule_id,
+        });
+
+        if processing_enabled {
+            // 1. query
         }
-    };
+    }
 
     SamplingResult::determine_from_sampling_match(sampling_match)
 }

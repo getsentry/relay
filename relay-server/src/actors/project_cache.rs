@@ -212,7 +212,6 @@ pub struct SpoolHealth;
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
-    DisableReservoir(DisableReservoir),
     UpdateReservoir(UpdateCount),
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
@@ -230,14 +229,6 @@ pub enum ProjectCache {
 }
 
 impl Interface for ProjectCache {}
-
-impl FromMessage<DisableReservoir> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: DisableReservoir, _: ()) -> Self {
-        Self::DisableReservoir(message)
-    }
-}
 
 impl FromMessage<UpdateCount> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -808,14 +799,9 @@ impl ProjectCacheBroker {
 
     fn handle_message(&mut self, message: ProjectCache) {
         match message {
-            ProjectCache::DisableReservoir(msg) => {
-                if let Some(project) = self.projects.get_mut(&msg.project_key) {
-                    project.disable_reservoir(msg.rule_id);
-                }
-            }
             ProjectCache::UpdateReservoir(msg) => {
                 if let Some(project) = self.projects.get_mut(&msg.project_key) {
-                    project.update_reservoir_count(msg.rule_id);
+                    project.increment_reservoir_count(msg.rule_id);
                 }
             }
             ProjectCache::RequestUpdate(message) => self.handle_request_update(message),

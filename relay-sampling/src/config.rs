@@ -194,7 +194,7 @@ pub enum DecayingFunction {
     Constant,
 
     /// Bar foo
-    FooBar { max_qty: usize },
+    InspectionBias { reservoir_limit: usize },
 }
 
 /// Defines which population of items a dynamic sample rate applies to.
