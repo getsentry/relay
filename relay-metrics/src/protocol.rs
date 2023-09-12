@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 use std::hash::Hasher as _;
 
 use hash32::{FnvHasher, Hasher as _};
-use serde::{Deserialize, Serialize};
 
 #[doc(inline)]
 pub use relay_base_schema::metrics::{
@@ -25,85 +23,38 @@ pub type SetType = u32;
 /// Type used for Gauge entries
 pub type GaugeType = f64;
 
-/// The [typed value](Metric::value) of a metric.
-#[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "type", content = "value")]
-pub enum MetricValue {
-    /// Counts instances of an event. See [`MetricType::Counter`].
-    #[serde(rename = "c")]
-    Counter(CounterType),
-    /// Builds a statistical distribution over values reported. See [`MetricType::Distribution`].
-    #[serde(rename = "d")]
-    Distribution(DistributionType),
-    /// Counts the number of unique reported values. See [`MetricType::Set`].
-    ///
-    /// Set values can be specified as strings in the submission protocol. They are always hashed
-    /// into a 32-bit value and the original value is dropped. If the submission protocol contains a
-    /// 32-bit integer, it will be used directly, instead.
-    #[serde(rename = "s")]
-    Set(SetType),
-    /// Stores absolute snapshots of values. See [`MetricType::Gauge`].
-    #[serde(rename = "g")]
-    Gauge(GaugeType),
-}
-
-impl MetricValue {
-    /// Creates a [`MetricValue::Set`] from the given string.
-    pub fn set_from_str(string: &str) -> Self {
-        Self::Set(hash_set_value(string))
-    }
-
-    /// Creates a [`MetricValue::Set`] from any type that implements `Display`.
-    pub fn set_from_display(display: impl fmt::Display) -> Self {
-        Self::set_from_str(&display.to_string())
-    }
-
-    /// Returns the type of this value.
-    pub fn ty(&self) -> MetricType {
-        match self {
-            Self::Counter(_) => MetricType::Counter,
-            Self::Distribution(_) => MetricType::Distribution,
-            Self::Set(_) => MetricType::Set,
-            Self::Gauge(_) => MetricType::Gauge,
-        }
-    }
-}
-
-impl fmt::Display for MetricValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MetricValue::Counter(value) => value.fmt(f),
-            MetricValue::Distribution(value) => value.fmt(f),
-            MetricValue::Set(value) => value.fmt(f),
-            MetricValue::Gauge(value) => value.fmt(f),
-        }
-    }
-}
-
-/// The type of a [`MetricValue`], determining its aggregation and evaluation.
+/// The type of a [`BucketValue`](crate::BucketValue), determining its aggregation and evaluation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum MetricType {
     /// Counts instances of an event.
     ///
     /// Counters can be incremented and decremented. The default operation is to increment a counter
     /// by `1`, although increments by larger values are equally possible.
+    ///
+    /// Counters are declared as `"c"`. Alternatively, `"m"` is allowed.
     Counter,
     /// Builds a statistical distribution over values reported.
     ///
     /// Based on individual reported values, distributions allow to query the maximum, minimum, or
     /// average of the reported values, as well as statistical quantiles. With an increasing number
     /// of values in the distribution, its accuracy becomes approximate.
+    ///
+    /// Distributions are declared as `"d"`. Alternatively, `"d"` and `"ms"` are allowed.
     Distribution,
     /// Counts the number of unique reported values.
     ///
     /// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated
     /// count. With an increasing number of unique values in the set, its accuracy becomes
     /// approximate. It is not possible to query individual values from a set.
+    ///
+    /// Sets are declared as `"s"`.
     Set,
     /// Stores absolute snapshots of values.
     ///
     /// In addition to plain [counters](Self::Counter), gauges store a snapshot of the maximum,
     /// minimum and sum of all values, as well as the last reported value.
+    ///
+    /// Gauges are declared as `"g"`.
     Gauge,
 }
 
@@ -155,14 +106,23 @@ impl Error for ParseMetricError {}
 
 /// The namespace of a metric.
 ///
-/// Namespaces allow to identify the product entity that the metric got extracted from, and/or
-/// identify the use case that the metric belongs to. These namespaces cannot be defined freely,
-/// instead they are defined by Sentry. Over time, there will be more namespaces as we introduce
-/// new metrics-based products.
+/// Namespaces allow to identify the product entity that the metric got extracted from, and identify
+/// the use case that the metric belongs to. These namespaces cannot be defined freely, instead they
+/// are defined by Sentry. Over time, there will be more namespaces as we introduce new
+/// metrics-based functionality.
 ///
-/// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
-/// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
-/// Everything else is dropped both in the metrics aggregator and in the store service.
+/// # Parsing
+///
+/// Parsing a metric namespace from strings is infallible. Unknown strings are mapped to
+/// [`MetricNamespace::Unsupported`]. Metrics with such a namespace will be dropped.
+///
+/// # Ingestion
+///
+/// During ingestion, the metric namespace is validated against a list of known and enabled
+/// namespaces. Metrics in disabled namespaces are dropped during ingestion.
+///
+/// At a later stage, namespaces are used to route metrics to their associated infra structure and
+/// enforce usecase-specific configuration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.
@@ -213,26 +173,70 @@ impl fmt::Display for MetricNamespace {
     }
 }
 
-/// A metric name parsed as MRI, a naming scheme which includes most of the metric's bucket key
-/// (excl. timestamp and tags).
+/// A unique identifier for metrics including typing and namespacing.
 ///
-/// For more information see [`Metric::name`].
-#[derive(Debug)]
+/// MRIs have the format `<type>:<namespace>/<name>[@<unit>]`. The unit is optional and defaults to
+/// [`MetricUnit::None`].
+///
+/// # Statsd Format
+///
+/// In the statsd submission payload, MRIs are sent in a more relaxed format:
+/// `[<namespace>/]<name>[@<unit>]`. The differences to the internal MRI format are:
+///  - Types are not part of metric naming. Instead, the type is declared in a separate field
+///    following the value.
+///  - The namespace is optional. If missing, `"custom"` is assumed.
+///
+/// # Background
+///
+/// MRIs follow three core principles:
+///
+/// 1. **Robustness:** Metrics must be addressed via a stable identifier. During ingestion in Relay
+///    and Snuba, metrics are preaggregated and bucketed based on this identifier, so it cannot
+///    change over time without breaking bucketing.
+/// 2. **Uniqueness:** The identifier for metrics must be unique across variations of units and
+///    metric types, within and across use cases, as well as between projects and organizations.
+/// 3. **Abstraction:** The user-facing product changes its terminology over time, and splits
+///    concepts into smaller parts. The internal metric identifiers must abstract from that, and
+///    offer sufficient granularity to allow for such changes.
+///
+/// # Example
+///
+/// ```
+/// use relay_metrics::MetricResourceIdentifier;
+///
+/// let string = "c:custom/test@second";
+/// let mri = MetricResourceIdentifier::parse(string).expect("should parse");
+/// assert_eq!(mri.to_string(), string);
+/// ```
+#[derive(Debug, PartialEq)]
 pub struct MetricResourceIdentifier<'a> {
-    /// The metric type.
+    /// The type of a metric, determining its aggregation and evaluation.
+    ///
+    /// In MRIs, the type is specified with its short name: counter (`c`), set (`s`), distribution
+    /// (`d`), and gauge (`g`). See [`MetricType`] for more information.
     pub ty: MetricType,
-    /// The namespace/usecase for this metric. For example `sessions` or `transactions`. In the
-    /// case of the statsd protocol, a missing namespace is converted into the valueconverted into
-    /// the value `"custom"`.
+
+    /// The namespace for this metric.
+    ///
+    /// In statsd submissions payloads, the namespace is optional and defaults to `"custom"`.
+    /// Otherwise, the namespace must be declared explicitly.
+    ///
+    /// Note that in Sentry the namespace is also referred to as "use case" or "usecase". There is a
+    /// list of known and enabled namespaces. Metrics of unknown or disabled namespaces are dropped
+    /// during ingestion.
     pub namespace: MetricNamespace,
-    /// The actual name, such as `duration` as part of `d:transactions/duration@ms`
+
+    /// The display name of the metric in the allowed character set.
     pub name: &'a str,
-    /// The metric unit.
+
+    /// The verbatim unit name of the metric value.
+    ///
+    /// The unit is optional and defaults to [`MetricUnit::None`] (`"none"`).
     pub unit: MetricUnit,
 }
 
 impl<'a> MetricResourceIdentifier<'a> {
-    /// Parses and validates an MRI of the form `<ty>:<ns>/<name>@<unit>`
+    /// Parses and validates an MRI.
     pub fn parse(name: &'a str) -> Result<Self, ParseMetricError> {
         // Note that this is NOT `VALUE_SEPARATOR`:
         let (raw_ty, rest) = name.split_once(':').ok_or(ParseMetricError(()))?;
@@ -311,94 +315,6 @@ pub(crate) fn hash_set_value(string: &str) -> u32 {
     hasher.finish32()
 }
 
-/// A single metric value representing the payload sent from clients.
-///
-/// As opposed to bucketed metric aggregations, this single metrics always represent a single
-/// submission and cannot store multiple values.
-///
-/// See the [crate documentation](crate) for general information on Metrics.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct Metric {
-    /// The metric resource identifier, in short MRI.
-    ///
-    /// MRIs follow three core principles:
-
-    /// 1. **Robustness:** Metrics must be addressed via a stable identifier. During ingestion in
-    ///    Relay and Snuba, metrics are preaggregated and bucketed based on this identifier, so it
-    ///    cannot change over time without breaking bucketing.
-    /// 2. **Uniqueness:** The identifier for metrics must be unique across variations of units and
-    ///    metric types, within and across use cases, as well as between projects and
-    ///    organizations.
-    /// 3. **Abstraction:** The user-facing product changes its terminology over time, and splits
-    ///    concepts into smaller parts. The internal metric identifiers must abstract from that,
-    ///    and offer sufficient granularity to allow for such changes.
-    ///
-    /// MRIs have the format `<type>:<ns>/<name>@<unit>`, comprising the following components:
-    ///
-    /// * **Type:** counter (`c`), set (`s`), distribution (`d`), gauge (`g`), and evaluated (`e`)
-    ///   for derived numeric metrics (the latter is a pure query-time construct and is not relevant
-    ///   to Relay or ingestion). See [`MetricType`].
-    /// * **Namespace:** Identifying the product entity and use case affiliation of the metric. See
-    /// [`MetricNamespace`].
-    /// * **Name:** The display name of the metric in the allowed character set.
-    /// * **Unit:** The verbatim unit name. See [`MetricUnit`].
-    ///
-    /// Parsing a metric (or set of metrics) should not fail hard if the MRI is invalid, so this is
-    /// typed as string. Later in the metrics aggregator, the MRI is parsed using
-    /// [`MetricResourceIdentifier`] and validated for invalid characters as well.
-    /// [`MetricResourceIdentifier`] is also used in the kafka producer to route certain namespaces
-    /// to certain topics.
-    pub name: String,
-    /// The value of the metric.
-    ///
-    /// [Distributions](MetricType::Distribution) and [counters](MetricType::Counter) require numeric
-    /// values which can either be integral or floating point. In contrast, [sets](MetricType::Set)
-    /// and [gauges](MetricType::Gauge) can store any unique value including custom strings.
-    #[serde(flatten)]
-    pub value: MetricValue,
-    /// The timestamp for this metric value.
-    pub timestamp: UnixTimestamp,
-    /// A list of tags adding dimensions to the metric for filtering and aggregation.
-    ///
-    /// Tags are preceded with a hash `#` and specified in a comma (`,`) separated list. Each tag
-    /// can either be a tag name, or a `name:value` combination. For tags with missing values, an
-    /// empty `""` value is assumed.
-    ///
-    /// Tags are optional and can be omitted.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub tags: BTreeMap<String, String>,
-}
-
-impl Metric {
-    /// Creates a new metric using the MRI naming format.
-    ///
-    /// See [`Metric::name`].
-    ///
-    /// MRI is the metric resource identifier in the format `<type>:<ns>/<name>@<unit>`. This name
-    /// ensures that just the name determines correct bucketing of metrics with name collisions.
-    pub fn new_mri(
-        namespace: MetricNamespace,
-        name: impl AsRef<str>,
-        unit: MetricUnit,
-        value: MetricValue,
-        timestamp: UnixTimestamp,
-        tags: BTreeMap<String, String>,
-    ) -> Self {
-        Self {
-            name: MetricResourceIdentifier {
-                ty: value.ty(),
-                name: name.as_ref(),
-                namespace,
-                unit,
-            }
-            .to_string(),
-            value,
-            timestamp,
-            tags,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use similar_asserts::assert_eq;
@@ -409,60 +325,5 @@ mod tests {
     fn test_sizeof_unit() {
         assert_eq!(std::mem::size_of::<MetricUnit>(), 16);
         assert_eq!(std::mem::align_of::<MetricUnit>(), 1);
-    }
-
-    #[test]
-    fn test_serde_json() {
-        let json = r#"{
-  "name": "foo",
-  "type": "c",
-  "value": 42.0,
-  "timestamp": 4711,
-  "tags": {
-    "empty": "",
-    "full": "value"
-  }
-}"#;
-
-        let metric = serde_json::from_str::<Metric>(json).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-        Metric {
-            name: "foo",
-            value: Counter(
-                42.0,
-            ),
-            timestamp: UnixTimestamp(4711),
-            tags: {
-                "empty": "",
-                "full": "value",
-            },
-        }
-        "#);
-
-        let string = serde_json::to_string_pretty(&metric).unwrap();
-        assert_eq!(string, json);
-    }
-
-    #[test]
-    fn test_serde_json_defaults() {
-        // NB: timestamp is required in JSON as opposed to the text representation
-        let json = r#"{
-            "name": "foo",
-            "value": 42,
-            "type": "c",
-            "timestamp": 4711
-        }"#;
-
-        let metric = serde_json::from_str::<Metric>(json).unwrap();
-        insta::assert_debug_snapshot!(metric, @r#"
-        Metric {
-            name: "foo",
-            value: Counter(
-                42.0,
-            ),
-            timestamp: UnixTimestamp(4711),
-            tags: {},
-        }
-        "#);
     }
 }
