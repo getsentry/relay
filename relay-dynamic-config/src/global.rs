@@ -20,7 +20,7 @@ pub struct GlobalConfig {
 impl GlobalConfig {
     /// Loads the [`GlobalConfig`] from a file if it's provided.
     ///
-    /// the folder_path argument should be the path to the folder where the relay config and
+    /// The folder_path argument should be the path to the folder where the relay config and
     /// credentials are stored.
     pub fn load(folder_path: &Path) -> anyhow::Result<Option<Self>> {
         let path = folder_path.join("global_config.json");
