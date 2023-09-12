@@ -87,7 +87,9 @@ pub struct Get;
 /// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
 ///
 /// The global config service must be up and running, else the subscription
-/// fails.
+/// fails. Subscribers should use the initial value when they get the watch
+/// rather than only waiting for the watch to update, in case a global config
+///  is only updated once, such as is the case with the static config file.
 pub struct Subscribe;
 
 /// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].
