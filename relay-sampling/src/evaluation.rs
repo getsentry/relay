@@ -338,11 +338,11 @@ impl SamplingValueEvaluator {
                         return None;
                 };
 
-                if max_qty < counter.qty {
-                    // first update count or something
+                if max_qty <= counter.qty {
+                    // the counter has reached the target, so we mark the target as done
                     return Some(Self::Reservoir { done: true });
                 } else {
-                    // if we surpassed, i guess send back that we remove the key ?
+                    // still below target :)
                     return Some(Self::Reservoir { done: false });
                 }
             }

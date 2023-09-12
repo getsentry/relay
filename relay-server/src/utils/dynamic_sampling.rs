@@ -60,35 +60,35 @@ impl SamplingResult {
     }
 }
 
-/// Gets the sampling match result by creating the merged configuration and matching it against
-/// the sampling configuration.
-fn get_sampling_match_result(
+/// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
+/// kept or dropped.
+pub fn get_sampling_result(
     processing_enabled: bool,
     project_state: Option<&ProjectState>,
     root_project_state: Option<&ProjectState>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
-    now: DateTime<Utc>,
     reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
     projcache: Addr<ProjectCache>,
     project_key: Option<ProjectKey>,
-) -> Option<SamplingMatch> {
+) -> SamplingResult {
     // We want to extract the SamplingConfig from each project state.
-    let sampling_config = project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
+    let sampling_config: Option<&relay_sampling::SamplingConfig> =
+        project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
     let root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
-    let x = relay_sampling::evaluation::merge_configs_and_match(
+    let sampling_match = relay_sampling::evaluation::merge_configs_and_match(
         processing_enabled,
         sampling_config,
         root_sampling_config,
         dsc,
         event,
-        now,
+        Utc::now(),
         reservoir_stuff,
     );
 
-    if let Some(ref x) = x {
+    if let Some(ref x) = sampling_match {
         if let Some(ref msg) = x.reservoir_msg {
             let project_key = project_key.unwrap();
             match msg {
@@ -106,50 +106,20 @@ fn get_sampling_match_result(
                 }
             }
         }
-    }
-    return x;
+    };
+
+    SamplingResult::determine_from_sampling_match(sampling_match)
 }
 
-/// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
-/// kept or dropped.
-pub fn get_sampling_result(
-    processing_enabled: bool,
-    project_state: Option<&ProjectState>,
-    root_project_state: Option<&ProjectState>,
-    dsc: Option<&DynamicSamplingContext>,
-    event: Option<&Event>,
-    reservoir_stuff: &BTreeMap<RuleId, ReservoirCounter>,
-    projcache: Addr<ProjectCache>,
-    project_key: Option<ProjectKey>,
-) -> SamplingResult {
-    let sampling_result = get_sampling_match_result(
-        processing_enabled,
-        project_state,
-        root_project_state,
-        dsc,
-        event,
-        // For consistency reasons we take a snapshot in time and use that time across all code that
-        // requires it.
-        Utc::now(),
-        reservoir_stuff,
-        projcache,
-        project_key,
-    );
-    SamplingResult::determine_from_sampling_match(sampling_result)
-}
-
-/// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
+/// Runs dynamic sampling and returns whether the
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
     processing_enabled: bool,
-    root_project_state: Option<&ProjectState>,
-    dsc: Option<&DynamicSamplingContext>,
+    root_project_state: &ProjectState,
+    dsc: &DynamicSamplingContext,
     projcache: Addr<ProjectCache>,
 ) -> Option<bool> {
-    let dsc = dsc?;
-    let root_project_state = root_project_state?;
-
     // If the sampled field is not set, we prefer to not tag the error since we have no clue on
     // whether the head of the trace was kept or dropped on the client side.
     // In addition, if the head of the trace was dropped on the client we will immediately mark
@@ -169,12 +139,7 @@ pub fn is_trace_fully_sampled(
         None,
     );
 
-    let sampled = match sampling_result {
-        SamplingResult::Keep => true,
-        SamplingResult::Drop(_) => false,
-    };
-
-    Some(sampled)
+    Some(matches!(sampling_result, SamplingResult::Keep))
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.

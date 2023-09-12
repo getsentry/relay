@@ -2352,10 +2352,12 @@ impl EnvelopeProcessorService {
             return;
         }
 
+        let (Some(root_state), Some(dsc)) = (state.sampling_project_state.as_deref(),                state.envelope().dsc()) else {return;};
+
         let sampled = utils::is_trace_fully_sampled(
             self.inner.config.processing_enabled(),
-            state.sampling_project_state.as_deref(),
-            state.envelope().dsc(),
+            root_state,
+            dsc,
             self.inner.project_cache.clone(),
         );
 
