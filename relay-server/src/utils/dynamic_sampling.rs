@@ -1,9 +1,11 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 use std::collections::BTreeMap;
+use std::fmt::Display;
 
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::Event;
+use relay_redis::{redis, RedisError, RedisPool};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
 use relay_sampling::DynamicSamplingContext;
@@ -11,6 +13,8 @@ use relay_system::Addr;
 
 use crate::actors::project::ProjectState;
 use crate::actors::project_cache::{DisableReservoir, ProjectCache, UpdateCount};
+use crate::actors::project_redis::RedisProjectError;
+use crate::actors::upstream::UpstreamRelay;
 use crate::envelope::{Envelope, ItemType};
 
 /// The result of a sampling operation.
@@ -60,6 +64,91 @@ impl SamplingResult {
     }
 }
 
+pub struct BiasRedisKey(String);
+
+impl BiasRedisKey {
+    pub fn new(project_key: &ProjectKey, rule_id: RuleId) -> Self {
+        Self(format!("bias:{}:{}", project_key, rule_id))
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+pub fn thisfunctionshouldnotifysentrythatwehavereachedthereservoirlimit(
+    upstream: Addr<UpstreamRelay>,
+    project_key: &ProjectKey,
+    rule_id: RuleId,
+) {
+    todo!()
+}
+
+pub fn delete_bias_rule(
+    redis_pool: &RedisPool,
+    key: &BiasRedisKey,
+) -> Result<(), RedisProjectError> {
+    let mut command = relay_redis::redis::cmd("DEL");
+    command.arg(key.as_str());
+
+    let _: i64 = command
+        .query(&mut redis_pool.client()?.connection()?)
+        .map_err(RedisError::Redis)?;
+
+    Ok(())
+}
+
+pub fn get_bias_rule_count(
+    redis_pool: &RedisPool,
+    key: &BiasRedisKey,
+) -> Result<Option<i64>, RedisProjectError> {
+    let mut command = relay_redis::redis::cmd("GET");
+
+    command.arg(key.as_str());
+
+    let raw_response_opt: Option<Vec<u8>> = command
+        .query(&mut redis_pool.client()?.connection()?)
+        .map_err(RedisError::Redis)?;
+
+    let response = match raw_response_opt {
+        Some(response) => {
+            let count = std::str::from_utf8(&response)
+                .map_err(|_| {
+                    RedisProjectError::Parsing(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid UTF-8 sequence",
+                    )))
+                })?
+                .parse::<i64>()
+                .map_err(|_| {
+                    RedisProjectError::Parsing(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid number format",
+                    )))
+                })?;
+            Some(count)
+        }
+        None => None,
+    };
+
+    Ok(response)
+}
+
+pub fn increment_bias_rule_count(
+    redis_pool: &RedisPool,
+    key: &BiasRedisKey,
+) -> Result<i64, RedisProjectError> {
+    let mut command = relay_redis::redis::cmd("INCR");
+
+    command.arg(key.as_str());
+
+    let new_count: i64 = command
+        .query(&mut redis_pool.client()?.connection()?)
+        .map_err(RedisError::Redis)?;
+
+    Ok(new_count)
+}
+
 /// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
 /// kept or dropped.
 pub fn get_sampling_result(
@@ -71,6 +160,8 @@ pub fn get_sampling_result(
     reservoir_stuff: &BTreeMap<RuleId, usize>,
     projcache: Addr<ProjectCache>,
     project_key: Option<ProjectKey>,
+    redis: Option<RedisPool>,
+    upstream: Addr<UpstreamRelay>,
 ) -> SamplingResult {
     // We want to extract the SamplingConfig from each project state.
     let sampling_config: Option<&relay_sampling::SamplingConfig> =
@@ -89,13 +180,30 @@ pub fn get_sampling_result(
     );
 
     if let Some(SamplingMatch::Bias { rule_id }) = sampling_match {
+        let project_key = project_key.unwrap();
         projcache.send(UpdateCount {
-            project_key: project_key.unwrap(),
+            project_key: project_key.clone(),
             rule_id,
         });
 
-        if processing_enabled {
-            // 1. query
+        if let Some(redis) = redis {
+            if processing_enabled {
+                let key = BiasRedisKey::new(&project_key, rule_id);
+                // 1. update count in relay
+                // 2. ask for total count
+                // 3. if total count exceeds limit, signal to sentry to remove the bias
+
+                increment_bias_rule_count(&redis, &key);
+                let total_count = get_bias_rule_count(&redis, &key).unwrap().unwrap();
+                if total_count as usize >= *reservoir_stuff.get(&rule_id).unwrap() {
+                    delete_bias_rule(&redis, &key);
+                    thisfunctionshouldnotifysentrythatwehavereachedthereservoirlimit(
+                        upstream,
+                        &project_key,
+                        rule_id,
+                    );
+                }
+            }
         }
     }
 

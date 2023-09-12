@@ -596,8 +596,30 @@ impl ProjectCacheBroker {
             no_cache,
         );
 
+        self.remove_outdated_biased_rules(state);
+
         if !state.invalid() {
             self.dequeue(project_key);
+        }
+    }
+
+    fn remove_outdated_biased_rules(&mut self, state: Arc<ProjectState>) {
+        let project_key = state.public_keys[0].public_key;
+        let project = self.projects.get_mut(&project_key);
+        if let (Some(sampling_config), Some(project)) = (state.config.dynamic_sampling, project) {
+            let rules: Vec<RuleId> = sampling_config.rules_v2.into_iter().map(|x| x.id).collect();
+
+            let counter_map = project.bias_counter();
+
+            let keys_to_remove: Vec<_> = counter_map
+                .keys()
+                .filter(|&k| !rules.contains(k))
+                .cloned()
+                .collect();
+
+            for key in keys_to_remove {
+                counter_map.remove(&key);
+            }
         }
     }
 

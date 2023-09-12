@@ -193,8 +193,12 @@ pub enum DecayingFunction {
     #[default]
     Constant,
 
-    /// Bar foo
-    InspectionBias { reservoir_limit: usize },
+    /// This represents a query that should be biased, if the reservoir limit hasn't been reached,
+    /// the sample rate will be 1.0, otherwise 0.0.
+    InspectionBias {
+        /// The limit to how many transactions we will fill our reservoir before we stop the bias.
+        reservoir_limit: usize,
+    },
 }
 
 /// Defines which population of items a dynamic sample rate applies to.

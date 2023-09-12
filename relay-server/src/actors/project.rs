@@ -419,6 +419,10 @@ impl Project {
         self.reservoir_counts.clone()
     }
 
+    pub fn bias_counter(&mut self) -> &mut BTreeMap<RuleId, usize> {
+        &mut self.reservoir_counts
+    }
+
     pub fn increment_reservoir_count(&mut self, rule_id: RuleId) {
         self.reservoir_counts
             .entry(rule_id)

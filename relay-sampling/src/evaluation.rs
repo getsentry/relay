@@ -80,7 +80,7 @@ pub fn merge_configs_and_match(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     now: DateTime<Utc>,
-    reservoir_stuff: &BTreeMap<RuleId, usize>,
+    bias_counters: &BTreeMap<RuleId, usize>,
 ) -> Option<SamplingMatch> {
     // We check if there are unsupported rules in any of the two configurations.
     check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
@@ -88,10 +88,11 @@ pub fn merge_configs_and_match(
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
     let mut match_result =
-        SamplingMatch::match_against_rules(rules, event, dsc, now, reservoir_stuff)?;
+        SamplingMatch::match_against_rules(rules, event, dsc, now, bias_counters)?;
 
-    let SamplingMatch::Other{sample_rate, ..} = match_result else {
-        return Some(match_result);
+    let sample_rate = match match_result {
+        SamplingMatch::Bias { .. } => return Some(match_result),
+        SamplingMatch::Other { sample_rate, .. } => sample_rate,
     };
 
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
@@ -107,7 +108,7 @@ pub fn merge_configs_and_match(
         return None;
     };
 
-    let new_sample_rate = match primary_config.mode {
+    let adjusted_sample_rate = match primary_config.mode {
         SamplingMode::Received => sample_rate,
         SamplingMode::Total => match dsc {
             Some(dsc) => dsc.adjusted_sample_rate(sample_rate),
@@ -122,7 +123,7 @@ pub fn merge_configs_and_match(
         }
     };
 
-    match_result.set_sample_rate(new_sample_rate);
+    match_result.set_sample_rate(adjusted_sample_rate);
 
     // Only if we arrive at this stage, it means that we have found a match and we want to prepare
     // the data for making the sampling decision.
@@ -347,7 +348,7 @@ impl SamplingValueEvaluator {
                 let counter = counter.unwrap_or_default();
 
                 if counter >= reservoir_limit {
-                    // the counter has reached the target, so we return none
+                    // the counter has reached the target.
                     return Some(Self::InspectBias {
                         target_is_reached: true,
                     });

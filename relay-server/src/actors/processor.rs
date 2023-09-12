@@ -538,6 +538,7 @@ pub struct EnvelopeProcessorService {
 
 struct InnerProcessor {
     config: Arc<Config>,
+    redis: Option<RedisPool>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
@@ -570,6 +571,7 @@ impl EnvelopeProcessorService {
         });
 
         let inner = InnerProcessor {
+            redis: _redis.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: _redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
@@ -2329,6 +2331,8 @@ impl EnvelopeProcessorService {
 
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
+        let redis = self.inner.redis.clone();
+        let upstream = self.inner.upstream_relay.clone();
         state.sampling_result = utils::get_sampling_result(
             self.inner.config.processing_enabled(),
             Some(&state.project_state),
@@ -2338,6 +2342,8 @@ impl EnvelopeProcessorService {
             &state.reservoir_stuff,
             self.inner.project_cache.clone(),
             state.managed_envelope.scoping().project_key.into(),
+            redis,
+            upstream,
         );
     }
 
@@ -3286,7 +3292,9 @@ mod tests {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
         let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
+        let redis = None;
         let inner = InnerProcessor {
+            redis,
             config: Arc::new(config),
             envelope_manager,
             project_cache,
