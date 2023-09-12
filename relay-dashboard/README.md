@@ -11,6 +11,16 @@ Right now you can:
 
 # Development
 
+## Requirements
+
+In order to build the dashboard, an additional compilation target is required:
+
+```sh
+rustup target add wasm32-unknown-unknown
+```
+
+## Running
+
 Run Relay:
 
 ```sh
