@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use relay_event_normalization::MeasurementsConfig;
@@ -16,23 +18,22 @@ pub struct GlobalConfig {
 }
 
 impl GlobalConfig {
-    /// Returns the full filepath of the global config.
-    fn path(base: &Path) -> PathBuf {
-        base.join("global_config.json")
-    }
-
     /// Loads the [`GlobalConfig`] from a file if it's provided.
-    pub fn load(base: &Path) -> anyhow::Result<Option<Self>> {
-        let path = Self::path(base);
+    ///
+    /// the folder_path argument should be the path to the folder where the relay config and
+    /// credentials are stored.
+    pub fn load(folder_path: &Path) -> anyhow::Result<Option<Self>> {
+        let path = folder_path.join("global_config.json");
 
-        match path.exists() {
-            true => {
-                let file_contents = std::fs::read_to_string(path)?;
-                let global_config = serde_json::from_str::<GlobalConfig>(file_contents.as_str())?;
+        if path.exists() {
+            let global_config = {
+                let file = BufReader::new(File::open(path)?);
+                serde_json::from_reader(file)?
+            };
 
-                Ok(Some(global_config))
-            }
-            false => Ok(None),
+            Ok(Some(global_config))
+        } else {
+            Ok(None)
         }
     }
 }

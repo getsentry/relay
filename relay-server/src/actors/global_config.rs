@@ -261,34 +261,25 @@ impl Service for GlobalConfigService {
             let mut shutdown_handle = Controller::shutdown_handle();
 
             relay_log::info!("global config service starting");
-            match self.config.relay_mode() {
-                RelayMode::Managed => {
-                    if self.config.has_credentials() {
-                        relay_log::info!("serving global configs fetched from upstream");
-                        self.request_global_config();
-                    } else {
-                        relay_log::info!(
-                            "serving default global configs due to lacking credentials"
-                        );
+            if self.config.relay_mode() == RelayMode::Managed {
+                relay_log::info!("serving global configs fetched from upstream");
+                self.request_global_config();
+            } else {
+                match GlobalConfig::load(self.config.path()) {
+                    Ok(Some(from_file)) => {
+                        relay_log::info!("serving static global config loaded from file");
+                        self.global_config_watch.send(Arc::new(from_file)).ok();
                     }
-                }
-                RelayMode::Static | RelayMode::Proxy | RelayMode::Capture => {
-                    match GlobalConfig::load(self.config.path()) {
-                        Ok(Some(from_file)) => {
-                            relay_log::info!("serving static global config loaded from file");
-                            self.global_config_watch.send(Arc::new(from_file)).ok();
-                        }
-                        Ok(None) => {
-                            relay_log::info!(
+                    Ok(None) => {
+                        relay_log::info!(
                                 "serving default global configs due to lacking static global config file"
                             );
-                        }
-                        Err(e) => {
-                            relay_log::error!("failed to load global config from file: {}", e);
-                            relay_log::info!(
+                    }
+                    Err(e) => {
+                        relay_log::error!("failed to load global config from file: {}", e);
+                        relay_log::info!(
                                 "serving default global configs due to failure to load global config from file"
                             );
-                        }
                     }
                 }
             };
@@ -357,7 +348,7 @@ mod tests {
         relay_test::setup();
         tokio::time::pause();
 
-        let (upstream, handle) = mock_service("upstream", (), |(), _| {
+        let (upstream, handle) = mock_service("wtf", (), |(), msg| {
             panic!();
         });
 
@@ -370,7 +361,6 @@ mod tests {
         config.update_credentials();
 
         let fetch_interval = config.global_config_fetch_interval();
-
         let service = GlobalConfigService::new(Arc::new(config), upstream).start();
         service.send(Get).await.unwrap();
 
@@ -384,7 +374,7 @@ mod tests {
         tokio::time::pause();
 
         let (upstream, _) = mock_service("upstream", (), |(), _| {
-            panic!();
+            panic!("upstream should not be called outside of managed mode");
         });
 
         let mut config = Config::from_json_value(serde_json::json!({

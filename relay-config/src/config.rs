@@ -1466,6 +1466,7 @@ impl Config {
     }
 
     /// Updates the credentials without creating the file, for testing purposes.
+    #[cfg(feature = "test")]
     pub fn update_credentials(&mut self) {
         let creds = Credentials::generate();
         self.credentials = Some(creds);

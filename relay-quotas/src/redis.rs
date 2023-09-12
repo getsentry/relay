@@ -186,7 +186,7 @@ impl RedisRateLimiter {
         over_accept_once: bool,
     ) -> Result<RateLimits, RateLimitingError> {
         let timestamp = UnixTimestamp::now();
-        let mut invocation = self.script.prepare_invoke();
+        let mut invocation: relay_redis::redis::ScriptInvocation<'_> = self.script.prepare_invoke();
         let mut tracked_quotas = Vec::new();
         let mut rate_limits = RateLimits::new();
 
