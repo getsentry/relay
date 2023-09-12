@@ -130,16 +130,18 @@ pub fn merge_configs_and_match(
     Some(match_result)
 }
 
+/// Increment the counter for the given rule id.
 #[derive(Clone, Debug, PartialEq, Serialize)]
-pub enum ReservoirMessage {
-    Update(RuleId),
-}
+pub struct IncrementBiasCounter(RuleId);
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum SamplingMatch {
     /// The rule is an inspection bias.
-    Bias { rule_id: RuleId },
+    Bias {
+        /// rule id that we wanna bias.
+        rule_id: RuleId,
+    },
     /// Normal sampling.
     Other {
         /// The sample rate to use for the incoming event.

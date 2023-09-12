@@ -2343,7 +2343,7 @@ impl EnvelopeProcessorService {
             self.inner.project_cache.clone(),
             state.managed_envelope.scoping().project_key.into(),
             redis,
-            upstream,
+            Some(upstream),
         );
     }
 
@@ -2366,7 +2366,7 @@ impl EnvelopeProcessorService {
             self.inner.project_cache.clone(),
         );
 
-        let (Some(event), Some(sampled)) = (state.event.value(), sampled) else {
+        let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;
         };
 

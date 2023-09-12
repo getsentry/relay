@@ -45,6 +45,8 @@ pub mod test_store;
 pub mod upstream;
 
 #[cfg(feature = "processing")]
+pub mod bias_redis;
+#[cfg(feature = "processing")]
 pub mod project_redis;
 #[cfg(feature = "processing")]
 pub mod store;
