@@ -3997,6 +3997,10 @@
 <a href="#3997" id="3997">3997</a>
 <a href="#3998" id="3998">3998</a>
 <a href="#3999" id="3999">3999</a>
+<a href="#4000" id="4000">4000</a>
+<a href="#4001" id="4001">4001</a>
+<a href="#4002" id="4002">4002</a>
+<a href="#4003" id="4003">4003</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6805,6 +6809,10 @@
                 </span><span class="macro">relay_log::error!</span>(<span class="string">&quot;failed to subscribe to GlobalConfigService&quot;</span>);
                 <span class="kw">return</span>;
             };
+
+            <span class="comment">// In case we use static global config, the watch wont be updated repeatedly, so we
+            // should immediatly use the content of the watch.
+            </span><span class="self">self</span>.global_config = subscription.borrow().clone();
 
             <span class="kw">loop </span>{
                 <span class="kw">let </span>next_msg = <span class="kw">async </span>{
