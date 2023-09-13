@@ -1,7 +1,9 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
-use relay_sampling::condition::{AndCondition, EqCondition, GlobCondition, RuleCondition};
+use relay_sampling::condition::{
+    AndCondition, EqCondition, GlobCondition, NotCondition, RuleCondition,
+};
 use serde_json::Value;
 
 use crate::feature::Feature;
@@ -26,9 +28,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let modules_condition = RuleCondition::Glob(GlobCondition {
-        name: "span.data.module".into(),
-        value: GlobPatterns::new(vec!["db".into(), "db.*".into()]),
+    let modules_condition = RuleCondition::And(AndCondition {
+        inner: vec![
+            RuleCondition::Glob(GlobCondition {
+                name: "span.data.module".into(),
+                value: GlobPatterns::new(vec!["db*".into()]),
+            }),
+            RuleCondition::Not(NotCondition {
+                inner: Box::new(RuleCondition::Eq(EqCondition {
+                    name: "span.data.module".into(),
+                    value: Value::String("db.redis".into()),
+                    options: Default::default(),
+                })),
+            }),
+        ],
     });
 
     config.metrics.extend([
