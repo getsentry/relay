@@ -49,32 +49,10 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
-</span><span class="kw">use </span>once_cell::sync::Lazy;
-<span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
-</span><span class="kw">use </span>tokio::sync::broadcast;
 <span class="kw">use </span>tracing::Level;
-
-<span class="doccomment">/// Channel to deliver logs.
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;dashboard&quot;</span>)]
-</span><span class="kw">pub static </span>LOGS: Lazy&lt;broadcast::Sender&lt;Vec&lt;u8&gt;&gt;&gt; = Lazy::new(|| {
-    <span class="kw">let </span>(tx, <span class="kw">_</span>) = broadcast::channel(<span class="number">2000</span>);
-    tx
-});
 
 <span class="doccomment">/// Returns `true` if backtrace printing is enabled.
 ///

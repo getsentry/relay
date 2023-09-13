@@ -26,7 +26,7 @@
 };
 
 <span class="kw">async fn </span>handle_socket(<span class="kw-2">mut </span>socket: WebSocket) {
-    <span class="kw">let </span><span class="kw-2">mut </span>logs = relay_log::LOGS.subscribe();
+    <span class="kw">let </span><span class="kw-2">mut </span>logs = relay_log::dashboard::receiver();
 
     <span class="kw">while let </span><span class="prelude-val">Ok</span>(entry) = logs.recv().<span class="kw">await </span>{
         <span class="kw">let </span>message = String::from_utf8_lossy(<span class="kw-2">&amp;</span>entry).to_string();

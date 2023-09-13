@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["LogFormat"],"fn":["backtrace_enabled","capture_error","configure_scope","ensure_error","init","with_scope"],"macro":["debug","error","info","init_test","trace","warn"],"mod":["protocol"],"static":["LOGS"],"struct":["Hub","Level","LogConfig","SentryConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["LogFormat"],"fn":["backtrace_enabled","capture_error","configure_scope","ensure_error","init","with_scope"],"macro":["debug","error","info","init_test","trace","warn"],"mod":["dashboard","protocol"],"struct":["Hub","Level","LogConfig","SentryConfig"]};

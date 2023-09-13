@@ -21,7 +21,7 @@ var sourcesIndex = JSON.parse('{\
 "relay_filter":["",[],["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","transaction_name.rs","web_crawlers.rs"]],\
 "relay_jsonschema_derive":["",[],["lib.rs"]],\
 "relay_kafka":["",[["producer",[],["mod.rs","schemas.rs","utils.rs"]]],["config.rs","lib.rs","statsd.rs"]],\
-"relay_log":["",[],["lib.rs","setup.rs","test.rs","utils.rs"]],\
+"relay_log":["",[],["dashboard.rs","lib.rs","setup.rs","test.rs","utils.rs"]],\
 "relay_metrics":["",[],["aggregation.rs","bucket.rs","lib.rs","protocol.rs","router.rs","statsd.rs"]],\
 "relay_monitors":["",[],["lib.rs"]],\
 "relay_pii":["",[],["attachments.rs","builtin.rs","compiledconfig.rs","config.rs","convert.rs","generate_selectors.rs","legacy.rs","lib.rs","minidumps.rs","processor.rs","redactions.rs","regexes.rs","selector.rs","utils.rs"]],\
