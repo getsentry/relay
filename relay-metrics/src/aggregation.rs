@@ -19,10 +19,7 @@ use tokio::time::Instant;
 
 use crate::bucket::{Bucket, BucketValue, DistributionValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
-use crate::statsd::{
-    metric_name_tag, metric_type_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets,
-    MetricTimers,
-};
+use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -180,6 +177,14 @@ impl BucketKey {
     /// because data structures have a memory overhead.
     fn cost(&self) -> usize {
         mem::size_of::<Self>() + self.metric_name.capacity() + tags_cost(&self.tags)
+    }
+
+    /// Returns the namespace of this bucket.
+    fn namespace(&self) -> MetricNamespace {
+        match MetricResourceIdentifier::parse(&self.metric_name) {
+            Ok(mri) => mri.namespace,
+            Err(_) => MetricNamespace::Unsupported,
+        }
     }
 }
 
@@ -972,7 +977,7 @@ impl AggregatorService {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeHit) += 1,
                     aggregator = &self.name,
-                    metric_name = metric_name_tag(&entry.key().metric_name),
+                    namespace = entry.key().namespace().as_str(),
                 );
                 let bucket_value = &mut entry.get_mut().value;
                 let cost_before = bucket_value.cost();
@@ -986,12 +991,12 @@ impl AggregatorService {
                 relay_statsd::metric!(
                     counter(MetricCounters::MergeMiss) += 1,
                     aggregator = &self.name,
-                    metric_name = metric_name_tag(&entry.key().metric_name),
+                    namespace = entry.key().namespace().as_str(),
                 );
                 relay_statsd::metric!(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
                     aggregator = &self.name,
-                    metric_name = metric_name_tag(&entry.key().metric_name),
+                    namespace = entry.key().namespace().as_str(),
                 );
 
                 let flush_at = self.config.get_flush_time(entry.key());
@@ -1045,7 +1050,7 @@ impl AggregatorService {
 
         let force = matches!(&self.state, AggregatorState::ShuttingDown);
 
-        let mut stats = BTreeMap::new();
+        let mut stats = HashMap::new();
 
         relay_statsd::metric!(
             timer(MetricTimers::BucketsScanDuration),
@@ -1061,7 +1066,7 @@ impl AggregatorService {
                         cost_tracker.subtract_cost(key.project_key, value.cost());
 
                         let (bucket_count, item_count) = stats
-                            .entry((metric_type_tag(&value), metric_name_tag(&key.metric_name)))
+                            .entry((value.ty(), key.namespace()))
                             .or_insert((0usize, 0usize));
                         *bucket_count += 1;
                         *item_count += value.len();
@@ -1090,11 +1095,11 @@ impl AggregatorService {
             }
         );
 
-        for ((ty, name), (bucket_count, item_count)) in stats.into_iter() {
+        for ((ty, namespace), (bucket_count, item_count)) in stats.into_iter() {
             relay_statsd::metric!(
                 gauge(MetricGauges::AvgBucketSize) = item_count as f64 / bucket_count as f64,
-                metric_type = ty,
-                metric_name = name
+                metric_type = ty.as_str(),
+                namespace = namespace.as_str()
             );
         }
 
