@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
@@ -2278,6 +2279,12 @@ impl EnvelopeProcessorService {
             state.managed_envelope.envelope_mut().add_item(item);
         };
 
+        let span_op_denylist: HashSet<String> = HashSet::from([
+            "db.redis".to_string(),
+            "db.clickhouse".to_string(),
+            "db.sql.query".to_string(),
+        ]);
+
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
@@ -2287,6 +2294,13 @@ impl EnvelopeProcessorService {
                 let Some(inner_span) = span.value_mut() else {
                     continue;
                 };
+                // HACK: filter spans based on module until we figure out grouping.
+                let Some(span_op) = inner_span.op.value() else {
+                    continue;
+                };
+                if !span_op.starts_with("db") || span_op_denylist.contains(span_op) {
+                    continue;
+                }
                 inner_span.segment_id = transaction_span.segment_id.clone();
                 inner_span.is_segment = Annotated::new(false);
                 add_span(span);
@@ -2294,7 +2308,8 @@ impl EnvelopeProcessorService {
         }
 
         // Add transaction span as an envelope item.
-        add_span(transaction_span.into());
+        // HACK: temporarily omit this span.
+        //add_span(transaction_span.into());
     }
 
     /// Computes the sampling decision on the incoming event

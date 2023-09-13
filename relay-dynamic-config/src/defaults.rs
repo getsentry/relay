@@ -28,16 +28,31 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
+    let span_op_field_name = "span.op";
     let modules_condition = RuleCondition::And(AndCondition {
         inner: vec![
             RuleCondition::Glob(GlobCondition {
-                name: "span.data.module".into(),
+                name: span_op_field_name.into(),
                 value: GlobPatterns::new(vec!["db*".into()]),
             }),
             RuleCondition::Not(NotCondition {
                 inner: Box::new(RuleCondition::Eq(EqCondition {
-                    name: "span.data.module".into(),
+                    name: span_op_field_name.into(),
                     value: Value::String("db.redis".into()),
+                    options: Default::default(),
+                })),
+            }),
+            RuleCondition::Not(NotCondition {
+                inner: Box::new(RuleCondition::Eq(EqCondition {
+                    name: span_op_field_name.into(),
+                    value: Value::String("db.clickhouse".into()),
+                    options: Default::default(),
+                })),
+            }),
+            RuleCondition::Not(NotCondition {
+                inner: Box::new(RuleCondition::Eq(EqCondition {
+                    name: span_op_field_name.into(),
+                    value: Value::String("db.sql.query".into()),
                     options: Default::default(),
                 })),
             }),
