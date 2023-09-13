@@ -2329,12 +2329,12 @@ impl EnvelopeProcessorService {
             .and_then(|state| state.config.dynamic_sampling.as_ref());
 
         let x = relay_sampling::evaluation::merge_configs_and_match(
-            true,
+            self.inner.config.processing_enabled(),
             sampling_config,
             root_sampling_config,
-            dsc,
-            event,
-            now,
+            state.envelope().dsc(),
+            state.event.value(),
+            Utc::now(),
         );
 
         let res = SamplingResult::determine_from_sampling_match(x);

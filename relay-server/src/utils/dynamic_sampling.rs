@@ -8,51 +8,6 @@ use relay_sampling::DynamicSamplingContext;
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
 
-/// The result of a sampling operation.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub enum SamplingResult {
-    /// Keep the event.
-    ///
-    /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
-    /// the rules.
-    #[default]
-    Keep,
-
-    /// Drop the event, due to a list of rules with provided identifiers.
-    Drop(MatchedRuleIds),
-}
-
-impl SamplingResult {
-    pub fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
-        match sampling_match {
-            Some(SamplingMatch {
-                sample_rate,
-                matched_rule_ids,
-                seed,
-            }) => {
-                let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
-                relay_log::trace!(
-                    sample_rate,
-                    random_number,
-                    "applying dynamic sampling to matching event"
-                );
-
-                if random_number >= sample_rate {
-                    relay_log::trace!("dropping event that matched the configuration");
-                    SamplingResult::Drop(matched_rule_ids)
-                } else {
-                    relay_log::trace!("keeping event that matched the configuration");
-                    SamplingResult::Keep
-                }
-            }
-            None => {
-                relay_log::trace!("keeping event that didn't match the configuration");
-                SamplingResult::Keep
-            }
-        }
-    }
-}
-
 /// Gets the sampling match result by creating the merged configuration and matching it against
 /// the sampling configuration.
 pub fn get_sampling_match_result(

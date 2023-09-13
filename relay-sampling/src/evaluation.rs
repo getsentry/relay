@@ -70,6 +70,63 @@ fn check_unsupported_rules(
     Ok(())
 }
 
+fn get_and_verify_rules<'a>(
+    processing_enabled: bool,
+    sampling_config: Option<&'a SamplingConfig>,
+    root_sampling_config: Option<&'a SamplingConfig>,
+) -> Option<impl Iterator<Item = &'a SamplingRule>> {
+    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
+    Some(merge_rules_from_configs(
+        sampling_config,
+        root_sampling_config,
+    ))
+}
+
+/// The result of a sampling operation.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub enum SamplingResult {
+    /// Keep the event.
+    ///
+    /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
+    /// the rules.
+    #[default]
+    Keep,
+
+    /// Drop the event, due to a list of rules with provided identifiers.
+    Drop(MatchedRuleIds),
+}
+
+impl SamplingResult {
+    pub fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
+        match sampling_match {
+            Some(SamplingMatch {
+                sample_rate,
+                matched_rule_ids,
+                seed,
+            }) => {
+                let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
+                relay_log::trace!(
+                    sample_rate,
+                    random_number,
+                    "applying dynamic sampling to matching event"
+                );
+
+                if random_number >= sample_rate {
+                    relay_log::trace!("dropping event that matched the configuration");
+                    SamplingResult::Drop(matched_rule_ids)
+                } else {
+                    relay_log::trace!("keeping event that matched the configuration");
+                    SamplingResult::Keep
+                }
+            }
+            None => {
+                relay_log::trace!("keeping event that didn't match the configuration");
+                SamplingResult::Keep
+            }
+        }
+    }
+}
+
 /// Gets the sampling match result by creating the merged configuration and matching it against
 /// the sampling configuration.
 pub fn merge_configs_and_match(
@@ -120,27 +177,22 @@ pub fn merge_configs_and_match(
     Some(match_result)
 }
 
-/// Represents the specification for sampling an incoming event.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct SamplingMatch {
-    /// The sample rate to use for the incoming event.
-    pub sample_rate: f64,
+impl SamplingResult {
+    pub fn get_sampling_result<'a>(
+        processing_enabled: bool,
+        sampling_config: Option<&'a SamplingConfig>,
+        root_sampling_config: Option<&'a SamplingConfig>,
+        event: Option<&Event>,
+        dsc: Option<&DynamicSamplingContext>,
+        now: DateTime<Utc>,
+    ) -> SamplingResult {
+        let Some(rules) =
+            get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
+        else {
+            return SamplingResult::Keep;
+        };
 
-    /// The seed to feed to the random number generator which allows the same number to be
-    /// generated given the same seed.
-    ///
-    /// This is especially important for trace sampling, even though we can have inconsistent
-    /// traces due to multi-matching.
-    pub seed: Uuid,
-
-    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-    pub matched_rule_ids: MatchedRuleIds,
-}
-
-impl SamplingMatch {
-    /// Setter for `sample_rate`.
-    pub fn set_sample_rate(&mut self, new_sample_rate: f64) {
-        self.sample_rate = new_sample_rate;
+        Self::get_sampling_result_by_rules(rules, event, dsc, now)
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -155,15 +207,12 @@ impl SamplingMatch {
     ///
     /// In case no sample rate rule is matched, we are going to return a None, signaling that no
     /// match has been found.
-    pub fn match_against_rules<'a, I>(
-        rules: I,
+    fn get_sampling_result_by_rules<'a>(
+        rules: impl Iterator<Item = &'a SamplingRule>,
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
-    ) -> Option<SamplingMatch>
-    where
-        I: Iterator<Item = &'a SamplingRule>,
-    {
+    ) -> SamplingResult {
         let mut matched_rule_ids = vec![];
         // Even though this seed is changed based on whether we match event or trace rules, we will
         // still incur in inconsistent trace sampling because of multi-matching of rules across event
