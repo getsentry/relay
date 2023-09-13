@@ -440,3 +440,29 @@ jobs:
         run: |
           echo "Testing against ${RELAY_TEST_IMAGE}"
           make test-relay-integration
+
+  publish-to-dockerhub:
+    name: Publish Relay to DockerHub
+    needs: build
+    runs-on: ubuntu-20.04
+    if: ${{ (github.ref_name == 'master') }}
+    steps:
+      - uses: actions/checkout@v3
+      - timeout-minutes: 20
+        run: until docker pull "ghcr.io/getsentry/relay:${{ github.sha }}" 2>/dev/null; do sleep 10; done
+      - name: Push built docker image
+        shell: bash
+        run: |
+          IMAGE_URL="ghcr.io/getsentry/relay:${{ github.sha }}"
+          docker login --username=sentrybuilder --password ${{ secrets.DOCKER_HUB_RW_TOKEN }}
+          # We push 3 tags to Dockerhub:
+          # first, the full sha of the commit
+          docker tag "$IMAGE_URL" getsentry/relay:${GITHUB_SHA}
+          docker push getsentry/relay:${GITHUB_SHA}
+          # second, the short sha of the commit
+          SHORT_SHA=$(git rev-parse --short "$GITHUB_SHA")
+          docker tag "$IMAGE_URL" getsentry/relay:${SHORT_SHA}
+          docker push getsentry/relay:${SHORT_SHA}
+          # finally, nightly
+          docker tag "$IMAGE_URL" getsentry/relay:nightly
+          docker push getsentry/relay:nightly
