@@ -2,11 +2,11 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::http::{header, HeaderValue};
+use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
 use axum_server::{AddrIncomingConfig, Handle, HttpConfig};
 use relay_config::Config;
-use relay_log::tower::NewSentryLayer;
+use relay_log::tower::{NewSentryLayer, SentryHttpLayer};
 use relay_system::{Controller, Service, Shutdown};
 use tower::ServiceBuilder;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -75,7 +75,12 @@ impl Service for HttpServer {
                 header::SERVER,
                 HeaderValue::from_static(constants::SERVER),
             ))
+            .layer(SetResponseHeaderLayer::overriding(
+                HeaderName::from_static("cross-origin-resource-policy"),
+                HeaderValue::from_static("cross-origin"),
+            ))
             .layer(NewSentryLayer::new_from_top())
+            .layer(SentryHttpLayer::with_transaction())
             .layer(middlewares::trace_http_layer())
             .layer(HandleErrorLayer::new(middlewares::decompression_error))
             .map_request(middlewares::remove_empty_encoding)
@@ -93,7 +98,7 @@ impl Service for HttpServer {
             .into_make_service_with_connect_info::<SocketAddr>();
 
         let http_config = HttpConfig::new()
-            .http1_half_close(false)
+            .http1_half_close(true)
             .http1_header_read_timeout(CLIENT_HEADER_TIMEOUT)
             .http1_writev(true)
             .http2_keep_alive_timeout(config.keepalive_timeout())

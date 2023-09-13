@@ -1,9 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+#[doc(inline)]
+pub use relay_base_schema::data_category::DataCategory;
 
 /// Data scoping information.
 ///
@@ -85,9 +88,6 @@ impl ItemScoping<'_> {
     }
 }
 
-#[doc(inline)]
-pub use relay_common::DataCategory;
-
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CategoryUnit {
@@ -108,9 +108,12 @@ impl CategoryUnit {
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
+            | DataCategory::Span
+            | DataCategory::MonitorSeat
             | DataCategory::Monitor => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+
             DataCategory::Unknown => None,
         }
     }
@@ -244,8 +247,10 @@ pub struct Quota {
     /// Maximum number of matching events allowed. Can be `0` to reject all events, `None` for an
     /// unlimited counted quota, or a positive number for enforcement. Requires `window` if the
     /// limit is not `0`.
+    ///
+    /// For attachments, this limit expresses the number of allowed bytes.
     #[serde(default)]
-    pub limit: Option<u32>,
+    pub limit: Option<u64>,
 
     /// The time window in seconds to enforce this quota in. Required in all cases except `limit=0`,
     /// since those quotas are not measured.
@@ -326,7 +331,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [],
@@ -334,7 +339,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -347,7 +352,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [
@@ -357,7 +362,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -371,7 +376,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -380,7 +385,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -396,7 +401,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("p"),
           categories: [],
@@ -406,7 +411,33 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
+    }
+
+    #[test]
+    fn test_parse_quota_project_large() {
+        let json = r#"{
+            "id": "p",
+            "scope": "project",
+            "scopeId": "1",
+            "limit": 4294967296,
+            "window": 42,
+            "reasonCode": "not_so_fast"
+        }"#;
+
+        let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
+
+        insta::assert_ron_snapshot!(quota, @r#"
+        Quota(
+          id: Some("p"),
+          categories: [],
+          scope: project,
+          scopeId: Some("1"),
+          limit: Some(4294967296),
+          window: Some(42),
+          reasonCode: Some(ReasonCode("not_so_fast")),
+        )
+        "#);
     }
 
     #[test]
@@ -422,7 +453,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("k"),
           categories: [],
@@ -432,7 +463,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -449,7 +480,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("f"),
           categories: [
@@ -461,7 +492,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -473,7 +504,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -481,7 +512,7 @@ mod tests {
           limit: None,
           window: Some(42),
         )
-        "###);
+        "#);
     }
 
     #[test]

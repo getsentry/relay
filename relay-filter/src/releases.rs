@@ -4,7 +4,7 @@
 //! (known old bad releases) and Sentry will ignore events originating from
 //! clients with the specified release.
 
-use relay_general::protocol::Event;
+use relay_event_schema::protocol::Event;
 
 use crate::{FilterStatKey, ReleasesFilterConfig};
 
@@ -21,11 +21,11 @@ pub fn should_filter(event: &Event, config: &ReleasesFilterConfig) -> Result<(),
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{Event, LenientString};
-    use relay_general::types::Annotated;
+    use relay_common::glob3::GlobPatterns;
+    use relay_event_schema::protocol::{Event, LenientString};
+    use relay_protocol::Annotated;
 
     use super::*;
-    use crate::GlobPatterns;
 
     fn get_event_for_release(release: &str) -> Event {
         Event {
@@ -69,10 +69,8 @@ mod tests {
             assert_eq!(
                 actual,
                 expected,
-                "Release {} should have {} been filtered by {:?}",
-                release,
+                "Release {release} should have {} been filtered by {blocked_releases:?}",
                 if expected { "" } else { "not" },
-                blocked_releases
             )
         }
     }

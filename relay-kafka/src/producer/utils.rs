@@ -1,6 +1,7 @@
+use std::error::Error;
+
 use rdkafka::producer::{DeliveryResult, ProducerContext};
 use rdkafka::{ClientContext, Message};
-use relay_log::LogError;
 use relay_statsd::metric;
 
 use crate::statsd::KafkaCounters;
@@ -18,17 +19,11 @@ impl ProducerContext for CaptureErrorContext {
     /// It's called asynchronously for every message, so we want to handle errors explicitly here.
     fn delivery(&self, result: &DeliveryResult, _delivery_opaque: Self::DeliveryOpaque) {
         if let Err((error, message)) = result {
-            relay_log::with_scope(
-                |scope| {
-                    scope.set_tag("topic", message.topic());
-                    scope.set_extra("payload_len", message.payload_len().into());
-                },
-                || {
-                    relay_log::error!(
-                        "failed to produce message to Kafka (delivery callback): {}",
-                        LogError(error)
-                    )
-                },
+            relay_log::error!(
+                error = error as &dyn Error,
+                payload_len = message.payload_len(),
+                tags.topic = message.topic(),
+                "failed to produce message to Kafka (delivery callback)",
             );
 
             metric!(counter(KafkaCounters::ProcessingProduceError) += 1);

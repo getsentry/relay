@@ -1,6 +1,5 @@
 import socket
 import subprocess
-import itertools
 import os
 from os import path
 from typing import Optional
@@ -14,7 +13,7 @@ from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.aws_lambda_runtime import aws_lambda_runtime  # noqa
 from .fixtures.relay import relay, get_relay_binary, latest_relay_version  # noqa
-from .fixtures.processing import (
+from .fixtures.processing import (  # noqa
     kafka_consumer,
     get_topic_name,
     processing_config,
@@ -28,7 +27,8 @@ from .fixtures.processing import (
     metrics_consumer,
     replay_events_consumer,
     monitors_consumer,
-)  # noqa
+    spans_consumer,
+)
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ def config_dir(tmpdir):
     def inner(name):
         counters.setdefault(name, 0)
         counters[name] += 1
-        return tmpdir.mkdir("{}-{}".format(name, counters[name]))
+        return tmpdir.mkdir(f"{name}-{counters[name]}")
 
     return inner
 
@@ -156,7 +156,7 @@ def _fixture_file_path_for_test_file(test_file_path, file_name):
     return path.abspath(path.join(prefix, "fixtures", test_file_name, file_name))
 
 
-class _JsonFixtureProvider(object):
+class _JsonFixtureProvider:
     def __init__(self, test_file_path: str):
         """
         Initializes a JsonFixtureProvider with the current test file path (in order to create
@@ -199,7 +199,7 @@ class _JsonFixtureProvider(object):
 
     def load(self, file_name: str, ext: Optional[str] = None):
         """
-        Loads a fixture with the specified file name (with the path realtive to the current test)
+        Loads a fixture with the specified file name (with the path relative to the current test)
         :param file_name: the file name
         :param ext: an optional extension to be appended to the file name ( the ext should contain
             '.' i.e. it should be something like '.fixture'

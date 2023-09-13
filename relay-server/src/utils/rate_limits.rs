@@ -1,10 +1,9 @@
 use std::fmt::{self, Write};
 
-use relay_common::DataCategory;
 use relay_dynamic_config::{ErrorBoundary, ProjectConfig};
 use relay_quotas::{
-    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
-    Scoping,
+    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
+    ReasonCode, Scoping,
 };
 use relay_system::Addr;
 
@@ -99,7 +98,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Attachment => None,
         ItemType::Session => None,
         ItemType::Sessions => None,
-        ItemType::Metrics => None,
+        ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
@@ -108,6 +107,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ReplayRecording => None,
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
+        ItemType::Span => None,
         ItemType::Unknown(_) => None,
     }
 }
@@ -289,7 +289,7 @@ impl Enforcement {
         envelope: &Envelope,
         scoping: &Scoping,
     ) -> impl Iterator<Item = TrackOutcome> {
-        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+        let timestamp = relay_common::time::instant_to_date_time(envelope.meta().start_time());
         let scoping = *scoping;
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().remote_addr();
@@ -510,8 +510,15 @@ where
 
             // It makes no sense to store profiles without transactions, so if the event
             // is rate limited, rate limit profiles as well.
-            enforcement.profiles =
-                CategoryLimit::new(DataCategory::Profile, summary.profile_quantity, longest);
+            enforcement.profiles = CategoryLimit::new(
+                if summary.event_metrics_extracted {
+                    DataCategory::ProfileIndexed
+                } else {
+                    DataCategory::Profile
+                },
+                summary.profile_quantity,
+                longest,
+            );
 
             rate_limits.merge(event_limits);
         }
@@ -548,7 +555,11 @@ where
             let item_scoping = scoping.item(DataCategory::Profile);
             let profile_limits = (self.check)(item_scoping, summary.profile_quantity)?;
             enforcement.profiles = CategoryLimit::new(
-                DataCategory::Profile,
+                if summary.event_metrics_extracted {
+                    DataCategory::ProfileIndexed
+                } else {
+                    DataCategory::Profile
+                },
                 summary.profile_quantity,
                 profile_limits.longest(),
             );
@@ -569,7 +580,7 @@ where
         if summary.checkin_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Monitor);
             let checkin_limits = (self.check)(item_scoping, summary.checkin_quantity)?;
-            enforcement.replays = CategoryLimit::new(
+            enforcement.check_ins = CategoryLimit::new(
                 DataCategory::Monitor,
                 summary.checkin_quantity,
                 checkin_limits.longest(),
@@ -633,7 +644,7 @@ impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
     use smallvec::smallvec;
@@ -951,6 +962,31 @@ mod tests {
         assert_eq!(outcomes, vec![(DataCategory::Replay, 2),]);
     }
 
+    /// Limit monitor checkins.
+    #[test]
+    fn test_enforce_limit_monitor_checkins() {
+        let mut envelope = envelope![CheckIn];
+        let config = ProjectConfig::default();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Monitor);
+        let (enforcement, limits) = EnvelopeLimiter::new(Some(&config), |s, q| mock.check(s, q))
+            .enforce(&mut envelope, &scoping())
+            .unwrap();
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.len(), 0);
+        assert_eq!(mock.called, BTreeMap::from([(DataCategory::Monitor, 1)]));
+
+        let outcomes = enforcement
+            .get_outcomes(&envelope, &scoping())
+            .map(|outcome| (outcome.outcome, outcome.category, outcome.quantity))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            outcomes,
+            vec![(Outcome::RateLimited(None), DataCategory::Monitor, 1)]
+        )
+    }
+
     #[test]
     fn test_enforce_pass_minidump() {
         let mut envelope = envelope![Attachment::Minidump];
@@ -1086,7 +1122,7 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_transaction_metrics_extracted() {
+    fn test_enforce_event_metrics_extracted() {
         let mut envelope = envelope![Transaction];
         set_extracted(&mut envelope, ItemType::Transaction);
         let config = config_with_tx_metrics();
@@ -1120,7 +1156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_enforce_transaction_metrics_extracted_no_indexing_quota() {
+    fn test_enforce_event_metrics_extracted_no_indexing_quota() {
         let mut envelope = envelope![Transaction];
         set_extracted(&mut envelope, ItemType::Transaction);
         let config = config_with_tx_metrics();

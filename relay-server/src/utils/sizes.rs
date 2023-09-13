@@ -61,8 +61,13 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
                 }
             }
             ItemType::UserReport => (),
-            ItemType::Metrics => (),
+            ItemType::Statsd => (),
             ItemType::MetricBuckets => (),
+            ItemType::Span => {
+                if item.len() > config.max_span_size() {
+                    return false;
+                }
+            }
             ItemType::Unknown(_) => (),
         }
     }
@@ -81,12 +86,12 @@ pub fn remove_unknown_items(config: &Config, envelope: &mut ManagedEnvelope) {
     if !config.accept_unknown_items() {
         envelope.retain_items(|item| match item.ty() {
             ItemType::Unknown(ty) => {
-                relay_log::debug!("dropping unknown item of type '{}'", ty);
+                relay_log::debug!("dropping unknown item of type '{ty}'");
                 ItemAction::DropSilently
             }
             _ => match item.attachment_type() {
                 Some(AttachmentType::Unknown(ty)) => {
-                    relay_log::debug!("dropping unknown attachment of type '{}'", ty);
+                    relay_log::debug!("dropping unknown attachment of type '{ty}'");
                     ItemAction::DropSilently
                 }
                 _ => ItemAction::Keep,

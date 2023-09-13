@@ -35,6 +35,24 @@
 //! }
 //! ```
 //!
+//! # Global configuration
+//!
+//! This is the configuration for all Relays, independently from what per-project configuration is, and is defined in [`GlobalConfig`].
+//!
+//! ## Example Config
+//!
+//! ```json
+//! {
+//!     "measurements": {
+//!        "builtinMeasurements": [
+//!            {
+//!                "name": "app_start_cold",
+//!                "unit": "millisecond"
+//!            }
+//!        ],
+//!        "maxCustomMeasurements": 1
+//!     }
+//! }
 //!
 #![warn(missing_docs)]
 #![doc(
@@ -43,14 +61,17 @@
 )]
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+mod defaults;
 mod error_boundary;
 mod feature;
+mod global;
 mod metrics;
 mod project;
 mod utils;
 
 pub use error_boundary::*;
 pub use feature::*;
+pub use global::*;
 pub use metrics::*;
 pub use project::*;
 pub use utils::*;

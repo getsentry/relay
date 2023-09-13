@@ -5,9 +5,8 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::str::FromStr;
 
+use relay_common::glob3::GlobPatterns;
 use serde::{Deserialize, Serialize};
-
-use crate::common::GlobPatterns;
 
 /// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -136,6 +135,24 @@ pub struct ErrorMessagesFilterConfig {
     pub patterns: GlobPatterns,
 }
 
+/// Configuration for transaction name filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IgnoreTransactionsFilterConfig {
+    /// List of patterns for ignored transactions that should be filtered.
+    pub patterns: GlobPatterns,
+    /// True if the filter is enabled
+    #[serde(default)]
+    pub is_enabled: bool,
+}
+
+impl IgnoreTransactionsFilterConfig {
+    /// Returns true if no configuration for this filter is given.
+    pub fn is_empty(&self) -> bool {
+        self.patterns.is_empty() || !self.is_enabled
+    }
+}
+
 impl ErrorMessagesFilterConfig {
     /// Returns true if no configuration for this filter is given.
     pub fn is_empty(&self) -> bool {
@@ -210,6 +227,13 @@ pub struct FiltersConfig {
     /// Configuration for the releases filter.
     #[serde(default, skip_serializing_if = "ReleasesFilterConfig::is_empty")]
     pub releases: ReleasesFilterConfig,
+
+    /// Configuration for ignore transactions filter.
+    #[serde(
+        default,
+        skip_serializing_if = "IgnoreTransactionsFilterConfig::is_empty"
+    )]
+    pub ignore_transactions: IgnoreTransactionsFilterConfig,
 }
 
 impl FiltersConfig {
@@ -223,6 +247,7 @@ impl FiltersConfig {
             && self.legacy_browsers.is_empty()
             && self.localhost.is_empty()
             && self.releases.is_empty()
+            && self.ignore_transactions.is_empty()
     }
 }
 
@@ -260,6 +285,10 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: [],
             },
+            ignore_transactions: IgnoreTransactionsFilterConfig {
+                patterns: [],
+                is_enabled: false,
+            },
         }
         "###);
         Ok(())
@@ -293,9 +322,13 @@ mod tests {
             releases: ReleasesFilterConfig {
                 releases: GlobPatterns::new(vec!["1.2.3".to_string()]),
             },
+            ignore_transactions: IgnoreTransactionsFilterConfig {
+                patterns: GlobPatterns::new(vec!["*health*".to_string()]),
+                is_enabled: true,
+            },
         };
 
-        insta::assert_json_snapshot!(filters_config, @r###"
+        insta::assert_json_snapshot!(filters_config, @r#"
         {
           "browserExtensions": {
             "isEnabled": true
@@ -331,9 +364,15 @@ mod tests {
             "releases": [
               "1.2.3"
             ]
+          },
+          "ignoreTransactions": {
+            "patterns": [
+              "*health*"
+            ],
+            "isEnabled": true
           }
         }
-        "###);
+        "#);
     }
 
     #[test]

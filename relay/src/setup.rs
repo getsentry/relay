@@ -25,11 +25,11 @@ pub fn dump_spawn_infos(config: &Config) {
     relay_log::info!("  relay mode: {}", config.relay_mode());
 
     match config.relay_id() {
-        Some(id) => relay_log::info!("  relay id: {}", id),
+        Some(id) => relay_log::info!("  relay id: {id}"),
         None => relay_log::info!("  relay id: -"),
     };
     match config.public_key() {
-        Some(key) => relay_log::info!("  public key: {}", key),
+        Some(key) => relay_log::info!("  public key: {key}"),
         None => relay_log::info!("  public key: -"),
     };
     relay_log::info!("  log level: {}", config.logging().level);

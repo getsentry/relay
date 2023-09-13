@@ -9,6 +9,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-anyhow = "1.0.32"
-clap = { version = "4.1.4", features = ["derive"] }
-relay-general = { path = "../../relay-general" }
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+relay-pii = { path = "../../relay-pii" }
+serde_json = { workspace = true }

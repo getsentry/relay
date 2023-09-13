@@ -58,13 +58,15 @@ impl Validator {
         topic: KafkaTopic,
         message: &[u8],
     ) -> Result<(), SchemaError> {
-        let Some(schema) = self.get_schema(topic)? else { return Ok(())};
+        let Some(schema) = self.get_schema(topic)? else {
+            return Ok(());
+        };
         let message_value = serde_json::from_slice(message).map_err(SchemaError::MessageJson)?;
 
         if let Err(e) = schema.validate(&message_value) {
             let mut result = String::new();
             for error in e {
-                writeln!(result, "{}", error).unwrap();
+                writeln!(result, "{error}").unwrap();
             }
 
             return Err(SchemaError::Message(result));

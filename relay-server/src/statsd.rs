@@ -5,9 +5,21 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-
     /// The number of items currently in the garbage disposal queue.
     ProjectCacheGarbageQueueSize,
+    /// The number of envelopes waiting for project states in memory.
+    ///
+    /// This number is always <= `EnvelopeQueueSize`.
+    ///
+    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
+    BufferEnvelopesMemoryCount,
+    /// The number of envelopes waiting for project states on disk.
+    ///
+    /// Note this metric *will not be logged* when we encounter envelopes in the database on startup,
+    /// because counting those envelopes reliably would risk locking the db for multiple seconds.
+    ///
+    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
+    BufferEnvelopesDiskCount,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -15,6 +27,8 @@ impl GaugeMetric for RelayGauges {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
+            RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
+            RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
         }
     }
 }
@@ -42,16 +56,19 @@ pub enum RelayHistograms {
     ///
     /// The queue size can be configured with `cache.event_buffer_size`.
     EnvelopeQueueSize,
-    /// The number of envelopes waiting for project states in memory.
-    ///
-    /// This number is always <= `EnvelopeQueueSize`.
+    /// The estimated number of envelope bytes buffered in memory.
     ///
     /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemory,
+    BufferEnvelopesMemoryBytes,
     /// The file size of the buffer db on disk, in bytes.
     ///
     /// This metric is computed by multiplying `page_count * page_size`.
     BufferDiskSize,
+    /// Number of attempts needed to dequeue spooled envelopes from disk.
+    ///
+    /// As long as there are enough permits in the [`crate::utils::BufferGuard`], this number should
+    /// always be one.
+    BufferDequeueAttempts,
     /// The number of spans per processed transaction event.
     ///
     /// This metric is tagged with:
@@ -140,8 +157,9 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EnvelopeQueueSizePct => "event.queue_size.pct",
             RelayHistograms::EnvelopeQueueSize => "event.queue_size",
             RelayHistograms::EventSpans => "event.spans",
-            RelayHistograms::BufferEnvelopesMemory => "buffer.envelopes_mem",
+            RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
+            RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -189,6 +207,8 @@ pub enum RelayTimers {
     EventProcessingPii,
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
+    /// Time used to extract span metrics from an event.
+    EventProcessingSpanMetricsExtraction,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -294,12 +314,10 @@ pub enum RelayTimers {
     TimestampDelay,
     /// The time it takes the outcome aggregator to flush aggregated outcomes.
     OutcomeAggregatorFlushTime,
-
-    /// Time in milliseconds spent on converting a transaction event into a metric.
-    TransactionMetricsExtraction,
-
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
+    /// Total time spent to send a request and receive the response from upstream.
+    GlobalConfigRequestDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -315,6 +333,9 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
+            RelayTimers::EventProcessingSpanMetricsExtraction => {
+                "event_processing.span_metrics_extraction"
+            }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
@@ -329,8 +350,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
-            RelayTimers::TransactionMetricsExtraction => "metrics.extraction.transactions",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
+            RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
         }
     }
 }
@@ -367,6 +388,10 @@ pub enum RelayCounters {
     BufferWrites,
     /// Number times the envelope buffer reads back from disk.
     BufferReads,
+    /// Number of _envelopes_ the envelope buffer spools to disk.
+    BufferEnvelopesWritten,
+    /// Number of _envelopes_ the envelope buffer reads back from disk.
+    BufferEnvelopesRead,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -469,12 +494,12 @@ pub enum RelayCounters {
     ///
     /// This metric is tagged with:
     ///  - `platform`: The event's platform, such as `"javascript"`.
-    ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
-    ///    Sentry's SDKs and defaults to "proprietary".
     ///  - `source`: The source of the transaction name on the client. See the [transaction source
     ///    documentation](https://develop.sentry.dev/sdk/event-payloads/properties/transaction_info/)
     ///    for all valid values.
-    EventTransactionSource,
+    ///  - `contains_slashes`: Whether the transaction name contains `/`. We use this as a heuristic
+    ///    to represent URL transactions.
+    EventTransaction,
     /// The number of transaction events processed grouped by transaction name modifications.
     /// This metric is tagged with:
     ///  - `source_in`: The source of the transaction name before normalization.
@@ -519,6 +544,12 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     OpenTelemetryEvent,
+    /// Number of global config fetches from upstream. Only 2XX responses are
+    /// considered and ignores send errors (e.g. auth or network errors).
+    ///
+    /// This metric is tagged with:
+    ///  - `success`: whether deserializing the global config succeeded.
+    GlobalConfigFetched,
 }
 
 impl CounterMetric for RelayCounters {
@@ -530,6 +561,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::BufferWrites => "buffer.writes",
             RelayCounters::BufferReads => "buffer.reads",
+            RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
+            RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
@@ -543,7 +576,7 @@ impl CounterMetric for RelayCounters {
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
             RelayCounters::EventProtocol => "event.protocol",
-            RelayCounters::EventTransactionSource => "event.transaction_source",
+            RelayCounters::EventTransaction => "event.transaction",
             RelayCounters::TransactionNameChanges => "event.transaction_name_changes",
             RelayCounters::Requests => "requests",
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
@@ -551,6 +584,73 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
+            RelayCounters::GlobalConfigFetched => "global_config.fetch",
+        }
+    }
+}
+
+/// Low-cardinality platform that can be used as a statsd tag.
+pub enum PlatformTag {
+    Cocoa,
+    Csharp,
+    Edge,
+    Go,
+    Java,
+    Javascript,
+    Julia,
+    Native,
+    Node,
+    Objc,
+    Other,
+    Perl,
+    Php,
+    Python,
+    Ruby,
+    Swift,
+}
+
+impl PlatformTag {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Cocoa => "cocoa",
+            Self::Csharp => "csharp",
+            Self::Edge => "edge",
+            Self::Go => "go",
+            Self::Java => "java",
+            Self::Javascript => "javascript",
+            Self::Julia => "julia",
+            Self::Native => "native",
+            Self::Node => "node",
+            Self::Objc => "objc",
+            Self::Other => "other",
+            Self::Perl => "perl",
+            Self::Php => "php",
+            Self::Python => "python",
+            Self::Ruby => "ruby",
+            Self::Swift => "swift",
+        }
+    }
+}
+
+impl<S: AsRef<str>> From<S> for PlatformTag {
+    fn from(value: S) -> Self {
+        match value.as_ref() {
+            "cocoa" => Self::Cocoa,
+            "csharp" => Self::Csharp,
+            "edge" => Self::Edge,
+            "go" => Self::Go,
+            "java" => Self::Java,
+            "javascript" => Self::Javascript,
+            "julia" => Self::Julia,
+            "native" => Self::Native,
+            "node" => Self::Node,
+            "objc" => Self::Objc,
+            "perl" => Self::Perl,
+            "php" => Self::Php,
+            "python" => Self::Python,
+            "ruby" => Self::Ruby,
+            "swift" => Self::Swift,
+            _ => Self::Other,
         }
     }
 }

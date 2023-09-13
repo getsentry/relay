@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
 
 use crate::actors::outcome::Outcome;
@@ -103,7 +103,7 @@ impl TestStoreService {
                     self.captures.insert(event_id, Ok(envelope));
                 }
                 (Some(event_id), Err(message)) => {
-                    relay_log::debug!("capturing failed event {}", event_id);
+                    relay_log::debug!(%event_id, "capturing failed event");
                     self.captures.insert(event_id, Err(message));
                 }
 

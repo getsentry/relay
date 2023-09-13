@@ -3,9 +3,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 use std::sync::Arc;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_log::LogError;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
@@ -79,19 +78,19 @@ async fn load_local_states(
     };
 
     // only printed when directory even exists.
-    relay_log::debug!("Loading local states from directory {:?}", projects_path);
+    relay_log::debug!(directory = ?projects_path, "loading local states from file system");
 
     while let Some(entry) = directory.next_entry().await? {
         let path = entry.path();
 
         let metadata = entry.metadata().await?;
         if !(metadata.is_file() || metadata.is_symlink()) {
-            relay_log::warn!("skipping {:?}, not a file", path);
+            relay_log::warn!(?path, "skipping file, not a file");
             continue;
         }
 
         if path.extension().map(|x| x != "json").unwrap_or(true) {
-            relay_log::warn!("skipping {:?}, file extension must be .json", path);
+            relay_log::warn!(?path, "skipping file, file extension must be .json");
             continue;
         }
 
@@ -103,14 +102,16 @@ async fn load_local_states(
             if let Some(project_id) = get_project_id(&path) {
                 sanitized.project_id = Some(project_id);
             } else {
-                relay_log::warn!("skipping {:?}, filename is not a valid project id", path);
+                relay_log::warn!(?path, "skipping file, filename is not a valid project id");
                 continue;
             }
         }
 
-        let arc = Arc::new(sanitized);
-        for key in &arc.public_keys {
-            states.insert(key.public_key, arc.clone());
+        // Keep a separate project state per key.
+        let keys = std::mem::take(&mut sanitized.public_keys);
+        for key in keys {
+            sanitized.public_keys = smallvec::smallvec![key.clone()];
+            states.insert(key.public_key, Arc::new(sanitized.clone()));
         }
     }
 
@@ -127,8 +128,8 @@ async fn poll_local_states(path: &Path, tx: &mpsc::Sender<HashMap<ProjectKey, Ar
             }
         }
         Err(error) => relay_log::error!(
-            "failed to load static project configs: {}",
-            LogError(&error)
+            error = &error as &dyn std::error::Error,
+            "failed to load static project configs",
         ),
     };
 }
@@ -191,9 +192,7 @@ impl Service for LocalProjectSourceService {
 mod tests {
     use std::str::FromStr;
 
-    use relay_common::{ProjectId, ProjectKey};
-
-    use super::load_local_states;
+    use super::*;
     use crate::actors::project::{ProjectState, PublicKeyConfig};
 
     /// Tests that we can follow the symlinks and read the project file properly.
@@ -247,5 +246,38 @@ mod tests {
                 .public_key,
             project_key,
         )
+    }
+
+    #[tokio::test]
+    async fn test_multi_pub_static_config() {
+        let temp = tempfile::tempdir().unwrap();
+
+        let tmp_project_file = "111111.json";
+        let project_key1 = ProjectKey::parse("55f6b2d962564e99832a39890ee4573e").unwrap();
+        let project_key2 = ProjectKey::parse("55bbb2d96256bb9983bb39890bb457bb").unwrap();
+
+        let mut tmp_project_state = ProjectState::allowed();
+        tmp_project_state.public_keys.extend(vec![
+            PublicKeyConfig {
+                public_key: project_key1,
+                numeric_id: None,
+            },
+            PublicKeyConfig {
+                public_key: project_key2,
+                numeric_id: None,
+            },
+        ]);
+
+        // create the project file
+        let project_state = serde_json::to_string(&tmp_project_state).unwrap();
+        tokio::fs::write(temp.path().join(tmp_project_file), project_state.as_bytes())
+            .await
+            .unwrap();
+
+        let extracted_project_state = load_local_states(temp.path()).await.unwrap();
+
+        assert_eq!(extracted_project_state.len(), 2);
+        assert!(extracted_project_state.get(&project_key1).is_some());
+        assert!(extracted_project_state.get(&project_key2).is_some());
     }
 }

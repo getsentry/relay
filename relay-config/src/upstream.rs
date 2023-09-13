@@ -76,7 +76,7 @@ impl<'a> UpstreamDescriptor<'a> {
 
     /// Returns a URL relative to the upstream.
     pub fn get_url(&self, path: &str) -> Url {
-        format!("{}{}", self, path.trim_start_matches(&['/'][..]))
+        format!("{self}{}", path.trim_start_matches(&['/'][..]))
             .parse()
             .unwrap()
     }

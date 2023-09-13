@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ops::Range;
 
 use chrono::{DateTime, Utc};
-use relay_general::protocol::{Addr, EventId};
+use relay_event_schema::protocol::{Addr, EventId};
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
@@ -9,6 +10,9 @@ use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::deserialize_number_from_string;
+use crate::MAX_PROFILE_DURATION;
+
+const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Frame {
@@ -134,7 +138,7 @@ pub enum Version {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct SampleProfile {
+pub struct ProfileMetadata {
     version: Version,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -150,9 +154,12 @@ struct SampleProfile {
     #[serde(alias = "profile_id")]
     event_id: EventId,
     platform: String,
-    profile: Profile,
-    release: String,
     timestamp: DateTime<Utc>,
+
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    release: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    dist: String,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     transactions: Vec<TransactionMetadata>,
@@ -169,15 +176,22 @@ struct SampleProfile {
     transaction_tags: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SampleProfile {
+    #[serde(flatten)]
+    metadata: ProfileMetadata,
+    profile: Profile,
+}
+
 impl SampleProfile {
     fn valid(&self) -> bool {
-        match self.platform.as_str() {
+        match self.metadata.platform.as_str() {
             "cocoa" => {
-                self.os.build_number.is_some()
-                    && self.device.is_emulator.is_some()
-                    && self.device.locale.is_some()
-                    && self.device.manufacturer.is_some()
-                    && self.device.model.is_some()
+                self.metadata.os.build_number.is_some()
+                    && self.metadata.device.is_emulator.is_some()
+                    && self.metadata.device.locale.is_some()
+                    && self.metadata.device.manufacturer.is_some()
+                    && self.metadata.device.model.is_some()
             }
             _ => true,
         }
@@ -203,6 +217,13 @@ impl SampleProfile {
         true
     }
 
+    fn is_above_max_duration(&self) -> bool {
+        if let Some(sample) = &self.profile.samples.last() {
+            return sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS;
+        }
+        false
+    }
+
     /// Removes a sample when it's the only sample on its thread
     fn remove_single_samples_per_thread(&mut self) {
         let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
@@ -222,28 +243,46 @@ impl SampleProfile {
     }
 
     fn strip_pointer_authentication_code(&mut self) {
-        self.profile
-            .strip_pointer_authentication_code(&self.platform, &self.device.architecture);
+        self.profile.strip_pointer_authentication_code(
+            &self.metadata.platform,
+            &self.metadata.device.architecture,
+        );
     }
 
     fn remove_idle_samples_at_the_edge(&mut self) {
-        if let Some(start) = self.profile.samples.iter().position(|sample| {
-            match self.profile.stacks.get(sample.stack_id) {
+        let mut active_ranges: HashMap<u64, Range<usize>> = HashMap::new();
+
+        for (i, sample) in self.profile.samples.iter().enumerate() {
+            let is_active = match self.profile.stacks.get(sample.stack_id) {
                 Some(stack) => !stack.is_empty(),
-                None => false,
+                None => true,
+            };
+
+            if !is_active {
+                continue;
             }
-        }) {
-            self.profile.samples.drain(..start);
+
+            if let Some(range) = active_ranges.get_mut(&sample.thread_id) {
+                range.end = i + 1;
+            } else {
+                active_ranges.insert(sample.thread_id, i..i + 1);
+            }
         }
 
-        if let Some(end) = self.profile.samples.iter().rposition(|sample| {
-            match self.profile.stacks.get(sample.stack_id) {
-                Some(stack) => !stack.is_empty(),
-                None => false,
-            }
-        }) {
-            self.profile.samples.truncate(end + 1);
-        }
+        self.profile.samples = self
+            .profile
+            .samples
+            .drain(..)
+            .enumerate()
+            .filter(|(i, sample)| {
+                if let Some(range) = active_ranges.get(&sample.thread_id) {
+                    range.contains(i)
+                } else {
+                    false
+                }
+            })
+            .map(|(_, sample)| sample)
+            .collect();
     }
 
     fn cleanup_thread_metadata(&mut self) {
@@ -277,11 +316,12 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MissingProfileMetadata);
     }
 
-    if profile.transaction.is_none() {
-        profile.transaction = profile.transactions.drain(..).next();
+    if profile.metadata.transaction.is_none() {
+        profile.metadata.transaction = profile.metadata.transactions.drain(..).next();
     }
 
     let transaction = profile
+        .metadata
         .transaction
         .as_ref()
         .ok_or(ProfileError::NoTransactionAssociated)?;
@@ -314,6 +354,10 @@ fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
         return Err(ProfileError::MalformedStacks);
     }
 
+    if profile.is_above_max_duration() {
+        return Err(ProfileError::DurationIsTooLong);
+    }
+
     profile.strip_pointer_authentication_code();
     profile.cleanup_thread_metadata();
     profile.cleanup_queue_metadata();
@@ -329,21 +373,25 @@ pub fn parse_sample_profile(
     let mut profile = parse_profile(payload)?;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
-        if let Some(ref mut transaction) = profile.transaction {
+        if let Some(ref mut transaction) = profile.metadata.transaction {
             transaction.name = transaction_name.to_owned();
         }
     }
 
     if let Some(release) = transaction_metadata.get("release") {
-        profile.release = release.to_owned();
+        profile.metadata.release = release.to_owned();
+    }
+
+    if let Some(dist) = transaction_metadata.get("dist") {
+        profile.metadata.dist = dist.to_owned();
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
-        profile.environment = environment.to_owned();
+        profile.metadata.environment = environment.to_owned();
     }
 
-    profile.transaction_metadata = transaction_metadata;
-    profile.transaction_tags = transaction_tags;
+    profile.metadata.transaction_metadata = transaction_metadata;
+    profile.metadata.transaction_tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
@@ -351,6 +399,7 @@ pub fn parse_sample_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn test_roundtrip() {
@@ -370,25 +419,34 @@ mod tests {
 
     fn generate_profile() -> SampleProfile {
         SampleProfile {
-            debug_meta: Option::None,
-            version: Version::V1,
-            timestamp: Utc::now(),
-            runtime: Option::None,
-            device: DeviceMetadata {
-                architecture: "arm64e".to_string(),
-                is_emulator: Some(true),
-                locale: Some("en_US".to_string()),
-                manufacturer: Some("Apple".to_string()),
-                model: Some("iPhome11,3".to_string()),
+            metadata: ProfileMetadata {
+                debug_meta: Option::None,
+                version: Version::V1,
+                timestamp: Utc::now(),
+                runtime: Option::None,
+                device: DeviceMetadata {
+                    architecture: "arm64e".to_string(),
+                    is_emulator: Some(true),
+                    locale: Some("en_US".to_string()),
+                    manufacturer: Some("Apple".to_string()),
+                    model: Some("iPhome11,3".to_string()),
+                },
+                os: OSMetadata {
+                    build_number: Some("H3110".to_string()),
+                    name: "iOS".to_string(),
+                    version: "16.0".to_string(),
+                },
+                environment: "testing".to_string(),
+                platform: "cocoa".to_string(),
+                event_id: EventId::new(),
+                transaction: Option::None,
+                transactions: Vec::new(),
+                release: "1.0".to_string(),
+                dist: "9999".to_string(),
+                measurements: None,
+                transaction_metadata: BTreeMap::new(),
+                transaction_tags: BTreeMap::new(),
             },
-            os: OSMetadata {
-                build_number: Some("H3110".to_string()),
-                name: "iOS".to_string(),
-                version: "16.0".to_string(),
-            },
-            environment: "testing".to_string(),
-            platform: "cocoa".to_string(),
-            event_id: EventId::new(),
             profile: Profile {
                 queue_metadata: Some(HashMap::new()),
                 samples: Vec::new(),
@@ -396,12 +454,6 @@ mod tests {
                 frames: Vec::new(),
                 thread_metadata: Some(HashMap::new()),
             },
-            transaction: Option::None,
-            transactions: Vec::new(),
-            release: "1.0 (9999)".to_string(),
-            measurements: None,
-            transaction_metadata: BTreeMap::new(),
-            transaction_tags: BTreeMap::new(),
         }
     }
 
@@ -492,7 +544,7 @@ mod tests {
             lineno: Some(0),
             module: Some("".to_string()),
         });
-        profile.transaction = Some(TransactionMetadata {
+        profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
             name: "blah".to_string(),
@@ -550,7 +602,7 @@ mod tests {
             lineno: Some(0),
             module: Some("".to_string()),
         });
-        profile.transaction = Some(TransactionMetadata {
+        profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
             id: EventId::new(),
             name: "blah".to_string(),
@@ -608,7 +660,7 @@ mod tests {
             trace_id: EventId::new(),
         };
 
-        profile.transactions.push(transaction.clone());
+        profile.metadata.transactions.push(transaction.clone());
         profile.profile.frames.push(Frame {
             abs_path: Some("".to_string()),
             colno: Some(0),
@@ -650,8 +702,8 @@ mod tests {
         let payload = serde_json::to_vec(&profile).unwrap();
         let profile = parse_profile(&payload[..]).unwrap();
 
-        assert_eq!(Some(transaction), profile.transaction);
-        assert!(profile.transactions.is_empty());
+        assert_eq!(Some(transaction), profile.metadata.transaction);
+        assert!(profile.metadata.transactions.is_empty());
     }
 
     #[test]
@@ -675,7 +727,7 @@ mod tests {
             trace_id: EventId::new(),
         };
 
-        profile.transaction = Some(transaction);
+        profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
             abs_path: Some("".to_string()),
             colno: Some(0),
@@ -688,6 +740,18 @@ mod tests {
         });
         profile.profile.stacks = vec![vec![0], vec![]];
         profile.profile.samples = vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 40,
+                thread_id: 2,
+            },
+            Sample {
+                stack_id: 1,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 50,
+                thread_id: 2,
+            },
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
@@ -736,36 +800,37 @@ mod tests {
                 elapsed_since_start_ns: 90,
                 thread_id: 1,
             },
-        ];
-
-        profile.remove_idle_samples_at_the_edge();
-
-        assert_eq!(profile.profile.samples.len(), 3);
-
-        profile.profile.samples = vec![
             Sample {
-                stack_id: 0,
+                stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 40,
-                thread_id: 1,
+                elapsed_since_start_ns: 80,
+                thread_id: 3,
             },
             Sample {
                 stack_id: 1,
                 queue_address: Some("0xdeadbeef".to_string()),
-                elapsed_since_start_ns: 50,
-                thread_id: 1,
+                elapsed_since_start_ns: 90,
+                thread_id: 3,
             },
             Sample {
                 stack_id: 0,
                 queue_address: Some("0xdeadbeef".to_string()),
                 elapsed_since_start_ns: 60,
-                thread_id: 1,
+                thread_id: 2,
             },
         ];
 
         profile.remove_idle_samples_at_the_edge();
 
-        assert_eq!(profile.profile.samples.len(), 3);
+        let mut sample_count_by_thread_id: HashMap<u64, u32> = HashMap::new();
+
+        for sample in &profile.profile.samples {
+            *sample_count_by_thread_id
+                .entry(sample.thread_id)
+                .or_default() += 1;
+        }
+
+        assert_eq!(sample_count_by_thread_id, HashMap::from([(1, 3), (2, 3),]));
     }
 
     #[test]
@@ -782,7 +847,7 @@ mod tests {
             trace_id: EventId::new(),
         };
 
-        profile.transaction = Some(transaction);
+        profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
             abs_path: Some("".to_string()),
             colno: Some(0),
@@ -883,10 +948,54 @@ mod tests {
         let output: SampleProfile = serde_json::from_slice(&profile_json.unwrap()[..])
             .map_err(ProfileError::InvalidJson)
             .unwrap();
-        assert_eq!(output.release, "some-random-release".to_string());
+        assert_eq!(output.metadata.release, "some-random-release".to_string());
         assert_eq!(
-            output.transaction.unwrap().name,
+            output.metadata.transaction.unwrap().name,
             "some-random-transaction".to_string()
         );
+    }
+
+    #[test]
+    fn test_keep_profile_under_max_duration() {
+        let mut profile = generate_profile();
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: (MAX_PROFILE_DURATION - Duration::from_secs(1)).as_nanos()
+                    as u64,
+                thread_id: 2,
+            },
+        ]);
+
+        assert!(!profile.is_above_max_duration());
+    }
+
+    #[test]
+    fn test_reject_profile_over_max_duration() {
+        let mut profile = generate_profile();
+        profile.profile.samples.extend(vec![
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: 10,
+                thread_id: 1,
+            },
+            Sample {
+                stack_id: 0,
+                queue_address: Some("0xdeadbeef".to_string()),
+                elapsed_since_start_ns: (MAX_PROFILE_DURATION + Duration::from_secs(1)).as_nanos()
+                    as u64,
+                thread_id: 2,
+            },
+        ]);
+
+        assert!(profile.is_above_max_duration());
     }
 }

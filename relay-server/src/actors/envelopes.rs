@@ -1,13 +1,13 @@
 use std::borrow::Cow;
+use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
 use chrono::Utc;
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, HttpEncoding};
-use relay_general::protocol::ClientReport;
-use relay_log::LogError;
+use relay_event_schema::protocol::ClientReport;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -314,7 +314,13 @@ impl EnvelopeManagerService {
                 // indicate errors in the infrastructure or implementation bugs.
                 relay_log::with_scope(
                     |scope| scope.set_tag("project_key", scoping.project_key),
-                    || relay_log::error!("error sending envelope: {}", LogError(&error)),
+                    || {
+                        relay_log::error!(
+                            error = &error as &dyn Error,
+                            tags.project_key = %scoping.project_key,
+                            "error sending envelope"
+                        )
+                    },
                 );
                 envelope.reject(Outcome::Invalid(DiscardReason::Internal));
             }
@@ -339,7 +345,7 @@ impl EnvelopeManagerService {
         };
 
         let mut item = Item::new(ItemType::MetricBuckets);
-        item.set_payload(ContentType::Json, Bucket::serialize_all(&buckets).unwrap());
+        item.set_payload(ContentType::Json, serde_json::to_vec(&buckets).unwrap());
         let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
         envelope.add_item(item);
 
@@ -347,8 +353,8 @@ impl EnvelopeManagerService {
         let result = self.submit_envelope(envelope, scoping, partition_key).await;
         if let Err(err) = result {
             relay_log::trace!(
-                "failed to submit the envelope, merging buckets back: {}",
-                LogError(&err)
+                error = &err as &dyn Error,
+                "failed to submit the envelope, merging buckets back",
             );
             self.aggregator
                 .send(MergeBuckets::new(scoping.project_key, buckets));
@@ -379,7 +385,10 @@ impl EnvelopeManagerService {
         }
 
         if let Err(e) = self.submit_envelope(envelope, scoping, None).await {
-            relay_log::trace!("Failed to send envelope for client report: {:?}", e);
+            relay_log::trace!(
+                error = &e as &dyn Error,
+                "failed to send envelope for client report"
+            );
         }
     }
 

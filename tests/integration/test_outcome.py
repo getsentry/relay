@@ -4,10 +4,18 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from queue import Empty
 import signal
+from pathlib import Path
 
 import requests
 import pytest
 import time
+
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
+
+from .test_metrics import metrics_by_name
+
+
+RELAY_ROOT = Path(__file__).parent.parent.parent
 
 HOUR_MILLISEC = 1000 * 3600
 
@@ -23,7 +31,7 @@ def test_outcomes_processing(relay_with_processing, mini_sentry, outcomes_consum
 
     outcomes_consumer = outcomes_consumer()
 
-    message_text = "some message {}".format(datetime.now())
+    message_text = f"some message {datetime.now()}"
     event_id = "11122233344455566677788899900011"
     start = datetime.utcnow().replace(
         microsecond=0
@@ -84,7 +92,7 @@ def test_outcomes_custom_topic(
 
     outcomes_consumer = outcomes_consumer()
 
-    message_text = "some message {}".format(datetime.now())
+    message_text = f"some message {datetime.now()}"
     event_id = "11122233344455566677788899900011"
     start = datetime.utcnow().replace(
         microsecond=0
@@ -199,22 +207,43 @@ def test_outcomes_two_topics(
     outcomes_consumer.assert_empty()
 
 
-def _send_event(relay, project_id=42, event_type="error", event_id=None):
+def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_id=None):
     """
     Send an event to the given project.
 
     If the project doesn't exist, relay should generate INVALID outcome with reason "project_id".
     """
+    trace_id = trace_id or uuid.uuid4().hex
     event_id = event_id or uuid.uuid1().hex
-    message_text = "some message {}".format(datetime.now())
-    event_body = {
-        "event_id": event_id,
-        "message": message_text,
-        "extra": {"msg_text": message_text},
-        "type": event_type,
-        "environment": "production",
-        "release": "foo@1.2.3",
-    }
+    message_text = f"some message {datetime.now()}"
+    if event_type == "error":
+        event_body = {
+            "event_id": event_id,
+            "message": message_text,
+            "extra": {"msg_text": message_text},
+            "type": event_type,
+            "environment": "production",
+            "release": "foo@1.2.3",
+        }
+    elif event_type == "transaction":
+        event_body = {
+            "event_id": event_id,
+            "type": "transaction",
+            "transaction": "tr1",
+            "start_timestamp": 1597976392.6542819,
+            "timestamp": 1597976400.6189718,
+            "contexts": {
+                "trace": {
+                    "trace_id": trace_id,
+                    "span_id": "FA90FDEAD5F74052",
+                    "type": "trace",
+                }
+            },
+            "spans": [],
+            "extra": {"id": event_id},
+            "environment": "production",
+            "release": "foo@1.2.3",
+        }
 
     try:
         relay.send_event(project_id=project_id, payload=event_body)
@@ -235,7 +264,7 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     relay = relay(mini_sentry, config)
 
-    event_id = _send_event(relay, event_type=event_type)
+    _send_event(relay, event_type=event_type)
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=0.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -275,7 +304,8 @@ def test_outcomes_not_sent_when_disabled(relay, mini_sentry):
 
     try:
         mini_sentry.captured_outcomes.get(timeout=0.2)
-        assert False  # we should not be here ( previous call should have failed)
+        # we should not be here ( previous call should have failed)
+        assert False
     except Empty:
         pass  # we do expect not to get anything since we have outcomes disabled
 
@@ -434,7 +464,7 @@ def test_outcome_forwarding(
 
     downstream_relay = relay(upstream, config_downstream)
 
-    event_id = _send_event(downstream_relay, event_type=event_type)
+    _send_event(downstream_relay, event_type=event_type)
 
     outcome = outcomes_consumer.get_outcome()
 
@@ -559,6 +589,87 @@ def _get_event_payload(event_type):
         raise Exception("Invalid event type")
 
 
+def _get_profile_payload(metadata_only=True):
+    profile = {
+        "event_id": "41fed0925670468bb0457f61a74688ec",
+        "version": "1",
+        "os": {"name": "iOS", "version": "16.0", "build_number": "19H253"},
+        "device": {
+            "architecture": "arm64e",
+            "is_emulator": False,
+            "locale": "en_US",
+            "manufacturer": "Apple",
+            "model": "iPhone14,3",
+        },
+        "timestamp": "2022-09-01T09:45:00.000Z",
+        "release": "0.1 (199)",
+        "platform": "cocoa",
+        "debug_meta": {
+            "images": [
+                {
+                    "debug_id": "32420279-25E2-34E6-8BC7-8A006A8F2425",
+                    "image_addr": "0x000000010258c000",
+                    "code_file": "/private/var/containers/Bundle/Application/C3511752-DD67-4FE8-9DA2-ACE18ADFAA61/TrendingMovies.app/TrendingMovies",
+                    "type": "macho",
+                    "image_size": 1720320,
+                    "image_vmaddr": "0x0000000100000000",
+                }
+            ]
+        },
+        "transactions": [
+            {
+                "name": "example_ios_movies_sources.MoviesViewController",
+                "trace_id": "4b25bc58f14243d8b208d1e22a054164",
+                "id": "30976f2ddbe04ac9b6bffe6e35d4710c",
+                "active_thread_id": "259",
+                "relative_start_ns": "500500",
+                "relative_end_ns": "50500500",
+            }
+        ],
+    }
+    if metadata_only:
+        return profile
+    profile["profile"] = {
+        "samples": [
+            {
+                "stack_id": 0,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "10500500",
+            },
+            {
+                "stack_id": 1,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "20500500",
+            },
+            {
+                "stack_id": 0,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "30500500",
+            },
+            {
+                "stack_id": 1,
+                "thread_id": "1",
+                "queue_address": "0x0000000102adc700",
+                "elapsed_since_start_ns": "40500500",
+            },
+        ],
+        "stacks": [[0], [1]],
+        "frames": [
+            {"instruction_addr": "0xa722447ffffffffc"},
+            {"instruction_addr": "0x442e4b81f5031e58"},
+        ],
+        "thread_metadata": {"1": {"priority": 31}, "2": {}},
+        "queue_metadata": {
+            "0x0000000102adc700": {"label": "com.apple.main-thread"},
+            "0x000000016d8fb180": {"label": "com.apple.network.connections"},
+        },
+    }
+    return profile
+
+
 @pytest.mark.parametrize(
     "category,is_outcome_expected", [("session", False), ("transaction", True)]
 )
@@ -585,6 +696,7 @@ def test_outcomes_rate_limit(
             "reasonCode": reason_code,
         }
     ]
+
     outcomes_consumer = outcomes_consumer()
 
     if category == "session":
@@ -619,13 +731,14 @@ def test_outcome_to_client_report(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {"version": 1}
     project_config["config"]["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -660,7 +773,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         },
     )
 
-    _send_event(downstream, event_type="error")
+    _send_event(downstream, event_type="transaction")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=3.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -679,7 +792,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 9,
         "quantity": 1,
     }
     assert outcome == expected_outcome
@@ -704,7 +817,7 @@ def test_filtered_event_outcome_client_reports(relay, mini_sentry):
         },
     )
 
-    event_id = _send_event(relay, event_type="error")
+    _send_event(relay, event_type="error")
 
     envelope = mini_sentry.captured_events.get(timeout=10)
     items = envelope.items
@@ -792,7 +905,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -801,6 +914,8 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
             }
         ],
     }
+
+    project_config["config"]["transactionMetrics"] = {"version": 1}
 
     upstream = relay(
         mini_sentry,
@@ -816,8 +931,8 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         },
     )
 
-    _send_event(upstream, event_type="error")
-    _send_event(upstream, event_type="error")
+    _send_event(upstream, event_type="transaction")
+    _send_event(upstream, event_type="transaction")
 
     outcomes_batch = mini_sentry.captured_outcomes.get(timeout=1.2)
     assert mini_sentry.captured_outcomes.qsize() == 0  # we had only one batch
@@ -835,7 +950,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 9,
         "quantity": 2,
     }
     assert outcome == expected_outcome
@@ -907,13 +1022,14 @@ def test_graceful_shutdown(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {"version": 1}
     project_config["config"]["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
             {
                 "id": 1,
                 "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "error",
+                "type": "transaction",
                 "condition": {
                     "op": "eq",
                     "name": "event.environment",
@@ -938,7 +1054,7 @@ def test_graceful_shutdown(relay, mini_sentry):
         },
     )
 
-    _send_event(relay, event_type="error")
+    _send_event(relay, event_type="transaction")
 
     # Give relay some time to handle event
     time.sleep(0.1)
@@ -963,7 +1079,509 @@ def test_graceful_shutdown(relay, mini_sentry):
         "key_id": 123,
         "outcome": 1,
         "reason": "Sampled:1",
-        "category": 1,
+        "category": 9,
         "quantity": 1,
     }
     assert outcome == expected_outcome
+
+
+@pytest.mark.parametrize("num_intermediate_relays", [0, 1, 2])
+def test_profile_outcomes(
+    mini_sentry,
+    relay,
+    relay_with_processing,
+    outcomes_consumer,
+    num_intermediate_relays,
+    metrics_consumer,
+):
+    """
+    Tests that Relay reports correct outcomes for profiles.
+
+    Have a chain of many relays that eventually connect to Sentry
+    and verify that the outcomes sent by the first relay
+    are properly forwarded up to sentry.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=5)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+    project_config["dynamicSampling"] = {
+        "rules": [],
+        "rulesV2": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.transaction",
+                    "value": "hi",
+                },
+            }
+        ],
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "processing-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    # The innermost Relay needs to be in processing mode
+    upstream = relay_with_processing(config)
+
+    # build a chain of relays
+    for i in range(num_intermediate_relays):
+        config = deepcopy(config)
+        if i == 0:
+            # Emulate a PoP Relay
+            config["outcomes"]["source"] = "pop-relay"
+        if i == 1:
+            # Emulate a customer Relay
+            config["outcomes"]["source"] = "external-relay"
+            config["outcomes"]["emit_outcomes"] = "as_client_reports"
+        upstream = relay(upstream, config)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        "rb",
+    ) as f:
+        profile = f.read()
+
+    def make_envelope(transaction_name):
+        payload = _get_event_payload("transaction")
+        payload["transaction"] = transaction_name
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+        return envelope
+
+    upstream.send_envelope(
+        project_id, make_envelope("hi")
+    )  # should get dropped by dynamic sampling
+    upstream.send_envelope(
+        project_id, make_envelope("ho")
+    )  # should be kept by dynamic sampling
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_source = {
+        0: "processing-relay",
+        1: "pop-relay",
+        # outcomes from client reports do not have a correct source (known issue)
+        2: "pop-relay",
+    }[num_intermediate_relays]
+    expected_outcomes = [
+        {
+            "category": 9,  # TransactionIndexed
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # Filtered
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "Sampled:1",
+            "source": expected_source,
+        },
+        {
+            "category": 11,  # ProfileIndexed
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,  # Filtered
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "Sampled:1",
+            "source": expected_source,
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+
+    metrics = [
+        m
+        for m, _ in metrics_consumer.get_metrics()
+        if m["name"] == "d:transactions/duration@millisecond"
+    ]
+    assert len(metrics) == 2
+    assert all(metric["tags"]["has_profile"] == "true" for metric in metrics)
+
+    assert outcomes == expected_outcomes, outcomes
+
+
+@pytest.mark.parametrize("metrics_already_extracted", [False, True])
+def test_profile_outcomes_invalid(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    metrics_consumer,
+    metrics_already_extracted,
+):
+    """
+    Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "pop-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    # Create an envelope with an invalid profile:
+    def make_envelope():
+        payload = _get_event_payload("transaction")
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+                headers={"metrics_extracted": metrics_already_extracted},
+            )
+        )
+        envelope.add_item(Item(payload=PayloadRef(bytes=b""), type="profile"))
+
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    # Expect ProfileIndexed if metrics have been extracted, else Profile
+    expected_category = 11 if metrics_already_extracted else 6
+
+    expected_outcomes = [
+        {
+            "category": expected_category,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes
+
+    if not metrics_already_extracted:
+        # Make sure the profile will not be counted as accepted:
+        metric = metrics_by_name(metrics_consumer, 2)[
+            "d:transactions/duration@millisecond"
+        ]
+        assert "has_profile" not in metric["tags"]
+
+
+def test_profile_outcomes_too_many(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    metrics_consumer,
+):
+    """
+    Tests that Relay reports duplicate profiles as invalid
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "pop-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        "rb",
+    ) as f:
+        profile = f.read()
+
+    # Create an envelope with an invalid profile:
+    def make_envelope():
+        payload = _get_event_payload("transaction")
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+        envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = [
+        {
+            "category": 6,  # Profile
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,  # Invalid
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_too_many_profiles",
+            "remote_addr": "127.0.0.1",
+            "source": "pop-relay",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes
+
+    # Make sure one profile will not be counted as accepted
+    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
+    assert metric["tags"]["has_profile"] == "true"
+    assert len(metric["value"]) == 1
+
+
+def test_profile_outcomes_data_invalid(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    metrics_consumer,
+):
+    """
+    Tests that Relay reports correct outcomes for invalid profiles as `Profile`.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+    metrics_consumer = metrics_consumer()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["transactionMetrics"] = {
+        "version": 1,
+    }
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 1,
+            },
+            "source": "processing-relay",
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    # Create an envelope with an invalid profile:
+    def make_envelope():
+        payload = _get_event_payload("transaction")
+        envelope = Envelope()
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(payload).encode()),
+                type="transaction",
+            )
+        )
+        envelope.add_item(
+            Item(
+                payload=PayloadRef(bytes=json.dumps(_get_profile_payload()).encode()),
+                type="profile",
+            )
+        )
+        return envelope
+
+    envelope = make_envelope()
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = [
+        {
+            "category": 11,  # ProfileIndexed
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 3,
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiling_invalid_json",
+            "remote_addr": "127.0.0.1",
+            "source": "processing-relay",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes
+
+    # Because invalid data is detected _after_ metrics extraction, there is still a metric:
+    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
+    assert metric["tags"]["has_profile"] == "true"
+    assert len(metric["value"]) == 1
+
+
+@pytest.mark.parametrize("metrics_already_extracted", [False, True])
+@pytest.mark.parametrize("quota_category", ["transaction", "profile"])
+def test_profile_outcomes_rate_limited(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    metrics_already_extracted,
+    quota_category,
+):
+    """
+    Profiles that are rate limited before metrics extraction should count towards `Profile`.
+    Profiles that are rate limited after metrics extraction should count towards `ProfileIndexed`.
+    """
+    outcomes_consumer = outcomes_consumer(timeout=2)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [quota_category],
+            "limit": 0,
+            "reasonCode": "profiles_exceeded",
+        }
+    ]
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 0,
+            },
+        },
+        "aggregator": {"bucket_interval": 1, "initial_delay": 0, "debounce_delay": 0},
+    }
+
+    upstream = relay_with_processing(config)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/profiles/sample/roundtrip.json",
+        "rb",
+    ) as f:
+        profile = f.read()
+
+    # Create an envelope with an invalid profile:
+    payload = _get_event_payload("transaction")
+    envelope = Envelope()
+    envelope.add_item(
+        Item(
+            payload=PayloadRef(bytes=json.dumps(payload).encode()),
+            type="transaction",
+            headers={"metrics_extracted": metrics_already_extracted},
+        )
+    )
+    envelope.add_item(Item(payload=PayloadRef(bytes=profile), type="profile"))
+    upstream.send_envelope(project_id, envelope)
+
+    outcomes = outcomes_consumer.get_outcomes()
+    outcomes.sort(key=lambda o: sorted(o.items()))
+
+    expected_outcomes = []
+    if quota_category == "transaction":
+        # Transaction got rate limited as well:
+        expected_outcomes += [
+            {
+                "category": 2,  # Transaction
+                "key_id": 123,
+                "org_id": 1,
+                "outcome": 2,  # RateLimited
+                "project_id": 42,
+                "quantity": 1,
+                "reason": "profiles_exceeded",
+            },
+        ]
+
+    expected_outcomes += [
+        {
+            "category": 11 if metrics_already_extracted else 6,
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 2,  # RateLimited
+            "project_id": 42,
+            "quantity": 1,
+            "reason": "profiles_exceeded",
+        },
+    ]
+    for outcome in outcomes:
+        outcome.pop("timestamp")
+        outcome.pop("event_id", None)
+
+    assert outcomes == expected_outcomes, outcomes

@@ -1,10 +1,7 @@
-# coding: utf-8
 import json
 import sentry_relay
 
 import pytest
-
-from sentry_relay._compat import PY2
 
 REMARKS = [["myrule", "s", 7, 17]]
 META = {"": {"rem": REMARKS}}
@@ -98,8 +95,7 @@ def test_broken_json():
     event = normalizer.normalize_event({"message": bad_str})
     assert "Hello" in event["logentry"]["formatted"]
     assert "World" in event["logentry"]["formatted"]
-    if not PY2:
-        assert event["logentry"]["formatted"] != bad_str
+    assert event["logentry"]["formatted"] != bad_str
 
 
 @pytest.mark.parametrize(
@@ -283,3 +279,237 @@ def test_validate_project_config():
     with pytest.raises(ValueError) as e:
         sentry_relay.validate_project_config(json.dumps(config), strict=True)
     assert str(e.value) == 'json atom at path ".foobar" is missing from rhs'
+
+
+def test_global_config_equal_normalization():
+    config = {"measurements": {"maxCustomMeasurements": 0}}
+    assert config == sentry_relay.normalize_global_config(config)
+
+
+def test_global_config_subset_normalized():
+    config = {"measurements": {"builtinMeasurements": [], "maxCustomMeasurements": 0}}
+    normalized = sentry_relay.normalize_global_config(config)
+    config["measurements"].pop("builtinMeasurements")
+    assert config == normalized
+
+
+def test_global_config_unparsable():
+    config = {"measurements": {"maxCustomMeasurements": -5}}
+    with pytest.raises(ValueError) as e:
+        sentry_relay.normalize_global_config(config)
+    assert (
+        str(e.value)
+        == "invalid value: integer `-5`, expected usize at line 1 column 45"
+    )
+
+
+def test_run_dynamic_sampling_with_valid_params_and_match():
+    sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "factor",
+                "value": 2.0
+             },
+             "type": "transaction",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": [
+                    {
+                        "op": "eq",
+                        "name": "event.transaction",
+                        "value": [
+                          "/world"
+                        ],
+                        "options": {
+                          "ignoreCase": true
+                        }
+                    }
+                ]
+             },
+             "id": 1000
+          }
+       ],
+       "mode": "received"
+    }"""
+
+    root_sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "sampleRate",
+                "value": 0.5
+             },
+             "type": "trace",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": []
+             },
+             "id": 1001
+          }
+       ],
+       "mode": "received"
+    }"""
+
+    dsc = """{
+        "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+        "public_key": "abd0f232775f45feab79864e580d160b",
+        "release": "1.0",
+        "environment": "dev",
+        "transaction": "/hello",
+        "replay_id": "d0303a19-909a-4b0b-a639-b17a73c3533b"
+    }"""
+
+    event = """{
+        "type": "transaction",
+        "transaction": "/world"
+    }"""
+
+    result = sentry_relay.run_dynamic_sampling(
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
+    )
+    assert "merged_sampling_configs" in result
+    assert result["sampling_match"] == {
+        "sample_rate": 1.0,
+        "seed": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+        "matched_rule_ids": [1000, 1001],
+    }
+
+
+def test_run_dynamic_sampling_with_valid_params_and_no_match():
+    sampling_config = """{
+       "rules": [],
+       "rulesV2": [],
+       "mode": "received"
+    }"""
+
+    root_sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "sampleRate",
+                "value": 0.5
+             },
+             "type": "trace",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": [
+                    {
+                        "op": "eq",
+                        "name": "trace.transaction",
+                        "value": [
+                          "/foo"
+                        ],
+                        "options": {
+                          "ignoreCase": true
+                        }
+                    }
+                ]
+             },
+             "id": 1001
+          }
+       ],
+       "mode": "received"
+    }"""
+
+    dsc = """{
+        "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+        "public_key": "abd0f232775f45feab79864e580d160b",
+        "release": "1.0",
+        "environment": "dev",
+        "transaction": "/hello",
+        "replay_id": "d0303a19-909a-4b0b-a639-b17a73c3533b"
+    }"""
+
+    event = """{
+        "type": "transaction",
+        "transaction": "/world"
+    }"""
+
+    result = sentry_relay.run_dynamic_sampling(
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
+    )
+    assert "merged_sampling_configs" in result
+    assert result["sampling_match"] is None
+
+
+def test_run_dynamic_sampling_with_valid_params_and_no_dsc_and_no_event():
+    sampling_config = """{
+       "rules": [],
+       "rulesV2": [],
+       "mode": "received"
+    }"""
+
+    root_sampling_config = """{
+       "rules": [],
+       "rulesV2": [
+          {
+             "samplingValue":{
+                "type": "sampleRate",
+                "value": 0.5
+             },
+             "type": "trace",
+             "active": true,
+             "condition": {
+                "op": "and",
+                "inner": []
+             },
+             "id": 1001
+          }
+       ],
+       "mode": "received"
+    }"""
+
+    dsc = "{}"
+
+    event = "{}"
+
+    result = sentry_relay.run_dynamic_sampling(
+        sampling_config,
+        root_sampling_config,
+        dsc,
+        event,
+    )
+    assert "merged_sampling_configs" in result
+    assert result["sampling_match"] is None
+
+
+def test_run_dynamic_sampling_with_invalid_params():
+    sampling_config = """{
+       "rules": [],
+       "mode": "received"
+    }"""
+
+    root_sampling_config = """{
+       "rules": [],
+       "mode": "received"
+    }"""
+
+    dsc = """{
+        "trace_id": "d0303a19-909a-4b0b-a639-b17a74c3533b",
+    }"""
+
+    event = """{
+        "type": "transaction",
+        "test": "/test"
+    }"""
+
+    with pytest.raises(sentry_relay.InvalidJsonError):
+        sentry_relay.run_dynamic_sampling(
+            sampling_config,
+            root_sampling_config,
+            dsc,
+            event,
+        )

@@ -1,0 +1,42 @@
+[package]
+name = "relay-event-schema"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Event schema (Error, Transaction, Security) and types for event processing"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "23.8.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+bytecount = "0.6.0"
+chrono = { workspace = true, features = ["clock"] }
+cookie = { version = "0.17.0", features = ["percent-encode"] }
+debugid = { version = "0.8.0", features = ["serde"] }
+enumset = "1.0.4"
+relay-common = { path = "../relay-common" }
+relay-base-schema = { path = "../relay-base-schema" }
+relay-event-derive = { path = "../relay-event-derive" }
+relay-jsonschema-derive = { path = "../relay-jsonschema-derive", optional = true }
+relay-protocol = { path = "../relay-protocol", features = ["derive"] }
+schemars = { workspace = true, optional = true }
+sentry-release-parser = "1.3.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+relay-protocol = { path = "../relay-protocol", features = ["test"] }
+similar-asserts = { workspace = true }
+
+[features]
+jsonschema = [
+    "relay-base-schema/jsonschema",
+    "relay-protocol/jsonschema",
+    "dep:relay-jsonschema-derive",
+    "dep:schemars",
+]

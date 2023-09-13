@@ -17,6 +17,41 @@ def test_envelope(mini_sentry, relay_chain):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
+def test_envelope_close_connection(mini_sentry, relay):
+    """Prematurely closing the TCP connection on the client side does not drop the envelope"""
+    import socket
+    import time
+
+    mini_sentry.add_basic_project_config(42)
+    dsn_key = mini_sentry.get_dsn_public_key(42, 0)
+    relay = relay(mini_sentry)
+
+    # Prepare POST data:
+    body_template = """{"event_id": "9ec79c33ec9942ab8353589fcb2e04dc","dsn": "https://%s:@sentry.io/42"}
+{"type":"attachment","length":11,"content_type":"text/plain","filename":"hello.txt"}
+Hello World
+"""
+
+    # Run multiple times to cover potential test flakiness.
+    num_iterations = 10
+    for _ in range(num_iterations):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(relay.server_address)
+
+        body = body_template % dsn_key
+        req = f"""POST /api/42/envelope/ HTTP/1.1\r\nContent-Length: {len(body)}\r\n\r\n{body}""".encode()
+        sock.send(req)
+
+        time.sleep(0.0001)  # Give relay time to start processing event
+
+        sock.close()  # Close the connection
+
+    for _ in range(num_iterations):
+        envelope = mini_sentry.captured_events.get(timeout=1)
+        assert envelope
+    assert mini_sentry.captured_events.empty()
+
+
 def test_envelope_empty(mini_sentry, relay):
     relay = relay(mini_sentry)
     PROJECT_ID = 42
@@ -165,7 +200,6 @@ def test_normalize_measurement_interface(
         "inp": {"unit": "millisecond", "value": 100.14},
         "fp": {"unit": "millisecond", "value": None},
         "lcp": {"unit": "millisecond", "value": 420.69},
-        "missing_value": None,
     }
 
 

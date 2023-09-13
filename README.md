@@ -31,7 +31,7 @@ SDKs as well as the Sentry server into a proxy process.
 
 ## License
 
-Like Sentry, Relay is licensed under the BSL. See the `LICENSE` file and [this
+Like Sentry, Relay is licensed under the BUSL. See the `LICENSE` file and [this
 forum post](https://forum.sentry.io/t/re-licensing-sentry-faq-discussion/8044)
 for more information.
 
@@ -212,7 +212,7 @@ make test-python
 
 To develop Relay with an existing Sentry devserver, self-hosted Sentry
 installation, or Sentry SaaS, configure the upstream to the URL of the Sentry
-server in `.relay/config.yml`. For example, in local development set
+server in `.relay/config.yml` in the project root directory. For example, in local development set
 `relay.upstream` to `http://localhost:8000/`.
 
 To test processing mode with a local development Sentry, use this configuration:

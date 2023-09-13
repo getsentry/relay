@@ -5,16 +5,23 @@
 
 mod attachments;
 mod common;
+#[cfg(feature = "dashboard")]
+mod dashboard;
 mod envelope;
 mod events;
 mod forward;
 mod health_check;
+#[cfg(feature = "dashboard")]
+mod logs;
 mod minidump;
+mod monitor;
 mod outcomes;
 mod project_configs;
 mod public_keys;
 mod security_report;
 mod statics;
+#[cfg(feature = "dashboard")]
+mod stats;
 mod store;
 mod unreal;
 
@@ -33,10 +40,18 @@ where
     B::Data: Send + Into<Bytes>,
     B::Error: Into<axum::BoxError>,
 {
+    #[cfg(feature = "dashboard")]
+    let dashboard = Router::new().route("/dashboard/",get(dashboard::index_handle))
+        .route("/dashboard/*file", get(dashboard::handle));
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
-        .route("/api/relay/events/:event_id/", get(events::handle))
+        .route("/api/relay/events/:event_id/", get(events::handle));
+    #[cfg(feature = "dashboard")]
+    let internal_routes = internal_routes
+        .route("/api/relay/logs/", get(logs::handle))
+        .route("/api/relay/stats/", get(stats::handle));
+    let internal_routes = internal_routes
         // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/*not_found", any(statics::not_found));
 
@@ -53,6 +68,12 @@ where
     let store_routes = Router::new()
         // Legacy store path that is missing the project parameter.
         .route("/api/store/", store::route(config))
+        // cron monitor level routes.  These are user facing APIs and as such support trailing slashes.
+        .route("/api/:project_id/cron/:monitor_slug/:sentry_key", monitor::route(config))
+        .route("/api/:project_id/cron/:monitor_slug/:sentry_key/", monitor::route(config))
+        .route("/api/:project_id/cron/:monitor_slug", monitor::route(config))
+        .route("/api/:project_id/cron/:monitor_slug/", monitor::route(config))
+
         .route("/api/:project_id/store/", store::route(config))
         .route("/api/:project_id/envelope/", envelope::route(config))
         .route("/api/:project_id/security/", security_report::route(config))
@@ -64,8 +85,11 @@ where
         .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
         .route_layer(middlewares::cors());
 
-    Router::new()
-        .merge(internal_routes)
+    let router = Router::new();
+    #[cfg(feature = "dashboard")]
+    let router = router.merge(dashboard);
+
+    router.merge(internal_routes)
         .merge(web_routes)
         .merge(store_routes)
         // Forward all other API routes to the upstream. This will 404 for non-API routes.

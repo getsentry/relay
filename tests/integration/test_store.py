@@ -6,7 +6,7 @@ import uuid
 import socket
 import threading
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -174,7 +174,7 @@ def test_store_static_config(mini_sentry, relay):
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("{}.json".format(project_id)).write(
+        dir.join("projects").join(f"{project_id}.json").write(
             json.dumps(project_config)
         )
 
@@ -220,7 +220,7 @@ def test_store_buffer_size(mini_sentry, relay):
             relay.send_event(project_id, {"message": "pls ignore"})
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
-        for (_, error) in mini_sentry.test_failures:
+        for _, error in mini_sentry.test_failures:
             assert isinstance(error, AssertionError)
             assert "buffer capacity exceeded" in str(error)
     finally:
@@ -332,7 +332,7 @@ def test_processing(
     mini_sentry.add_full_project_config(42)
 
     # create a unique message so we can make sure we don't test with stale data
-    message_text = "some message {}".format(uuid.uuid4())
+    message_text = f"some message {uuid.uuid4()}"
     event = {
         "message": message_text,
         "extra": {"msg_text": message_text},
@@ -596,8 +596,8 @@ def test_rate_limit_metrics_buckets(
             make_bucket("d:sessions/session@user", "s", [1254]),
         ],
     )
-
-    produced_buckets = list(metrics_consumer.get_metrics(timeout=4))
+    metrics = [m for m, _ in metrics_consumer.get_metrics(timeout=4)]
+    produced_buckets = metrics
 
     # Sort buckets to prevent ordering flakiness:
     produced_buckets.sort(key=lambda b: (b["name"], b["value"]))
@@ -866,7 +866,7 @@ def test_no_auth(relay, mini_sentry, mode):
     def configure_static_project(dir):
         os.remove(dir.join("credentials.json"))
         os.makedirs(dir.join("projects"))
-        dir.join("projects").join("{}.json".format(project_id)).write(
+        dir.join("projects").join(f"{project_id}.json").write(
             json.dumps(project_config)
         )
 
@@ -1177,3 +1177,88 @@ def test_invalid_project_id(mini_sentry, relay):
 
     relay.send_event(99, headers=headers)
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
+
+
+def test_spans(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config["config"]["features"] = ["projects:span-metrics-extraction"]
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - timedelta(milliseconds=500)
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    relay.send_event(project_id, event)
+
+    child_span = spans_consumer.get_message()
+    del child_span["start_time"]
+    assert child_span == {
+        "type": "span",
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "span": {
+            "data": {
+                "description.scrubbed": "GET *",
+                "span.category": "http",
+                "span.description": "GET *",
+                "span.group": "37e3d9fab1ae9162",
+                "span.module": "http",
+                "span.op": "http",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "description": "GET /api/0/organizations/?member=1",
+            "exclusive_time": 500.0,
+            "is_segment": False,
+            "op": "http",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "segment_id": "968cff94913ebb07",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.timestamp(),
+            "timestamp": end.timestamp(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    }
+
+    transaction_span = spans_consumer.get_message()
+    del transaction_span["start_time"]
+    assert transaction_span == {
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "span": {
+            "exclusive_time": 2000.0,
+            "is_segment": True,
+            "op": "hi",
+            "segment_id": "968cff94913ebb07",
+            "span_id": "968cff94913ebb07",
+            "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "status": "unknown",
+            "timestamp": datetime.fromisoformat(event["timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        },
+        "type": "span",
+    }
+
+    spans_consumer.assert_empty()

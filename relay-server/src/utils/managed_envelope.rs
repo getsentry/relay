@@ -4,8 +4,7 @@ use std::mem::size_of;
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
-use relay_common::DataCategory;
-use relay_quotas::Scoping;
+use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -289,8 +288,22 @@ impl ManagedEnvelope {
         // "expect" errors and log them as debug level.
         let handling = Handling::from_outcome(&outcome);
         match handling {
-            Handling::Success => relay_log::debug!("dropped envelope: {}", outcome),
-            Handling::Failure => relay_log::error!("dropped envelope: {}", outcome),
+            Handling::Success => relay_log::debug!("dropped envelope: {outcome}"),
+            Handling::Failure => {
+                let summary = &self.context.summary;
+
+                relay_log::error!(
+                    tags.has_attachments = summary.attachment_quantity > 0,
+                    tags.has_sessions = summary.session_quantity > 0,
+                    tags.has_profiles = summary.profile_quantity > 0,
+                    tags.has_replays = summary.replay_quantity > 0,
+                    tags.has_checkins = summary.checkin_quantity > 0,
+                    tags.event_category = ?summary.event_category,
+                    cached_summary = ?summary,
+                    recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
+                    "dropped envelope: {outcome}"
+                );
+            }
         }
 
         // TODO: This could be optimized with Capture::should_capture
@@ -312,7 +325,11 @@ impl ManagedEnvelope {
         if self.context.summary.profile_quantity > 0 {
             self.track_outcome(
                 outcome,
-                DataCategory::Profile,
+                if self.use_index_category() {
+                    DataCategory::ProfileIndexed
+                } else {
+                    DataCategory::Profile
+                },
                 self.context.summary.profile_quantity,
             );
         }
@@ -356,7 +373,7 @@ impl ManagedEnvelope {
     ///
     /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
-        relay_common::instant_to_date_time(self.envelope().meta().start_time())
+        relay_common::time::instant_to_date_time(self.envelope().meta().start_time())
     }
 
     /// Resets inner state to ensure there's no more logging.

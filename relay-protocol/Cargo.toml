@@ -1,0 +1,28 @@
+[package]
+name = "relay-protocol"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Types and traits for building JSON-based protocols and schemas"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "23.8.0"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+num-traits = "0.2.12"
+relay-protocol-derive = { path = "../relay-protocol-derive", optional = true }
+schemars = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+smallvec = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+similar-asserts = { workspace = true }
+
+[features]
+default = []
+derive = ["dep:relay-protocol-derive"]
+jsonschema = ["dep:schemars"]
+test = []

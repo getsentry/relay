@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use axum::extract::Query;
 use axum::handler::Handler;
@@ -6,10 +7,11 @@ use axum::http::Request;
 use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
 use futures::future;
-use relay_common::ProjectKey;
-use relay_dynamic_config::ErrorBoundary;
+use relay_base_schema::project::ProjectKey;
+use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
 
+use crate::actors::global_config;
 use crate::actors::project::{LimitedProjectState, ProjectState};
 use crate::actors::project_cache::{GetCachedProjectState, GetProjectState};
 use crate::endpoints::common::ServiceUnavailable;
@@ -69,13 +71,16 @@ impl ProjectStateWrapper {
 /// made by an external relay who's public key is not configured as authorised on the project.
 ///
 /// Version 3 also adds a list of projects whose response is pending.  A [`ProjectKey`] should never
-/// be in both collections.  This list is always empty before V3.
+/// be in both collections. This list is always empty before V3. If `global` is
+/// enabled, version 3 also responds with [`GlobalConfig`].
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesResponseWrapper {
     configs: HashMap<ProjectKey, Option<ProjectStateWrapper>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    global: Option<Arc<GlobalConfig>>,
 }
 
 /// Request payload of the project config endpoint.
@@ -90,6 +95,8 @@ struct GetProjectStatesRequest {
     full_config: bool,
     #[serde(default)]
     no_cache: bool,
+    #[serde(default)]
+    global: bool,
 }
 
 async fn inner(
@@ -122,6 +129,10 @@ async fn inner(
 
     let mut configs = HashMap::with_capacity(keys_len);
     let mut pending = Vec::with_capacity(keys_len);
+    let global_config = match inner.global {
+        true => Some(state.global_config().send(global_config::Get).await?),
+        false => None,
+    };
 
     for (project_key, state_result) in future::join_all(futures).await {
         let Some(project_state) = state_result? else {
@@ -143,14 +154,18 @@ async fn inner(
             configs.insert(project_key, Some(wrapper));
         } else {
             relay_log::debug!(
-                "Relay {} does not have access to project key {}",
-                relay.public_key,
-                project_key
+                relay = %relay.public_key,
+                project_key = %project_key,
+                "relay does not have access to project key",
             );
         };
     }
 
-    Ok(Json(GetProjectStatesResponseWrapper { configs, pending }))
+    Ok(Json(GetProjectStatesResponseWrapper {
+        configs,
+        pending,
+        global: global_config,
+    }))
 }
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.

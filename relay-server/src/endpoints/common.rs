@@ -2,8 +2,7 @@
 
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
-use relay_general::protocol::{EventId, EventType};
-use relay_log::LogError;
+use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
@@ -135,7 +134,10 @@ impl IntoResponse for BadStoreRequest {
 
         metric!(counter(RelayCounters::EnvelopeRejected) += 1);
         if response.status().is_server_error() {
-            relay_log::error!("error handling request: {}", LogError(&self));
+            relay_log::error!(
+                error = &self as &dyn std::error::Error,
+                "error handling request"
+            );
         }
 
         response
@@ -260,7 +262,7 @@ fn queue_envelope(
 ) -> Result<(), BadStoreRequest> {
     // Remove metrics from the envelope and queue them directly on the project's `Aggregator`.
     let mut metric_items = Vec::new();
-    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Metrics | ItemType::MetricBuckets);
+    let is_metric = |i: &Item| matches!(i.ty(), ItemType::Statsd | ItemType::MetricBuckets);
     let envelope = managed_envelope.envelope_mut();
     while let Some(item) = envelope.take_item_by(is_metric) {
         metric_items.push(item);

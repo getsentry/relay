@@ -16,13 +16,14 @@
 )]
 #![warn(missing_docs)]
 
-use once_cell::sync::Lazy;
-use regex::Regex;
-use relay_common::Uuid;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Maximum length of monitor slugs.
 const SLUG_LENGTH: usize = 50;
+
+/// Maximum length of environment names.
+const ENVIRONMENT_LENGTH: usize = 64;
 
 /// Error returned from [`process_check_in`].
 #[derive(Debug, thiserror::Error)]
@@ -34,12 +35,16 @@ pub enum ProcessCheckInError {
     /// Monitor slug was empty after slugification.
     #[error("the monitor slug is empty or invalid")]
     EmptySlug,
+
+    /// Environment name was invalid.
+    #[error("the environment is invalid")]
+    InvalidEnvironment,
 }
 
 ///
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum CheckInStatus {
+pub enum CheckInStatus {
     /// Check-in had no issues during execution.
     Ok,
     /// Check-in failed or otherwise had some issues.
@@ -79,9 +84,9 @@ enum IntervalName {
     Minute,
 }
 
-/// The monitor configuration playload for upserting monitors during check-in
+/// The monitor configuration payload for upserting monitors during check-in
 #[derive(Debug, Deserialize, Serialize)]
-struct MonitorConfig {
+pub struct MonitorConfig {
     /// The monitor schedule configuration
     schedule: Schedule,
 
@@ -100,30 +105,52 @@ struct MonitorConfig {
     timezone: Option<String>,
 }
 
+/// The trace context sent with a check-in.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CheckInTrace {
+    /// Trace-ID of the check-in.
+    #[serde(serialize_with = "uuid_simple")]
+    trace_id: Uuid,
+}
+
+/// Any contexts sent in the check-in payload.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CheckInContexts {
+    /// Trace context sent with a check-in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace: Option<CheckInTrace>,
+}
+
 /// The monitor check-in payload.
 #[derive(Debug, Deserialize, Serialize)]
-struct CheckIn {
+pub struct CheckIn {
     /// Unique identifier of this check-in.
-    #[serde(serialize_with = "uuid_simple")]
-    check_in_id: Uuid,
+    #[serde(default, serialize_with = "uuid_simple")]
+    pub check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.
-    monitor_slug: String,
+    #[serde(default)]
+    pub monitor_slug: String,
 
     /// Status of this check-in. Defaults to `"unknown"`.
-    status: CheckInStatus,
+    pub status: CheckInStatus,
 
     /// The environment to associate the check-in with
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    environment: Option<String>,
+    pub environment: Option<String>,
 
     /// Duration of this check since it has started in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    duration: Option<f64>,
+    pub duration: Option<f64>,
 
     /// monitor configuration to support upserts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    monitor_config: Option<MonitorConfig>,
+    pub monitor_config: Option<MonitorConfig>,
+
+    /// Contexts describing the associated environment of the job run.
+    /// Only supports trace for now.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contexts: Option<CheckInContexts>,
 }
 
 /// Normalizes a monitor check-in payload.
@@ -135,33 +162,27 @@ pub fn process_check_in(payload: &[u8]) -> Result<Vec<u8>, ProcessCheckInError> 
         check_in.status = CheckInStatus::Unknown;
     }
 
-    check_in.monitor_slug = slugify(&check_in.monitor_slug);
+    trim_slug(&mut check_in.monitor_slug);
+
     if check_in.monitor_slug.is_empty() {
         return Err(ProcessCheckInError::EmptySlug);
+    }
+
+    if check_in
+        .environment
+        .as_ref()
+        .is_some_and(|e| e.chars().count() > ENVIRONMENT_LENGTH)
+    {
+        return Err(ProcessCheckInError::InvalidEnvironment);
     }
 
     Ok(serde_json::to_vec(&check_in)?)
 }
 
-fn slugify(input: &str) -> String {
-    static SLUG_CLEANER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[^a-zA-Z0-9\s_-]").unwrap());
-    static SLUGIFIER: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\s_\-]+").unwrap());
-
-    let cleaned = SLUG_CLEANER.replace_all(input, "");
-    let mut slug = SLUGIFIER
-        .replace_all(&cleaned, "-")
-        .trim_matches('-')
-        .to_owned();
-
-    slug.truncate(SLUG_LENGTH);
-
-    // Truncate may leave a trailing '-', so we may need to truncate again.
-    if slug.ends_with('-') {
-        slug.truncate(slug.len() - 1);
+fn trim_slug(slug: &mut String) {
+    if let Some((overflow, _)) = slug.char_indices().nth(SLUG_LENGTH) {
+        slug.truncate(overflow);
     }
-
-    slug.make_ascii_lowercase();
-    slug
 }
 
 #[cfg(test)]
@@ -171,13 +192,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn truncate_basic() {
+        let mut test1 = "test_".repeat(50);
+        trim_slug(&mut test1);
+        assert_eq!("test_test_test_test_test_test_test_test_test_test_", test1,);
+
+        let mut test2 = "🦀".repeat(SLUG_LENGTH + 10);
+        trim_slug(&mut test2);
+        assert_eq!("🦀".repeat(SLUG_LENGTH), test2);
+    }
+
+    #[test]
     fn process_json_roundtrip() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
   "status": "in_progress",
   "environment": "production",
-  "duration": 21.0
+  "duration": 21.0,
+  "contexts": {
+    "trace": {
+      "trace_id": "8f431b7aa08441bbbd5a0100fd91f9fe"
+    }
+  }
 }"#;
 
         let check_in = serde_json::from_str::<CheckIn>(json).unwrap();
@@ -257,7 +294,7 @@ mod tests {
     fn process_empty_slug() {
         let json = r#"{
           "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
-          "monitor_slug": "🚀🚀🚀",
+          "monitor_slug": "",
           "status": "in_progress"
         }"#;
 
@@ -266,28 +303,18 @@ mod tests {
     }
 
     #[test]
-    fn slugify_empty_string() {
-        assert_eq!("", slugify(""));
-    }
+    fn process_invalid_environment() {
+        let json = r#"{
+          "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
+          "monitor_slug": "test",
+          "status": "in_progress",
+          "environment": "1234567890123456789012345678901234567890123456789012345678901234567890"
+        }"#;
 
-    #[test]
-    fn slugify_truncate_honors_trim() {
-        let input = "-".repeat(SLUG_LENGTH + 10) + "hello";
-        assert_eq!("hello", slugify(&input));
-    }
-
-    #[test]
-    fn slugify_trim_at_truncate() {
-        let expected = "a".repeat(SLUG_LENGTH - 1);
-        let input = expected.clone() + "-stripped";
-        assert_eq!(expected, slugify(&input));
-    }
-
-    #[test]
-    fn slugify_unicode() {
-        let input = "🚀🚀🚀\tmyComplicated_slug\u{200A}name is here...";
-
-        let expected = "mycomplicated-slug-name-is-here";
-        assert_eq!(expected, slugify(input));
+        let result = process_check_in(json.as_bytes());
+        assert!(matches!(
+            result,
+            Err(ProcessCheckInError::InvalidEnvironment)
+        ));
     }
 }

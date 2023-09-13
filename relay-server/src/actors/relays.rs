@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 
 use relay_auth::{PublicKey, RelayId};
 use relay_config::{Config, RelayInfo};
-use relay_log::LogError;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
 };
@@ -255,7 +254,7 @@ impl RelayCacheService {
                     let response = GetRelaysResponse::from(response);
 
                     for (id, channel) in channels {
-                        relay_log::debug!("relay {} public key updated", id);
+                        relay_log::debug!("relay {id} public key updated");
                         let info = response.relays.get(&id).unwrap_or(&None);
                         channel.send(info.clone());
                     }
@@ -263,7 +262,10 @@ impl RelayCacheService {
                     Ok(response)
                 }
                 Err(error) => {
-                    relay_log::error!("error fetching public keys: {}", LogError(&error));
+                    relay_log::error!(
+                        error = &error as &dyn std::error::Error,
+                        "error fetching public keys"
+                    );
                     Err(channels)
                 }
             };
@@ -314,14 +316,13 @@ impl RelayCacheService {
 
         if self.config.credentials().is_none() {
             relay_log::error!(
-                "No credentials configured. Relay {} cannot send requests to this relay.",
-                relay_id
+                "no credentials configured. relay {relay_id} cannot send requests to this relay",
             );
             sender.send(None);
             return;
         }
 
-        relay_log::debug!("relay {} public key requested", relay_id);
+        relay_log::debug!("relay {relay_id} public key requested");
         self.channels
             .entry(relay_id)
             .or_insert_with(BroadcastChannel::new)

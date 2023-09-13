@@ -1,0 +1,87 @@
+---
+source: relay-server/src/metrics_extraction/event.rs
+expression: "(&event.value().unwrap().spans, metrics)"
+---
+(
+    [
+        Span {
+            timestamp: Timestamp(
+                2020-08-21T02:18:22Z,
+            ),
+            start_timestamp: Timestamp(
+                2020-08-21T02:18:20Z,
+            ),
+            exclusive_time: 2000.0,
+            description: ~,
+            op: "default",
+            span_id: SpanId(
+                "bd429c44b67a3eb4",
+            ),
+            parent_span_id: ~,
+            trace_id: TraceId(
+                "ff62a8b040f340bda5d830223def1d81",
+            ),
+            segment_id: ~,
+            is_segment: ~,
+            status: ~,
+            tags: ~,
+            origin: ~,
+            data: {
+                "device.class": String(
+                    "1",
+                ),
+                "mobile": Bool(
+                    true,
+                ),
+                "release": String(
+                    "1.2.3",
+                ),
+                "span.op": String(
+                    "default",
+                ),
+                "transaction": String(
+                    "gEt /api/:version/users/",
+                ),
+                "transaction.method": String(
+                    "GET",
+                ),
+            },
+            other: {},
+        },
+    ],
+    [
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
+            name: "d:spans/exclusive_time@millisecond",
+            value: Distribution(
+                [
+                    2000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "release": "1.2.3",
+                "span.op": "default",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
+            },
+        },
+        Bucket {
+            timestamp: UnixTimestamp(1597976302),
+            width: 0,
+            name: "d:spans/exclusive_time_light@millisecond",
+            value: Distribution(
+                [
+                    2000.0,
+                ],
+            ),
+            tags: {
+                "device.class": "1",
+                "release": "1.2.3",
+                "span.op": "default",
+                "transaction.method": "GET",
+            },
+        },
+    ],
+)

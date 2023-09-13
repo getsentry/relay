@@ -4,40 +4,47 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Error reporting and logging for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.4.0"
+version = "23.8.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 build = "build.rs"
 
 [dependencies]
-chrono = { version = "0.4.24", optional = true, default-features = false, features = ["clock", "std", "serde"] }
+chrono = { workspace = true, features = ["clock"], optional = true }
 console = { version = "0.15.5", optional = true }
-env_logger = { version = "0.10.0", optional = true }
-log = { version = "0.4.11", features = ["serde"] }
+once_cell = { version = "1.13.1", optional = true }
 relay-crash = { path = "../relay-crash", optional = true }
-sentry = { version = "0.30.0", features = ["debug-images", "log", "tower"], optional = true }
-sentry-core = { version = "0.30.0" }
-serde = { version = "1.0.114", features = ["derive"], optional = true }
-serde_json = { version = "1.0.55", optional = true }
+sentry = { version = "0.31.3", features = [
+    "debug-images",
+    "tower-axum-matched-path",
+    "tracing",
+], optional = true }
+sentry-core = { version = "0.31.3" }
+tokio = { version = "1", default-features = false, features = ["sync"], optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = [
+    "env-filter",
+    "json",
+    "time",
+], optional = true }
 
 [features]
-default = []
-test = [
-    "dep:env_logger",
+dashboard = [
+    "dep:once_cell",
+    "dep:tokio",
 ]
+default = []
+test = ["dep:tracing-subscriber"]
 init = [
     "dep:chrono",
     "dep:console",
-    "dep:env_logger",
     "dep:sentry",
     "dep:serde",
     "dep:serde_json",
+    "dep:tracing-subscriber",
 ]
-crash-handler = [
-    "init",
-    "dep:relay-crash",
-]
-sentry = [
-    "dep:sentry",
-]
+crash-handler = ["init", "dep:relay-crash"]
+sentry = ["dep:sentry"]

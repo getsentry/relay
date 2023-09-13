@@ -1,6 +1,7 @@
 # Rust
 **/*.rs.bk
 target
+*.pending-snap
 
 # Python
 .venv/
@@ -17,3 +18,7 @@ target
 # NPM utilities for building docs
 /node_modules/
 package-lock.json
+
+# Jsonnet-bundler
+gocd/templates/vendor/
+gocd/generated-pipelines/

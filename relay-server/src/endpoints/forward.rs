@@ -4,6 +4,7 @@
 //! (`X-Forwarded-For` and `Sentry-Relay-Id`). The response is then streamed back to the origin.
 
 use std::borrow::Cow;
+use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -14,9 +15,8 @@ use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
+use relay_common::glob2::GlobMatcher;
 use relay_config::Config;
-use relay_general::utils::GlobMatcher;
-use relay_log::LogError;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::error::RecvError;
 
@@ -64,7 +64,7 @@ impl IntoResponse for ForwardError {
             UpstreamRequestError::Http(e) => match e {
                 HttpError::Overflow => StatusCode::PAYLOAD_TOO_LARGE.into_response(),
                 HttpError::Reqwest(error) => {
-                    relay_log::error!("{}", LogError(error));
+                    relay_log::error!(error = error as &dyn Error);
                     error
                         .status()
                         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -81,12 +81,9 @@ impl IntoResponse for ForwardError {
                     StatusCode::BAD_GATEWAY.into_response()
                 }
             }
-            e => {
+            error => {
                 // should all be unreachable
-                relay_log::error!(
-                    "supposedly unreachable codepath for forward endpoint: {}",
-                    LogError(e)
-                );
+                relay_log::error!(error = error as &dyn Error, "unreachable code");
                 StatusCode::INTERNAL_SERVER_ERROR.into_response()
             }
         }

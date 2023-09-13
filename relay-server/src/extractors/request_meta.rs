@@ -11,10 +11,10 @@ use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::RequestPartsExt;
-use relay_common::{
-    Auth, Dsn, ParseAuthError, ParseDsnError, ParseProjectKeyError, ProjectId, ProjectKey, Scheme,
-};
-use relay_general::user_agent::{ClientHints, RawUserAgentInfo};
+use data_encoding::BASE64;
+use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
+use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
+use relay_event_normalization::{ClientHints, RawUserAgentInfo};
 use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -157,12 +157,12 @@ impl Serialize for PartialDsn {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        serializer.collect_str(self)
     }
 }
 
 const fn default_version() -> u16 {
-    relay_common::PROTOCOL_VERSION
+    relay_event_schema::protocol::PROTOCOL_VERSION
 }
 
 fn is_false(value: &bool) -> bool {
@@ -479,6 +479,30 @@ fn auth_from_parts(req: &Parts, path_key: Option<String>) -> Result<Auth, BadEve
         auth = Some(header.parse::<Auth>()?);
     }
 
+    // try to get authentication info from basic auth
+    if let Some(basic_auth) = req
+        .headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|x| {
+            if x.len() >= 6 && x[..6].eq_ignore_ascii_case("basic ") {
+                x.get(6..)
+            } else {
+                None
+            }
+        })
+        .and_then(|value| {
+            let decoded = String::from_utf8(BASE64.decode(value.as_bytes()).ok()?).ok()?;
+            let (public_key, _) = decoded.split_once(':')?;
+            Auth::from_pairs([("sentry_key", public_key)]).ok()
+        })
+    {
+        if auth.is_some() {
+            return Err(BadEventMeta::MultipleAuth);
+        }
+        auth = Some(basic_auth);
+    }
+
     // try to extract authentication info from URL query_param .../?sentry_...=<key>...
     let query = req.uri.query().unwrap_or_default();
     if query.contains("sentry_") {
@@ -569,7 +593,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
 
         // For now, we only handle <= v8 and drop everything else
         let version = auth.version();
-        if version > relay_common::PROTOCOL_VERSION {
+        if version > relay_event_schema::protocol::PROTOCOL_VERSION {
             return Err(BadEventMeta::UnsupportedProtocolVersion(version));
         }
 

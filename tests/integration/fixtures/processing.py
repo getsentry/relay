@@ -6,7 +6,6 @@ import pytest
 import os
 import confluent_kafka as kafka
 from copy import deepcopy
-import json
 
 
 @pytest.fixture
@@ -44,16 +43,19 @@ def processing_config(get_topic_name):
                 # {'name': 'batch.size', 'value': '0'}  # do not batch messages
             ]
         if processing.get("topics") is None:
+            metrics_topic = get_topic_name("metrics")
             processing["topics"] = {
                 "events": get_topic_name("events"),
                 "attachments": get_topic_name("attachments"),
                 "transactions": get_topic_name("transactions"),
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
-                "metrics": get_topic_name("metrics"),
+                "metrics": metrics_topic,
+                "metrics_generic": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
+                "spans": get_topic_name("spans"),
             }
 
         if not processing.get("redis"):
@@ -144,7 +146,7 @@ def kafka_consumer(request, get_topic_name, processing_config):
     return inner
 
 
-class ConsumerBase(object):
+class ConsumerBase:
     def __init__(self, consumer, options, topic_name, timeout=None):
         self.consumer = consumer
         self.test_producer = kafka_producer(options)
@@ -179,6 +181,15 @@ class ConsumerBase(object):
         rv = self.poll(timeout=timeout)
         assert rv.error() is None
         assert rv.value() == message, rv.value()
+
+
+class MsgPackConsumer(ConsumerBase):
+    def get_message(self, timeout=None):
+        message = self.poll(timeout)
+        assert message is not None
+        assert message.error() is None
+
+        return msgpack.unpackb(message.value(), raw=False, use_list=False)
 
 
 @pytest.fixture
@@ -236,8 +247,8 @@ class OutcomesConsumer(ConsumerBase):
             outcomes = [outcome]
         else:
             outcomes = self.get_outcomes()
-            expected = set(category_value(category) for category in categories)
-            actual = set(outcome["category"] for outcome in outcomes)
+            expected = {category_value(category) for category in categories}
+            actual = {outcome["category"] for outcome in outcomes}
             assert actual == expected, (actual, expected)
 
         for outcome in outcomes:
@@ -260,7 +271,9 @@ def events_consumer(kafka_consumer):
 
 @pytest.fixture
 def transactions_consumer(kafka_consumer):
-    return lambda: EventsConsumer(*kafka_consumer("transactions"))
+    return lambda timeout=None: EventsConsumer(
+        timeout=timeout, *kafka_consumer("transactions")
+    )
 
 
 @pytest.fixture
@@ -300,22 +313,30 @@ def monitors_consumer(kafka_consumer):
     )
 
 
+@pytest.fixture
+def spans_consumer(kafka_consumer):
+    return lambda timeout=None: MsgPackConsumer(
+        timeout=timeout, *kafka_consumer("spans")
+    )
+
+
 class MetricsConsumer(ConsumerBase):
     def get_metric(self, timeout=None):
         message = self.poll(timeout=timeout)
         assert message is not None
         assert message.error() is None
 
-        return json.loads(message.value())
+        return json.loads(message.value()), message.headers()
 
     def get_metrics(self, timeout=None, max_attempts=100):
         for _ in range(max_attempts):
             message = self.poll(timeout=timeout)
+
             if message is None:
                 return
             else:
                 assert message.error() is None
-                yield json.loads(message.value())
+                yield json.loads(message.value()), message.headers()
 
 
 class SessionsConsumer(ConsumerBase):

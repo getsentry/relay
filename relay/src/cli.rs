@@ -5,10 +5,10 @@ use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};
-use relay_common::Uuid;
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
+use uuid::Uuid;
 
 use crate::cliapp::make_app;
 use crate::utils::get_theme;
@@ -209,7 +209,7 @@ pub fn manage_credentials(mut config: Config, matches: &ArgMatches) -> Result<()
         } else {
             println!("No credentials");
         }
-    } else if let Some(..) = matches.subcommand_matches("show") {
+    } else if matches.subcommand_matches("show").is_some() {
         if !config.has_credentials() {
             bail!("no stored credentials");
         } else {
@@ -228,7 +228,7 @@ pub fn manage_config(config: &Config, matches: &ArgMatches) -> Result<()> {
         init_config(config.path(), matches)
     } else if let Some(matches) = matches.subcommand_matches("show") {
         match matches.get_one("format").map(String::as_str).unwrap() {
-            "debug" => println!("{:#?}", &config),
+            "debug" => println!("{config:#?}"),
             "yaml" => println!("{}", config.to_yaml_string()?),
             _ => unreachable!(),
         }

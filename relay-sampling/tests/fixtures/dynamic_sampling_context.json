@@ -1,0 +1,11 @@
+{
+  "trace_id": "00000000-0000-0000-0000-000000000000",
+  "public_key": "abd0f232775f45feab79864e580d160b",
+  "release": "1.0",
+  "environment": "dev",
+  "transaction": "/foo",
+  "sample_rate": "0.5",
+  "user_id": "some-id",
+  "user_segment": "all",
+  "user": null
+}

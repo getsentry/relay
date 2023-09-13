@@ -1,4 +1,3 @@
-import datetime
 import time
 
 import requests
@@ -7,7 +6,7 @@ from sentry_sdk.envelope import Envelope, Item, PayloadRef
 session = requests.session()
 
 
-class SentryLike(object):
+class SentryLike:
     _health_check_passed = False
 
     default_dsn_public_key = "31a5a894b4524f74a9a8d0e27e21ba91"
@@ -103,7 +102,7 @@ class SentryLike(object):
         self._health_check_passed = True
 
     def __repr__(self):
-        return "<{}({})>".format(self.__class__.__name__, repr(self.upstream))
+        return f"<{self.__class__.__name__}({repr(self.upstream)})>"
 
     def iter_public_keys(self):
         if self.public_key is not None:
@@ -221,26 +220,16 @@ class SentryLike(object):
         envelope.add_item(Item(PayloadRef(json=payload), type="client_report"))
         self.send_envelope(project_id, envelope)
 
-    def send_metrics(self, project_id, payload, timestamp=None):
+    def send_metrics(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=payload.encode()),
-                type="metrics",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
+            Item(payload=PayloadRef(bytes=payload.encode()), type="statsd")
         )
         self.send_envelope(project_id, envelope)
 
-    def send_metrics_buckets(self, project_id, payload, timestamp=None):
+    def send_metrics_buckets(self, project_id, payload):
         envelope = Envelope()
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(json=payload),
-                type="metric_buckets",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
-        )
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
         self.send_envelope(project_id, envelope)
 
     def send_security_report(
@@ -333,7 +322,7 @@ class SentryLike(object):
             name: (file_name, file_content) for (name, file_name, file_content) in files
         }
         response = self.post(
-            "/api/{}/events/{}/attachments/".format(project_id, event_id),
+            f"/api/{project_id}/events/{event_id}/attachments/",
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",

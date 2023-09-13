@@ -162,7 +162,7 @@ def test_security_report_preflight(mini_sentry, relay):
     relay = relay(mini_sentry)
     project_config = mini_sentry.add_full_project_config(proj_id)
     dsn = project_config["publicKeys"][0]
-    url = "/api/{}/security/?sentry_key={}".format(proj_id, dsn)
+    url = f"/api/{proj_id}/security/?sentry_key={dsn}"
     headers = {
         "Host": "relay.example.org",
         "Pragma": "no-cache",
@@ -181,21 +181,19 @@ def test_security_report_preflight(mini_sentry, relay):
     headers = resp.headers
 
     assert headers["access-control-allow-methods"] == "POST"
-    assert set(split_header(headers["access-control-allow-headers"])) == set(
-        [
-            "x-forwarded-for",
-            "content-type",
-            "transfer-encoding",
-            "referer",
-            "authorization",
-            "origin",
-            "authentication",
-            "content-encoding",
-            "x-sentry-auth",
-            "accept",
-            "x-requested-with",
-        ]
-    )
+    assert set(split_header(headers["access-control-allow-headers"])) == {
+        "x-forwarded-for",
+        "content-type",
+        "transfer-encoding",
+        "referer",
+        "authorization",
+        "origin",
+        "authentication",
+        "content-encoding",
+        "x-sentry-auth",
+        "accept",
+        "x-requested-with",
+    }
 
 
 def test_security_report_expose_headers(mini_sentry, relay):
@@ -211,9 +209,11 @@ def test_security_report_expose_headers(mini_sentry, relay):
         origin="http://valid.com",
     )
 
-    assert set(split_header(resp.headers["access-control-expose-headers"])) == set(
-        ["x-sentry-error", "x-sentry-rate-limits", "retry-after"]
-    )
+    assert set(split_header(resp.headers["access-control-expose-headers"])) == {
+        "x-sentry-error",
+        "x-sentry-rate-limits",
+        "retry-after",
+    }
 
 
 def test_adds_origin_header(mini_sentry, relay, json_fixture_provider):

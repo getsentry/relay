@@ -4,13 +4,14 @@
 //! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
 
 use std::collections::BTreeMap;
+use std::error::Error;
 
 use chrono::{TimeZone, Utc};
 use minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
-use relay_general::protocol::{
-    Context, ContextInner, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
+use relay_event_schema::protocol::{
+    Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
 };
-use relay_general::types::{Annotated, Value};
+use relay_protocol::{Annotated, Value};
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
@@ -104,10 +105,7 @@ fn write_crashpad_annotations(
             .map(|(key, value)| (key, Annotated::new(Value::from(value))))
             .collect();
 
-        contexts.insert(
-            "crashpad".to_string(),
-            Annotated::new(ContextInner(Context::Other(crashpad_context))),
-        );
+        contexts.insert("crashpad".to_string(), Context::Other(crashpad_context));
     }
 
     if crashpad_info.module_list.is_empty() {
@@ -124,8 +122,8 @@ fn write_crashpad_annotations(
             Some(module) => module,
             None => {
                 relay_log::debug!(
-                    "Skipping invalid minidump module index {}",
-                    module_info.module_index
+                    module_index = module_info.module_index,
+                    "Skipping invalid minidump module index",
                 );
                 continue;
             }
@@ -168,10 +166,7 @@ fn write_crashpad_annotations(
             );
         }
 
-        contexts.insert(
-            module_name.to_owned(),
-            Annotated::new(ContextInner(Context::Other(module_context))),
-        );
+        contexts.insert(module_name.to_owned(), Context::Other(module_context));
     }
 
     Ok(())
@@ -192,7 +187,7 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
     let minidump = match Minidump::read(data) {
         Ok(minidump) => minidump,
         Err(err) => {
-            relay_log::debug!("Failed to parse minidump: {:?}", err);
+            relay_log::debug!(error = &err as &dyn Error, "failed to parse minidump");
             return;
         }
     };
@@ -211,7 +206,10 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
     // are non-essential to processing.
     if let Err(err) = write_crashpad_annotations(event, &minidump) {
         // TODO: Consider adding an event error for failed annotation extraction.
-        relay_log::debug!("Failed to parse minidump module list: {:?}", err);
+        relay_log::debug!(
+            error = &err as &dyn Error,
+            "failed to parse minidump module list"
+        );
     }
 }
 

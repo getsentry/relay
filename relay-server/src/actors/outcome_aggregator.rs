@@ -6,9 +6,9 @@ use std::net::IpAddr;
 use std::time::Duration;
 
 use chrono::Utc;
-use relay_common::{DataCategory, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
-use relay_quotas::Scoping;
+use relay_quotas::{DataCategory, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
 
@@ -84,21 +84,21 @@ impl OutcomeAggregator {
     }
 
     fn handle_track_outcome(&mut self, msg: TrackOutcome) {
-        relay_log::trace!("Outcome aggregation requested: {:?}", msg);
+        relay_log::trace!("Outcome aggregation requested: {msg:?}");
 
         if self.mode == AggregationMode::DropEverything {
             return;
         }
 
         let (event_id, remote_addr) = if self.erase_high_cardinality_fields(&msg) {
-            relay_log::trace!("Erasing event_id, remote_addr for aggregation: {:?}", msg);
+            relay_log::trace!("Erasing event_id, remote_addr for aggregation: {msg:?}");
             (None, None)
         } else {
             (msg.event_id, msg.remote_addr)
         };
 
         if let Some(event_id) = event_id {
-            relay_log::trace!("Forwarding outcome without aggregation: {}", event_id);
+            relay_log::trace!("Forwarding outcome without aggregation: {event_id}");
             self.outcome_producer.send(msg);
             return;
         }
@@ -155,7 +155,7 @@ impl OutcomeAggregator {
                 quantity,
             };
 
-            relay_log::trace!("Flushing outcome for timestamp {}", timestamp);
+            relay_log::trace!("Flushing outcome for timestamp {timestamp}");
             outcome_producer.send(outcome);
         }
     }

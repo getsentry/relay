@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import os
 import uuid
 import weakref
 from sentry_relay._lowlevel import ffi, lib
-from sentry_relay._compat import text_type, with_metaclass
 from sentry_relay.exceptions import exceptions_by_code, RelayError
 
 
+attached_refs: weakref.WeakKeyDictionary[object, bytes]
 attached_refs = weakref.WeakKeyDictionary()
 
 
@@ -35,7 +37,7 @@ def rustcall(func, *args):
     raise exc
 
 
-class RustObject(with_metaclass(_NoDict)):
+class RustObject(metaclass=_NoDict):
     __slots__ = ["_objptr", "_shared"]
     __dealloc_func__ = None
 
@@ -85,7 +87,7 @@ def decode_str(s, free=False):
 def encode_str(s, mutable=False):
     """Encodes a RelayStr"""
     rv = ffi.new("RelayStr *")
-    if isinstance(s, text_type):
+    if isinstance(s, str):
         s = s.encode("utf-8")
     if mutable:
         s = bytearray(s)

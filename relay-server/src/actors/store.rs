@@ -7,20 +7,22 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
-use relay_common::{ProjectId, UnixTimestamp, Uuid};
+use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
 use relay_config::Config;
-use relay_general::protocol::{self, EventId, SessionAggregates, SessionStatus, SessionUpdate};
+use relay_event_schema::protocol::{
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
-use relay_log::LogError;
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
+use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
-use crate::service::ServiceError;
 use crate::statsd::RelayCounters;
 
 /// The maximum number of individual session updates generated for each aggregate item.
@@ -57,12 +59,8 @@ impl Producer {
         for topic in KafkaTopic::iter()
             .filter(|t| **t != KafkaTopic::Outcomes || **t != KafkaTopic::OutcomesBilling)
         {
-            let kafka_config = &config
-                .kafka_config(*topic)
-                .map_err(|_| ServiceError::Kafka)?;
-            client_builder = client_builder
-                .add_kafka_topic_config(*topic, kafka_config)
-                .map_err(|_| ServiceError::Kafka)?
+            let kafka_config = &config.kafka_config(*topic)?;
+            client_builder = client_builder.add_kafka_topic_config(*topic, kafka_config)?;
         }
 
         Ok(Self {
@@ -199,7 +197,15 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     start_time,
+                    client,
                     retention,
+                    item,
+                )?,
+                ItemType::Span => self.produce_span(
+                    scoping.organization_id,
+                    scoping.project_id,
+                    event_id,
+                    start_time,
                     item,
                 )?,
                 _ => {}
@@ -387,7 +393,10 @@ impl StoreService {
                 let mut session = match SessionUpdate::parse(&item.payload()) {
                     Ok(session) => session,
                     Err(error) => {
-                        relay_log::error!("failed to store session: {}", LogError(&error));
+                        relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to store session"
+                        );
                         return Ok(());
                     }
                 };
@@ -529,23 +538,24 @@ impl StoreService {
         message: MetricKafkaMessage,
     ) -> Result<(), StoreError> {
         let mri = MetricResourceIdentifier::parse(&message.name);
-        let topic = match mri.map(|mri| mri.namespace) {
-            Ok(MetricNamespace::Transactions) => KafkaTopic::MetricsTransactions,
-            Ok(MetricNamespace::Sessions) => KafkaTopic::MetricsSessions,
+        let (topic, namespace) = match mri.map(|mri| mri.namespace) {
+            Ok(namespace @ MetricNamespace::Sessions) => (KafkaTopic::MetricsSessions, namespace),
             Ok(MetricNamespace::Unsupported) | Err(_) => {
                 relay_log::with_scope(
-                    |scope| {
-                        scope.set_extra("metric_message.name", message.name.into());
-                    },
-                    || {
-                        relay_log::error!("Store service dropping unknown metric usecase");
-                    },
+                    |scope| scope.set_extra("metric_message.name", message.name.into()),
+                    || relay_log::error!("store service dropping unknown metric usecase"),
                 );
                 return Ok(());
             }
+            Ok(namespace) => (KafkaTopic::MetricsGeneric, namespace),
         };
+        let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
 
-        self.produce(topic, organization_id, KafkaMessage::Metric(message))?;
+        self.produce(
+            topic,
+            organization_id,
+            KafkaMessage::Metric { headers, message },
+        )?;
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "metric"
@@ -562,7 +572,7 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         let payload = item.payload();
 
-        for bucket in Bucket::parse_all(&payload).unwrap_or_default() {
+        for bucket in serde_json::from_slice::<Vec<Bucket>>(&payload).unwrap_or_default() {
             self.send_metric_message(
                 org_id,
                 MetricKafkaMessage {
@@ -660,10 +670,6 @@ impl StoreService {
         start_time: Instant,
         retention: u16,
     ) -> Result<(), StoreError> {
-        // Payloads must be chunked if they exceed a certain threshold. We do not chunk every
-        // message because we can achieve better parallelism when dealing with a single
-        // message.
-
         // 2000 bytes are reserved for the message metadata.
         let max_message_metadata_size = 2000;
 
@@ -693,88 +699,10 @@ impl StoreService {
                 event_type = "replay_recording_not_chunked"
             );
         } else {
-            // Produce chunks to the topic first. Ordering matters.
-            let replay_recording = self.produce_replay_recording_chunks(
-                event_id.ok_or(StoreError::NoEventId)?,
-                scoping.organization_id,
-                scoping.project_id,
-                item,
-            )?;
-
-            let message = KafkaMessage::ReplayRecording(ReplayRecordingKafkaMessage {
-                replay_id: event_id.ok_or(StoreError::NoEventId)?,
-                project_id: scoping.project_id,
-                key_id: scoping.key_id,
-                org_id: scoping.organization_id,
-                received: UnixTimestamp::from_instant(start_time).as_secs(),
-                retention_days: retention,
-                replay_recording,
-            });
-
-            self.produce(
-                KafkaTopic::ReplayRecordings,
-                scoping.organization_id,
-                message,
-            )?;
-
-            metric!(
-                counter(RelayCounters::ProcessingMessageProduced) += 1,
-                event_type = "replay_recording"
-            );
+            relay_log::warn!("replay_recording over maximum size.");
         };
 
         Ok(())
-    }
-
-    fn produce_replay_recording_chunks(
-        &self,
-        replay_id: EventId,
-        organization_id: u64,
-        project_id: ProjectId,
-        item: &Item,
-    ) -> Result<ReplayRecordingChunkMeta, StoreError> {
-        let id = Uuid::new_v4().to_string();
-
-        let mut chunk_index = 0;
-        let mut offset = 0;
-        let payload = item.payload();
-        let size = item.len();
-
-        // This skips chunks for empty replay recordings. The consumer does not require chunks for
-        // empty replay recordings. `chunks` will be `0` in this case.
-        while offset < size {
-            // XXX: Max msesage size is 1MB.  We reserve 2000 bytes for metadata and the rest is
-            // consumed by the blob.
-            let max_chunk_size = 1000 * 1000 - 2000;
-            let chunk_size = std::cmp::min(max_chunk_size, size - offset);
-
-            let replay_recording_chunk_message =
-                KafkaMessage::ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage {
-                    payload: payload.slice(offset..offset + chunk_size),
-                    replay_id,
-                    project_id,
-                    id: id.clone(),
-                    chunk_index,
-                });
-
-            self.produce(
-                KafkaTopic::ReplayRecordings,
-                organization_id,
-                replay_recording_chunk_message,
-            )?;
-
-            offset += chunk_size;
-            chunk_index += 1;
-        }
-
-        // The chunk_index is incremented after every loop iteration. After we exit the loop, it
-        // is one larger than the last chunk, so it is equal to the number of chunks.
-
-        Ok(ReplayRecordingChunkMeta {
-            id,
-            chunks: chunk_index,
-            size: Some(size),
-        })
     }
 
     fn produce_check_in(
@@ -782,6 +710,7 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         start_time: Instant,
+        client: Option<&str>,
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
@@ -789,6 +718,7 @@ impl StoreService {
             project_id,
             retention_days,
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            sdk: client.map(str::to_owned),
             payload: item.payload(),
         });
 
@@ -797,6 +727,42 @@ impl StoreService {
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
             event_type = "check_in"
+        );
+
+        Ok(())
+    }
+
+    fn produce_span(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        event_id: Option<EventId>,
+        start_time: Instant,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
+        let span: serde_json::Value = match serde_json::from_slice(&item.payload()) {
+            Ok(span) => span,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse span"
+                );
+                return Ok(());
+            }
+        };
+        let message = KafkaMessage::Span(SpanKafkaMessage {
+            project_id,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            span,
+            event_id,
+        });
+
+        self.produce(KafkaTopic::Spans, organization_id, message)?;
+
+        metric!(
+            counter(RelayCounters::ProcessingMessageProduced) += 1,
+            event_type = "span"
         );
 
         Ok(())
@@ -1051,10 +1017,27 @@ struct CheckInKafkaMessage {
     payload: Bytes,
     /// Time at which the event was received by Relay.
     start_time: u64,
+    /// The SDK client which produced the event.
+    sdk: Option<String>,
     /// The project id for the current event.
     project_id: ProjectId,
     // Number of days to retain.
     retention_days: u16,
+}
+
+#[derive(Debug, Serialize)]
+struct SpanKafkaMessage {
+    /// Raw span data. See [`relay_event_schema::protocol::Span`] for schema.
+    span: serde_json::Value,
+    /// Time at which the span was received by Relay.
+    start_time: u64,
+    /// The project id for the current span.
+    project_id: ProjectId,
+    /// The event id for the current span.
+    ///
+    /// Once spans are truly standalone, this field will be omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_id: Option<EventId>,
 }
 
 /// An enum over all possible ingest messages.
@@ -1067,13 +1050,17 @@ enum KafkaMessage {
     AttachmentChunk(AttachmentChunkKafkaMessage),
     UserReport(UserReportKafkaMessage),
     Session(SessionKafkaMessage),
-    Metric(MetricKafkaMessage),
+    Metric {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: MetricKafkaMessage,
+    },
     Profile(ProfileKafkaMessage),
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
-    ReplayRecording(ReplayRecordingKafkaMessage),
-    ReplayRecordingChunk(ReplayRecordingChunkKafkaMessage),
     CheckIn(CheckInKafkaMessage),
+    Span(SpanKafkaMessage),
 }
 
 impl Message for KafkaMessage {
@@ -1084,13 +1071,12 @@ impl Message for KafkaMessage {
             KafkaMessage::AttachmentChunk(_) => "attachment_chunk",
             KafkaMessage::UserReport(_) => "user_report",
             KafkaMessage::Session(_) => "session",
-            KafkaMessage::Metric(_) => "metric",
+            KafkaMessage::Metric { .. } => "metric",
             KafkaMessage::Profile(_) => "profile",
             KafkaMessage::ReplayEvent(_) => "replay_event",
-            KafkaMessage::ReplayRecording(_) => "replay_recording",
-            KafkaMessage::ReplayRecordingChunk(_) => "replay_recording_chunk",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
+            KafkaMessage::Span(_) => "span",
         }
     }
 
@@ -1102,13 +1088,12 @@ impl Message for KafkaMessage {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
-            Self::Metric(_message) => Uuid::nil(),  // TODO(ja): Determine a partitioning key
+            Self::Metric { .. } => Uuid::nil(),     // TODO(ja): Determine a partitioning key
             Self::Profile(_message) => Uuid::nil(),
             Self::ReplayEvent(message) => message.replay_id.0,
-            Self::ReplayRecording(message) => message.replay_id.0,
-            Self::ReplayRecordingChunk(message) => message.replay_id.0,
             Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
             Self::CheckIn(_message) => Uuid::nil(),
+            Self::Span(_) => Uuid::nil(), // random partitioning
         };
 
         if uuid.is_nil() {
@@ -1118,13 +1103,22 @@ impl Message for KafkaMessage {
         *uuid.as_bytes()
     }
 
+    fn headers(&self) -> Option<&BTreeMap<String, String>> {
+        if let KafkaMessage::Metric { headers, .. } = &self {
+            if !headers.is_empty() {
+                return Some(headers);
+            }
+        }
+        None
+    }
+
     /// Serializes the message into its binary format.
     fn serialize(&self) -> Result<Vec<u8>, ClientError> {
         match self {
             KafkaMessage::Session(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
-            KafkaMessage::Metric(message) => {
+            KafkaMessage::Metric { message, .. } => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) => {
@@ -1144,7 +1138,7 @@ fn is_slow_item(item: &Item) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::ProjectKey;
+    use relay_base_schema::project::ProjectKey;
 
     use super::*;
 

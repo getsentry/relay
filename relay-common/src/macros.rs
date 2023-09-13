@@ -11,13 +11,11 @@ macro_rules! impl_str_ser {
             where
                 S: ::serde::ser::Serializer,
             {
-                serializer.serialize_str(&self.to_string())
+                serializer.collect_str(self)
             }
         }
     };
 }
-
-pub use impl_str_ser;
 
 /// Helper macro to implement string based deserialization.
 ///
@@ -60,8 +58,6 @@ macro_rules! impl_str_de {
     };
 }
 
-pub use impl_str_de;
-
 /// Helper macro to implement string based serialization and deserialization.
 ///
 /// If a type implements `FromStr` and `Display` then this automatically
@@ -75,50 +71,59 @@ macro_rules! impl_str_serde {
     };
 }
 
-pub use impl_str_serde;
-
-/// A cloning alternative to a `move` closure.
+/// Implements FromStr and Display on a flat/C-like enum such that strings roundtrip correctly and
+/// all variants can be FromStr'd.
 ///
-/// When one needs to use a closure with move semantics one often needs to clone and move some of
-/// the free variables. This macro automates the process of cloning and moving variables.
 ///
-/// The following code:
+/// Usage:
 ///
 /// ```
-/// # use std::sync::{Arc, Mutex};
-/// let shared = Arc::new(Mutex::new(0));
+/// use relay_common::derive_fromstr_and_display;
 ///
-/// let cloned = shared.clone();
-/// std::thread::spawn(move || {
-///     *cloned.lock().unwrap() = 42
-/// }).join();
+/// // derive fail for this or whatever you need. The type must be ZST though.
+/// struct ValueTypeError;
 ///
-/// assert_eq!(*shared.lock().unwrap(), 42);
-/// ```
+/// enum ValueType {
+///     Foo,
+///     Bar,
+/// }
 ///
-/// Can be rewritten in a cleaner way by using the `clone!` macro like so:
-///
-/// ```
-/// # use std::sync::{Arc, Mutex};
-/// use relay_common::clone;
-///
-/// let shared = Arc::new(Mutex::new(0));
-/// std::thread::spawn(clone!(shared, || {
-///     *shared.lock().unwrap() = 42
-/// })).join();
-///
-/// assert_eq!(*shared.lock().unwrap(), 42);
+/// derive_fromstr_and_display!(ValueType, ValueTypeError, {
+///     ValueType::Foo => "foo" | "foo2",  // fromstr will recognize foo/foo2, display will use foo.
+///     ValueType::Bar => "bar",
+/// });
 /// ```
 #[macro_export]
-macro_rules! clone {
-    ($($n:ident ,)+ || $body:expr) => {{
-        $( let $n = $n.clone(); )+
-        move || $body
-    }};
-    ($($n:ident ,)+ |$($p:pat_param),+| $body:expr) => {{
-        $( let $n = $n.clone(); )+
-        move |$($p),+| $body
-    }};
-}
+macro_rules! derive_fromstr_and_display {
+    ($type:ty, $error_type:tt, { $($variant:path => $($name:literal)|*),+ $(,)? }) => {
+        impl $type {
+            /// Returns the string representation of this enum variant.
+            pub fn as_str(&self) -> &'static str {
+                match *self {
+                    $(
+                        $variant => ($($name, )*).0
+                    ),*
+                }
+            }
+        }
 
-pub use clone;
+        impl ::std::fmt::Display for $type {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                write!(f, "{}", self.as_str())
+            }
+        }
+
+        impl ::std::str::FromStr for $type {
+            type Err = $error_type;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                Ok(match s {
+                    $(
+                        $($name)|* => $variant,
+                    )*
+                    _ => return Err($error_type)
+                })
+            }
+        }
+    }
+}

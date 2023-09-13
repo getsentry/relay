@@ -45,7 +45,7 @@ def test_filters_are_applied(
 
     # create a unique message so we can make sure we don't test with stale data
     now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
+    message_text = f"some message {now.isoformat()}"
 
     event = {
         "message": message_text,
@@ -196,7 +196,7 @@ def test_web_crawlers_filter_are_applied(
 
     # create a unique message so we can make sure we don't test with stale data
     now = datetime.datetime.utcnow()
-    message_text = "some message {}".format(now.isoformat())
+    message_text = f"some message {now.isoformat()}"
 
     event = {
         "message": message_text,
@@ -213,3 +213,72 @@ def test_web_crawlers_filter_are_applied(
         events_consumer.assert_empty()
     else:
         events_consumer.get_event()
+
+
+@pytest.mark.parametrize(
+    "is_enabled, transaction_name, should_filter",
+    [
+        (True, "health-check-1 ", True),
+        (False, "health-check-2", False),
+        (True, "some-transaction-3", False),
+    ],
+    ids=[
+        "when enabled ignore transactions are filtered",
+        "when disabled ignore transactions are NOT filtered",
+        "when enabled leaves alone transactions that are not enabled",
+    ],
+)
+def test_ignore_transactions_filters_are_applied(
+    mini_sentry,
+    relay_with_processing,
+    transactions_consumer,
+    is_enabled,
+    transaction_name,
+    should_filter,
+):
+    """
+    Tests the ignore transactions filter
+    """
+    relay = relay_with_processing()
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    filter_settings = project_config["config"]["filterSettings"]
+    if is_enabled:
+        filter_settings["ignoreTransactions"] = {
+            "patterns": ["health*"],
+            "isEnabled": is_enabled,
+        }
+    else:
+        filter_settings["ignoreTransactions"] = {
+            "patterns": [],
+            "isEnabled": is_enabled,
+        }
+
+    transactions_consumer = transactions_consumer(timeout=10)
+
+    now = datetime.datetime.utcnow()
+    start_timestamp = (now - datetime.timedelta(minutes=1)).timestamp()
+    timestamp = now.timestamp()
+
+    transaction = {
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "type": "transaction",
+        "transaction": transaction_name,
+        "start_timestamp": start_timestamp,
+        "timestamp": timestamp,
+        "contexts": {
+            "trace": {
+                "trace_id": "1234F60C11214EB38604F4AE0781BFB2",
+                "span_id": "ABCDFDEAD5F74052",
+                "type": "trace",
+            }
+        },
+    }
+
+    relay.send_transaction(project_id, transaction)
+
+    if should_filter:
+        transactions_consumer.assert_empty()
+    else:
+        event, _ = transactions_consumer.get_event()
+        assert event["transaction"] == transaction_name

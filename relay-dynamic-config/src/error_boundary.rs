@@ -53,6 +53,33 @@ impl<T> ErrorBoundary<T> {
             Self::Err(e) => op(e.as_ref()),
         }
     }
+
+    /// Inserts a value computed from `f` into the error boundary if it is [`Err`],
+    /// then returns a mutable reference to the contained value.
+    pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut T
+    where
+        F: FnOnce() -> T,
+    {
+        if let Self::Err(_) = self {
+            *self = Self::Ok(f());
+        }
+
+        // SAFETY: an `Err` variant for `self` would have been replaced by a `Ok`
+        // variant in the code above.
+        match self {
+            Self::Ok(t) => t,
+            Self::Err(_) => unsafe { std::hint::unreachable_unchecked() },
+        }
+    }
+}
+
+impl<T> Default for ErrorBoundary<T>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Self::Ok(T::default())
+    }
 }
 
 impl<'de, T> Deserialize<'de> for ErrorBoundary<T>

@@ -2,7 +2,7 @@
 ### Deps stage ###
 ##################
 
-FROM getsentry/sentry-cli:1 AS sentry-cli
+FROM getsentry/sentry-cli:2 AS sentry-cli
 FROM centos:7 AS relay-deps
 
 # Rust version must be provided by the caller.

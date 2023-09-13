@@ -10,14 +10,15 @@ use std::{env, fmt, fs, io};
 
 use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
-use relay_common::{Dsn, Uuid};
+use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::AggregatorConfig;
+use relay_metrics::{AggregatorConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use uuid::Uuid;
 
 use crate::byte_size::ByteSize;
 use crate::upstream::UpstreamDescriptor;
@@ -542,6 +543,8 @@ struct Limits {
     max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
     max_profile_size: ByteSize,
+    /// The maximum payload size for a span.
+    max_span_size: ByteSize,
     /// The maximum payload size for a compressed replay.
     max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
@@ -582,6 +585,7 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
+            max_span_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
@@ -830,6 +834,8 @@ struct Cache {
     file_interval: u32,
     /// Interval for evicting outdated project configs from memory.
     eviction_interval: u32,
+    /// Interval for fetching new global configs from the upstream, in seconds.
+    global_config_fetch_interval: u32,
 }
 
 impl Default for Cache {
@@ -843,8 +849,9 @@ impl Default for Cache {
             miss_expiry: 60,     // 1 minute
             batch_interval: 100, // 100ms
             batch_size: 500,
-            file_interval: 10,     // 10 seconds
-            eviction_interval: 60, // 60 seconds
+            file_interval: 10,                // 10 seconds
+            eviction_interval: 60,            // 60 seconds
+            global_config_fetch_interval: 10, // 10 seconds
         }
     }
 }
@@ -1186,6 +1193,13 @@ pub struct AwsConfig {
     pub runtime_api: Option<String>,
 }
 
+/// GeoIp database configuration options.
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct GeoIpConfig {
+    /// The path to GeoIP database.
+    path: Option<PathBuf>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct ConfigValues {
     #[serde(default)]
@@ -1213,9 +1227,13 @@ struct ConfigValues {
     #[serde(default)]
     aggregator: AggregatorConfig,
     #[serde(default)]
+    secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    #[serde(default)]
     auth: AuthConfig,
     #[serde(default)]
     aws: AwsConfig,
+    #[serde(default)]
+    geoip: GeoIpConfig,
 }
 
 impl ConfigObject for ConfigValues {
@@ -1370,7 +1388,7 @@ impl Config {
         } else {
             None
         };
-        let mut outcomes = &mut self.values.outcomes;
+        let outcomes = &mut self.values.outcomes;
         if overrides.outcome_source.is_some() {
             outcomes.source = overrides.outcome_source.take();
         }
@@ -1440,9 +1458,11 @@ impl Config {
     /// Regenerates the relay credentials.
     ///
     /// This also writes the credentials back to the file.
-    pub fn regenerate_credentials(&mut self) -> anyhow::Result<()> {
+    pub fn regenerate_credentials(&mut self, save: bool) -> anyhow::Result<()> {
         let creds = Credentials::generate();
-        creds.save(&self.path)?;
+        if save {
+            creds.save(&self.path)?;
+        }
         self.credentials = Some(creds);
         Ok(())
     }
@@ -1739,6 +1759,12 @@ impl Config {
         Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
+    /// Returns the interval in seconds in which fresh global configs should be
+    /// fetched from  upstream.
+    pub fn global_config_fetch_interval(&self) -> Duration {
+        Duration::from_secs(self.values.cache.global_config_fetch_interval.into())
+    }
+
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
     pub fn spool_envelopes_path(&self) -> Option<PathBuf> {
         self.values
@@ -1779,20 +1805,25 @@ impl Config {
         self.values.limits.max_attachment_size.as_bytes()
     }
 
-    /// Returns the maxmium combined size of attachments or payloads containing attachments
+    /// Returns the maximum combined size of attachments or payloads containing attachments
     /// (minidump, unreal, standalone attachments) in bytes.
     pub fn max_attachments_size(&self) -> usize {
         self.values.limits.max_attachments_size.as_bytes()
     }
 
-    /// Returns the maxmium combined size of client reports in bytes.
+    /// Returns the maximum combined size of client reports in bytes.
     pub fn max_client_reports_size(&self) -> usize {
         self.values.limits.max_client_reports_size.as_bytes()
     }
 
-    /// Returns the maxmium payload size of a monitor check-in in bytes.
+    /// Returns the maximum payload size of a monitor check-in in bytes.
     pub fn max_check_in_size(&self) -> usize {
         self.values.limits.max_check_in_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of a span in bytes.
+    pub fn max_span_size(&self) -> usize {
+        self.values.limits.max_span_size.as_bytes()
     }
 
     /// Returns the maximum size of an envelope payload in bytes.
@@ -1896,7 +1927,11 @@ impl Config {
 
     /// The path to the GeoIp database required for event processing.
     pub fn geoip_path(&self) -> Option<&Path> {
-        self.values.processing.geoip_path.as_deref()
+        self.values
+            .geoip
+            .path
+            .as_deref()
+            .or(self.values.processing.geoip_path.as_deref())
     }
 
     /// Maximum future timestamp of ingested data.
@@ -1947,6 +1982,22 @@ impl Config {
 
     /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
     pub fn aggregator_config(&self) -> &AggregatorConfig {
+        &self.values.aggregator
+    }
+
+    /// Returns configuration for non-default metrics [aggregators](relay_metrics::Aggregator).
+    pub fn secondary_aggregator_configs(&self) -> &Vec<ScopedAggregatorConfig> {
+        &self.values.secondary_aggregators
+    }
+
+    /// Returns aggregator config for a given metrics namespace.
+    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorConfig {
+        for entry in &self.values.secondary_aggregators {
+            match entry.condition {
+                Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,
+                _ => (),
+            }
+        }
         &self.values.aggregator
     }
 
@@ -2010,9 +2061,6 @@ cache:
 
     #[test]
     fn test_emit_outcomes_invalid() {
-        assert!(matches!(
-            serde_json::from_str::<EmitOutcomes>("asdf"),
-            Err(_)
-        ));
+        assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
     }
 }

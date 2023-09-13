@@ -1,13 +1,44 @@
+//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
+//! envelopes, either to in-memory or to persistent storage.
+//!
+//! The main entry point for the [`BufferService`] is the [`Buffer`] interface, which currently
+//! supports:
+//! - [`Enqueue`] - enqueueing a message into the backend storage
+//! - [`DequeueMany`] - dequeueing all the requested [`QueueKey`] keys
+//! - [`RemoveMany`] - removing and dropping the requested [`QueueKey`] keys.
+//! - [`Health`] - checking the health of the [`BufferService`]
+//!
+//! To make sure the [`BufferService`] is fast the responsive, especially in the normal working
+//! conditions, it keeps the internal [`BufferState`] state, which defines where the spooling will
+//! be happening.
+//!
+//! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
+//! [`crate::actors::project::ProjectState`] it continues to use the memory as temporary spool.
+//!
+//! Keeping the envelopes in memory as long as we can, we ensure the fast unspool operations and
+//! fast processing times.
+//!
+//! In case of an incident when the in-memory spool gets full (see, `spool.envelopes.max_memory_size` config option)
+//! or if the processing pipeline gets too many messages in-flight, configured by
+//! `cache.envelope_buffer_size` and once it reaches 80% of the defined amount, the internal state will be
+//! switched to [`OnDisk`] and service will continue spooling all the incoming envelopes onto the disk.
+//! This will happen also only when the disk spool is configured.
+//!
+//! The state can be changed to [`InMemory`] again only if all the on-disk spooled envelopes are
+//! read out again and the disk is empty.
+//!
+//! Current on-disk spool implementation uses SQLite as a storage.
+
 use std::collections::{BTreeMap, BTreeSet};
+use std::error::Error;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_log::LogError;
-use relay_system::{Addr, Controller, FromMessage, Interface, Service};
+use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
     SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteRow,
@@ -21,7 +52,7 @@ use crate::actors::project_cache::{ProjectCache, UpdateBufferIndex};
 use crate::actors::test_store::TestStore;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
-use crate::statsd::{RelayCounters, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::{BufferGuard, ManagedEnvelope};
 
 mod sql;
@@ -31,9 +62,6 @@ mod sql;
 pub enum BufferError {
     #[error("failed to move envelope from disk to memory")]
     CapacityExceeded(#[from] crate::utils::BufferError),
-
-    #[error("failed to spool to disk, reached maximum disk size: {0}")]
-    DatabaseFull(i64),
 
     #[error("failed to get the size of the buffer on the filesystem")]
     DatabaseFileError(#[from] std::io::Error),
@@ -58,6 +86,9 @@ pub enum BufferError {
 
     #[error("failed to run migrations")]
     MigrationFailed(#[from] MigrateError),
+
+    #[error("on-disk spool is full")]
+    SpoolIsFull,
 }
 
 /// This key represents the index element in the queue.
@@ -131,6 +162,10 @@ impl RemoveMany {
     }
 }
 
+/// Checks the health of the spooler.
+#[derive(Debug)]
+pub struct Health(pub Sender<bool>);
+
 /// The interface for [`BufferService`].
 ///
 /// Buffer maintaince internal storage (internal buffer) of the envelopes, which keep accumulating
@@ -151,6 +186,7 @@ pub enum Buffer {
     Enqueue(Enqueue),
     DequeueMany(DequeueMany),
     RemoveMany(RemoveMany),
+    Health(Health),
 }
 
 impl Interface for Buffer {}
@@ -179,37 +215,448 @@ impl FromMessage<RemoveMany> for Buffer {
     }
 }
 
+impl FromMessage<Health> for Buffer {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: Health, _: ()) -> Self {
+        Self::Health(message)
+    }
+}
+
+/// The configuration which describes the in-memory [`BufferState`].
 #[derive(Debug)]
+struct InMemory {
+    buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
+    max_memory_size: usize,
+    used_memory: usize,
+    envelope_count: usize,
+}
+
+impl InMemory {
+    /// Create a new [`InMemory`] state.
+    fn new(max_memory_size: usize) -> Self {
+        Self {
+            max_memory_size,
+            buffer: BTreeMap::new(),
+            used_memory: 0,
+            envelope_count: 0,
+        }
+    }
+
+    /// Returns the number of envelopes in the memory buffer.
+    fn count(&self) -> usize {
+        self.buffer.values().map(|v| v.len()).sum()
+    }
+
+    /// Removes envelopes from the in-memory buffer.
+    fn remove(&mut self, keys: &BTreeSet<QueueKey>) -> usize {
+        let mut count = 0;
+        for key in keys {
+            let (current_count, current_size) = self.buffer.remove(key).map_or((0, 0), |k| {
+                (k.len(), k.into_iter().map(|k| k.estimated_size()).sum())
+            });
+            count += current_count;
+            self.used_memory -= current_size;
+        }
+        self.envelope_count = self.envelope_count.saturating_sub(count);
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
+        );
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = self.envelope_count as u64
+        );
+
+        count
+    }
+
+    /// Dequeues the envelopes from the in-memory buffer and send them to provided `sender`.
+    fn dequeue(&mut self, keys: &Vec<QueueKey>, sender: mpsc::UnboundedSender<ManagedEnvelope>) {
+        for key in keys {
+            for envelope in self.buffer.remove(key).unwrap_or_default() {
+                self.used_memory -= envelope.estimated_size();
+                self.envelope_count = self.envelope_count.saturating_sub(1);
+                sender.send(envelope).ok();
+            }
+        }
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
+        );
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = self.envelope_count as u64
+        );
+    }
+
+    /// Enqueues the envelope into the in-memory buffer.
+    fn enqueue(&mut self, key: QueueKey, managed_envelope: ManagedEnvelope) {
+        self.envelope_count += 1;
+        self.used_memory += managed_envelope.estimated_size();
+        self.buffer.entry(key).or_default().push(managed_envelope);
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = self.used_memory as f64
+        );
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferEnvelopesMemoryCount) = self.envelope_count as u64
+        );
+    }
+
+    /// Returns `true` if the in-memory buffer is full, `false` otherwise.
+    fn is_full(&self) -> bool {
+        self.used_memory >= self.max_memory_size
+    }
+}
+
+/// The configuration which describes the on-disk [`BufferState`].
+#[derive(Debug)]
+struct OnDisk {
+    dequeue_attempts: usize,
+    db: Pool<Sqlite>,
+    buffer_guard: Arc<BufferGuard>,
+    max_disk_size: usize,
+    /// The number of items currently on disk.
+    ///
+    /// We do not track the count when we encounter envelopes in the database on startup,
+    /// because counting those envelopes would risk locking the db for multiple seconds.
+    count: Option<u64>,
+}
+
+impl OnDisk {
+    /// Saves the provided buffer to the disk.
+    ///
+    /// Returns an error if the spooling failed, and the number of spooled envelopes on success.
+    async fn spool(
+        &mut self,
+        buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
+    ) -> Result<(), BufferError> {
+        relay_statsd::metric!(histogram(RelayHistograms::BufferEnvelopesMemoryBytes) = 0);
+        let envelopes = buffer
+            .into_iter()
+            .flat_map(|(key, values)| {
+                values
+                    .into_iter()
+                    .map(move |value| (key, value.received_at().timestamp_millis(), value))
+            })
+            .filter_map(
+                |(key, received_at, managed)| match managed.into_envelope().to_vec() {
+                    Ok(vec) => Some((key, vec, received_at)),
+                    Err(err) => {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed to serialize the envelope"
+                        );
+                        None
+                    }
+                },
+            );
+
+        let inserted = sql::do_insert(stream::iter(envelopes), &self.db)
+            .await
+            .map_err(BufferError::InsertFailed)?;
+
+        self.track_count(inserted as i64);
+
+        Ok(())
+    }
+
+    /// Removes the envelopes from the on-disk spool.
+    ///
+    /// Returns the count of removed envelopes.
+    async fn remove(&mut self, keys: &BTreeSet<QueueKey>) -> Result<usize, BufferError> {
+        let mut count = 0;
+        for key in keys {
+            let result = sql::delete(*key)
+                .execute(&self.db)
+                .await
+                .map_err(BufferError::DeleteFailed)?;
+            count += result.rows_affected();
+        }
+
+        self.track_count(-(count as i64));
+
+        Ok(count as usize)
+    }
+
+    /// Extracts the envelope from the `SqliteRow`.
+    ///
+    /// Reads the bytes and tries to perse them into `Envelope`.
+    fn extract_envelope(
+        &self,
+        row: SqliteRow,
+        services: &Services,
+    ) -> Result<ManagedEnvelope, BufferError> {
+        let envelope_row: Vec<u8> = row.try_get("envelope").map_err(BufferError::FetchFailed)?;
+        let envelope_bytes = bytes::Bytes::from(envelope_row);
+        let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
+
+        let received_at: i64 = row
+            .try_get("received_at")
+            .map_err(BufferError::FetchFailed)?;
+        let start_time = StartTime::from_timestamp_millis(received_at as u64);
+
+        envelope.set_start_time(start_time.into_inner());
+
+        let managed_envelope = self.buffer_guard.enter(
+            envelope,
+            services.outcome_aggregator.clone(),
+            services.test_store.clone(),
+        )?;
+        Ok(managed_envelope)
+    }
+
+    /// Tries to delete the envelopes from the persistent buffer in batches,
+    /// extract and convert them to managed envelopes and send back into
+    /// processing pipeline.
+    ///
+    /// If the error happens in the deletion/fetching phase, a key is returned
+    /// to allow retrying later.
+    ///
+    /// Returns the amount of envelopes deleted from disk.
+    async fn delete_and_fetch(
+        &mut self,
+        key: QueueKey,
+        sender: &mpsc::UnboundedSender<ManagedEnvelope>,
+        services: &Services,
+    ) -> Result<(), QueueKey> {
+        loop {
+            // Before querying the db, make sure that the buffer guard has enough availability:
+            self.dequeue_attempts += 1;
+            if !self.buffer_guard.is_below_low_watermark() {
+                return Err(key);
+            }
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferDequeueAttempts) = self.dequeue_attempts as u64
+            );
+            self.dequeue_attempts = 0;
+
+            // Removing envelopes from the on-disk buffer in batches has following implications:
+            // 1. It is faster to delete from the DB in batches.
+            // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
+            // but only one batch, and the rest of them will stay on disk for the next iteration
+            // to pick up.
+            //
+            // Right now we use 100 for batch size.
+            let batch_size = 100;
+            let mut envelopes = sql::delete_and_fetch(key, batch_size)
+                .fetch(&self.db)
+                .peekable();
+            relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
+
+            // Stream is empty, we can break the loop, since we read everything by now.
+            if Pin::new(&mut envelopes).peek().await.is_none() {
+                return Ok(());
+            }
+
+            let mut count: i64 = 0;
+            while let Some(envelope) = envelopes.next().await {
+                count += 1;
+                let envelope = match envelope {
+                    Ok(envelope) => envelope,
+
+                    // Bail if there are errors in the stream.
+                    Err(err) => {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed to read the buffer stream from the disk",
+                        );
+                        self.track_count(-count);
+                        return Err(key);
+                    }
+                };
+
+                match self.extract_envelope(envelope, services) {
+                    Ok(managed_envelope) => {
+                        sender.send(managed_envelope).ok();
+                    }
+                    Err(err) => relay_log::error!(
+                        error = &err as &dyn Error,
+                        "failed to extract envelope from the buffer",
+                    ),
+                }
+            }
+
+            self.track_count(-count);
+        }
+    }
+
+    /// Dequeues the envelopes from the on-disk spool and send them to the provided `sender`.
+    ///
+    /// The keys for which the envelopes could not be fetched, send back to `ProjectCache` to merge
+    /// back into index.
+    async fn dequeue(
+        &mut self,
+        project_key: ProjectKey,
+        keys: &mut Vec<QueueKey>,
+        sender: mpsc::UnboundedSender<ManagedEnvelope>,
+        services: &Services,
+    ) {
+        let mut unused_keys = BTreeSet::new();
+        while let Some(key) = keys.pop() {
+            // If the error with a key is returned we must save it for the next iterration.
+            if let Err(key) = self.delete_and_fetch(key, &sender, services).await {
+                unused_keys.insert(key);
+            };
+        }
+        if !unused_keys.is_empty() {
+            services
+                .project_cache
+                .send(UpdateBufferIndex::new(project_key, unused_keys))
+        }
+    }
+
+    /// Estimates the db size by multiplying `page_count * page_size`.
+    async fn estimate_spool_size(&self) -> Result<i64, BufferError> {
+        let size: i64 = sql::current_size()
+            .fetch_one(&self.db)
+            .await
+            .and_then(|r| r.try_get(0))
+            .map_err(BufferError::FileSizeReadFailed)?;
+
+        relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = size as u64);
+        Ok(size)
+    }
+
+    /// Returns `true` if the maximum size is reached, `false` otherwise.
+    async fn is_full(&self) -> Result<bool, BufferError> {
+        let current_size = self.estimate_spool_size().await?;
+        Ok(current_size as usize >= self.max_disk_size)
+    }
+
+    /// Returns `true` if the spool is empty, `false` otherwise.
+    async fn is_empty(&self) -> Result<bool, BufferError> {
+        let is_empty = sql::select_one()
+            .fetch_optional(&self.db)
+            .await
+            .map_err(BufferError::FetchFailed)?
+            .is_none();
+
+        Ok(is_empty)
+    }
+
+    /// Enqueues data into on-disk spool.
+    async fn enqueue(
+        &mut self,
+        key: QueueKey,
+        managed_envelope: ManagedEnvelope,
+    ) -> Result<(), BufferError> {
+        let received_at = managed_envelope.received_at().timestamp_millis();
+        sql::insert(
+            key,
+            managed_envelope.into_envelope().to_vec().unwrap(),
+            received_at,
+        )
+        .execute(&self.db)
+        .await
+        .map_err(BufferError::InsertFailed)?;
+
+        self.track_count(1);
+        relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
+        Ok(())
+    }
+
+    fn track_count(&mut self, increment: i64) {
+        // Track the number of envelopes read/written:
+        let metric = if increment < 0 {
+            RelayCounters::BufferEnvelopesRead
+        } else {
+            RelayCounters::BufferEnvelopesWritten
+        };
+        relay_statsd::metric!(counter(metric) += increment);
+
+        if let Some(count) = &mut self.count {
+            *count = count.saturating_add_signed(increment);
+            relay_statsd::metric!(gauge(RelayGauges::BufferEnvelopesDiskCount) = *count);
+        }
+    }
+}
+
+/// The state which defines the [`BufferService`] behaviour.
+#[derive(Debug)]
+enum BufferState {
+    /// Only memory buffer is enabled.
+    Memory(InMemory),
+
+    /// The memory buffer is used, but also disk spool is configured.
+    ///
+    /// The disk will be used when the memory limit will be hit.
+    MemoryFileStandby { ram: InMemory, disk: OnDisk },
+
+    /// Only disk used for read/write operations.
+    Disk(OnDisk),
+}
+
+impl BufferState {
+    /// Creates the initial [`BufferState`] depending on the provided config.
+    ///
+    /// If the on-disk spool is configured, the `BufferState::MemoryDiskStandby` will be returned:
+    /// if the spool is empty, `BufferState::MemoryFileRead` if the spool contains some data,
+    /// `BufferState::Memory` otherwise.
+    async fn new(max_memory_size: usize, disk: Option<OnDisk>) -> Self {
+        let ram = InMemory {
+            buffer: BTreeMap::new(),
+            max_memory_size,
+            used_memory: 0,
+            envelope_count: 0,
+        };
+        match disk {
+            Some(disk) => {
+                // When the old db file is picked up and it is not empty, we can also try to read from it
+                // on dequeue requests.
+                if disk.is_empty().await.unwrap_or_default() {
+                    Self::MemoryFileStandby { ram, disk }
+                } else {
+                    BufferState::Disk(disk)
+                }
+            }
+            None => Self::Memory(ram),
+        }
+    }
+
+    /// Becomes a different state, depdending on the current state and the current conditions of
+    /// underlying spool.
+    async fn transition(self, config: &Arc<Config>) -> Self {
+        match self {
+            Self::MemoryFileStandby { ram, mut disk }
+                if ram.is_full() || disk.buffer_guard.is_over_high_watermark() =>
+            {
+                if let Err(err) = disk.spool(ram.buffer).await {
+                    relay_log::error!(
+                        error = &err as &dyn Error,
+                        "failed to spool the in-memory buffer to disk",
+                    );
+                }
+                Self::Disk(disk)
+            }
+            Self::Disk(disk) if disk.is_empty().await.unwrap_or_default() => {
+                Self::MemoryFileStandby {
+                    ram: InMemory::new(config.spool_envelopes_max_memory_size()),
+                    disk,
+                }
+            }
+            Self::Memory(_) | Self::MemoryFileStandby { .. } | Self::Disk(_) => self,
+        }
+    }
+}
+
+impl Default for BufferState {
+    fn default() -> Self {
+        // Just use the all the memory we can now.
+        Self::Memory(InMemory::new(usize::MAX))
+    }
+}
+
+/// The services, which rely on the state of the envelopes in this buffer.
+#[derive(Clone, Debug)]
 pub struct Services {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub project_cache: Addr<ProjectCache>,
     pub test_store: Addr<TestStore>,
 }
 
-/// Contains the spool related configuration.
-///
-/// Contains the current backing spool engine pool (SQLite) and the max sizes for in-memory buffer
-/// and on disk spool. All the sized are in bytes.
-#[derive(Debug)]
-struct BufferSpoolConfig {
-    db: Pool<Sqlite>,
-    max_disk_size: usize,
-    max_memory_size: usize,
-    is_disk_full: bool,
-}
-
 /// [`Buffer`] interface implementation backed by SQLite.
 #[derive(Debug)]
 pub struct BufferService {
     services: Services,
-    buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
-    buffer_guard: Arc<BufferGuard>,
-    spool_config: Option<BufferSpoolConfig>,
-    used_memory: usize,
-
-    #[cfg(test)]
-    /// Create untracked envelopes when loading from disk. Only use in tests.
-    untracked: bool,
+    state: BufferState,
+    config: Arc<Config>,
 }
 
 impl BufferService {
@@ -229,190 +676,87 @@ impl BufferService {
         Ok(())
     }
 
+    /// Prepares the disk state.
+    async fn prepare_disk_state(
+        config: Arc<Config>,
+        buffer_guard: Arc<BufferGuard>,
+    ) -> Result<Option<OnDisk>, BufferError> {
+        // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
+        let Some(path) = config.spool_envelopes_path() else {
+            return Ok(None);
+        };
+
+        relay_log::info!("buffer file {}", path.to_string_lossy());
+        relay_log::info!(
+            "max memory size {}",
+            config.spool_envelopes_max_memory_size()
+        );
+        relay_log::info!("max disk size {}", config.spool_envelopes_max_disk_size());
+
+        Self::setup(&path).await?;
+
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            // The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement transactions.
+            // The WAL journaling mode is persistent; after being set it stays in effect
+            // across multiple database connections and after closing and reopening the database.
+            //
+            // 1. WAL is significantly faster in most scenarios.
+            // 2. WAL provides more concurrency as readers do not block writers and a writer does not block readers. Reading and writing can proceed concurrently.
+            // 3. Disk I/O operations tends to be more sequential using WAL.
+            // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken.
+            .journal_mode(SqliteJournalMode::Wal)
+            // WAL mode is safe from corruption with synchronous=NORMAL.
+            // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
+            // Which guarantees good balance between safety and speed.
+            .synchronous(SqliteSynchronous::Normal)
+            // The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
+            // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
+            // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
+            //
+            // This will helps us to keep the file size under some control.
+            .auto_vacuum(SqliteAutoVacuum::Full)
+            // If shared-cache mode is enabled and a thread establishes multiple
+            // connections to the same database, the connections share a single data and schema cache.
+            // This can significantly reduce the quantity of memory and IO required by the system.
+            .shared_cache(true);
+
+        let db = SqlitePoolOptions::new()
+            .max_connections(config.spool_envelopes_max_connections())
+            .min_connections(config.spool_envelopes_min_connections())
+            .connect_with(options)
+            .await
+            .map_err(BufferError::SetupFailed)?;
+
+        let mut on_disk = OnDisk {
+            dequeue_attempts: 0,
+            db,
+            buffer_guard,
+            max_disk_size: config.spool_envelopes_max_disk_size(),
+            count: None,
+        };
+
+        if on_disk.is_empty().await? {
+            // Only start live-tracking the count if there's nothing in the db yet.
+            on_disk.count = Some(0);
+        }
+
+        Ok(Some(on_disk))
+    }
+
     /// Creates a new [`BufferService`] from the provided path to the SQLite database file.
     pub async fn create(
         buffer_guard: Arc<BufferGuard>,
         services: Services,
         config: Arc<Config>,
     ) -> Result<Self, BufferError> {
-        let mut service = Self {
+        let on_disk_state = Self::prepare_disk_state(config.clone(), buffer_guard).await?;
+        let state = BufferState::new(config.spool_envelopes_max_memory_size(), on_disk_state).await;
+        Ok(Self {
             services,
-            buffer: BTreeMap::new(),
-            buffer_guard,
-            used_memory: 0,
-            spool_config: None,
-            #[cfg(test)]
-            untracked: false,
-        };
-
-        // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
-        if let Some(path) = config.spool_envelopes_path() {
-            relay_log::info!("buffer file {}", path.to_string_lossy());
-            relay_log::info!(
-                "max memory size {}",
-                config.spool_envelopes_max_memory_size()
-            );
-            relay_log::info!("max disk size {}", config.spool_envelopes_max_disk_size());
-
-            Self::setup(&path).await?;
-
-            let options = SqliteConnectOptions::new()
-                .filename(&path)
-                // The WAL journaling mode uses a write-ahead log instead of a rollback journal to implement transactions.
-                // The WAL journaling mode is persistent; after being set it stays in effect
-                // across multiple database connections and after closing and reopening the database.
-                //
-                // 1. WAL is significantly faster in most scenarios.
-                // 2. WAL provides more concurrency as readers do not block writers and a writer does not block readers. Reading and writing can proceed concurrently.
-                // 3. Disk I/O operations tends to be more sequential using WAL.
-                // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken.
-                .journal_mode(SqliteJournalMode::Wal)
-                // WAL mode is safe from corruption with synchronous=NORMAL.
-                // When synchronous is NORMAL, the SQLite database engine will still sync at the most critical moments, but less often than in FULL mode.
-                // Which guarantees good balance between safety and speed.
-                .synchronous(SqliteSynchronous::Normal)
-                // The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
-                // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
-                // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
-                //
-                // This will helps us to keep the file size under some control.
-                .auto_vacuum(SqliteAutoVacuum::Full)
-                // If shared-cache mode is enabled and a thread establishes multiple
-                // connections to the same database, the connections share a single data and schema cache.
-                // This can significantly reduce the quantity of memory and IO required by the system.
-                .shared_cache(true);
-
-            let db = SqlitePoolOptions::new()
-                .max_connections(config.spool_envelopes_max_connections())
-                .min_connections(config.spool_envelopes_min_connections())
-                .connect_with(options)
-                .await
-                .map_err(BufferError::SetupFailed)?;
-
-            let spool_config = BufferSpoolConfig {
-                db,
-                max_disk_size: config.spool_envelopes_max_disk_size(),
-                max_memory_size: config.spool_envelopes_max_memory_size(),
-                is_disk_full: false,
-            };
-
-            service.spool_config = Some(spool_config);
-        }
-
-        Ok(service)
-    }
-
-    /// Estimates the db size by multiplying `page_count * page_size`.
-    async fn estimate_buffer_size(db: &Pool<Sqlite>) -> Result<i64, BufferError> {
-        let size: i64 = sql::current_size()
-            .fetch_one(db)
-            .await
-            .and_then(|r| r.try_get(0))
-            .map_err(BufferError::FileSizeReadFailed)?;
-
-        relay_statsd::metric!(histogram(RelayHistograms::BufferDiskSize) = size as u64);
-        Ok(size)
-    }
-
-    /// Saves the provided buffer to the disk.
-    ///
-    /// Returns an error if the spooling failed, and the number of spooled envelopes on success.
-    async fn do_spool(
-        db: &Pool<Sqlite>,
-        buffer: BTreeMap<QueueKey, Vec<ManagedEnvelope>>,
-    ) -> Result<(), BufferError> {
-        let envelopes = buffer
-            .into_iter()
-            .flat_map(|(key, values)| {
-                values
-                    .into_iter()
-                    .map(move |value| (key, value.received_at().timestamp_millis(), value))
-            })
-            .filter_map(
-                |(key, received_at, managed)| match managed.into_envelope().to_vec() {
-                    Ok(vec) => Some((key, vec, received_at)),
-                    Err(err) => {
-                        relay_log::error!("failed to serialize the envelope: {}", LogError(&err));
-                        None
-                    }
-                },
-            );
-
-        sql::do_insert(stream::iter(envelopes), db)
-            .await
-            .map_err(BufferError::InsertFailed)
-    }
-
-    /// Tries to save in-memory buffer to disk.
-    ///
-    /// It will spool to disk only if the persistent storage enabled in the configuration.
-    async fn try_spool(&mut self) -> Result<(), BufferError> {
-        let Self {
-            ref mut spool_config,
-            ref mut buffer,
-            ..
-        } = self;
-
-        // Buffer to disk only if the DB and config are provided.
-        let Some(BufferSpoolConfig {
-            db,
-            max_disk_size,
-            max_memory_size,
-            ref mut is_disk_full,
-            ..
-        }) = spool_config else { return Ok(()) };
-
-        if self.used_memory < *max_memory_size {
-            return Ok(());
-        }
-
-        // Return 0 if we fail to read the database size.
-        let estimated_db_size = Self::estimate_buffer_size(db).await?;
-
-        if estimated_db_size as usize >= *max_disk_size {
-            *is_disk_full = true;
-            return Err(BufferError::DatabaseFull(estimated_db_size));
-        }
-
-        let buf = std::mem::take(buffer);
-        self.used_memory = 0;
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
-        );
-
-        Self::do_spool(db, buf).await
-    }
-
-    /// Extracts the envelope from the `SqliteRow`.
-    ///
-    /// Reads the bytes and tries to perse them into `Envelope`.
-    fn extract_envelope(&self, row: SqliteRow) -> Result<ManagedEnvelope, BufferError> {
-        let envelope_row: Vec<u8> = row.try_get("envelope").map_err(BufferError::FetchFailed)?;
-        let envelope_bytes = bytes::Bytes::from(envelope_row);
-        let mut envelope = Envelope::parse_bytes(envelope_bytes)?;
-
-        let received_at: i64 = row
-            .try_get("received_at")
-            .map_err(BufferError::FetchFailed)?;
-        let start_time = StartTime::from_timestamp_millis(received_at as u64);
-
-        envelope.set_start_time(start_time.into_inner());
-
-        #[cfg(test)]
-        if self.untracked {
-            return Ok(ManagedEnvelope::untracked(
-                envelope,
-                self.services.outcome_aggregator.clone(),
-                self.services.test_store.clone(),
-            ));
-        }
-
-        let managed_envelope = self.buffer_guard.enter(
-            envelope,
-            self.services.outcome_aggregator.clone(),
-            self.services.test_store.clone(),
-        )?;
-        Ok(managed_envelope)
+            state,
+            config,
+        })
     }
 
     /// Handles the enqueueing messages into the internal buffer.
@@ -422,97 +766,23 @@ impl BufferService {
             value: managed_envelope,
         } = message;
 
-        // save to the internal buffer
-        self.used_memory += managed_envelope.estimated_size();
-        self.buffer.entry(key).or_default().push(managed_envelope);
-
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
-        );
-
-        // If disk is full, the service stop spooling till the disk has more space.
-        // The auto-vacuum will kick in on each delete from the database, and the spool status will
-        // be checked and we more space is available the `is_disk_full` flag set to `false`.
-        //
-        // It falls back to the `cache.envelope_buffer_size`, and will try to keep the rest
-        // of the incoming envelopes in the memory till the `BufferGuard` is exhausted and it
-        // starts dropping the envelopes.
-        if let Some(ref spool_config) = self.spool_config {
-            if !spool_config.is_disk_full {
-                self.try_spool().await?;
+        match self.state {
+            BufferState::Memory(ref mut ram)
+            | BufferState::MemoryFileStandby { ref mut ram, .. } => {
+                ram.enqueue(key, managed_envelope);
             }
-        }
-
-        Ok(())
-    }
-
-    /// Tries to delete the envelops from persistent buffer in batches, extract and convert them to
-    /// managed envelopes and send to back into processing pipeline.
-    ///
-    /// If the error happens in the deletion/fetching phase, a key is returned to allow retrying later.
-    ///
-    /// Returns the amount of envelopes deleted from disk.
-    async fn delete_and_fetch(
-        &self,
-        db: &Pool<Sqlite>,
-        key: QueueKey,
-        sender: &mpsc::UnboundedSender<ManagedEnvelope>,
-    ) -> Result<(), QueueKey> {
-        loop {
-            // Removing envelopes from the on-disk buffer in batches has following implications:
-            // 1. It is faster to delete from the DB in batches.
-            // 2. Make sure that if we panic and deleted envelopes cannot be read out fully, we do not lose all of them,
-            // but only one batch, and the rest of them will stay on disk for the next iteration
-            // to pick up.
-            //
-            // Right now we use 100 for batch size.
-            let mut envelopes = sql::delete_and_fetch(key, 100).fetch(db).peekable();
-            relay_statsd::metric!(counter(RelayCounters::BufferReads) += 1);
-
-            // Stream is empty, we can break the loop, since we read everything by now.
-            if Pin::new(&mut envelopes).peek().await.is_none() {
-                return Ok(());
-            }
-
-            while let Some(envelope) = envelopes.next().await {
-                let envelope = match envelope {
-                    Ok(envelope) => envelope,
-
-                    // Bail if there are errors in the stream.
-                    Err(err) => {
-                        relay_log::error!(
-                            "failed to read the buffer stream from the disk: {}",
-                            LogError(&err)
-                        );
-                        return Err(key);
-                    }
-                };
-
-                match self.extract_envelope(envelope) {
-                    Ok(managed_envelope) => {
-                        sender.send(managed_envelope).ok();
-                    }
-                    Err(err) => relay_log::error!(
-                        "failed to extract envelope from the buffer: {}",
-                        LogError(&err)
-                    ),
+            BufferState::Disk(ref mut disk) => {
+                // The disk is full, drop the incoming envelopes.
+                if disk.is_full().await? {
+                    return Err(BufferError::SpoolIsFull);
                 }
+                disk.enqueue(key, managed_envelope).await?;
             }
         }
-    }
 
-    /// Checks if the spool still has space and sets `is_disk_full` flag accordingly.
-    async fn refresh_spool_state(&mut self) {
-        let Some(BufferSpoolConfig {
-            db,
-            max_disk_size,
-            ref mut is_disk_full, ..
-        }) = &mut self.spool_config else { return; };
-
-        // Refresh DB state only if we get the proper reading on the file.
-        if let Ok(estimated_size) = Self::estimate_buffer_size(db).await {
-            *is_disk_full = (estimated_size as usize) >= *max_disk_size;
-        }
+        let state = std::mem::take(&mut self.state);
+        self.state = state.transition(&self.config).await;
+        Ok(())
     }
 
     /// Handles the dequeueing messages from the internal buffer.
@@ -525,34 +795,18 @@ impl BufferService {
             sender,
         } = message;
 
-        for key in &keys {
-            for value in self.buffer.remove(key).unwrap_or_default() {
-                self.used_memory -= value.estimated_size();
-                sender.send(value).ok();
+        match self.state {
+            BufferState::Memory(ref mut ram)
+            | BufferState::MemoryFileStandby { ref mut ram, .. } => {
+                ram.dequeue(&keys, sender);
+            }
+            BufferState::Disk(ref mut disk) => {
+                disk.dequeue(project_key, &mut keys, sender, &self.services)
+                    .await;
             }
         }
-
-        // Persistent buffer is configured, lets try to get data from the disk.
-        let Some(BufferSpoolConfig { db, .. }) = &self.spool_config else { return Ok(()) };
-        let mut unused_keys = BTreeSet::new();
-
-        while let Some(key) = keys.pop() {
-            // If the error with a key is returned we must save it for the next iterration.
-            if let Err(key) = self.delete_and_fetch(db, key, &sender).await {
-                unused_keys.insert(key);
-            };
-        }
-
-        self.refresh_spool_state().await;
-
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesMemory) = self.used_memory as f64
-        );
-        if !unused_keys.is_empty() {
-            self.services
-                .project_cache
-                .send(UpdateBufferIndex::new(project_key, unused_keys))
-        }
+        let state = std::mem::take(&mut self.state);
+        self.state = state.transition(&self.config).await;
 
         Ok(())
     }
@@ -565,30 +819,37 @@ impl BufferService {
     async fn handle_remove(&mut self, message: RemoveMany) -> Result<(), BufferError> {
         let RemoveMany { project_key, keys } = message;
         let mut count: usize = 0;
-        for key in &keys {
-            let (current_count, current_size) = self.buffer.remove(key).map_or((0, 0), |k| {
-                (k.len(), k.into_iter().map(|k| k.estimated_size()).sum())
-            });
-            count += current_count;
-            self.used_memory -= current_size;
+
+        match self.state {
+            BufferState::Memory(ref mut ram)
+            | BufferState::MemoryFileStandby { ref mut ram, .. } => {
+                count += ram.remove(&keys);
+            }
+            BufferState::Disk(ref mut disk) => {
+                count += disk.remove(&keys).await?;
+            }
         }
 
-        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
-            for key in keys {
-                let result = sql::delete(key)
-                    .execute(db)
-                    .await
-                    .map_err(BufferError::DeleteFailed)?;
-                count += result.rows_affected() as usize;
-            }
-            self.refresh_spool_state().await;
-        }
+        let state = std::mem::take(&mut self.state);
+        self.state = state.transition(&self.config).await;
 
         if count > 0 {
             relay_log::with_scope(
                 |scope| scope.set_tag("project_key", project_key),
-                || relay_log::error!("evicted project with {} envelopes", count),
+                || relay_log::error!(count, "evicted project with envelopes"),
             );
+        }
+
+        Ok(())
+    }
+
+    async fn handle_health(&mut self, health: Health) -> Result<(), BufferError> {
+        match self.state {
+            // We do not check the ram, since we rely on `cache.envelope_buffer_size` to limit the
+            // memory usage and the number of the envelopes in the memory.
+            // Note: in the future we want to switch to `spool.envelopes.max_memory_size` option.
+            BufferState::Memory(_) | BufferState::MemoryFileStandby { .. } => health.0.send(true),
+            BufferState::Disk(ref disk) => health.0.send(!disk.is_full().await.unwrap_or_default()),
         }
 
         Ok(())
@@ -600,30 +861,35 @@ impl BufferService {
             Buffer::Enqueue(message) => self.handle_enqueue(message).await,
             Buffer::DequeueMany(message) => self.handle_dequeue(message).await,
             Buffer::RemoveMany(message) => self.handle_remove(message).await,
+            Buffer::Health(message) => self.handle_health(message).await,
         }
     }
 
     /// Handle the shutdown notification.
     ///
-    /// When the service notified to shut down, it tries to immediatelly spool to disk all the
-    /// content of the in-memory buffer. The service will spool to disk only if the spooling for
-    /// envelops is enabled.
+    /// Tries to spool to disk if the current buffer state is `BufferState::MemoryDiskStandby`,
+    /// which means we use the in-memory buffer active and disk still free or not used before.
     async fn handle_shutdown(&mut self) -> Result<(), BufferError> {
-        // Buffer to disk only if the DB and config are provided.
-        if let Some(BufferSpoolConfig { db, .. }) = &self.spool_config {
-            let count: usize = self.buffer.values().map(|v| v.len()).sum();
-            if count == 0 {
-                return Ok(());
-            }
-            relay_log::info!(
-                "received shutdown signal, spooling {} envelopes to disk",
-                count
-            );
+        let BufferState::MemoryFileStandby {
+            ref mut ram,
+            ref mut disk,
+        } = self.state
+        else {
+            return Ok(());
+        };
 
-            let buf = std::mem::take(&mut self.buffer);
-            self.used_memory = 0;
-            Self::do_spool(db, buf).await?;
+        let count: usize = ram.count();
+        if count == 0 {
+            return Ok(());
         }
+
+        relay_log::info!(
+            count,
+            "received shutdown signal, spooling envelopes to disk"
+        );
+
+        let buffer = std::mem::take(&mut ram.buffer);
+        disk.spool(buffer).await?;
         Ok(())
     }
 }
@@ -641,12 +907,18 @@ impl Service for BufferService {
 
                     Some(message) = rx.recv() => {
                         if let Err(err) = self.handle_message(message).await {
-                            relay_log::error!("failed to handle an incoming message: {}", LogError(&err))
+                            relay_log::error!(
+                                error = &err as &dyn Error,
+                                "failed to handle an incoming message",
+                            );
                         }
                     }
                     _ = shutdown.notified() => {
                        if let Err(err) = self.handle_shutdown().await {
-                            relay_log::error!("failed while shutting down the service: {}", LogError(&err))
+                            relay_log::error!(
+                                error = &err as &dyn Error,
+                                "failed while shutting down the service",
+                            );
                         }
                     }
                     else => break,
@@ -658,10 +930,15 @@ impl Service for BufferService {
 
 impl Drop for BufferService {
     fn drop(&mut self) {
-        let count: usize = self.buffer.values().map(|v| v.len()).sum();
-        // We have envelopes in memory, try to buffer them to the disk.
-        if count > 0 {
-            relay_log::error!("dropped {} envelopes", count);
+        // Count only envelopes from in-memory buffer.
+        match &self.state {
+            BufferState::Memory(ram) | BufferState::MemoryFileStandby { ram, .. } => {
+                let count = ram.count();
+                if count > 0 {
+                    relay_log::error!("dropped {count} envelopes");
+                }
+            }
+            BufferState::Disk(_) => (),
         }
     }
 }
@@ -671,11 +948,10 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use insta::assert_debug_snapshot;
-    use relay_common::Uuid;
-    use relay_general::protocol::EventId;
     use relay_test::mock_service;
+    use uuid::Uuid;
 
-    use crate::extractors::RequestMeta;
+    use crate::testutils::empty_envelope;
 
     use super::*;
 
@@ -691,12 +967,8 @@ mod tests {
         }
     }
 
-    fn empty_envelope() -> ManagedEnvelope {
-        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        let envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
+    fn empty_managed_envelope() -> ManagedEnvelope {
+        let envelope = empty_envelope();
         let Services {
             outcome_aggregator,
             test_store,
@@ -718,10 +990,9 @@ mod tests {
         }))
         .unwrap()
         .into();
-        let mut service = BufferService::create(buffer_guard, services(), config)
+        let service = BufferService::create(buffer_guard, services(), config)
             .await
             .unwrap();
-        service.untracked = true; // so we do not panic when dropping envelopes
         let addr = service.start();
         let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -742,7 +1013,7 @@ mod tests {
 
             addr.send(Enqueue {
                 key,
-                value: empty_envelope(),
+                value: empty_managed_envelope(),
             });
 
             // How long to wait to dequeue the message from the spool.
@@ -763,6 +1034,99 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn dequeue_waits_for_permits() {
+        relay_test::setup();
+        let num_permits = 3;
+        let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+
+        let services = services();
+
+        let service = BufferService::create(buffer_guard.clone(), services.clone(), config)
+            .await
+            .unwrap();
+        let addr = service.start();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let key = QueueKey {
+            own_key: project_key,
+            sampling_key: project_key,
+        };
+
+        // Enqueue an envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+
+        // Nothing dequeued yet:
+        assert!(rx.try_recv().is_err());
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+
+        // There are enough permits, so get an envelope:
+        let res = rx.recv().await;
+        assert!(res.is_some(), "{res:?}");
+        assert_eq!(buffer_guard.available(), 2);
+
+        // Simulate a new envelope coming in via a web request:
+        let new_envelope = buffer_guard
+            .enter(
+                empty_envelope(),
+                services.outcome_aggregator,
+                services.test_store,
+            )
+            .unwrap();
+
+        assert_eq!(buffer_guard.available(), 1);
+
+        // Enqueue & dequeue another envelope:
+        addr.send(Enqueue {
+            key,
+            value: empty_managed_envelope(),
+        });
+        // Request to dequeue:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // There is one permit left, but we only dequeue if we gave >= 50% capacity:
+        assert!(rx.try_recv().is_err());
+
+        // Freeing one permit gives us enough capacity:
+        assert_eq!(buffer_guard.available(), 1);
+        drop(new_envelope);
+
+        // Dequeue an envelope:
+        addr.send(DequeueMany {
+            project_key,
+            keys: [key].into(),
+            sender: tx.clone(),
+        });
+        assert_eq!(buffer_guard.available(), 2);
+        tokio::time::sleep(Duration::from_millis(100)).await; // give time to flush
+        assert!(rx.try_recv().is_ok());
+    }
+
     #[test]
     fn metrics_work() {
         let buffer_guard: Arc<_> = BufferGuard::new(999999).into();
@@ -770,7 +1134,8 @@ mod tests {
             "spool": {
                 "envelopes": {
                     "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 2048, // 2KB limit
+                    "max_memory_size": "4KB",
+                    "max_disk_size": "20KB",
                 }
             }
         }))
@@ -794,17 +1159,19 @@ mod tests {
                     .await
                     .unwrap();
 
-                service.untracked = true; // so we do not panic when dropping envelopes
-
                 // Send 5 envelopes
-                for _ in 0..5 {
-                    service
+                for i in 0..5 {
+                    let res = service
                         .handle_enqueue(Enqueue {
                             key,
-                            value: empty_envelope(),
+                            value: empty_managed_envelope(),
                         })
-                        .await
-                        .unwrap();
+                        .await;
+                    if i > 2 {
+                        assert!(res.is_err());
+                    } else {
+                        assert!(res.is_ok());
+                    }
                 }
 
                 // Dequeue everything
@@ -824,7 +1191,7 @@ mod tests {
                 while rx.recv().await.is_some() {
                     count += 1;
                 }
-                assert_eq!(count, 5);
+                assert_eq!(count, 3);
             })
         });
 
@@ -834,24 +1201,27 @@ mod tests {
             .filter(|name| name.contains("buffer."))
             .collect();
 
-        assert_debug_snapshot!(captures, @r###"
+        assert_debug_snapshot!(captures, @r#"
         [
             "buffer.envelopes_mem:2000|h",
+            "buffer.envelopes_mem_count:1|g",
             "buffer.envelopes_mem:4000|h",
-            "buffer.disk_size:24576|h",
+            "buffer.envelopes_mem_count:2|g",
+            "buffer.envelopes_mem:6000|h",
+            "buffer.envelopes_mem_count:3|g",
             "buffer.envelopes_mem:0|h",
             "buffer.writes:1|c",
-            "buffer.envelopes_mem:2000|h",
-            "buffer.envelopes_mem:4000|h",
+            "buffer.envelopes_written:3|c",
+            "buffer.envelopes_disk_count:3|g",
             "buffer.disk_size:24576|h",
-            "buffer.envelopes_mem:0|h",
-            "buffer.writes:1|c",
-            "buffer.envelopes_mem:2000|h",
-            "buffer.reads:1|c",
-            "buffer.reads:1|c",
             "buffer.disk_size:24576|h",
-            "buffer.envelopes_mem:0|h",
+            "buffer.dequeue_attempts:1|h",
+            "buffer.reads:1|c",
+            "buffer.envelopes_read:-3|c",
+            "buffer.envelopes_disk_count:0|g",
+            "buffer.dequeue_attempts:1|h",
+            "buffer.reads:1|c",
         ]
-        "###);
+        "#);
     }
 }

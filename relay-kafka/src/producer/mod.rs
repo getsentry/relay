@@ -1,23 +1,28 @@
-#[cfg(debug_assertions)]
-use std::cell::RefCell;
+//! This module contains the kafka producer related code.
+//!
+//! There are two different producers that are supported in Relay right now:
+//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
+//! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
+//! the shard number the different messages will be sent to different topics using the configured
+//! producer for the this exact shard.
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
+use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::BaseRecord;
 use rdkafka::ClientConfig;
 use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
-#[cfg(debug_assertions)]
-use crate::producer::schemas::Validator;
 use crate::statsd::KafkaHistograms;
 
 mod utils;
 use utils::{CaptureErrorContext, ThreadedProducer};
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "schemas")]
 mod schemas;
 
 /// Kafka producer errors.
@@ -44,7 +49,7 @@ pub enum ClientError {
     InvalidJson(#[source] serde_json::Error),
 
     /// Failed to run schema validation on message.
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "schemas")]
     #[error("failed to run schema validation on message")]
     SchemaValidationFailed(#[source] schemas::SchemaError),
 
@@ -60,6 +65,9 @@ pub trait Message {
 
     /// Returns the type of the message.
     fn variant(&self) -> &'static str;
+
+    /// Return the list of headers to be provided when payload is sent to Kafka.
+    fn headers(&self) -> Option<&BTreeMap<String, String>>;
 
     /// Serializes the message into its binary format.
     ///
@@ -138,8 +146,8 @@ impl fmt::Debug for ShardedProducer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
-    #[cfg(debug_assertions)]
-    schema_validator: RefCell<schemas::Validator>,
+    #[cfg(feature = "schemas")]
+    schema_validator: std::cell::RefCell<schemas::Validator>,
 }
 
 impl KafkaClient {
@@ -156,13 +164,20 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<(), ClientError> {
         let serialized = message.serialize()?;
-        #[cfg(debug_assertions)]
+        #[cfg(feature = "schemas")]
         self.schema_validator
             .borrow_mut()
             .validate_message_schema(topic, &serialized)
             .map_err(ClientError::SchemaValidationFailed)?;
         let key = message.key();
-        self.send(topic, organization_id, &key, message.variant(), &serialized)
+        self.send(
+            topic,
+            organization_id,
+            &key,
+            message.headers(),
+            message.variant(),
+            &serialized,
+        )
     }
 
     /// Sends the payload to the correct producer for the current topic.
@@ -171,21 +186,21 @@ impl KafkaClient {
         topic: KafkaTopic,
         organization_id: u64,
         key: &[u8; 16],
+        headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<(), ClientError> {
         let producer = self.producers.get(&topic).ok_or_else(|| {
             relay_log::error!(
-                "Attempted to send message to {:?} using an unconfigured kafka producer.",
-                topic
+                "attempted to send message to {topic:?} using an unconfigured kafka producer",
             );
             ClientError::InvalidTopicName
         })?;
-        producer.send(organization_id, key, variant, payload)
+        producer.send(organization_id, key, headers, variant, payload)
     }
 }
 
-/// Helper structure responsable for building the actual [`KafkaClient`].
+/// Helper structure responsible for building the actual [`KafkaClient`].
 #[derive(Default)]
 pub struct KafkaClientBuilder {
     reused_producers: BTreeMap<Option<String>, Arc<ThreadedProducer>>,
@@ -292,8 +307,8 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
-            #[cfg(debug_assertions)]
-            schema_validator: Validator::default().into(),
+            #[cfg(feature = "schemas")]
+            schema_validator: schemas::Validator::default().into(),
         }
     }
 }
@@ -307,7 +322,7 @@ impl fmt::Debug for KafkaClientBuilder {
     }
 }
 
-/// This object containes the Kafka producer variants for single and sharded configurations.
+/// This object contains the Kafka producer variants for single and sharded configurations.
 #[derive(Debug)]
 enum Producer {
     /// Configuration variant for the single kafka producer.
@@ -323,6 +338,7 @@ impl Producer {
         &self,
         organization_id: u64,
         key: &[u8; 16],
+        headers: Option<&BTreeMap<String, String>>,
         variant: &str,
         payload: &[u8],
     ) -> Result<(), ClientError> {
@@ -338,14 +354,27 @@ impl Producer {
 
             Self::Sharded(sharded) => sharded.get_producer(organization_id)?,
         };
-        let record = BaseRecord::to(topic_name).key(key).payload(payload);
+        let mut record = BaseRecord::to(topic_name).key(key).payload(payload);
 
-        producer.send(record).map_err(|(kafka_error, _message)| {
-            relay_log::with_scope(
-                |scope| scope.set_tag("variant", variant),
-                || relay_log::error!("error sending kafka message: {}", kafka_error),
+        // Make sure to set the headers if provided.
+        if let Some(headers) = headers {
+            let mut kafka_headers = OwnedHeaders::new();
+            for (key, value) in headers {
+                kafka_headers = kafka_headers.insert(Header {
+                    key,
+                    value: Some(value),
+                });
+            }
+            record = record.headers(kafka_headers);
+        }
+
+        producer.send(record).map_err(|(error, _message)| {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                tags.variant = variant,
+                "error sending kafka message"
             );
-            ClientError::SendFailed(kafka_error)
+            ClientError::SendFailed(error)
         })
     }
 }

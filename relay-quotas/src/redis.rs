@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use relay_common::UnixTimestamp;
+use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool};
@@ -79,7 +79,10 @@ impl<'a> RedisQuota<'a> {
 
     /// Returns the limit value for Redis (`-1` for unlimited, otherwise the limit value).
     fn limit(&self) -> i64 {
-        self.limit.map(i64::from).unwrap_or(-1)
+        self.limit
+            // If it does not fit into i64, treat as unlimited:
+            .and_then(|limit| limit.try_into().ok())
+            .unwrap_or(-1)
     }
 
     fn shift(&self) -> u64 {
@@ -228,7 +231,7 @@ impl RedisRateLimiter {
 
         let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let rejections: Vec<bool> = invocation
-            .invoke(&mut client.connection())
+            .invoke(&mut client.connection().map_err(RateLimitingError::Redis)?)
             .map_err(RedisError::Redis)
             .map_err(RateLimitingError::Redis)?;
 
@@ -257,7 +260,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
 
@@ -270,7 +273,7 @@ mod tests {
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
         RedisRateLimiter {
-            pool: RedisPool::single(&url, &RedisConfigOptions::default()).unwrap(),
+            pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
         }
@@ -656,6 +659,33 @@ mod tests {
     }
 
     #[test]
+    fn test_large_redis_limit_large() {
+        let quota = Quota {
+            id: Some("foo".to_owned()),
+            categories: DataCategories::new(),
+            scope: QuotaScope::Organization,
+            scope_id: None,
+            window: Some(10),
+            limit: Some(9223372036854775808), // i64::MAX + 1
+            reason_code: None,
+        };
+
+        let scoping = ItemScoping {
+            category: DataCategory::Error,
+            scoping: &Scoping {
+                organization_id: 69420,
+                project_id: ProjectId::new(42),
+                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+                key_id: Some(4711),
+            },
+        };
+
+        let timestamp = UnixTimestamp::from_secs(234_531);
+        let redis_quota = RedisQuota::new(&quota, scoping, timestamp).unwrap();
+        assert_eq!(redis_quota.limit(), -1);
+    }
+
+    #[test]
     #[allow(clippy::disallowed_names, clippy::let_unit_value)]
     fn test_is_rate_limited_script() {
         let now = SystemTime::now()
@@ -665,7 +695,7 @@ mod tests {
 
         let rate_limiter = build_rate_limiter();
         let mut client = rate_limiter.pool.client().expect("get client");
-        let mut conn = client.connection();
+        let mut conn = client.connection().expect("Redis connection");
 
         // define a few keys with random seed such that they do not collide with repeated test runs
         let foo = format!("foo___{now}");

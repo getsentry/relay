@@ -30,13 +30,44 @@ impl std::error::Error for BufferError {}
 pub struct BufferGuard {
     inner: Semaphore,
     capacity: usize,
+    high_watermark: f64,
+    low_watermark: f64,
 }
 
 impl BufferGuard {
     /// Creates a new `BufferGuard` based on config values.
     pub fn new(capacity: usize) -> Self {
         let inner = Semaphore::new(capacity);
-        Self { inner, capacity }
+        Self {
+            inner,
+            capacity,
+            high_watermark: 0.8,
+            low_watermark: 0.5,
+        }
+    }
+
+    /// Returns the current usage of `BufferGuard` permits.
+    #[inline]
+    fn usage(&self) -> f64 {
+        self.used() as f64 / self.capacity() as f64
+    }
+
+    /// Returns `true` if the `BufferGuard` exhausted more permits then defined in
+    /// `high_watermark`.
+    #[inline]
+    pub fn is_over_high_watermark(&self) -> bool {
+        self.usage() >= self.high_watermark
+    }
+
+    /// Returns `true` if the `BufferGuard` number of permits is still under the `low_watermark`.
+    #[inline]
+    pub fn is_below_low_watermark(&self) -> bool {
+        self.usage() <= self.low_watermark
+    }
+
+    /// Returns the total capacity of the pipeline.
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     /// Returns the unused capacity of the pipeline.

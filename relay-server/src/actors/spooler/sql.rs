@@ -1,3 +1,6 @@
+//! This module contains the helper functions wrapping the SQL queries which will be run against
+//! the on-disk spool (currently backed by SQLite).
+
 use futures::stream::{Stream, StreamExt};
 use sqlx::query::Query;
 use sqlx::sqlite::SqliteArguments;
@@ -51,6 +54,28 @@ pub fn current_size<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
     )
 }
 
+/// Creates the query to select only 1 record's `received_at` from the database.
+///
+/// It is usefull and very fast for checking if the table is empty.
+pub fn select_one<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query("SELECT received_at FROM envelopes LIMIT 1;")
+}
+
+/// Creates the INSERT query.
+pub fn insert<'a>(
+    key: QueueKey,
+    managed_envelope: Vec<u8>,
+    received_at: i64,
+) -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query(
+        "INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES (?, ?, ?, ?);",
+    )
+    .bind(received_at)
+    .bind(key.own_key.to_string())
+    .bind(key.sampling_key.to_string())
+    .bind(managed_envelope)
+}
+
 /// Descibes the chunk item which is handled by insert statement.
 type ChunkItem = (QueueKey, Vec<u8>, i64);
 
@@ -73,10 +98,12 @@ fn build_insert<'a>(
 ///
 /// This function internally will split the provided stream into chunks and will prepare the
 /// insert statement for each chunk.
+///
+/// Returns the number of inserted rows on success.
 pub async fn do_insert(
     stream: impl Stream<Item = ChunkItem> + std::marker::Unpin,
     db: &Pool<Sqlite>,
-) -> Result<(), sqlx::Error> {
+) -> Result<u64, sqlx::Error> {
     // Since we have 3 variables we have to bind, we devide the SQLite limit by 3
     // here to prepare the chunks which will be preparing the batch inserts.
     let mut envelopes = stream.chunks(SQLITE_LIMIT_VARIABLE_NUMBER / 3);
@@ -87,8 +114,10 @@ pub async fn do_insert(
     let mut query_builder: QueryBuilder<Sqlite> =
         QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
 
+    let mut count = 0;
     while let Some(chunk) = envelopes.next().await {
-        build_insert(&mut query_builder, chunk).execute(db).await?;
+        let result = build_insert(&mut query_builder, chunk).execute(db).await?;
+        count += result.rows_affected();
         relay_statsd::metric!(counter(RelayCounters::BufferWrites) += 1);
 
         // Reset the builder to initial state set by `QueryBuilder::new` function,
@@ -96,5 +125,5 @@ pub async fn do_insert(
         query_builder.reset();
     }
 
-    Ok(())
+    Ok(count)
 }

@@ -95,9 +95,9 @@
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 mod android;
-mod cocoa;
 mod error;
 mod extract_from_transaction;
 mod measurements;
@@ -107,15 +107,14 @@ mod sample;
 mod transaction_metadata;
 mod utils;
 
-use relay_general::protocol::{Event, EventId};
+use relay_event_schema::protocol::{Event, EventId};
 
-use crate::android::parse_android_profile;
-use crate::cocoa::parse_cocoa_profile;
 use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
-use crate::sample::{parse_sample_profile, Version};
 
 pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
+
+const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Deserialize)]
 struct MinimalProfile {
@@ -123,11 +122,36 @@ struct MinimalProfile {
     event_id: EventId,
     platform: String,
     #[serde(default)]
-    version: Version,
+    version: sample::Version,
 }
 
-fn minimal_profile_from_json(data: &[u8]) -> Result<MinimalProfile, ProfileError> {
-    serde_json::from_slice(data).map_err(ProfileError::InvalidJson)
+fn minimal_profile_from_json(payload: &[u8]) -> Result<MinimalProfile, ProfileError> {
+    serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)
+}
+
+pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
+    let profile = match minimal_profile_from_json(payload) {
+        Ok(profile) => profile,
+        Err(err) => return Err(err),
+    };
+    match profile.version {
+        sample::Version::V1 => {
+            let _: sample::ProfileMetadata = match serde_json::from_slice(payload) {
+                Ok(profile) => profile,
+                Err(err) => return Err(ProfileError::InvalidJson(err)),
+            };
+        }
+        _ => match profile.platform.as_str() {
+            "android" => {
+                let _: android::ProfileMetadata = match serde_json::from_slice(payload) {
+                    Ok(profile) => profile,
+                    Err(err) => return Err(ProfileError::InvalidJson(err)),
+                };
+            }
+            _ => return Err(ProfileError::PlatformNotSupported),
+        },
+    };
+    Ok(())
 }
 
 pub fn expand_profile(
@@ -145,12 +169,14 @@ pub fn expand_profile(
         ),
         _ => (BTreeMap::new(), BTreeMap::new()),
     };
-
     let processed_payload = match profile.version {
-        Version::V1 => parse_sample_profile(payload, transaction_metadata, transaction_tags),
-        Version::Unknown => match profile.platform.as_str() {
-            "android" => parse_android_profile(payload, transaction_metadata, transaction_tags),
-            "cocoa" => parse_cocoa_profile(payload),
+        sample::Version::V1 => {
+            sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
+        }
+        sample::Version::Unknown => match profile.platform.as_str() {
+            "android" => {
+                android::parse_android_profile(payload, transaction_metadata, transaction_tags)
+            }
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
@@ -166,15 +192,15 @@ mod tests {
         let data = r#"{"version":"1","platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
-        assert_eq!(profile.unwrap().version, Version::V1);
+        assert_eq!(profile.unwrap().version, sample::Version::V1);
     }
 
     #[test]
     fn test_minimal_profile_without_version() {
-        let data = r#"{"platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
+        let data = r#"{"platform":"android","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
-        assert_eq!(profile.unwrap().version, Version::Unknown);
+        assert_eq!(profile.unwrap().version, sample::Version::Unknown);
     }
 
     #[test]
@@ -185,7 +211,7 @@ mod tests {
 
     #[test]
     fn test_expand_profile_without_version() {
-        let payload = include_bytes!("../tests/fixtures/profiles/cocoa/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
         assert!(expand_profile(payload, Some(&Event::default())).is_ok());
     }
 }

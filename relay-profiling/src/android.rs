@@ -3,16 +3,16 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use android_trace_log::chrono::{DateTime, Utc};
 use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
 use data_encoding::BASE64_NOPAD;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
-use crate::ProfileError;
+use crate::{ProfileError, MAX_PROFILE_DURATION};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct AndroidProfile {
+pub struct ProfileMetadata {
     android_api_level: u16,
 
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -35,8 +35,13 @@ struct AndroidProfile {
     platform: String,
     profile_id: EventId,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    timestamp: Option<DateTime<Utc>>,
+
     #[serde(default, skip_serializing_if = "String::is_empty")]
     release: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    dist: String,
 
     version_code: String,
     version_name: String,
@@ -65,12 +70,6 @@ struct AndroidProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     transaction: Option<TransactionMetadata>,
 
-    #[serde(default, skip_serializing)]
-    sampled_profile: String,
-
-    #[serde(default = "AndroidProfile::default")]
-    profile: AndroidTraceLog,
-
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurements: Option<HashMap<String, Measurement>>,
 
@@ -79,6 +78,18 @@ struct AndroidProfile {
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_tags: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct AndroidProfile {
+    #[serde(flatten)]
+    metadata: ProfileMetadata,
+
+    #[serde(default, skip_serializing)]
+    sampled_profile: String,
+
+    #[serde(default = "AndroidProfile::default")]
+    profile: AndroidTraceLog,
 }
 
 impl AndroidProfile {
@@ -112,7 +123,7 @@ impl AndroidProfile {
     }
 
     fn has_transaction_metadata(&self) -> bool {
-        !self.transaction_name.is_empty() && self.duration_ns > 0
+        !self.metadata.transaction_name.is_empty() && self.metadata.duration_ns > 0
     }
 
     /// Removes an event with a duration of 0
@@ -140,26 +151,26 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
     let mut profile: AndroidProfile =
         serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
 
-    let transaction_opt = profile.transactions.drain(..).next();
+    let transaction_opt = profile.metadata.transactions.drain(..).next();
     if let Some(transaction) = transaction_opt {
         if !transaction.valid() {
             return Err(ProfileError::InvalidTransactionMetadata);
         }
 
         // this is for compatibility
-        profile.active_thread_id = transaction.active_thread_id;
-        profile.duration_ns = transaction.duration_ns();
-        profile.trace_id = transaction.trace_id;
-        profile.transaction_id = transaction.id;
-        profile.transaction_name = transaction.name.clone();
+        profile.metadata.active_thread_id = transaction.active_thread_id;
+        profile.metadata.duration_ns = transaction.duration_ns();
+        profile.metadata.trace_id = transaction.trace_id;
+        profile.metadata.transaction_id = transaction.id;
+        profile.metadata.transaction_name = transaction.name.clone();
 
-        profile.transaction = Some(transaction);
+        profile.metadata.transaction = Some(transaction);
     } else if profile.has_transaction_metadata() {
-        profile.transaction = Some(TransactionMetadata {
-            active_thread_id: profile.active_thread_id,
-            id: profile.transaction_id,
-            name: profile.transaction_name.clone(),
-            trace_id: profile.trace_id,
+        profile.metadata.transaction = Some(TransactionMetadata {
+            active_thread_id: profile.metadata.active_thread_id,
+            id: profile.metadata.transaction_id,
+            name: profile.metadata.transaction_name.clone(),
+            trace_id: profile.metadata.trace_id,
             ..Default::default()
         });
     } else {
@@ -175,6 +186,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
         return Err(ProfileError::NotEnoughSamples);
     }
 
+    if profile.profile.elapsed_time > MAX_PROFILE_DURATION {
+        return Err(ProfileError::DurationIsTooLong);
+    }
+
     Ok(profile)
 }
 
@@ -186,23 +201,27 @@ pub fn parse_android_profile(
     let mut profile = parse_profile(payload)?;
 
     if let Some(transaction_name) = transaction_metadata.get("transaction") {
-        profile.transaction_name = transaction_name.to_owned();
+        profile.metadata.transaction_name = transaction_name.to_owned();
 
-        if let Some(ref mut transaction) = profile.transaction {
-            transaction.name = profile.transaction_name.to_owned();
+        if let Some(ref mut transaction) = profile.metadata.transaction {
+            transaction.name = profile.metadata.transaction_name.to_owned();
         }
     }
 
     if let Some(release) = transaction_metadata.get("release") {
-        profile.release = release.to_owned();
+        profile.metadata.release = release.to_owned();
+    }
+
+    if let Some(dist) = transaction_metadata.get("dist") {
+        profile.metadata.dist = dist.to_owned();
     }
 
     if let Some(environment) = transaction_metadata.get("environment") {
-        profile.environment = environment.to_owned();
+        profile.metadata.environment = environment.to_owned();
     }
 
-    profile.transaction_metadata = transaction_metadata;
-    profile.transaction_tags = transaction_tags;
+    profile.metadata.transaction_metadata = transaction_metadata;
+    profile.metadata.transaction_tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
@@ -283,16 +302,16 @@ mod tests {
             Ok(profile) => profile,
         };
         assert_eq!(
-            profile.transaction_id,
+            profile.metadata.transaction_id,
             "7d6db784355e4d7dbf98671c69cbcc77".parse().unwrap()
         );
         assert_eq!(
-            profile.trace_id,
+            profile.metadata.trace_id,
             "7d6db784355e4d7dbf98671c69cbcc77".parse().unwrap()
         );
-        assert_eq!(profile.active_thread_id, 12345);
-        assert_eq!(profile.transaction_name, "transaction1");
-        assert_eq!(profile.duration_ns, 1000000000);
+        assert_eq!(profile.metadata.active_thread_id, 12345);
+        assert_eq!(profile.metadata.transaction_name, "transaction1");
+        assert_eq!(profile.metadata.duration_ns, 1000000000);
     }
 
     #[test]
@@ -312,14 +331,32 @@ mod tests {
         let output: AndroidProfile = serde_json::from_slice(&profile_json.unwrap()[..])
             .map_err(ProfileError::InvalidJson)
             .unwrap();
-        assert_eq!(output.release, "some-random-release".to_string());
+        assert_eq!(output.metadata.release, "some-random-release".to_string());
         assert_eq!(
-            output.transaction_name,
+            output.metadata.transaction_name,
             "some-random-transaction".to_string()
         );
 
-        if let Some(transaction) = output.transaction {
+        if let Some(transaction) = output.metadata.transaction {
             assert_eq!(transaction.name, "some-random-transaction".to_string());
         }
+    }
+
+    #[test]
+    fn test_timestamp() {
+        let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
+        let profile = parse_profile(payload);
+
+        assert!(profile.is_ok());
+        assert!(profile.as_ref().unwrap().metadata.timestamp.is_none());
+
+        let mut ap = profile.unwrap();
+        let now = Some(Utc::now());
+        ap.metadata.timestamp = now;
+        let data = serde_json::to_vec(&ap);
+        let updated = parse_profile(&(data.unwrap())[..]);
+
+        assert!(updated.is_ok());
+        assert_eq!(updated.unwrap().metadata.timestamp, now);
     }
 }

@@ -4,26 +4,30 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.4.0"
+version = "23.8.0"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [features]
+dashboard = ["relay-server/dashboard", "relay-log/dashboard"]
 default = []
 processing = ["relay-server/processing"]
 crash-handler = ["relay-log/crash-handler"]
 
 # Direct dependencies of the main application in `src/`
 [dependencies]
-anyhow = "1.0.66"
-clap = { version = "4.1.4", features = ["env", "wrap_help"] }
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["env", "wrap_help"] }
 clap_complete = "4.1.1"
 dialoguer = "0.10.0"
 hostname = "0.3.1"
-once_cell = "1.13.1"
-relay-common = { path = "../relay-common" }
+once_cell = { workspace = true }
 relay-config = { path = "../relay-config" }
 relay-log = { path = "../relay-log", features = ["init"] }
 relay-server = { path = "../relay-server" }
 relay-statsd = { path = "../relay-statsd" }
+uuid = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemallocator = { version = "0.5.0", features = ["background_threads"] }
