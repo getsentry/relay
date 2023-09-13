@@ -118,9 +118,7 @@ mod setup;
 pub use setup::*;
 
 #[cfg(feature = "dashboard")]
-mod dashboard;
-#[cfg(feature = "dashboard")]
-pub use dashboard::*;
+pub mod dashboard;
 
 #[cfg(feature = "test")]
 mod test;
