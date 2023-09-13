@@ -1,6 +1,7 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::condition::{EqCondition, RuleCondition};
+use relay_common::glob3::GlobPatterns;
+use relay_sampling::condition::{AndCondition, EqCondition, GlobCondition, RuleCondition};
 use serde_json::Value;
 
 use crate::feature::Feature;
@@ -25,12 +26,17 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
+    let modules_condition = RuleCondition::Glob(GlobCondition {
+        name: "span.data.module".into(),
+        value: GlobPatterns::new(vec!["db".into(), "db.*".into()]),
+    });
+
     config.metrics.extend([
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: None,
+            condition: Some(modules_condition.clone()),
             tags: vec![TagSpec {
                 key: "transaction".into(),
                 field: Some("span.data.transaction".into()),
@@ -42,7 +48,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: None,
+            condition: Some(modules_condition.clone()),
             tags: Default::default(),
         },
     ]);
@@ -70,7 +76,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 key: key.into(),
                 field: Some(format!("span.data.{}", key.replace('.', "\\."))),
                 value: None,
-                condition: None,
+                condition: Some(modules_condition.clone()),
             })
             .into(),
         },
@@ -81,10 +87,15 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     key: key.into(),
                     field: Some(format!("span.data.{}", key.replace('.', "\\."))),
                     value: None,
-                    condition: Some(RuleCondition::Eq(EqCondition {
-                        name: "span.data.mobile".into(),
-                        value: Value::Bool(true),
-                        options: Default::default(),
+                    condition: Some(RuleCondition::And(AndCondition {
+                        inner: vec![
+                            RuleCondition::Eq(EqCondition {
+                                name: "span.data.mobile".into(),
+                                value: Value::Bool(true),
+                                options: Default::default(),
+                            }),
+                            modules_condition.clone(),
+                        ],
                     })),
                 })
                 .into(),
