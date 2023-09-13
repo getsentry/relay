@@ -61,11 +61,12 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
+use crate::actors::bias_redis::update_redis_bias_count;
 use crate::actors::envelopes::{EnvelopeManager, SendEnvelope, SendEnvelopeError, SubmitEnvelope};
 use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::ProjectCache;
+use crate::actors::project_cache::{ProjectCache, UpdateCount};
 use crate::actors::upstream::{SendRequest, UpstreamRelay};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
@@ -74,7 +75,8 @@ use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtra
 use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
+    self, get_sampling_result, ChunkedFormDataAggregator, FormDataIter, ItemAction,
+    ManagedEnvelope, SamplingResult,
 };
 
 /// The minimum clock drift for correction to apply.
@@ -1371,7 +1373,7 @@ impl EnvelopeProcessorService {
             event_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            sampling_result: SamplingResult::Keep,
+            sampling_result: SamplingResult::Keep(None),
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -2331,20 +2333,42 @@ impl EnvelopeProcessorService {
 
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        let redis = self.inner.redis.clone();
-        let upstream = self.inner.upstream_relay.clone();
-        state.sampling_result = utils::get_sampling_result(
+        let sampling_result = utils::get_sampling_result(
             self.inner.config.processing_enabled(),
             Some(&state.project_state),
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
             state.event.value(),
             &state.reservoir_stuff,
-            self.inner.project_cache.clone(),
-            state.managed_envelope.scoping().project_key.into(),
-            redis,
-            Some(upstream),
         );
+
+        // The Event is kept due to bias
+        if let SamplingResult::Keep(Some(rule_id)) = sampling_result {
+            let project_key = state.managed_envelope.scoping().project_key;
+
+            self.inner.project_cache.send(UpdateCount {
+                project_key,
+                rule_id,
+            });
+
+            #[cfg(feature = "processing")]
+            if let (Some(reservoir_limit), Some(redis)) = (
+                state.reservoir_stuff.get(&rule_id),
+                self.inner.redis.clone(),
+            ) {
+                if let Err(e) = update_redis_bias_count(
+                    redis,
+                    *reservoir_limit,
+                    self.inner.upstream_relay.clone(),
+                    project_key,
+                    rule_id,
+                ) {
+                    relay_log::error!("failed to update redis bias counter: {}", e);
+                }
+            }
+        }
+
+        state.sampling_result = sampling_result;
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
@@ -2357,16 +2381,27 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let (Some(root_state), Some(dsc)) = (state.sampling_project_state.as_deref(),                state.envelope().dsc()) else {return;};
+        let (Some(root_state), Some(dsc)) = (state.sampling_project_state.as_deref(),                  state.envelope().dsc()) else {return;};
 
-        let sampled = utils::is_trace_fully_sampled(
-            self.inner.config.processing_enabled(),
-            root_state,
-            dsc,
-            self.inner.project_cache.clone(),
-        );
+        let sampled = {
+            let Some(dsc_sampled) = dsc.sampled else {return};
 
-        let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
+            if !dsc_sampled {
+                false
+            } else {
+                get_sampling_result(
+                    self.inner.config.processing_enabled(),
+                    None,
+                    Some(root_state),
+                    Some(dsc),
+                    None,
+                    &BTreeMap::default(),
+                )
+                .should_keep()
+            }
+        };
+
+        let Some(event) = state.event.value_mut() else {
             return;
         };
 
@@ -3075,7 +3110,7 @@ mod tests {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingResult::Keep,
+                sampling_result: SamplingResult::Keep(None),
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -3095,12 +3130,12 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+        assert!(matches!(state.sampling_result, SamplingResult::Keep(None)));
 
         // Current version is 1, so it won't run DS if it's outdated
         let mut state = get_state(Some(0));
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+        assert!(matches!(state.sampling_result, SamplingResult::Keep(None)));
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(1));
@@ -3130,7 +3165,7 @@ mod tests {
 
         for (sample_rate, expected_result) in [
             (0.0, SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))),
-            (1.0, SamplingResult::Keep),
+            (1.0, SamplingResult::Keep(None)),
         ] {
             let project_state = state_with_rule_and_condition(
                 Some(sample_rate),
@@ -3143,7 +3178,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingResult::Keep,
+                sampling_result: SamplingResult::Keep(None),
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,

@@ -2,71 +2,66 @@
 use std::collections::BTreeMap;
 
 use crate::actors::project::ProjectState;
-use crate::actors::project_cache::{ProjectCache, UpdateCount};
-use crate::actors::upstream::UpstreamRelay;
 use crate::envelope::{Envelope, ItemType};
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::Event;
-use relay_redis::RedisPool;
 use relay_sampling::config::RuleId;
-use relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
+use relay_sampling::evaluation::{
+    check_unsupported_rules, merge_rules_from_configs, MatchedRuleIds, SamplingMatch,
+};
 use relay_sampling::DynamicSamplingContext;
-use relay_system::Addr;
+use uuid::Uuid;
 
-#[cfg(feature = "processing")]
-use crate::actors::bias_redis::do_the_stuff;
+pub type BiasedRuleId = RuleId;
 
 /// The result of a sampling operation.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SamplingResult {
     /// Keep the event.
     ///
     /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
     /// the rules.
-    #[default]
-    Keep,
-
+    Keep(Option<BiasedRuleId>),
     /// Drop the event, due to a list of rules with provided identifiers.
     Drop(MatchedRuleIds),
 }
 
+impl Default for SamplingResult {
+    fn default() -> Self {
+        Self::Keep(None)
+    }
+}
+
 impl SamplingResult {
-    fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
-        let Some(sampling_match) = sampling_match else {
-            relay_log::trace!("keeping event that didn't match the configuration");
-            return SamplingResult::Keep;
-        };
+    fn determine_from_sampling_match(
+        sample_rate: f64,
+        seed: Uuid,
+        matched_rule_ids: MatchedRuleIds,
+    ) -> Self {
+        let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
+        relay_log::trace!(
+            sample_rate,
+            random_number,
+            "applying dynamic sampling to matching event"
+        );
 
-        match sampling_match {
-            SamplingMatch::Bias { .. } => SamplingResult::Keep,
-            SamplingMatch::Other {
-                sample_rate,
-                seed,
-                matched_rule_ids,
-            } => {
-                let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
-                relay_log::trace!(
-                    sample_rate,
-                    random_number,
-                    "applying dynamic sampling to matching event"
-                );
-
-                if random_number >= sample_rate {
-                    relay_log::trace!("dropping event that matched the configuration");
-                    SamplingResult::Drop(matched_rule_ids)
-                } else {
-                    relay_log::trace!("keeping event that matched the configuration");
-                    SamplingResult::Keep
-                }
-            }
+        if random_number >= sample_rate {
+            relay_log::trace!("dropping event that matched the configuration");
+            SamplingResult::Drop(matched_rule_ids)
+        } else {
+            relay_log::trace!("keeping event that matched the configuration");
+            SamplingResult::Keep(None)
         }
+    }
+
+    pub fn should_keep(&self) -> bool {
+        matches!(self, &Self::Keep(_))
     }
 }
 
 /// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
 /// kept or dropped.
-#[allow(clippy::too_many_arguments)]
 pub fn get_sampling_result(
     processing_enabled: bool,
     project_state: Option<&ProjectState>,
@@ -74,10 +69,6 @@ pub fn get_sampling_result(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     reservoir_stuff: &BTreeMap<RuleId, usize>,
-    projcache: Addr<ProjectCache>,
-    project_key: Option<ProjectKey>,
-    _redis: Option<RedisPool>,
-    _upstream: Option<Addr<UpstreamRelay>>,
 ) -> SamplingResult {
     // We want to extract the SamplingConfig from each project state.
     let sampling_config: Option<&relay_sampling::SamplingConfig> =
@@ -85,71 +76,48 @@ pub fn get_sampling_result(
     let root_sampling_config =
         root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
 
-    let sampling_match = relay_sampling::evaluation::merge_configs_and_match(
-        processing_enabled,
-        sampling_config,
-        root_sampling_config,
-        dsc,
+    // We check if there are unsupported rules in any of the two configurations.
+    if check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).is_err() {
+        return SamplingResult::Keep(None);
+    };
+
+    // We perform the rule matching with the multi-matching logic on the merged rules.
+    let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
+
+    // If we have a match, we will try to derive the sample rate based on the sampling mode.
+    //
+    // Keep in mind that the sample rate received here has already been derived by the matching
+    // logic, based on multiple matches and decaying functions.
+    //
+    // The determination of the sampling mode occurs with the following priority:
+    // 1. Non-root project sampling mode
+    // 2. Root project sampling mode
+    let Some(primary_config) = sampling_config.or(root_sampling_config) else {
+        relay_log::error!("cannot sample without at least one sampling config");
+        return SamplingResult::Keep(None);
+    };
+
+    let sampling_match = SamplingMatch::get_sampling_match(
+        rules,
         event,
+        dsc,
         Utc::now(),
         reservoir_stuff,
+        &primary_config.mode,
     );
 
-    if let Some(SamplingMatch::Bias { rule_id }) = sampling_match {
-        let project_key = project_key.unwrap();
-        projcache.send(UpdateCount {
-            project_key,
-            rule_id,
-        });
-
-        #[cfg(feature = "processing")]
-        {
-            if let (Some(reservoir_limit), Some(redis)) = (reservoir_stuff.get(&rule_id), _redis) {
-                do_the_stuff(
-                    redis,
-                    *reservoir_limit,
-                    _upstream.unwrap(),
-                    project_key,
-                    rule_id,
-                );
-            }
+    match sampling_match {
+        Some(SamplingMatch::Normal {
+            sample_rate,
+            seed,
+            matched_rule_ids,
+        }) => SamplingResult::determine_from_sampling_match(sample_rate, seed, matched_rule_ids),
+        Some(SamplingMatch::Bias { rule_id }) => SamplingResult::Keep(Some(rule_id)),
+        None => {
+            relay_log::trace!("keeping event that didn't match the configuration");
+            SamplingResult::Keep(None)
         }
     }
-
-    SamplingResult::determine_from_sampling_match(sampling_match)
-}
-
-/// Runs dynamic sampling and returns whether the
-/// transactions received with such dsc and project state would be kept or dropped by dynamic
-/// sampling.
-pub fn is_trace_fully_sampled(
-    processing_enabled: bool,
-    root_project_state: &ProjectState,
-    dsc: &DynamicSamplingContext,
-    projcache: Addr<ProjectCache>,
-) -> Option<bool> {
-    // If the sampled field is not set, we prefer to not tag the error since we have no clue on
-    // whether the head of the trace was kept or dropped on the client side.
-    // In addition, if the head of the trace was dropped on the client we will immediately mark
-    // the trace as not fully sampled.
-    if !(dsc.sampled?) {
-        return Some(false);
-    }
-
-    let sampling_result = get_sampling_result(
-        processing_enabled,
-        None,
-        Some(root_project_state),
-        Some(dsc),
-        None,
-        &BTreeMap::default(),
-        projcache,
-        None,
-        None,
-        None,
-    );
-
-    Some(matches!(sampling_result, SamplingResult::Keep))
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.

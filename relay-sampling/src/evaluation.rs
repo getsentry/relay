@@ -52,7 +52,7 @@ pub fn merge_rules_from_configs<'a>(
 
 /// Checks whether unsupported rules result in a direct keep of the event or depending on the
 /// type of Relay an ignore of unsupported rules.
-fn check_unsupported_rules(
+pub fn check_unsupported_rules(
     processing_enabled: bool,
     sampling_config: Option<&SamplingConfig>,
     root_sampling_config: Option<&SamplingConfig>,
@@ -71,68 +71,25 @@ fn check_unsupported_rules(
     Ok(())
 }
 
-/// Gets the sampling match result by creating the merged configuration and matching it against
-/// the sampling configuration.
-pub fn merge_configs_and_match(
-    processing_enabled: bool,
-    sampling_config: Option<&SamplingConfig>,
-    root_sampling_config: Option<&SamplingConfig>,
+fn get_adjusted_sample_rate(
+    base_sample_rate: f64,
     dsc: Option<&DynamicSamplingContext>,
-    event: Option<&Event>,
-    now: DateTime<Utc>,
-    bias_counters: &BTreeMap<RuleId, usize>,
-) -> Option<SamplingMatch> {
-    // We check if there are unsupported rules in any of the two configurations.
-    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
-
-    // We perform the rule matching with the multi-matching logic on the merged rules.
-    let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
-    let mut match_result =
-        SamplingMatch::match_against_rules(rules, event, dsc, now, bias_counters)?;
-
-    let sample_rate = match match_result {
-        SamplingMatch::Bias { .. } => return Some(match_result),
-        SamplingMatch::Other { sample_rate, .. } => sample_rate,
-    };
-
-    // If we have a match, we will try to derive the sample rate based on the sampling mode.
-    //
-    // Keep in mind that the sample rate received here has already been derived by the matching
-    // logic, based on multiple matches and decaying functions.
-    //
-    // The determination of the sampling mode occurs with the following priority:
-    // 1. Non-root project sampling mode
-    // 2. Root project sampling mode
-    let Some(primary_config) = sampling_config.or(root_sampling_config) else {
-        relay_log::error!("cannot sample without at least one sampling config");
-        return None;
-    };
-
-    let adjusted_sample_rate = match primary_config.mode {
-        SamplingMode::Received => sample_rate,
+    sampling_mode: &SamplingMode,
+) -> f64 {
+    match sampling_mode {
         SamplingMode::Total => match dsc {
-            Some(dsc) => dsc.adjusted_sample_rate(sample_rate),
-            None => sample_rate,
+            Some(dsc) => dsc.adjusted_sample_rate(base_sample_rate),
+            None => base_sample_rate,
         },
+        SamplingMode::Received => base_sample_rate,
         SamplingMode::Unsupported => {
-            if processing_enabled {
-                relay_log::error!("found unsupported sampling mode even as processing Relay");
-            }
+            #[cfg(feature = "processing")]
+            relay_log::error!("found unsupported sampling mode even as processing Relay");
 
-            return None;
+            base_sample_rate
         }
-    };
-
-    match_result.set_sample_rate(adjusted_sample_rate);
-
-    // Only if we arrive at this stage, it means that we have found a match and we want to prepare
-    // the data for making the sampling decision.
-    Some(match_result)
+    }
 }
-
-/// Increment the counter for the given rule id.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub struct IncrementBiasCounter(RuleId);
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -143,7 +100,7 @@ pub enum SamplingMatch {
         rule_id: RuleId,
     },
     /// Normal sampling.
-    Other {
+    Normal {
         /// The sample rate to use for the incoming event.
         sample_rate: f64,
 
@@ -162,7 +119,7 @@ pub enum SamplingMatch {
 impl SamplingMatch {
     /// Setter for `sample_rate`.
     pub fn set_sample_rate(&mut self, new_sample_rate: f64) {
-        if let Self::Other {
+        if let Self::Normal {
             ref mut sample_rate,
             ..
         } = self
@@ -183,12 +140,13 @@ impl SamplingMatch {
     ///
     /// In case no sample rate rule is matched, we are going to return a None, signaling that no
     /// match has been found.
-    pub fn match_against_rules<'a, I>(
+    pub fn get_sampling_match<'a, I>(
         rules: I,
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
         reservoir_stuff: &BTreeMap<RuleId, usize>,
+        sampling_mode: &SamplingMode,
     ) -> Option<SamplingMatch>
     where
         I: Iterator<Item = &'a SamplingRule>,
@@ -214,7 +172,10 @@ impl SamplingMatch {
         for rule in rules {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
-                    Some(dsc) => rule.condition.matches(dsc),
+                    Some(dsc) => {
+                        seed = Some(dsc.trace_id);
+                        rule.condition.matches(dsc)
+                    }
                     _ => false,
                 },
                 RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
@@ -232,12 +193,6 @@ impl SamplingMatch {
                 ) {
                     matched_rule_ids.push(rule.id);
 
-                    if rule.ty == RuleType::Trace {
-                        if let Some(dsc) = dsc {
-                            seed = Some(dsc.trace_id);
-                        }
-                    }
-
                     if let SamplingValueEvaluator::InspectBias { target_is_reached } = evaluator {
                         // When target is reached, we disable this rule, and sample accoridng to
                         // other rules. This branch should only be reached in the time interval
@@ -254,8 +209,13 @@ impl SamplingMatch {
                     match rule.sampling_value {
                         SamplingValue::Factor { .. } => accumulated_factors *= value,
                         SamplingValue::SampleRate { .. } => {
-                            return Some(SamplingMatch::Other {
-                                sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
+                            let sample_rate = {
+                                let base = (value * accumulated_factors).clamp(0.0, 1.0);
+                                get_adjusted_sample_rate(base, dsc, sampling_mode)
+                            };
+
+                            return Some(SamplingMatch::Normal {
+                                sample_rate,
                                 seed: seed?,
                                 matched_rule_ids: MatchedRuleIds(matched_rule_ids),
                             });

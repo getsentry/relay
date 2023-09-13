@@ -333,7 +333,7 @@ impl TransactionExtractor<'_> {
             }
             TransactionCPRTags {
                 decision: match self.sampling_result {
-                    SamplingResult::Keep => "keep".to_owned(),
+                    SamplingResult::Keep(_) => "keep".to_owned(),
                     SamplingResult::Drop(_) => "drop".to_owned(),
                 },
                 universal_tags,
@@ -495,7 +495,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -693,7 +693,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -796,7 +796,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -880,7 +880,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -947,7 +947,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -1036,7 +1036,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -1075,7 +1075,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -1143,7 +1143,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -1177,7 +1177,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -1213,7 +1213,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("root_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -1476,7 +1476,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 
@@ -1605,7 +1605,7 @@ mod tests {
             config: &config,
             generic_tags: &generic_tags,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Keep(None),
             has_profile: false,
         };
 

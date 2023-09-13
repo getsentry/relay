@@ -304,7 +304,7 @@ mod tests {
         relay_test::setup();
         tokio::time::pause();
 
-        let (upstream, _) = mock_service("upstream", 0, |state, msg| {
+        let (upstream, _) = mock_service("upstream", 0, |state, _| {
             *state += 1;
 
             if *state > 1 {

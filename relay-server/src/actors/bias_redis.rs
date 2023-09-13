@@ -5,8 +5,9 @@ use relay_system::Addr;
 
 use crate::actors::upstream::UpstreamRelay;
 
-/// Sentry gotta the know the limit is up, then it will change the sampling config
-pub fn thisfunctionshouldnotifysentrythatwehavereachedthereservoirlimit(
+/// When we reached the reservoir limit, we want to remove the rule from sentry. Sentry should
+/// after this function, remove the bias rule from the [`SamplingConfig`] of all affected projects.
+pub fn notify_sentry_we_reached_limit(
     _upstream: Addr<UpstreamRelay>,
     _project_key: &ProjectKey,
     _rule_id: RuleId,
@@ -26,31 +27,27 @@ impl BiasRedisKey {
     }
 }
 
-pub fn do_the_stuff(
+/// Update the synchronized bias counter in redis.
+pub fn update_redis_bias_count(
     redis: RedisPool,
     reservoir_limit: usize,
     upstream: Addr<UpstreamRelay>,
     project_key: ProjectKey,
     rule_id: RuleId,
-) {
+) -> anyhow::Result<()> {
     let key = BiasRedisKey::new(&project_key, rule_id);
-    // 1. update count in relay
-    // 2. ask for total count
-    // 3. if total count exceeds limit, signal to sentry to remove the bias
 
     increment_bias_rule_count(&redis, &key).unwrap();
-    let total_count = get_bias_rule_count(&redis, &key).unwrap().unwrap();
+    let total_count = get_bias_rule_count(&redis, &key)?;
     if total_count as usize >= reservoir_limit {
-        delete_bias_rule(&redis, &key).unwrap();
-        thisfunctionshouldnotifysentrythatwehavereachedthereservoirlimit(
-            upstream,
-            &project_key,
-            rule_id,
-        );
-    }
+        delete_bias_rule(&redis, &key)?;
+        notify_sentry_we_reached_limit(upstream, &project_key, rule_id);
+    };
+    Ok(())
 }
 
-fn get_bias_rule_count(redis_pool: &RedisPool, key: &BiasRedisKey) -> anyhow::Result<Option<i64>> {
+/// Get the current synchronized bias count.
+fn get_bias_rule_count(redis_pool: &RedisPool, key: &BiasRedisKey) -> anyhow::Result<i64> {
     let mut command = relay_redis::redis::cmd("GET");
 
     command.arg(key.as_str());
@@ -67,16 +64,18 @@ fn get_bias_rule_count(redis_pool: &RedisPool, key: &BiasRedisKey) -> anyhow::Re
         None => None,
     };
 
-    Ok(response)
+    response
+        .ok_or_else(|| anyhow::anyhow!("Key not found"))
+        .map_err(Into::into)
 }
 
+/// Increments the count, it will be initialized automatically if it doesn't exist.
+///
+/// INCR docs: [`https://redis.io/commands/incr/`]
 fn increment_bias_rule_count(redis_pool: &RedisPool, key: &BiasRedisKey) -> anyhow::Result<i64> {
     let mut command = relay_redis::redis::cmd("INCR");
-
     command.arg(key.as_str());
-
     let new_count: i64 = command.query(&mut redis_pool.client()?.connection()?)?;
-
     Ok(new_count)
 }
 
