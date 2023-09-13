@@ -7,4 +7,5 @@
     "Test (macos-latest)" \
     "Test (windows-latest)" \
     "Test All Features (ubuntu-latest)" \
-    "Push GCR Docker Image"
+    "Push GCR Docker Image (relay)" \
+    "Push GCR Docker Image (relay-pop)"
