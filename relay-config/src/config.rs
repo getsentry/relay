@@ -1458,9 +1458,11 @@ impl Config {
     /// Regenerates the relay credentials.
     ///
     /// This also writes the credentials back to the file.
-    pub fn regenerate_credentials(&mut self) -> anyhow::Result<()> {
+    pub fn regenerate_credentials(&mut self, save: bool) -> anyhow::Result<()> {
         let creds = Credentials::generate();
-        creds.save(&self.path)?;
+        if save {
+            creds.save(&self.path)?;
+        }
         self.credentials = Some(creds);
         Ok(())
     }
