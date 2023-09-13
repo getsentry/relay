@@ -82,8 +82,6 @@ mod utils;
 pub use config::SamplingConfig;
 pub use dsc::DynamicSamplingContext;
 
-/*
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -110,7 +108,7 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::{merge_configs_and_match, MatchedRuleIds, SamplingMatch};
+    use crate::evaluation::{MatchedRuleIds, SamplingMatch};
 
     use super::*;
 
@@ -118,7 +116,7 @@ mod tests {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
-                Some(SamplingMatch {
+                Some(SamplingMatch::Normal {
                     sample_rate: $sr,
                     seed: $sd.id.value().unwrap().0,
                     matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
@@ -131,7 +129,7 @@ mod tests {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
                 $res,
-                Some(SamplingMatch {
+                Some(SamplingMatch::Normal {
                     sample_rate: $sr,
                     seed: $sd.trace_id,
                     matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
@@ -1123,10 +1121,10 @@ mod tests {
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
-        assert!(matches!(result, Some(SamplingMatch { .. })));
-        if let Some(spec) = result {
+        assert!(matches!(result, Some(SamplingMatch::Normal { .. })));
+        if let Some(SamplingMatch::Normal { sample_rate, .. }) = result {
             assert!(
-                (spec.sample_rate - 0.45).abs() < f64::EPSILON, // 0.45
+                (sample_rate - 0.45).abs() < f64::EPSILON, // 0.45
                 "did not use the sample rate of the second rule"
             )
         }
@@ -1185,6 +1183,8 @@ mod tests {
     fn test_get_sampling_match_result_with_no_match() {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+
+        let result = get_sampling_result();
 
         let result = merge_configs_and_match(
             true,
@@ -1682,4 +1682,3 @@ mod tests {
         assert_no_match!(result);
     }
 }
-*/

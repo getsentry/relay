@@ -10,7 +10,7 @@ use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{
     check_unsupported_rules, merge_rules_from_configs, MatchedRuleIds, SamplingMatch,
 };
-use relay_sampling::DynamicSamplingContext;
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use uuid::Uuid;
 
 pub type BiasedRuleId = RuleId;
@@ -64,17 +64,27 @@ impl SamplingResult {
 /// kept or dropped.
 pub fn get_sampling_result(
     processing_enabled: bool,
-    project_state: Option<&ProjectState>,
-    root_project_state: Option<&ProjectState>,
+    sampling_config: Option<&SamplingConfig>,
+    root_sampling_config: Option<&SamplingConfig>,
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
     reservoir_stuff: &BTreeMap<RuleId, usize>,
 ) -> SamplingResult {
-    // We want to extract the SamplingConfig from each project state.
-    let sampling_config: Option<&relay_sampling::SamplingConfig> =
-        project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
-    let root_sampling_config =
-        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
+    // If we have a match, we will try to derive the sample rate based on the sampling mode.
+    //
+    // Keep in mind that the sample rate received here has already been derived by the matching
+    // logic, based on multiple matches and decaying functions.
+    //
+    // The determination of the sampling mode occurs with the following priority:
+    // 1. Non-root project sampling mode
+    // 2. Root project sampling mode
+    let sampling_mode = match sampling_config.or(root_sampling_config) {
+        Some(config) => config.mode,
+        None => {
+            relay_log::error!("cannot sample without at least one sampling config");
+            return SamplingResult::Keep(None);
+        }
+    };
 
     // We check if there are unsupported rules in any of the two configurations.
     if check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).is_err() {
@@ -84,26 +94,13 @@ pub fn get_sampling_result(
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
 
-    // If we have a match, we will try to derive the sample rate based on the sampling mode.
-    //
-    // Keep in mind that the sample rate received here has already been derived by the matching
-    // logic, based on multiple matches and decaying functions.
-    //
-    // The determination of the sampling mode occurs with the following priority:
-    // 1. Non-root project sampling mode
-    // 2. Root project sampling mode
-    let Some(primary_config) = sampling_config.or(root_sampling_config) else {
-        relay_log::error!("cannot sample without at least one sampling config");
-        return SamplingResult::Keep(None);
-    };
-
     let sampling_match = SamplingMatch::get_sampling_match(
         rules,
         event,
         dsc,
         Utc::now(),
         reservoir_stuff,
-        &primary_config.mode,
+        &sampling_mode,
     );
 
     match sampling_match {
@@ -133,7 +130,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
         .get_item_by(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Event)?;
     envelope.dsc().map(|dsc| dsc.public_key)
 }
-/*
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
@@ -217,7 +213,7 @@ mod tests {
             Some(&event),
             &BTreeMap::default(),
         );
-        assert_eq!(result, SamplingResult::Keep)
+        assert!(result.should_keep())
     }
 
     #[test]
@@ -269,7 +265,7 @@ mod tests {
             Some(&event),
             &BTreeMap::default(),
         );
-        assert_eq!(result, SamplingResult::Keep)
+        assert!(result.should_keep())
     }
 
     #[test]
@@ -293,7 +289,7 @@ mod tests {
             Some(&event),
             &BTreeMap::default(),
         );
-        assert_eq!(result, SamplingResult::Keep);
+        assert!(result.should_keep());
 
         let result = get_sampling_result(
             true,
@@ -327,7 +323,7 @@ mod tests {
             None,
             &BTreeMap::default(),
         );
-        assert_eq!(result, SamplingResult::Keep)
+        assert!(result.should_keep())
     }
 
     #[test]
@@ -342,8 +338,16 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(true, Some(&project_state), Some(&dsc)).unwrap();
-        assert!(result);
+        let result = get_sampling_result(
+            true,
+            None,
+            Some(&project_state),
+            Some(&dsc),
+            None,
+            &BTreeMap::default(),
+        );
+
+        assert!(result.should_keep());
 
         // We test with `sampled = true` and 0% rule.
         let project_state = project_state_with_config(SamplingConfig {
@@ -354,8 +358,15 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(true, Some(&project_state), Some(&dsc)).unwrap();
-        assert!(!result);
+        let result = get_sampling_result(
+            true,
+            None,
+            Some(&project_state),
+            Some(&dsc),
+            None,
+            &BTreeMap::default(),
+        );
+        assert!(!result.should_keep());
 
         // We test with `sampled = false` and 100% rule.
         let project_state = project_state_with_config(SamplingConfig {
@@ -366,8 +377,15 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(true, Some(&project_state), Some(&dsc)).unwrap();
-        assert!(!result);
+        let result = get_sampling_result(
+            true,
+            None,
+            Some(&project_state),
+            Some(&dsc),
+            None,
+            &BTreeMap::default(),
+        );
+        assert!(!result.should_keep());
     }
 
     #[test]
@@ -381,13 +399,18 @@ mod tests {
         });
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(true, Some(&project_state), Some(&dsc));
-        assert!(result.is_none());
+        let result = get_sampling_result(
+            true,
+            None,
+            Some(&project_state),
+            Some(&dsc),
+            None,
+            &BTreeMap::default(),
+        );
+        assert!(result.should_keep());
 
         // We test with missing dsc and project config.
-        let result = is_trace_fully_sampled(true, None, None);
-        assert!(result.is_none())
+        let result = get_sampling_result(true, None, None, None, None, &BTreeMap::default());
+        assert!(result.should_keep())
     }
 }
-
-*/

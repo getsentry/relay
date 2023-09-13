@@ -2335,8 +2335,11 @@ impl EnvelopeProcessorService {
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
         let sampling_result = utils::get_sampling_result(
             self.inner.config.processing_enabled(),
-            Some(&state.project_state),
-            state.sampling_project_state.as_deref(),
+            state.project_state.config.dynamic_sampling.as_ref(),
+            state
+                .sampling_project_state
+                .as_ref()
+                .and_then(|state| state.config.dynamic_sampling.as_ref()),
             state.envelope().dsc(),
             state.event.value(),
             &state.reservoir_stuff,
@@ -2392,7 +2395,7 @@ impl EnvelopeProcessorService {
                 get_sampling_result(
                     self.inner.config.processing_enabled(),
                     None,
-                    Some(root_state),
+                    root_state.config.dynamic_sampling.as_ref(),
                     Some(dsc),
                     None,
                     &BTreeMap::default(),
