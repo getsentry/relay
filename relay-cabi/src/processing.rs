@@ -25,7 +25,7 @@ use relay_pii::{
 use relay_protocol::{Annotated, Remark};
 use relay_sampling::condition::RuleCondition;
 use relay_sampling::config::SamplingRule;
-use relay_sampling::evaluation::SamplingMatch;
+use relay_sampling::evaluation::{SamplingMatch, SamplingResult};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use serde::Serialize;
 
@@ -378,7 +378,7 @@ pub unsafe extern "C" fn run_dynamic_sampling(
     // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
     // the merged sampling configs.
     let match_result = if let (Ok(event), Ok(dsc)) = (event, dsc) {
-        SamplingMatch::get_sampling_match(
+        SamplingResult::get_sampling_result(
             rules.iter(),
             event.value(),
             Some(&dsc),

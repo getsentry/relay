@@ -52,7 +52,7 @@ pub fn merge_rules_from_configs<'a>(
 
 /// Checks whether unsupported rules result in a direct keep of the event or depending on the
 /// type of Relay an ignore of unsupported rules.
-pub fn check_unsupported_rules(
+fn check_unsupported_rules(
     processing_enabled: bool,
     sampling_config: Option<&SamplingConfig>,
     root_sampling_config: Option<&SamplingConfig>,
@@ -74,7 +74,7 @@ pub fn check_unsupported_rules(
 fn get_adjusted_sample_rate(
     base_sample_rate: f64,
     dsc: Option<&DynamicSamplingContext>,
-    sampling_mode: &SamplingMode,
+    sampling_mode: SamplingMode,
 ) -> f64 {
     match sampling_mode {
         SamplingMode::Total => match dsc {
@@ -91,41 +91,103 @@ fn get_adjusted_sample_rate(
     }
 }
 
-/// Represents the specification for sampling an incoming event.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-pub enum SamplingMatch {
-    /// The rule is an inspection bias.
-    Bias {
-        /// rule id that we wanna bias.
-        rule_id: RuleId,
-    },
-    /// Normal sampling.
-    Normal {
-        /// The sample rate to use for the incoming event.
-        sample_rate: f64,
-
-        /// The seed to feed to the random number generator which allows the same number to be
-        /// generated given the same seed.
-        ///
-        /// This is especially important for trace sampling, even though we can have inconsistent
-        /// traces due to multi-matching.
-        seed: Uuid,
-
-        /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-        matched_rule_ids: MatchedRuleIds,
-    },
+/// The result of a sampling operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SamplingResult {
+    /// Keep the event.
+    ///
+    /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
+    /// the rules.
+    Keep(Option<RuleId>),
+    /// Drop the event, due to a list of rules with provided identifiers.
+    Drop(MatchedRuleIds),
 }
 
-impl SamplingMatch {
-    /// Setter for `sample_rate`.
-    pub fn set_sample_rate(&mut self, new_sample_rate: f64) {
-        if let Self::Normal {
-            ref mut sample_rate,
-            ..
-        } = self
-        {
-            *sample_rate = new_sample_rate;
+impl Default for SamplingResult {
+    fn default() -> Self {
+        Self::Keep(None)
+    }
+}
+
+impl SamplingResult {
+    fn determine_from_sampling_match(
+        sample_rate: f64,
+        seed: Uuid,
+        matched_rule_ids: MatchedRuleIds,
+    ) -> Self {
+        let random_number = pseudo_random_from_uuid(seed);
+        relay_log::trace!(
+            sample_rate,
+            random_number,
+            "applying dynamic sampling to matching event"
+        );
+
+        if random_number >= sample_rate {
+            relay_log::trace!("dropping event that matched the configuration");
+            SamplingResult::Drop(matched_rule_ids)
+        } else {
+            relay_log::trace!("keeping event that matched the configuration");
+            SamplingResult::Keep(None)
         }
+    }
+
+    /// Convenience methdod to check if the result is keep.
+    pub fn should_keep(&self) -> bool {
+        matches!(self, &Self::Keep(_))
+    }
+}
+
+fn get_and_verify_rules<'a>(
+    processing_enabled: bool,
+    sampling_config: Option<&'a SamplingConfig>,
+    root_sampling_config: Option<&'a SamplingConfig>,
+) -> Result<impl Iterator<Item = &'a SamplingRule>, ()> {
+    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config)?;
+    Ok(merge_rules_from_configs(
+        sampling_config,
+        root_sampling_config,
+    ))
+}
+
+impl SamplingResult {
+    /// Gets the sampling result.
+    pub fn get_sampling_result(
+        processing_enabled: bool,
+        sampling_config: Option<&SamplingConfig>,
+        root_sampling_config: Option<&SamplingConfig>,
+        dsc: Option<&DynamicSamplingContext>,
+        event: Option<&Event>,
+        reservoir_stuff: &BTreeMap<RuleId, usize>,
+    ) -> SamplingResult {
+        // If we have a match, we will try to derive the sample rate based on the sampling mode.
+        //
+        // Keep in mind that the sample rate received here has already been derived by the matching
+        // logic, based on multiple matches and decaying functions.
+        //
+        // The determination of the sampling mode occurs with the following priority:
+        // 1. Non-root project sampling mode
+        // 2. Root project sampling mode
+        let sampling_mode = match sampling_config.or(root_sampling_config) {
+            Some(config) => config.mode,
+            None => {
+                relay_log::error!("cannot sample without at least one sampling config");
+                return SamplingResult::Keep(None);
+            }
+        };
+
+        // We perform the rule matching with the multi-matching logic on the merged rules.
+        let Ok(rules) = get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)  else {
+            return SamplingResult::Keep(None);
+        };
+
+        Self::get_sampling_result_from_rules(
+            rules,
+            event,
+            dsc,
+            Utc::now(),
+            reservoir_stuff,
+            sampling_mode,
+        )
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -140,17 +202,14 @@ impl SamplingMatch {
     ///
     /// In case no sample rate rule is matched, we are going to return a None, signaling that no
     /// match has been found.
-    pub fn get_sampling_match<'a, I>(
-        rules: I,
+    fn get_sampling_result_from_rules<'a>(
+        rules: impl Iterator<Item = &'a SamplingRule>,
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
         reservoir_stuff: &BTreeMap<RuleId, usize>,
-        sampling_mode: &SamplingMode,
-    ) -> Option<SamplingMatch>
-    where
-        I: Iterator<Item = &'a SamplingRule>,
-    {
+        sampling_mode: SamplingMode,
+    ) -> SamplingResult {
         let mut matched_rule_ids = vec![];
         // Even though this seed is changed based on whether we match event or trace rules, we will
         // still incur in inconsistent trace sampling because of multi-matching of rules across event
@@ -186,27 +245,14 @@ impl SamplingMatch {
             };
 
             if matches {
-                if let Some(evaluator) = SamplingValueEvaluator::create(
+                matched_rule_ids.push(rule.id);
+
+                match SamplingValueEvaluator::create(
                     rule,
                     now,
                     reservoir_stuff.get(&rule.id).copied(),
                 ) {
-                    matched_rule_ids.push(rule.id);
-
-                    if let SamplingValueEvaluator::InspectBias { target_is_reached } = evaluator {
-                        // When target is reached, we disable this rule, and sample accoridng to
-                        // other rules. This branch should only be reached in the time interval
-                        // between the target getting reached, and sentry removing the rule
-                        // through [`SamplingConfig`].
-                        if target_is_reached {
-                            continue;
-                        } else {
-                            return Some(SamplingMatch::Bias { rule_id: rule.id });
-                        }
-                    }
-
-                    let value = evaluator.evaluate(now);
-                    match rule.sampling_value {
+                    SamplingValueEvaluator::SamplingValue(value) => match rule.sampling_value {
                         SamplingValue::Factor { .. } => accumulated_factors *= value,
                         SamplingValue::SampleRate { .. } => {
                             let sample_rate = {
@@ -214,19 +260,29 @@ impl SamplingMatch {
                                 get_adjusted_sample_rate(base, dsc, sampling_mode)
                             };
 
-                            return Some(SamplingMatch::Normal {
-                                sample_rate,
-                                seed: seed?,
-                                matched_rule_ids: MatchedRuleIds(matched_rule_ids),
-                            });
+                            if let Some(seed) = seed {
+                                return Self::determine_from_sampling_match(
+                                    sample_rate,
+                                    seed,
+                                    MatchedRuleIds(matched_rule_ids),
+                                );
+                            } else {
+                                break;
+                            };
                         }
+                    },
+                    SamplingValueEvaluator::InspectBias => {
+                        return SamplingResult::Keep(Some(rule.id))
                     }
-                }
+                    SamplingValueEvaluator::NoMatch => continue,
+                };
             }
         }
 
         // In case no match is available, we won't return any specification.
-        None
+
+        relay_log::trace!("keeping event that didn't match the configuration");
+        SamplingResult::Keep(None)
     }
 }
 
@@ -269,23 +325,14 @@ impl fmt::Display for MatchedRuleIds {
 /// A struct representing the evaluation context of a sample rate.
 #[derive(Debug, Clone, Copy)]
 enum SamplingValueEvaluator {
-    Linear {
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-        initial_value: f64,
-        decayed_value: f64,
-    },
-    Constant {
-        initial_value: f64,
-    },
-    InspectBias {
-        target_is_reached: bool,
-    },
+    SamplingValue(f64),
+    InspectBias,
+    NoMatch,
 }
 
 impl SamplingValueEvaluator {
     /// Returns a [`SamplingValueEvaluator`] if the rule is active at the given time.
-    fn create(rule: &SamplingRule, now: DateTime<Utc>, counter: Option<usize>) -> Option<Self> {
+    fn create(rule: &SamplingRule, now: DateTime<Utc>, counter: Option<usize>) -> Self {
         let sampling_base_value = rule.sampling_value.value();
 
         match rule.decaying_fn {
@@ -296,72 +343,51 @@ impl SamplingValueEvaluator {
                 } = rule.time_range
                 {
                     // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if sampling_base_value > decayed_value && start <= now && now < end {
-                        return Some(Self::Linear {
+                    if sampling_base_value > decayed_value && rule.time_range.contains(now) {
+                        let sample_value = Self::evaluate_linear_decay(
                             start,
                             end,
-                            initial_value: sampling_base_value,
+                            now,
+                            sampling_base_value,
                             decayed_value,
-                        });
+                        );
+                        return Self::SamplingValue(sample_value);
                     }
                 }
             }
-            DecayingFunction::InspectionBias { reservoir_limit } => {
-                let counter = counter.unwrap_or_default();
-
-                if counter >= reservoir_limit {
-                    // the counter has reached the target.
-                    return Some(Self::InspectBias {
-                        target_is_reached: true,
-                    });
-                } else {
-                    // still below target :)
-                    return Some(Self::InspectBias {
-                        target_is_reached: false,
-                    });
+            DecayingFunction::Reservoir { limit } => {
+                if counter.unwrap_or_default() >= limit {
+                    return Self::InspectBias;
                 }
             }
+
             DecayingFunction::Constant => {
                 if rule.time_range.contains(now) {
-                    return Some(Self::Constant {
-                        initial_value: rule.sampling_value.value(),
-                    });
+                    return Self::SamplingValue(rule.sampling_value.value());
                 }
             }
         }
 
-        None
+        Self::NoMatch
     }
 
     /// Evaluates the value of the sampling strategy given a the current time.
-    fn evaluate(&self, now: DateTime<Utc>) -> f64 {
-        match self {
-            Self::Linear {
-                start,
-                end,
-                initial_value,
-                decayed_value,
-            } => {
-                let now_timestamp = now.timestamp() as f64;
-                let start_timestamp = start.timestamp() as f64;
-                let end_timestamp = end.timestamp() as f64;
-                let progress_ratio = ((now_timestamp - start_timestamp)
-                    / (end_timestamp - start_timestamp))
-                    .clamp(0.0, 1.0);
+    fn evaluate_linear_decay(
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        now: DateTime<Utc>,
+        initial_value: f64,
+        decayed_value: f64,
+    ) -> f64 {
+        let now_timestamp = now.timestamp() as f64;
+        let start_timestamp = start.timestamp() as f64;
+        let end_timestamp = end.timestamp() as f64;
+        let progress_ratio =
+            ((now_timestamp - start_timestamp) / (end_timestamp - start_timestamp)).clamp(0.0, 1.0);
 
-                // This interval will always be < 0.
-                let interval = decayed_value - initial_value;
-                initial_value + (interval * progress_ratio)
-            }
-            Self::Constant { initial_value } => *initial_value,
-            Self::InspectBias { target_is_reached } => {
-                if *target_is_reached {
-                    0.0
-                } else {
-                    1.0
-                }
-            }
-        }
+        // This interval will always be < 0.
+        let interval = decayed_value - initial_value;
+        initial_value + (interval * progress_ratio)
     }
 }
 

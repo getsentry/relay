@@ -43,7 +43,7 @@ use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::RuleId;
-use relay_sampling::evaluation::MatchedRuleIds;
+use relay_sampling::evaluation::{MatchedRuleIds, SamplingResult};
 use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -74,10 +74,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, get_sampling_result, ChunkedFormDataAggregator, FormDataIter, ItemAction,
-    ManagedEnvelope, SamplingResult,
-};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope};
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -2333,7 +2330,7 @@ impl EnvelopeProcessorService {
 
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        let sampling_result = utils::get_sampling_result(
+        let sampling_result = SamplingResult::get_sampling_result(
             self.inner.config.processing_enabled(),
             state.project_state.config.dynamic_sampling.as_ref(),
             state
@@ -2392,7 +2389,7 @@ impl EnvelopeProcessorService {
             if !dsc_sampled {
                 false
             } else {
-                get_sampling_result(
+                SamplingResult::get_sampling_result(
                     self.inner.config.processing_enabled(),
                     None,
                     root_state.config.dynamic_sampling.as_ref(),

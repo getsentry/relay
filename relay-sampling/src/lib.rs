@@ -108,7 +108,7 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::{MatchedRuleIds, SamplingMatch};
+    use crate::evaluation::MatchedRuleIds;
 
     use super::*;
 

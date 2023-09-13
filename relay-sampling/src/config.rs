@@ -195,9 +195,10 @@ pub enum DecayingFunction {
 
     /// This represents a query that should be biased, if the reservoir limit hasn't been reached,
     /// we will keep the event, otherwise, normal sampling rates apply.
-    InspectionBias {
+    #[serde(rename_all = "camelCase")]
+    Reservoir {
         /// The limit to how many transactions we will fill our reservoir before we stop the bias.
-        reservoir_limit: usize,
+        limit: usize,
     },
 }
 
