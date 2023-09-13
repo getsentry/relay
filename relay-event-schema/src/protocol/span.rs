@@ -79,6 +79,7 @@ impl From<&Event> for Span {
             timestamp: event.timestamp.clone(),
             start_timestamp: event.start_timestamp.clone(),
             is_segment: Some(true).into(),
+            description: event.transaction.clone(),
             ..Default::default()
         };
 
