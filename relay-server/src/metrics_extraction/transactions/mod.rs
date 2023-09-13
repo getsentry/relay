@@ -120,7 +120,7 @@ fn track_transaction_name_stats(event: &Event) {
 fn extract_coarse_transaction_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
     let mut tags = BTreeMap::new();
     if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
-        tags.insert(CommonTags::Transaction, transaction_name);
+        tags.insert(CommonTag::Transaction, transaction_name);
     }
 
     CommonTags(tags)
