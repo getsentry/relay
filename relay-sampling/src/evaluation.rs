@@ -186,13 +186,30 @@ impl SamplingResult {
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
     ) -> SamplingResult {
+        // If we have a match, we will try to derive the sample rate based on the sampling mode.
+        //
+        // Keep in mind that the sample rate received here has already been derived by the matching
+        // logic, based on multiple matches and decaying functions.
+        //
+        // The determination of the sampling mode occurs with the following priority:
+        // 1. Non-root project sampling mode
+        // 2. Root project sampling mode
+        let sampling_mode = match sampling_config.or(root_sampling_config) {
+            Some(config) => config.mode,
+            None => {
+                relay_log::error!("cannot sample without at least one sampling config");
+                return SamplingResult::Keep;
+            }
+        };
+
+        // We perform the rule matching with the multi-matching logic on the merged rules.
         let Some(rules) =
             get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
         else {
             return SamplingResult::Keep;
         };
 
-        Self::get_sampling_result_by_rules(rules, event, dsc, now)
+        Self::get_sampling_result_by_rules(rules, event, dsc, Utc::now(), sampling_mode)
     }
 
     /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -212,6 +229,7 @@ impl SamplingResult {
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
+        mode: SamplingMode,
     ) -> SamplingResult {
         let mut matched_rule_ids = vec![];
         // Even though this seed is changed based on whether we match event or trace rules, we will
