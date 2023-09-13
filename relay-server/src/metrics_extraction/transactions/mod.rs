@@ -119,7 +119,7 @@ fn track_transaction_name_stats(event: &Event) {
 /// These are the tags that are added to extracted low cardinality metrics.
 fn extract_coarse_transaction_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
     let mut tags = BTreeMap::new();
-    if let Some(transaction_name) = get_transaction_name(event, config.accept_transaction_names) {
+    if let Some(transaction_name) = get_transaction_name(event) {
         tags.insert(CommonTag::Transaction, transaction_name);
     }
 
