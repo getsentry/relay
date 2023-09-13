@@ -327,6 +327,13 @@
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher <span class="kw">as _</span>;
@@ -452,7 +459,7 @@
 ///
 /// At a later stage, namespaces are used to route metrics to their associated infra structure and
 /// enforce usecase-specific configuration.
-</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 </span><span class="kw">pub enum </span>MetricNamespace {
     <span class="doccomment">/// Metrics extracted from sessions.
     </span>Sessions,
@@ -474,6 +481,19 @@
     </span>Unsupported,
 }
 
+<span class="kw">impl </span>MetricNamespace {
+    <span class="doccomment">/// Returns the string representation for this metric type.
+    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            MetricNamespace::Sessions =&gt; <span class="string">&quot;sessions&quot;</span>,
+            MetricNamespace::Transactions =&gt; <span class="string">&quot;transactions&quot;</span>,
+            MetricNamespace::Spans =&gt; <span class="string">&quot;spans&quot;</span>,
+            MetricNamespace::Custom =&gt; <span class="string">&quot;custom&quot;</span>,
+            MetricNamespace::Unsupported =&gt; <span class="string">&quot;unsupported&quot;</span>,
+        }
+    }
+}
+
 <span class="kw">impl </span>std::str::FromStr <span class="kw">for </span>MetricNamespace {
     <span class="kw">type </span><span class="prelude-val">Err </span>= ParseMetricError;
 
@@ -492,13 +512,7 @@
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>MetricNamespace {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            MetricNamespace::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
-            MetricNamespace::Transactions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;transactions&quot;</span>),
-            MetricNamespace::Spans =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;spans&quot;</span>),
-            MetricNamespace::Custom =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;custom&quot;</span>),
-            MetricNamespace::Unsupported =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unsupported&quot;</span>),
-        }
+        f.write_str(<span class="self">self</span>.as_str())
     }
 }
 

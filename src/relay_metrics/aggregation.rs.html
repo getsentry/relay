@@ -2179,6 +2179,11 @@
 <a href="#2179" id="2179">2179</a>
 <a href="#2180" id="2180">2180</a>
 <a href="#2181" id="2181">2181</a>
+<a href="#2182" id="2182">2182</a>
+<a href="#2183" id="2183">2183</a>
+<a href="#2184" id="2184">2184</a>
+<a href="#2185" id="2185">2185</a>
+<a href="#2186" id="2186">2186</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2200,10 +2205,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::bucket::{Bucket, BucketValue, DistributionValue};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{<span class="self">self</span>, MetricNamespace, MetricResourceIdentifier};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{
-    metric_name_tag, metric_type_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets,
-    MetricTimers,
-};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 
 <span class="doccomment">/// Interval for the flush cycle of the [`AggregatorService`].
 </span><span class="kw">const </span>FLUSH_INTERVAL: Duration = Duration::from_millis(<span class="number">100</span>);
@@ -2361,6 +2363,14 @@
     /// because data structures have a memory overhead.
     </span><span class="kw">fn </span>cost(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         mem::size_of::&lt;<span class="self">Self</span>&gt;() + <span class="self">self</span>.metric_name.capacity() + tags_cost(<span class="kw-2">&amp;</span><span class="self">self</span>.tags)
+    }
+
+    <span class="doccomment">/// Returns the namespace of this bucket.
+    </span><span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricNamespace {
+        <span class="kw">match </span>MetricResourceIdentifier::parse(<span class="kw-2">&amp;</span><span class="self">self</span>.metric_name) {
+            <span class="prelude-val">Ok</span>(mri) =&gt; mri.namespace,
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; MetricNamespace::Unsupported,
+        }
     }
 }
 
@@ -3153,7 +3163,7 @@
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(MetricCounters::MergeHit) += <span class="number">1</span>,
                     aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                    metric_name = metric_name_tag(<span class="kw-2">&amp;</span>entry.key().metric_name),
+                    namespace = entry.key().namespace().as_str(),
                 );
                 <span class="kw">let </span>bucket_value = <span class="kw-2">&amp;mut </span>entry.get_mut().value;
                 <span class="kw">let </span>cost_before = bucket_value.cost();
@@ -3167,12 +3177,12 @@
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(MetricCounters::MergeMiss) += <span class="number">1</span>,
                     aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                    metric_name = metric_name_tag(<span class="kw-2">&amp;</span>entry.key().metric_name),
+                    namespace = entry.key().namespace().as_str(),
                 );
                 <span class="macro">relay_statsd::metric!</span>(
                     set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() <span class="kw">as </span>i64, <span class="comment">// 2-complement
                     </span>aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                    metric_name = metric_name_tag(<span class="kw-2">&amp;</span>entry.key().metric_name),
+                    namespace = entry.key().namespace().as_str(),
                 );
 
                 <span class="kw">let </span>flush_at = <span class="self">self</span>.config.get_flush_time(entry.key());
@@ -3226,7 +3236,7 @@
 
         <span class="kw">let </span>force = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, AggregatorState::ShuttingDown);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>stats = BTreeMap::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>stats = HashMap::new();
 
         <span class="macro">relay_statsd::metric!</span>(
             timer(MetricTimers::BucketsScanDuration),
@@ -3242,7 +3252,7 @@
                         cost_tracker.subtract_cost(key.project_key, value.cost());
 
                         <span class="kw">let </span>(bucket_count, item_count) = stats
-                            .entry((metric_type_tag(<span class="kw-2">&amp;</span>value), metric_name_tag(<span class="kw-2">&amp;</span>key.metric_name)))
+                            .entry((value.ty(), key.namespace()))
                             .or_insert((<span class="number">0usize</span>, <span class="number">0usize</span>));
                         <span class="kw-2">*</span>bucket_count += <span class="number">1</span>;
                         <span class="kw-2">*</span>item_count += value.len();
@@ -3271,11 +3281,11 @@
             }
         );
 
-        <span class="kw">for </span>((ty, name), (bucket_count, item_count)) <span class="kw">in </span>stats.into_iter() {
+        <span class="kw">for </span>((ty, namespace), (bucket_count, item_count)) <span class="kw">in </span>stats.into_iter() {
             <span class="macro">relay_statsd::metric!</span>(
                 gauge(MetricGauges::AvgBucketSize) = item_count <span class="kw">as </span>f64 / bucket_count <span class="kw">as </span>f64,
-                metric_type = ty,
-                metric_name = name
+                metric_type = ty.as_str(),
+                namespace = namespace.as_str()
             );
         }
 

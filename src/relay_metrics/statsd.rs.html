@@ -184,57 +184,7 @@
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
-
-<span class="kw">use </span><span class="kw">crate</span>::BucketValue;
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
 </span><span class="kw">pub enum </span>MetricSets {
@@ -249,7 +199,7 @@
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric for which the bucket was created.
     </span>UniqueBucketsCreated,
 }
 
@@ -267,14 +217,14 @@
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric.
     </span>MergeHit,
 
     <span class="doccomment">/// Incremented every time a bucket is created.
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `&quot;default&quot;`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric.
     </span>MergeMiss,
 
     <span class="doccomment">/// Incremented every time a bucket is dropped.
@@ -406,8 +356,8 @@
     <span class="doccomment">/// The average number of elements in a bucket when flushed.
     ///
     /// This metric is tagged with:
-    ///  - `metric_type`: &quot;counter&quot;, &quot;distribution&quot;, &quot;gauge&quot; or &quot;set&quot;.
-    ///  - `metric_name`: Low-cardinality name of the metric.
+    ///  - `metric_type`: &quot;c&quot;, &quot;d&quot;, &quot;g&quot; or &quot;s&quot;.
+    ///  - `namespace`: The namespace of the metric.
     </span>AvgBucketSize,
 }
 
@@ -418,52 +368,6 @@
             <span class="self">Self</span>::BucketsCost =&gt; <span class="string">&quot;metrics.buckets.cost&quot;</span>,
             <span class="self">Self</span>::AvgBucketSize =&gt; <span class="string">&quot;metrics.buckets.size&quot;</span>,
         }
-    }
-}
-
-<span class="doccomment">/// Returns a low-cardinality metric name for use as a tag key on statsd metrics.
-///
-/// In order to keep this low-cardinality, we only enumerate a handful of well-known, high volume
-/// names. The rest gets mapped to &quot;other&quot;.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>metric_name_tag(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = [
-        <span class="string">&quot;c:sessions/session@none&quot;</span>,
-        <span class="string">&quot;s:sessions/user@none&quot;</span>,
-        <span class="string">&quot;s:sessions/error@none&quot;</span>,
-        <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>,
-        <span class="string">&quot;s:transactions/user@none&quot;</span>,
-        <span class="string">&quot;c:transactions/count_per_root_project@none&quot;</span>,
-    ]
-    .into_iter()
-    .find(|x| x == <span class="kw-2">&amp;</span>value)
-    {
-        <span class="kw">return </span>value;
-    }
-
-    <span class="kw">if </span>value.starts_with(<span class="string">&quot;d:transactions/breakdowns.&quot;</span>) {
-        <span class="kw">return </span><span class="string">&quot;d:transactions/breakdowns.*&quot;</span>;
-    }
-    <span class="kw">if </span>value.starts_with(<span class="string">&quot;d:transactions/measurements.&quot;</span>) {
-        <span class="kw">return </span><span class="string">&quot;d:transactions/measurements.*&quot;</span>;
-    }
-
-    <span class="kw">if </span>value.starts_with(<span class="string">&quot;s:spans/&quot;</span>) {
-        <span class="kw">return </span><span class="string">&quot;s:spans/&quot;</span>;
-    }
-    <span class="kw">if </span>value.starts_with(<span class="string">&quot;d:spans/&quot;</span>) {
-        <span class="kw">return </span><span class="string">&quot;d:spans/&quot;</span>;
-    }
-
-    <span class="string">&quot;other&quot;
-</span>}
-
-<span class="doccomment">/// Returns the metric type for use as a tag key on statsd metrics.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>metric_type_tag(value: <span class="kw-2">&amp;</span>BucketValue) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-    <span class="kw">match </span>value {
-        BucketValue::Counter(<span class="kw">_</span>) =&gt; <span class="string">&quot;counter&quot;</span>,
-        BucketValue::Distribution(<span class="kw">_</span>) =&gt; <span class="string">&quot;distribution&quot;</span>,
-        BucketValue::Set(<span class="kw">_</span>) =&gt; <span class="string">&quot;set&quot;</span>,
-        BucketValue::Gauge(<span class="kw">_</span>) =&gt; <span class="string">&quot;gauge&quot;</span>,
     }
 }
 </code></pre></div></section></main></body></html>
