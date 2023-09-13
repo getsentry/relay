@@ -13,7 +13,7 @@ pub enum MetricSets {
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name.
+    ///  - `namespace`: The namespace of the metric for which the bucket was created.
     UniqueBucketsCreated,
 }
 
@@ -31,14 +31,14 @@ pub enum MetricCounters {
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name.
+    ///  - `namespace`: The namespace of the metric.
     MergeHit,
 
     /// Incremented every time a bucket is created.
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name.
+    ///  - `namespace`: The namespace of the metric.
     MergeMiss,
 
     /// Incremented every time a bucket is dropped.
@@ -170,8 +170,8 @@ pub enum MetricGauges {
     /// The average number of elements in a bucket when flushed.
     ///
     /// This metric is tagged with:
-    ///  - `metric_type`: "counter", "distribution", "gauge" or "set".
-    ///  - `metric_name`: Low-cardinality name of the metric.
+    ///  - `metric_type`: "c", "d", "g" or "s".
+    ///  - `namespace`: The namespace of the metric.
     AvgBucketSize,
 }
 
