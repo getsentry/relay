@@ -163,7 +163,7 @@ impl Error for ParseMetricError {}
 /// Right now this successfully deserializes any kind of string, but in reality only `"sessions"`
 /// (for release health) and `"transactions"` (for metrics-enhanced performance) is supported.
 /// Everything else is dropped both in the metrics aggregator and in the store service.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.
     Sessions,
@@ -185,6 +185,19 @@ pub enum MetricNamespace {
     Unsupported,
 }
 
+impl MetricNamespace {
+    /// Returns the string representation for this metric type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MetricNamespace::Sessions => "sessions",
+            MetricNamespace::Transactions => "transactions",
+            MetricNamespace::Spans => "spans",
+            MetricNamespace::Custom => "custom",
+            MetricNamespace::Unsupported => "unsupported",
+        }
+    }
+}
+
 impl std::str::FromStr for MetricNamespace {
     type Err = ParseMetricError;
 
@@ -203,13 +216,7 @@ relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
 
 impl fmt::Display for MetricNamespace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MetricNamespace::Sessions => write!(f, "sessions"),
-            MetricNamespace::Transactions => write!(f, "transactions"),
-            MetricNamespace::Spans => write!(f, "spans"),
-            MetricNamespace::Custom => write!(f, "custom"),
-            MetricNamespace::Unsupported => write!(f, "unsupported"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
