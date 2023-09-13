@@ -23,7 +23,7 @@ pub enum SamplingResult {
 }
 
 impl SamplingResult {
-    fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
+    pub fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
         match sampling_match {
             Some(SamplingMatch {
                 sample_rate,
@@ -55,7 +55,7 @@ impl SamplingResult {
 
 /// Gets the sampling match result by creating the merged configuration and matching it against
 /// the sampling configuration.
-fn get_sampling_match_result(
+pub fn get_sampling_match_result(
     processing_enabled: bool,
     project_state: Option<&ProjectState>,
     root_project_state: Option<&ProjectState>,
@@ -64,18 +64,6 @@ fn get_sampling_match_result(
     now: DateTime<Utc>,
 ) -> Option<SamplingMatch> {
     // We want to extract the SamplingConfig from each project state.
-    let sampling_config = project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
-    let root_sampling_config =
-        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
-
-    relay_sampling::evaluation::merge_configs_and_match(
-        processing_enabled,
-        sampling_config,
-        root_sampling_config,
-        dsc,
-        event,
-        now,
-    )
 }
 
 /// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
@@ -87,17 +75,6 @@ pub fn get_sampling_result(
     dsc: Option<&DynamicSamplingContext>,
     event: Option<&Event>,
 ) -> SamplingResult {
-    let sampling_result = get_sampling_match_result(
-        processing_enabled,
-        project_state,
-        root_project_state,
-        dsc,
-        event,
-        // For consistency reasons we take a snapshot in time and use that time across all code that
-        // requires it.
-        Utc::now(),
-    );
-    SamplingResult::determine_from_sampling_match(sampling_result)
 }
 
 /// Runs dynamic sampling if the dsc and root project state are not None and returns whether the

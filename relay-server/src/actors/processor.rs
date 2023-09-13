@@ -2322,13 +2322,24 @@ impl EnvelopeProcessorService {
 
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        state.sampling_result = utils::get_sampling_result(
-            self.inner.config.processing_enabled(),
-            Some(&state.project_state),
-            state.sampling_project_state.as_deref(),
-            state.envelope().dsc(),
-            state.event.value(),
+        let sampling_config = state.project_state.config.dynamic_sampling.as_ref();
+
+        let root_sampling_config = state
+            .sampling_project_state
+            .and_then(|state| state.config.dynamic_sampling.as_ref());
+
+        let x = relay_sampling::evaluation::merge_configs_and_match(
+            true,
+            sampling_config,
+            root_sampling_config,
+            dsc,
+            event,
+            now,
         );
+
+        let res = SamplingResult::determine_from_sampling_match(x);
+
+        state.sampling_result = res;
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
