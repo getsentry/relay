@@ -47,8 +47,8 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     inner: Box::new(RuleCondition::Eq(EqCondition {
                         name: span_op_field_name.into(),
                         value: Value::Array(vec![
-                            "db.redis".into(),
                             "db.clickhouse".into(),
+                            "db.redis".into(),
                             "db.sql.query".into(),
                         ]),
                         options: Default::default(),
@@ -65,10 +65,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         span_op_conditions.push(RuleCondition::Glob(GlobCondition {
             name: span_op_field_name.into(),
             value: GlobPatterns::new(vec![
-                "ui.*".into(),
-                "browser.*".into(),
-                "http.*".into(),
-                "grouping".into(),
+                "browser*".into(),
+                "http*".into(),
+                "resource".into(),
+                "ui*".into(),
             ]),
         }));
     }
