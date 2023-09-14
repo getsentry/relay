@@ -275,9 +275,7 @@ struct ProcessEnvelopeState {
 
     /// The result of a dynamic sampling operation on this envelope.
     ///
-    /// This defaults to [`SamplingResult::Keep`] and is determined based on dynamic sampling rules
-    /// in the project configuration. In the drop case, this contains a list of rules that applied
-    /// on the envelope.
+    /// The event will be kept if there's either no match, or there's a match and it was sampled.
     sampling_result: SamplingMatch,
 
     /// Metrics extracted from items in the envelope.
@@ -2338,6 +2336,7 @@ impl EnvelopeProcessorService {
             .and_then(|state| state.config.dynamic_sampling.as_ref());
 
         state.sampling_result = match_rules(
+            self.inner.config.processing_enabled(),
             sampling_config,
             root_sampling_config,
             state.event.value(),
@@ -2363,7 +2362,11 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        let sampled = utils::is_trace_fully_sampled(project_state, dsc);
+        let sampled = utils::is_trace_fully_sampled(
+            self.inner.config.processing_enabled(),
+            project_state,
+            dsc,
+        );
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;

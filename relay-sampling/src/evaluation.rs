@@ -49,6 +49,7 @@ pub fn merge_rules_from_configs<'a>(
 /// Checks whether unsupported rules result in a direct keep of the event or depending on the
 /// type of Relay an ignore of unsupported rules.
 fn check_unsupported_rules(
+    processing_enabled: bool,
     sampling_config: Option<&SamplingConfig>,
     root_sampling_config: Option<&SamplingConfig>,
 ) -> Result<(), ()> {
@@ -56,20 +57,22 @@ fn check_unsupported_rules(
     if sampling_config.map_or(false, |config| config.unsupported())
         || root_sampling_config.map_or(false, |config| config.unsupported())
     {
-        #[cfg(not(feature = "processing"))]
-        return Err(());
-        #[cfg(feature = "processing")]
-        relay_log::error!("found unsupported rules even as processing relay");
+        if processing_enabled {
+            relay_log::error!("found unsupported rules even as processing relay");
+        } else {
+            return Err(());
+        }
     }
 
     Ok(())
 }
 
 fn get_and_verify_rules<'a>(
+    processing_enabled: bool,
     sampling_config: Option<&'a SamplingConfig>,
     root_sampling_config: Option<&'a SamplingConfig>,
 ) -> Option<impl Iterator<Item = &'a SamplingRule>> {
-    check_unsupported_rules(sampling_config, root_sampling_config).ok()?;
+    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
     Some(merge_rules_from_configs(
         sampling_config,
         root_sampling_config,
@@ -115,6 +118,7 @@ pub(crate) fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
 
 /// Get the sampling result.
 pub fn match_rules<'a>(
+    processing_enabled: bool,
     sampling_config: Option<&'a SamplingConfig>,
     root_sampling_config: Option<&'a SamplingConfig>,
     event: Option<&Event>,
@@ -138,7 +142,9 @@ pub fn match_rules<'a>(
     };
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
-    let Some(rules) = get_and_verify_rules(sampling_config, root_sampling_config) else {
+    let Some(rules) =
+        get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
+    else {
         return SamplingMatch::NoMatch;
     };
 
@@ -291,8 +297,6 @@ pub(crate) fn get_sampling_match<'a>(
             }
         }
     }
-
-    //debug_assert!(matched_rule_ids.is_empty());
 
     // In case no match is available, we won't return any specification.
     relay_log::trace!("keeping event that didn't match the configuration");

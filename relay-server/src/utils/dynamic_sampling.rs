@@ -11,6 +11,7 @@ use crate::envelope::{Envelope, ItemType};
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
+    processing_enabled: bool,
     root_project_state: &ProjectState,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
@@ -24,6 +25,7 @@ pub fn is_trace_fully_sampled(
 
     Some(
         match_rules(
+            processing_enabled,
             None,
             root_project_state.config.dynamic_sampling.as_ref(),
             None,
@@ -125,7 +127,7 @@ mod tests {
         .unwrap();
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
+        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
         assert!(result.should_keep());
     }
 
@@ -142,7 +144,7 @@ mod tests {
         .unwrap();
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
+        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
         assert!(result.should_drop());
     }
 
@@ -166,13 +168,13 @@ mod tests {
         .unwrap();
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
-        let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
+        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
         assert!(result.should_keep())
     }
 
     #[test]
     /// Tests that an event is kept when there are unsupported rules with no processing and vice versa.
-    fn test_match_rules_return_keep_with_unsupported_rule() {
+    fn test_match_rules_return_no_match_with_unsupported_rule() {
         let config = project_state_with_config(SamplingConfig {
             rules: vec![],
             rules_v2: vec![
@@ -186,8 +188,11 @@ mod tests {
         .unwrap();
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
-        let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.should_keep());
+        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
+        assert!(result.is_match());
+
+        let result = match_rules(false, Some(&config), None, Some(&event), None, Utc::now());
+        assert!(result.is_no_match());
     }
 
     #[test]
@@ -203,7 +208,7 @@ mod tests {
         .unwrap();
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = match_rules(None, Some(&config), None, Some(&dsc), Utc::now());
+        let result = match_rules(true, None, Some(&config), None, Some(&dsc), Utc::now());
         assert!(result.should_keep());
     }
 
@@ -219,7 +224,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(true, &project_state, &dsc).unwrap();
         assert!(result);
 
         // We test with `sampled = true` and 0% rule.
@@ -231,7 +236,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(true, &project_state, &dsc).unwrap();
         assert!(!result);
 
         // We test with `sampled = false` and 100% rule.
@@ -243,7 +248,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(true, &project_state, &dsc).unwrap();
         assert!(!result);
     }
 
@@ -258,7 +263,7 @@ mod tests {
         });
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(&project_state, &dsc);
+        let result = is_trace_fully_sampled(true, &project_state, &dsc);
         assert!(result.is_none());
     }
 }
