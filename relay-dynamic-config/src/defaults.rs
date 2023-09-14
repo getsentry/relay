@@ -1,9 +1,7 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
-use relay_sampling::condition::{
-    AndCondition, EqCondition, GlobCondition, NotCondition, OrCondition, RuleCondition,
-};
+use relay_sampling::condition::{EqCondition, GlobCondition, RuleCondition};
 use serde_json::Value;
 
 use crate::feature::Feature;
@@ -36,55 +34,16 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         .has(Feature::SpanMetricsExtractionAllModules)
     {
         None
+    } else if project_config
+        .features
+        .has(Feature::SpanMetricsExtractionGAModules)
+    {
+        Some(RuleCondition::Glob(GlobCondition {
+            name: span_op_field_name.into(),
+            value: GlobPatterns::new(vec!["db*".into()]),
+        }))
     } else {
-        let mut rules: Vec<RuleCondition> = Vec::new();
-
-        if project_config
-            .features
-            .has(Feature::SpanMetricsExtractionDBModule)
-        {
-            rules.push(RuleCondition::And(AndCondition {
-                inner: vec![
-                    RuleCondition::Glob(GlobCondition {
-                        name: span_op_field_name.into(),
-                        value: GlobPatterns::new(vec!["db*".into()]),
-                    }),
-                    RuleCondition::Not(NotCondition {
-                        inner: Box::new(RuleCondition::Eq(EqCondition {
-                            name: span_op_field_name.into(),
-                            value: Value::Array(vec![
-                                "db.clickhouse".into(),
-                                "db.redis".into(),
-                                "db.sql.query".into(),
-                            ]),
-                            options: Default::default(),
-                        })),
-                    }),
-                ],
-            }));
-        }
-
-        if project_config
-            .features
-            .has(Feature::SpanMetricsExtractionBrowserModule)
-        {
-            rules.push(RuleCondition::Glob(GlobCondition {
-                name: span_op_field_name.into(),
-                value: GlobPatterns::new(vec![
-                    "browser*".into(),
-                    "http*".into(),
-                    "resource".into(),
-                    "ui*".into(),
-                ]),
-            }));
-        }
-
-        // If every module is disabled, no extraction.
-        if rules.is_empty() {
-            return;
-        }
-
-        Some(RuleCondition::Or(OrCondition { inner: rules }))
+        return;
     };
 
     config.metrics.extend([

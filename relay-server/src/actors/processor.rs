@@ -57,7 +57,6 @@ use {
     relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_event_schema::protocol::ProfileContext,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
-    std::collections::HashSet,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -2279,26 +2278,12 @@ impl EnvelopeProcessorService {
             state.managed_envelope.envelope_mut().add_item(item);
         };
 
-        let span_op_db_module_denylist: HashSet<String> = HashSet::from([
-            "db.clickhouse".into(),
-            "db.redis".into(),
-            "db.sql.query".into(),
-        ]);
-        let span_op_browser_module_prefix_allowlist: Vec<String> = vec![
-            "browser".into(),
-            "http".into(),
-            "resource".into(),
-            "ui".into(),
-        ];
         let all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
-        let db_module_enabled = state
+        let ga_modules_enabled = state
             .project_state
-            .has_feature(Feature::SpanMetricsExtractionDBModule);
-        let browser_module_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionBrowserModule);
+            .has_feature(Feature::SpanMetricsExtractionGAModules);
 
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
@@ -2313,16 +2298,7 @@ impl EnvelopeProcessorService {
                 let Some(span_op) = inner_span.op.value() else {
                     continue;
                 };
-
-                if all_modules_enabled
-                    || (db_module_enabled
-                        && span_op.starts_with("db")
-                        && !span_op_db_module_denylist.contains(span_op))
-                    || (browser_module_enabled
-                        && span_op_browser_module_prefix_allowlist
-                            .iter()
-                            .any(|prefix| span_op.starts_with(prefix)))
-                {
+                if all_modules_enabled || ga_modules_enabled && span_op.starts_with("db") {
                     inner_span.segment_id = transaction_span.segment_id.clone();
                     inner_span.is_segment = Annotated::new(false);
                     add_span(span);
