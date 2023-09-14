@@ -108,37 +108,45 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::{get_sampling_result, MatchedRuleIds};
+    use crate::evaluation::{get_sampling_match, MatchedRuleIds, SamplingMatch};
 
     use super::*;
 
-    /*
-    macro_rules! assert_transaction_match {
-        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
-            assert_eq!(
-                $res,
-                Some(SamplingMatch {
-                    sample_rate: $sr,
-                    seed: $sd.id.value().unwrap().0,
-                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
-                })
-            )
-        }
+    fn transaction_match(
+        cmp: Option<SamplingMatch>,
+        sample_rate: f64,
+        event: &Event,
+        matched_rule_ids: &[u32],
+    ) -> bool {
+        let mut cmp = cmp.unwrap();
+        cmp.is_kept = false;
+
+        let new = SamplingMatch {
+            sample_rate,
+            seed: event.id.value().unwrap().0,
+            matched_rules: MatchedRuleIds(matched_rule_ids.iter().map(|id| RuleId(*id)).collect()),
+            is_kept: false,
+        };
+        cmp == new
     }
 
-    macro_rules! assert_trace_match {
-        ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
-            assert_eq!(
-                $res,
-                Some(SamplingMatch {
-                    sample_rate: $sr,
-                    seed: $sd.trace_id,
-                    matched_rule_ids: MatchedRuleIds(vec![$(RuleId($id),)*])
-                })
-            )
-        }
+    fn trace_match(
+        cmp: Option<SamplingMatch>,
+        sample_rate: f64,
+        dsc: &DynamicSamplingContext,
+        matched_rule_ids: &[u32],
+    ) -> bool {
+        let mut cmp = cmp.unwrap();
+        cmp.is_kept = false;
+
+        let new = SamplingMatch {
+            sample_rate,
+            seed: dsc.trace_id,
+            matched_rules: MatchedRuleIds(matched_rule_ids.iter().map(|id| RuleId(*id)).collect()),
+            is_kept: false,
+        };
+        cmp == new
     }
-    */
 
     macro_rules! assert_no_match {
         ($res:expr) => {
@@ -350,6 +358,21 @@ mod tests {
         sampling_rule: SamplingRule,
     ) {
         sampling_config.rules_v2.push(sampling_rule);
+    }
+
+    fn match_against_rules(
+        config: &SamplingConfig,
+        event: &Event,
+        dsc: &DynamicSamplingContext,
+        now: DateTime<Utc>,
+    ) -> Option<SamplingMatch> {
+        get_sampling_match(
+            config.rules_v2.iter(),
+            Some(event),
+            Some(dsc),
+            now,
+            config.mode,
+        )
     }
 
     #[test]
@@ -855,48 +878,40 @@ mod tests {
     #[test]
     /// test that the multi-matching returns none in case there is no match.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
-        let sampling_config = mocked_sampling_config_with_rules(vec![
-            SamplingRule {
-                condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                sampling_value: SamplingValue::Factor { value: 2.0 },
-                ty: RuleType::Transaction,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-            SamplingRule {
-                condition: and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["prod"], true),
-                ]),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Trace,
-                id: RuleId(2),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            },
-        ]);
-
-        let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
-
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "debug",
-            "vip",
-            "user-id",
-            None,
-        );
-
-        let result = get_sampling_result(
-            Some(&sampling_config),
-            None,
-            Some(&event),
-            Some(&dsc),
+        let result = match_against_rules(
+            &mocked_sampling_config_with_rules(vec![
+                SamplingRule {
+                    condition: and(vec![eq("event.transaction", &["foo"], true)]),
+                    sampling_value: SamplingValue::Factor { value: 2.0 },
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+                SamplingRule {
+                    condition: and(vec![
+                        glob("trace.release", &["1.1.1"]),
+                        eq("trace.environment", &["prod"], true),
+                    ]),
+                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                    ty: RuleType::Trace,
+                    id: RuleId(2),
+                    time_range: Default::default(),
+                    decaying_fn: Default::default(),
+                },
+            ]),
+            &mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing"),
+            &mocked_dynamic_sampling_context(
+                "root_transaction",
+                "1.1.1",
+                "debug",
+                "vip",
+                "user-id",
+                None,
+            ),
             Utc::now(),
         );
-
-        assert!(!result.is_keep())
+        assert_eq!(result, None, "did not return none for no match");
     }
 
     #[test]
@@ -969,8 +984,10 @@ mod tests {
             "user-id",
             None,
         );
-        let result = get_sampling_result(Some(&config), None, Some(&event), Some(&dsc), Utc::now());
-        assert_transaction_match!(result, 0.1, event, 1);
+        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        //        assert_transaction_match!(result, 0.1, event, 1);
+
+        assert!(transaction_match(result, 0.1, &event, &[1]));
 
         // early return of second rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
@@ -983,7 +1000,7 @@ mod tests {
             None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        assert_trace_match!(result, 1.0, dsc, 2);
+        assert!(trace_match(result, 1.0, &dsc, &[2]));
 
         // factor match third rule and early return sixth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
@@ -996,7 +1013,7 @@ mod tests {
             None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        assert_trace_match!(result, 0.04, dsc, 3, 6);
+        assert!(trace_match(result, 0.04, &dsc, &[3, 6]));
 
         // factor match third rule and early return fourth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
@@ -1009,7 +1026,7 @@ mod tests {
             None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        assert_trace_match!(result, 1.0, dsc, 3, 4);
+        assert!(trace_match(result, 1.0, &dsc, &[3, 4]));
 
         // factor match third, fifth rule and early return sixth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
@@ -1022,7 +1039,7 @@ mod tests {
             None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        assert_trace_match!(result, 0.06, dsc, 3, 5, 6);
+        assert!(trace_match(result, 0.06, &dsc, &[3, 5, 6]));
 
         // factor match fifth and early return sixth rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
@@ -1035,7 +1052,7 @@ mod tests {
             None,
         );
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        assert_trace_match!(result, 0.03, dsc, 5, 6);
+        assert!(trace_match(result, 0.03, &dsc, &[5, 6]));
     }
 
     #[test]
@@ -1097,7 +1114,7 @@ mod tests {
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
-        assert_trace_match!(result, 0.03, dsc, 1, 3);
+        assert!(trace_match(result, 0.03, &dsc, &[1, 3]));
 
         // early return second rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
@@ -1141,7 +1158,7 @@ mod tests {
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
-        assert_trace_match!(result, 0.02, dsc, 3);
+        assert!(trace_match(result, 0.02, &dsc, &[3]));
     }
 
     #[test]
@@ -1170,7 +1187,7 @@ mod tests {
             &dsc,
             Utc::now(),
         );
-        assert_trace_match!(result, 1.0, dsc, 1)
+        assert!(trace_match(result, 1.0, &dsc, &[1]));
     }
 
     #[test]
@@ -1207,7 +1224,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.5, event, 3);
+        assert!(transaction_match(result, 0.5, &event, &[3]));
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
         let result = merge_configs_and_match(
@@ -1218,7 +1235,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.1, event, 1);
+        assert!(transaction_match(result, 0.1, &event, &[1]));
     }
 
     #[test]
@@ -1238,7 +1255,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.1, event, 1);
+        assert!(transaction_match(result, 0.1, &event, &[1]));
     }
 
     #[test]
@@ -1258,7 +1275,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_trace_match!(result, 1.0, dsc, 6);
+        assert!(trace_match(result, 1.0, &dsc, &[6]));
     }
 
     #[test]
@@ -1278,7 +1295,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_trace_match!(result, 0.75, dsc, 2, 5, 7);
+        assert!(trace_match(result, 0.75, &dsc, &[2, 5, 7]));
     }
 
     #[test]
@@ -1296,7 +1313,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.5, event, 3);
+        assert!(transaction_match(result, 0.5, &event, &[3]));
     }
 
     #[test]
@@ -1315,7 +1332,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.625, event, 3);
+        assert!(transaction_match(result, 0.625, &event, &[3]));
     }
 
     #[test]
@@ -1358,7 +1375,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.5, event, 3);
+        assert!(transaction_match(result, 0.5, &event, &[3]));
     }
 
     #[test]
@@ -1396,7 +1413,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.1, event, 1);
+        assert!(transaction_match(result, 0.1, &event, &[1]));
 
         let root_project_sampling_config =
             mocked_root_project_sampling_config(SamplingMode::Received);
@@ -1408,7 +1425,7 @@ mod tests {
             Some(&event),
             Utc::now(),
         );
-        assert_transaction_match!(result, 0.1, event, 1);
+        assert!(transaction_match(result, 0.1, &event, &[1]));
     }
 
     #[test]
@@ -1430,7 +1447,7 @@ mod tests {
         };
         let result =
             merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
-        assert_transaction_match!(result, 0.75, event, 1);
+        assert!(transaction_match(result, 0.75, &event, &[1]));
 
         let sampling_config = SamplingConfig {
             rules: vec![],
@@ -1445,7 +1462,7 @@ mod tests {
         };
         let result =
             merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
-        assert_transaction_match!(result, 1.0, event, 1);
+        assert!(transaction_match(result, 1.0, &event, &[1]));
 
         let sampling_config = SamplingConfig {
             rules: vec![],
@@ -1549,12 +1566,13 @@ mod tests {
         if let Some(SamplingMatch {
             sample_rate,
             seed,
-            matched_rule_ids,
+            matched_rules,
+            ..
         }) = result
         {
             assert!((sample_rate - 0.9).abs() < f64::EPSILON);
             assert_eq!(seed, event.id.0.unwrap().0);
-            assert_eq!(matched_rule_ids, MatchedRuleIds(vec![RuleId(1), RuleId(2)]))
+            assert_eq!(matched_rules, MatchedRuleIds(vec![RuleId(1), RuleId(2)]))
         }
     }
 
@@ -1573,7 +1591,7 @@ mod tests {
             None,
             now,
         );
-        assert_trace_match!(result, 1.0, dsc, 6);
+        assert!(trace_match(result, 1.0, &dsc, &[6]));
     }
 
     #[test]

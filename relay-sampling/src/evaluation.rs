@@ -199,11 +199,12 @@ pub fn get_sampling_result<'a>(
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct SamplingMatch {
-    sample_rate: f64,
-    seed: Uuid,
-    matched_rules: MatchedRuleIds,
-    is_kept: bool,
+    pub sample_rate: f64,
+    pub seed: Uuid,
+    pub matched_rules: MatchedRuleIds,
+    pub is_kept: bool,
 }
 
 impl SamplingMatch {}
@@ -220,7 +221,7 @@ impl SamplingMatch {}
 ///
 /// In case no sample rate rule is matched, we are going to return a None, signaling that no
 /// match has been found.
-fn get_sampling_match<'a>(
+pub fn get_sampling_match<'a>(
     rules: impl Iterator<Item = &'a SamplingRule>,
     event: Option<&Event>,
     dsc: Option<&DynamicSamplingContext>,
