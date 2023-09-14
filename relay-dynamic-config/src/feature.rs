@@ -28,6 +28,9 @@ pub enum Feature {
     /// Enable extracting spans for the browser module
     #[serde(rename = "projects:span-metrics-extraction-browser-module")]
     SpanMetricsExtractionBrowserModule,
+    /// Enable extracting spans for all modules
+    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
+    SpanMetricsExtractionAllModules,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

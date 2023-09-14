@@ -35,47 +35,63 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     if project_config
         .features
-        .has(Feature::SpanMetricsExtractionDBModule)
+        .has(Feature::SpanMetricsExtractionAllModules)
     {
-        span_op_conditions.push(RuleCondition::And(AndCondition {
-            inner: vec![
-                RuleCondition::Glob(GlobCondition {
-                    name: span_op_field_name.into(),
-                    value: GlobPatterns::new(vec!["db*".into()]),
-                }),
-                RuleCondition::Not(NotCondition {
-                    inner: Box::new(RuleCondition::Eq(EqCondition {
+        span_op_conditions.push(RuleCondition::And(AndCondition { inner: Vec::new() }));
+    } else {
+        if project_config
+            .features
+            .has(Feature::SpanMetricsExtractionDBModule)
+        {
+            span_op_conditions.push(RuleCondition::And(AndCondition {
+                inner: vec![
+                    RuleCondition::Glob(GlobCondition {
                         name: span_op_field_name.into(),
-                        value: Value::Array(vec![
-                            "db.clickhouse".into(),
-                            "db.redis".into(),
-                            "db.sql.query".into(),
-                        ]),
-                        options: Default::default(),
-                    })),
-                }),
-            ],
-        }));
+                        value: GlobPatterns::new(vec!["db*".into()]),
+                    }),
+                    RuleCondition::Not(NotCondition {
+                        inner: Box::new(RuleCondition::Eq(EqCondition {
+                            name: span_op_field_name.into(),
+                            value: Value::Array(vec![
+                                "db.clickhouse".into(),
+                                "db.redis".into(),
+                                "db.sql.query".into(),
+                            ]),
+                            options: Default::default(),
+                        })),
+                    }),
+                ],
+            }));
+        }
+
+        if project_config
+            .features
+            .has(Feature::SpanMetricsExtractionBrowserModule)
+        {
+            span_op_conditions.push(RuleCondition::Glob(GlobCondition {
+                name: span_op_field_name.into(),
+                value: GlobPatterns::new(vec![
+                    "browser*".into(),
+                    "http*".into(),
+                    "resource".into(),
+                    "ui*".into(),
+                ]),
+            }));
+        }
     }
 
-    if project_config
-        .features
-        .has(Feature::SpanMetricsExtractionBrowserModule)
-    {
-        span_op_conditions.push(RuleCondition::Glob(GlobCondition {
-            name: span_op_field_name.into(),
-            value: GlobPatterns::new(vec![
-                "browser*".into(),
-                "http*".into(),
-                "resource".into(),
-                "ui*".into(),
-            ]),
-        }));
+    // If every module is disabled, no extraction.
+    if span_op_conditions.is_empty() {
+        return;
     }
 
-    let additional_conditions: RuleCondition = RuleCondition::Or(OrCondition {
-        inner: span_op_conditions,
-    });
+    let additional_conditions: RuleCondition = if span_op_conditions.len() == 1 {
+        span_op_conditions.remove(0)
+    } else {
+        RuleCondition::Or(OrCondition {
+            inner: span_op_conditions,
+        })
+    };
 
     config.metrics.extend([
         MetricSpec {
