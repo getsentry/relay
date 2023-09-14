@@ -97,32 +97,24 @@ pub enum SamplingResult {
 }
 
 impl SamplingResult {
-    pub fn determine_from_sampling_match(sampling_match: Option<SamplingMatch>) -> Self {
-        match sampling_match {
-            Some(SamplingMatch {
-                sample_rate,
-                matched_rule_ids,
-                seed,
-            }) => {
-                let random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
-                relay_log::trace!(
-                    sample_rate,
-                    random_number,
-                    "applying dynamic sampling to matching event"
-                );
+    pub fn determine_from_sampling_match(
+        sample_rate: f64,
+        matched_rule_ids: MatchedRuleIds,
+        seed: Uuid,
+    ) -> Self {
+        let random_number = pseudo_random_from_uuid(seed);
+        relay_log::trace!(
+            sample_rate,
+            random_number,
+            "applying dynamic sampling to matching event"
+        );
 
-                if random_number >= sample_rate {
-                    relay_log::trace!("dropping event that matched the configuration");
-                    SamplingResult::Drop(matched_rule_ids)
-                } else {
-                    relay_log::trace!("keeping event that matched the configuration");
-                    SamplingResult::Keep
-                }
-            }
-            None => {
-                relay_log::trace!("keeping event that didn't match the configuration");
-                SamplingResult::Keep
-            }
+        if random_number >= sample_rate {
+            relay_log::trace!("dropping event that matched the configuration");
+            SamplingResult::Drop(matched_rule_ids)
+        } else {
+            relay_log::trace!("keeping event that matched the configuration");
+            SamplingResult::Keep
         }
     }
 }
@@ -252,7 +244,11 @@ impl SamplingResult {
         for rule in rules {
             let matches = match rule.ty {
                 RuleType::Trace => match dsc {
-                    Some(dsc) => rule.condition.matches(dsc),
+                    Some(dsc) => {
+                        // todo move back
+                        seed = Some(dsc.trace_id);
+                        rule.condition.matches(dsc)
+                    }
                     _ => false,
                 },
                 RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
@@ -263,37 +259,50 @@ impl SamplingResult {
             };
 
             if matches {
-                if let Some(evaluator) = SamplingValueEvaluator::create(rule, now) {
-                    matched_rule_ids.push(rule.id);
+                matched_rule_ids.push(rule.id);
 
-                    if rule.ty == RuleType::Trace {
-                        if let Some(dsc) = dsc {
-                            seed = Some(dsc.trace_id);
+                match SamplingValueEvaluator::create(rule, now) {
+                    Some(value) => match rule.sampling_value {
+                        SamplingValue::Factor { value } => accumulated_factors *= value,
+                        SamplingValue::SampleRate { value } => {
+                            let sample_rate = {
+                                let base = (value * accumulated_factors).clamp(0.0, 1.0);
+                                get_adjusted_sample_rate(base, dsc, sampling_mode)
+                            };
+                            if let Some(seed) = seed {}
                         }
-                    }
-
-                    let value = evaluator.evaluate(now);
-                    match rule.sampling_value {
-                        SamplingValue::Factor { .. } => accumulated_factors *= value,
-                        SamplingValue::SampleRate { .. } => {
-                            return Some(SamplingMatch {
-                                sample_rate: (value * accumulated_factors).clamp(0.0, 1.0),
-                                seed: match seed {
-                                    Some(seed) => seed,
-                                    // In case we are not able to generate a seed, we will return a no
-                                    // match.
-                                    None => return None,
-                                },
-                                matched_rule_ids: MatchedRuleIds(matched_rule_ids),
-                            });
-                        }
-                    }
+                    },
+                    None => {}
                 }
-            }
+
+                /*
+                SamplingValueEvaluator::SamplingValue(value) => match rule.sampling_value {
+                    SamplingValue::Factor { .. } => accumulated_factors *= value,
+                    SamplingValue::SampleRate { .. } => {
+                        let sample_rate = {
+                            let base = (value * accumulated_factors).clamp(0.0, 1.0);
+                            get_adjusted_sample_rate(base, dsc, sampling_mode)
+                        };
+
+                        if let Some(seed) = seed {
+                            return Self::determine_from_sampling_match(
+                                sample_rate,
+                                seed,
+                                MatchedRuleIds(matched_rule_ids),
+                            );
+                        } else {
+                            break;
+                        };
+                    }
+                },
+                */
+            };
         }
 
         // In case no match is available, we won't return any specification.
-        None
+
+        relay_log::trace!("keeping event that didn't match the configuration");
+        SamplingResult::Keep(None)
     }
 }
 
@@ -349,7 +358,7 @@ enum SamplingValueEvaluator {
 
 impl SamplingValueEvaluator {
     /// Returns a [`SamplingValueEvaluator`] if the rule is active at the given time.
-    fn create(rule: &SamplingRule, now: DateTime<Utc>) -> Option<Self> {
+    fn create(rule: &SamplingRule, now: DateTime<Utc>) -> Option<f64> {
         let sampling_base_value = rule.sampling_value.value();
 
         match rule.decaying_fn {
