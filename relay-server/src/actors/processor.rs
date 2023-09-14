@@ -42,7 +42,7 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
-use relay_sampling::evaluation::MatchedRuleIds;
+use relay_sampling::evaluation::{get_sampling_result, MatchedRuleIds, SamplingResult};
 use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -72,9 +72,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{
-    self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope, SamplingResult,
-};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, ItemAction, ManagedEnvelope};
 
 /// The minimum clock drift for correction to apply.
 const MINIMUM_CLOCK_DRIFT: Duration = Duration::from_secs(55 * 60);
@@ -2326,20 +2324,17 @@ impl EnvelopeProcessorService {
 
         let root_sampling_config = state
             .sampling_project_state
+            .as_ref()
             .and_then(|state| state.config.dynamic_sampling.as_ref());
 
-        let x = relay_sampling::evaluation::merge_configs_and_match(
+        state.sampling_result = get_sampling_result(
             self.inner.config.processing_enabled(),
             sampling_config,
             root_sampling_config,
-            state.envelope().dsc(),
             state.event.value(),
+            state.envelope().dsc(),
             Utc::now(),
         );
-
-        let res = SamplingResult::determine_from_sampling_match(x);
-
-        state.sampling_result = res;
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
@@ -2352,10 +2347,17 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let sampled = utils::is_trace_fully_sampled(
-            self.inner.config.processing_enabled(),
+        let (Some(project_state), Some(dsc)) = (
             state.sampling_project_state.as_deref(),
             state.envelope().dsc(),
+        ) else {
+            return;
+        };
+
+        let sampled = utils::is_trace_fully_sampled(
+            self.inner.config.processing_enabled(),
+            project_state,
+            dsc,
         );
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {

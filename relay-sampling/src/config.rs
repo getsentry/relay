@@ -73,6 +73,42 @@ impl SamplingRule {
     fn supported(&self) -> bool {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
+
+    /// Returns the sample rate if the rule is active.
+    pub fn sample_rate(&self, now: DateTime<Utc>) -> Option<f64> {
+        let sampling_base_value = self.sampling_value.value();
+
+        match self.decaying_fn {
+            DecayingFunction::Linear { decayed_value } => {
+                if let TimeRange {
+                    start: Some(start),
+                    end: Some(end),
+                } = self.time_range
+                {
+                    // As in the TimeRange::contains method we use a right non-inclusive time bound.
+                    if sampling_base_value > decayed_value && start <= now && now < end {
+                        let now_timestamp = now.timestamp() as f64;
+                        let start_timestamp = start.timestamp() as f64;
+                        let end_timestamp = end.timestamp() as f64;
+                        let progress_ratio = ((now_timestamp - start_timestamp)
+                            / (end_timestamp - start_timestamp))
+                            .clamp(0.0, 1.0);
+
+                        // This interval will always be < 0.
+                        let interval = decayed_value - sampling_base_value;
+                        return Some(sampling_base_value + (interval * progress_ratio));
+                    }
+                }
+            }
+            DecayingFunction::Constant => {
+                if self.time_range.contains(now) {
+                    return Some(sampling_base_value);
+                }
+            }
+        }
+
+        None
+    }
 }
 
 /// A sampling strategy definition.

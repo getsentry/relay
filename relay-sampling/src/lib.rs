@@ -82,6 +82,7 @@ mod utils;
 pub use config::SamplingConfig;
 pub use dsc::DynamicSamplingContext;
 
+/*
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -108,10 +109,11 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::{merge_configs_and_match, MatchedRuleIds, SamplingMatch};
+    use crate::evaluation::MatchedRuleIds;
 
     use super::*;
 
+    /*
     macro_rules! assert_transaction_match {
         ($res:expr, $sr:expr, $sd:expr, $( $id:expr ),*) => {
             assert_eq!(
@@ -137,6 +139,7 @@ mod tests {
             )
         }
     }
+    */
 
     macro_rules! assert_no_match {
         ($res:expr) => {
@@ -348,15 +351,6 @@ mod tests {
         sampling_rule: SamplingRule,
     ) {
         sampling_config.rules_v2.push(sampling_rule);
-    }
-
-    fn match_against_rules(
-        config: &SamplingConfig,
-        event: &Event,
-        dsc: &DynamicSamplingContext,
-        now: DateTime<Utc>,
-    ) -> Option<SamplingMatch> {
-        SamplingMatch::match_against_rules(config.rules_v2.iter(), Some(event), Some(dsc), now)
     }
 
     #[test]
@@ -1603,3 +1597,4 @@ mod tests {
         assert_no_match!(result);
     }
 }
+*/

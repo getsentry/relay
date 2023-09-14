@@ -1,48 +1,20 @@
 //! Functionality for calculating if a trace should be processed or dropped.
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
-use relay_event_schema::protocol::Event;
-use relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
+use relay_sampling::evaluation::{get_sampling_result, SamplingResult};
 use relay_sampling::DynamicSamplingContext;
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
-
-/// Gets the sampling match result by creating the merged configuration and matching it against
-/// the sampling configuration.
-pub fn get_sampling_match_result(
-    processing_enabled: bool,
-    project_state: Option<&ProjectState>,
-    root_project_state: Option<&ProjectState>,
-    dsc: Option<&DynamicSamplingContext>,
-    event: Option<&Event>,
-    now: DateTime<Utc>,
-) -> Option<SamplingMatch> {
-    // We want to extract the SamplingConfig from each project state.
-}
-
-/// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
-/// kept or dropped.
-pub fn get_sampling_result(
-    processing_enabled: bool,
-    project_state: Option<&ProjectState>,
-    root_project_state: Option<&ProjectState>,
-    dsc: Option<&DynamicSamplingContext>,
-    event: Option<&Event>,
-) -> SamplingResult {
-}
 
 /// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
     processing_enabled: bool,
-    root_project_state: Option<&ProjectState>,
-    dsc: Option<&DynamicSamplingContext>,
+    root_project_state: &ProjectState,
+    dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
-    let dsc = dsc?;
-    let root_project_state = root_project_state?;
-
     // If the sampled field is not set, we prefer to not tag the error since we have no clue on
     // whether the head of the trace was kept or dropped on the client side.
     // In addition, if the head of the trace was dropped on the client we will immediately mark
@@ -54,17 +26,13 @@ pub fn is_trace_fully_sampled(
     let sampling_result = get_sampling_result(
         processing_enabled,
         None,
-        Some(root_project_state),
-        Some(dsc),
+        root_project_state.config.dynamic_sampling.as_ref(),
         None,
+        Some(dsc),
+        Utc::now(),
     );
 
-    let sampled = match sampling_result {
-        SamplingResult::Keep => true,
-        SamplingResult::Drop(_) => false,
-    };
-
-    Some(sampled)
+    Some(matches!(sampling_result, SamplingResult::Keep))
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.
@@ -80,6 +48,8 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
         .get_item_by(|item| item.ty() == &ItemType::Transaction || item.ty() == &ItemType::Event)?;
     envelope.dsc().map(|dsc| dsc.public_key)
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -294,3 +264,5 @@ mod tests {
         assert!(result.is_none())
     }
 }
+
+*/

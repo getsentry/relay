@@ -12,10 +12,7 @@ use relay_event_schema::protocol::Event;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::config::{
-    DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
-    TimeRange,
-};
+use crate::config::{RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue};
 use crate::dsc::DynamicSamplingContext;
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -117,11 +114,8 @@ pub enum SamplingResult {
 }
 
 impl SamplingResult {
-    pub fn determine_from_sampling_match(
-        sample_rate: f64,
-        matched_rule_ids: MatchedRuleIds,
-        seed: Uuid,
-    ) -> Self {
+    /// Calcualte SamplingResult.
+    fn new(sample_rate: f64, matched_rule_ids: MatchedRuleIds, seed: Uuid) -> Self {
         let random_number = pseudo_random_from_uuid(seed);
         relay_log::trace!(
             sample_rate,
@@ -139,23 +133,15 @@ impl SamplingResult {
     }
 }
 
-/// Gets the sampling match result by creating the merged configuration and matching it against
-/// the sampling configuration.
-pub fn merge_configs_and_match(
+/// Get the sampling result.
+pub fn get_sampling_result<'a>(
     processing_enabled: bool,
-    sampling_config: Option<&SamplingConfig>,
-    root_sampling_config: Option<&SamplingConfig>,
-    dsc: Option<&DynamicSamplingContext>,
+    sampling_config: Option<&'a SamplingConfig>,
+    root_sampling_config: Option<&'a SamplingConfig>,
     event: Option<&Event>,
+    dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
-) -> Option<SamplingMatch> {
-    // We check if there are unsupported rules in any of the two configurations.
-    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
-
-    // We perform the rule matching with the multi-matching logic on the merged rules.
-    let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
-    let mut match_result = SamplingMatch::match_against_rules(rules, event, dsc, now)?;
-
+) -> SamplingResult {
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
     // Keep in mind that the sample rate received here has already been derived by the matching
@@ -164,150 +150,109 @@ pub fn merge_configs_and_match(
     // The determination of the sampling mode occurs with the following priority:
     // 1. Non-root project sampling mode
     // 2. Root project sampling mode
-    let Some(primary_config) = sampling_config.or(root_sampling_config) else {
-        relay_log::error!("cannot sample without at least one sampling config");
-        return None;
-    };
-    let sample_rate = match primary_config.mode {
-        SamplingMode::Received => match_result.sample_rate,
-        SamplingMode::Total => match dsc {
-            Some(dsc) => dsc.adjusted_sample_rate(match_result.sample_rate),
-            None => match_result.sample_rate,
-        },
-        SamplingMode::Unsupported => {
-            if processing_enabled {
-                relay_log::error!("found unsupported sampling mode even as processing Relay");
-            }
-
-            return None;
+    let sampling_mode = match sampling_config.or(root_sampling_config) {
+        Some(config) => config.mode,
+        None => {
+            relay_log::error!("cannot sample without at least one sampling config");
+            return SamplingResult::Keep;
         }
     };
-    match_result.set_sample_rate(sample_rate);
 
-    // Only if we arrive at this stage, it means that we have found a match and we want to prepare
-    // the data for making the sampling decision.
-    Some(match_result)
+    // We perform the rule matching with the multi-matching logic on the merged rules.
+    let Some(rules) =
+        get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
+    else {
+        return SamplingResult::Keep;
+    };
+
+    get_sampling_result_by_rules(rules, event, dsc, now, sampling_mode)
 }
 
-impl SamplingResult {
-    pub fn get_sampling_result<'a>(
-        processing_enabled: bool,
-        sampling_config: Option<&'a SamplingConfig>,
-        root_sampling_config: Option<&'a SamplingConfig>,
-        event: Option<&Event>,
-        dsc: Option<&DynamicSamplingContext>,
-        now: DateTime<Utc>,
-    ) -> SamplingResult {
-        // If we have a match, we will try to derive the sample rate based on the sampling mode.
-        //
-        // Keep in mind that the sample rate received here has already been derived by the matching
-        // logic, based on multiple matches and decaying functions.
-        //
-        // The determination of the sampling mode occurs with the following priority:
-        // 1. Non-root project sampling mode
-        // 2. Root project sampling mode
-        let sampling_mode = match sampling_config.or(root_sampling_config) {
-            Some(config) => config.mode,
-            None => {
-                relay_log::error!("cannot sample without at least one sampling config");
-                return SamplingResult::Keep;
-            }
-        };
+/// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
+///
+/// The multi-matching algorithm used iterates by collecting and multiplying factor rules until
+/// it finds a sample rate rule. Once a sample rate rule is found, the final sample rate is
+/// computed by multiplying it with the previously accumulated factors.
+///
+/// The default accumulated factors equal to 1 because it is the identity of the multiplication
+/// operation, thus in case no factor rules are matched, the final result will just be the
+/// sample rate of the matching rule.
+///
+/// In case no sample rate rule is matched, we are going to return a None, signaling that no
+/// match has been found.
+fn get_sampling_result_by_rules<'a>(
+    rules: impl Iterator<Item = &'a SamplingRule>,
+    event: Option<&Event>,
+    dsc: Option<&DynamicSamplingContext>,
+    now: DateTime<Utc>,
+    sampling_mode: SamplingMode,
+) -> SamplingResult {
+    let mut matched_rule_ids = vec![];
+    // Even though this seed is changed based on whether we match event or trace rules, we will
+    // still incur in inconsistent trace sampling because of multi-matching of rules across event
+    // and trace rules.
+    //
+    // An example of inconsistent trace sampling could be:
+    // /hello -> /world -> /transaction belong to trace_id = abc
+    // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
+    // * each project has a single transaction rule with different factors (2, 3, 4)
+    //
+    // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -> 0.2 * 2 = 0.4 sample rate
+    // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -> 0.2 * 3 = 0.6 sample rate
+    // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
+    //
+    // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
+    let mut seed = event.and_then(|e| e.id.value()).map(|id| id.0);
+    let mut accumulated_factors = 1.0;
 
-        // We perform the rule matching with the multi-matching logic on the merged rules.
-        let Some(rules) =
-            get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
-        else {
-            return SamplingResult::Keep;
-        };
-
-        Self::get_sampling_result_by_rules(rules, event, dsc, Utc::now(), sampling_mode)
-    }
-
-    /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
-    ///
-    /// The multi-matching algorithm used iterates by collecting and multiplying factor rules until
-    /// it finds a sample rate rule. Once a sample rate rule is found, the final sample rate is
-    /// computed by multiplying it with the previously accumulated factors.
-    ///
-    /// The default accumulated factors equal to 1 because it is the identity of the multiplication
-    /// operation, thus in case no factor rules are matched, the final result will just be the
-    /// sample rate of the matching rule.
-    ///
-    /// In case no sample rate rule is matched, we are going to return a None, signaling that no
-    /// match has been found.
-    fn get_sampling_result_by_rules<'a>(
-        rules: impl Iterator<Item = &'a SamplingRule>,
-        event: Option<&Event>,
-        dsc: Option<&DynamicSamplingContext>,
-        now: DateTime<Utc>,
-        sampling_mode: SamplingMode,
-    ) -> SamplingResult {
-        let mut matched_rule_ids = vec![];
-        // Even though this seed is changed based on whether we match event or trace rules, we will
-        // still incur in inconsistent trace sampling because of multi-matching of rules across event
-        // and trace rules.
-        //
-        // An example of inconsistent trace sampling could be:
-        // /hello -> /world -> /transaction belong to trace_id = abc
-        // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
-        // * each project has a single transaction rule with different factors (2, 3, 4)
-        //
-        // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -> 0.2 * 2 = 0.4 sample rate
-        // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -> 0.2 * 3 = 0.6 sample rate
-        // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -> 0.2 * 4 = 0.8 sample rate
-        //
-        // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
-        let mut seed = event.and_then(|e| e.id.value()).map(|id| id.0);
-        let mut accumulated_factors = 1.0;
-
-        for rule in rules {
-            let matches = match rule.ty {
-                RuleType::Trace => match dsc {
-                    Some(dsc) => {
-                        // todo move back
-                        seed = Some(dsc.trace_id);
-                        rule.condition.matches(dsc)
-                    }
-                    _ => false,
-                },
-                RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
-                    Some(EventType::Transaction) => rule.condition.matches(event),
-                    _ => false,
-                }),
+    for rule in rules {
+        let matches = match rule.ty {
+            RuleType::Trace => match dsc {
+                Some(dsc) => rule.condition.matches(dsc),
                 _ => false,
-            };
+            },
+            RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
+                Some(EventType::Transaction) => rule.condition.matches(event),
+                _ => false,
+            }),
+            _ => false,
+        };
 
-            if matches {
+        if matches {
+            if let Some(value) = rule.sample_rate(now) {
                 matched_rule_ids.push(rule.id);
 
-                if let Some(value) = SamplingValueEvaluator::create(rule, now) {
-                    match rule.sampling_value {
-                        SamplingValue::Factor { value } => accumulated_factors *= value,
-                        SamplingValue::SampleRate { value } => {
-                            let sample_rate = {
-                                let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                                get_adjusted_sample_rate(base, dsc, sampling_mode)
-                            };
-                            let Some(seed) = seed else {
-                                break;
-                            };
+                if rule.ty == RuleType::Trace {
+                    if let Some(dsc) = dsc {
+                        seed = Some(dsc.trace_id);
+                    }
+                }
 
-                            return Self::determine_from_sampling_match(
-                                sample_rate,
-                                MatchedRuleIds(matched_rule_ids),
-                                seed,
-                            );
-                        }
+                match rule.sampling_value {
+                    SamplingValue::Factor { .. } => accumulated_factors *= value,
+                    SamplingValue::SampleRate { .. } => {
+                        let sample_rate = {
+                            let base = (value * accumulated_factors).clamp(0.0, 1.0);
+                            get_adjusted_sample_rate(base, dsc, sampling_mode)
+                        };
+                        let Some(seed) = seed else {
+                            break;
+                        };
+
+                        return SamplingResult::new(
+                            sample_rate,
+                            MatchedRuleIds(matched_rule_ids),
+                            seed,
+                        );
                     }
                 }
             }
         }
-
-        // In case no match is available, we won't return any specification.
-        relay_log::trace!("keeping event that didn't match the configuration");
-        SamplingResult::Keep
     }
+
+    // In case no match is available, we won't return any specification.
+    relay_log::trace!("keeping event that didn't match the configuration");
+    SamplingResult::Keep
 }
 
 /// Represents a list of rule ids which is used for outcomes.
@@ -343,80 +288,6 @@ impl fmt::Display for MatchedRuleIds {
         }
 
         Ok(())
-    }
-}
-
-/// A struct representing the evaluation context of a sample rate.
-#[derive(Debug, Clone, Copy)]
-enum SamplingValueEvaluator {
-    Linear {
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-        initial_value: f64,
-        decayed_value: f64,
-    },
-    Constant {
-        initial_value: f64,
-    },
-}
-
-impl SamplingValueEvaluator {
-    /// Returns a [`SamplingValueEvaluator`] if the rule is active at the given time.
-    fn create(rule: &SamplingRule, now: DateTime<Utc>) -> Option<f64> {
-        let sampling_base_value = rule.sampling_value.value();
-
-        match rule.decaying_fn {
-            DecayingFunction::Linear { decayed_value } => {
-                if let TimeRange {
-                    start: Some(start),
-                    end: Some(end),
-                } = rule.time_range
-                {
-                    // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if sampling_base_value > decayed_value && start <= now && now < end {
-                        return Some(Self::Linear {
-                            start,
-                            end,
-                            initial_value: sampling_base_value,
-                            decayed_value,
-                        });
-                    }
-                }
-            }
-            DecayingFunction::Constant => {
-                if rule.time_range.contains(now) {
-                    return Some(Self::Constant {
-                        initial_value: sampling_base_value,
-                    });
-                }
-            }
-        }
-
-        None
-    }
-
-    /// Evaluates the value of the sampling strategy given a the current time.
-    fn evaluate(&self, now: DateTime<Utc>) -> f64 {
-        match self {
-            Self::Linear {
-                start,
-                end,
-                initial_value,
-                decayed_value,
-            } => {
-                let now_timestamp = now.timestamp() as f64;
-                let start_timestamp = start.timestamp() as f64;
-                let end_timestamp = end.timestamp() as f64;
-                let progress_ratio = ((now_timestamp - start_timestamp)
-                    / (end_timestamp - start_timestamp))
-                    .clamp(0.0, 1.0);
-
-                // This interval will always be < 0.
-                let interval = decayed_value - initial_value;
-                initial_value + (interval * progress_ratio)
-            }
-            Self::Constant { initial_value } => *initial_value,
-        }
     }
 }
 
