@@ -1,5 +1,6 @@
 ---
 source: relay-server/src/metrics_extraction/event.rs
+assertion_line: 867
 expression: metrics
 ---
 [

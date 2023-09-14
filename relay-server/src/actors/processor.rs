@@ -2281,9 +2281,6 @@ impl EnvelopeProcessorService {
         let all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
-        let ga_modules_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionGAModules);
 
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
@@ -2293,7 +2290,7 @@ impl EnvelopeProcessorService {
                     let Some(span_op) = inner_span.op.value() else {
                         continue;
                     };
-                    if all_modules_enabled || ga_modules_enabled && span_op.starts_with("db") {
+                    if all_modules_enabled || span_op.starts_with("db") {
                         // HACK: clone the span to set the segment_id. This should happen
                         // as part of normalization once standalone spans reach wider adoption.
                         let mut new_span = inner_span.clone();

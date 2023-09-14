@@ -36,10 +36,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         .has(Feature::SpanMetricsExtractionAllModules)
     {
         None
-    } else if project_config
-        .features
-        .has(Feature::SpanMetricsExtractionGAModules)
-    {
+    } else {
         Some(RuleCondition::And(AndCondition {
             inner: vec![
                 RuleCondition::Glob(GlobCondition {
@@ -61,8 +58,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 }),
             ],
         }))
-    } else {
-        return;
     };
 
     config.metrics.extend([

@@ -469,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_span_metrics_ga_modules() {
+    fn test_extract_span_metrics() {
         let json = r#"
         {
             "type": "transaction",
@@ -840,10 +840,7 @@ mod tests {
         "#;
 
         let mut event = Annotated::from_json(json).unwrap();
-        let features = FeatureSet(BTreeSet::from([
-            Feature::SpanMetricsExtraction,
-            Feature::SpanMetricsExtractionGAModules,
-        ]));
+        let features = FeatureSet(BTreeSet::from([Feature::SpanMetricsExtraction]));
 
         // Normalize first, to make sure that all things are correct as in the real pipeline:
         relay_event_normalization::light_normalize_event(
