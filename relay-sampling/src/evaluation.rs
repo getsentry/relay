@@ -145,15 +145,24 @@ pub fn match_rules<'a>(
     get_sampling_match(rules, event, dsc, now, sampling_mode)
 }
 
+/// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SamplingMatch {
+    /// The sample rate to use for the incoming event.
     pub sample_rate: f64,
+    /// The seed to feed to the random number generator which allows the same number to be
+    /// generated given the same seed.
+    ///
+    /// This is especially important for trace sampling, even though we can have inconsistent
+    /// traces due to multi-matching.
     pub seed: Uuid,
+    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
     pub matched_rules: MatchedRuleIds,
+    /// Whether this sampling match results in the item getting sampled.
+    /// It's essentially a cache, as the value can be deterministically derived from
+    /// the sample rate and the seed.
     pub is_kept: bool,
 }
-
-impl SamplingMatch {}
 
 /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
 ///
