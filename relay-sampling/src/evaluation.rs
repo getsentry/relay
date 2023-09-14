@@ -96,7 +96,7 @@ fn get_adjusted_sample_rate(
     }
 }
 
-fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
+pub(crate) fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
     let random_number = pseudo_random_from_uuid(seed);
     relay_log::trace!(
         sample_rate,
@@ -120,7 +120,7 @@ pub fn match_rules<'a>(
     event: Option<&Event>,
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
-) -> Option<SamplingMatch> {
+) -> SamplingMatch {
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
     // Keep in mind that the sample rate received here has already been derived by the matching
@@ -133,35 +133,75 @@ pub fn match_rules<'a>(
         Some(config) => config.mode,
         None => {
             relay_log::error!("cannot sample without at least one sampling config");
-            return None;
+            return SamplingMatch::NoMatch;
         }
     };
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let Some(rules) = get_and_verify_rules(sampling_config, root_sampling_config) else {
-        return None;
+        return SamplingMatch::NoMatch;
     };
 
     get_sampling_match(rules, event, dsc, now, sampling_mode)
 }
 
 /// Represents the specification for sampling an incoming event.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SamplingMatch {
-    /// The sample rate to use for the incoming event.
-    pub sample_rate: f64,
-    /// The seed to feed to the random number generator which allows the same number to be
-    /// generated given the same seed.
-    ///
-    /// This is especially important for trace sampling, even though we can have inconsistent
-    /// traces due to multi-matching.
-    pub seed: Uuid,
-    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-    pub matched_rules: MatchedRuleIds,
-    /// Whether this sampling match results in the item getting sampled.
-    /// It's essentially a cache, as the value can be deterministically derived from
-    /// the sample rate and the seed.
-    pub is_kept: bool,
+#[derive(Default, Clone, Debug, PartialEq)]
+pub enum SamplingMatch {
+    /// oh nice, a match!
+    Match {
+        /// The sample rate to use for the incoming event.
+        sample_rate: f64,
+        /// The seed to feed to the random number generator which allows the same number to be
+        /// generated given the same seed.
+        ///
+        /// This is especially important for trace sampling, even though we can have inconsistent
+        /// traces due to multi-matching.
+        seed: Uuid,
+        /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
+        matched_rules: MatchedRuleIds,
+        /// Whether this sampling match results in the item getting sampled.
+        /// It's essentially a cache, as the value can be deterministically derived from
+        /// the sample rate and the seed.
+        is_kept: bool,
+    },
+    /// tfw no match
+    #[default]
+    NoMatch,
+}
+
+impl SamplingMatch {
+    /// Returns the sample rate.
+    pub fn sample_rate(&self) -> Option<f64> {
+        if let Self::Match { sample_rate, .. } = self {
+            return Some(*sample_rate);
+        }
+        None
+    }
+
+    /// Returns true if the event matched on any rules.
+    pub fn is_no_match(&self) -> bool {
+        matches!(self, &Self::NoMatch)
+    }
+
+    /// Returns true if the event did not match on any rules.
+    pub fn is_match(&self) -> bool {
+        !self.is_no_match()
+    }
+
+    /// Returns true if item should be kept.
+    pub fn is_keep(&self) -> bool {
+        match self {
+            SamplingMatch::Match { is_kept, .. } => *is_kept,
+            // If no rules matched on an event, we want to keep it.
+            SamplingMatch::NoMatch => true,
+        }
+    }
+
+    /// Returns true if item should be dropped.
+    pub fn is_drop(&self) -> bool {
+        !self.is_keep()
+    }
 }
 
 /// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
@@ -182,7 +222,7 @@ pub fn get_sampling_match<'a>(
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
     sampling_mode: SamplingMode,
-) -> Option<SamplingMatch> {
+) -> SamplingMatch {
     let mut matched_rule_ids = vec![];
     // Even though this seed is changed based on whether we match event or trace rules, we will
     // still incur in inconsistent trace sampling because of multi-matching of rules across event
@@ -229,20 +269,23 @@ pub fn get_sampling_match<'a>(
                     SamplingValue::SampleRate { .. } => {
                         let sample_rate = {
                             let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                            get_adjusted_sample_rate(base, dsc, sampling_mode)?
+                            match get_adjusted_sample_rate(base, dsc, sampling_mode) {
+                                Some(adjusted_sample_rate) => adjusted_sample_rate,
+                                None => return SamplingMatch::NoMatch,
+                            }
                         };
                         let Some(seed) = seed else {
-                            return None;
+                            return SamplingMatch::NoMatch;
                         };
 
                         let is_kept = sampling_match(sample_rate, seed);
 
-                        return Some(SamplingMatch {
+                        return SamplingMatch::Match {
                             sample_rate,
                             seed,
                             matched_rules: MatchedRuleIds(matched_rule_ids),
                             is_kept,
-                        });
+                        };
                     }
                 }
             }
@@ -253,7 +296,7 @@ pub fn get_sampling_match<'a>(
 
     // In case no match is available, we won't return any specification.
     relay_log::trace!("keeping event that didn't match the configuration");
-    None
+    SamplingMatch::NoMatch
 }
 
 /// Represents a list of rule ids which is used for outcomes.

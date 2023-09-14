@@ -30,8 +30,7 @@ pub fn is_trace_fully_sampled(
             Some(dsc),
             Utc::now(),
         )
-        .map(|res| res.is_kept)
-        .unwrap_or(true),
+        .is_keep(),
     )
 }
 
@@ -58,7 +57,6 @@ mod tests {
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
-    use similar_asserts::assert_eq;
     use uuid::Uuid;
 
     use super::*;
@@ -128,7 +126,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert_eq!(result.unwrap().is_kept, true)
+        assert!(result.is_keep());
     }
 
     #[test]
@@ -145,7 +143,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert_eq!(result.unwrap().is_kept, false);
+        assert!(result.is_drop());
     }
 
     #[test]
@@ -169,7 +167,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert_eq!(result.unwrap().is_kept, true)
+        assert!(result.is_keep())
     }
 
     #[test]
@@ -189,11 +187,10 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-
-        assert_eq!(result.unwrap().is_kept, true);
+        assert!(result.is_keep());
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert_eq!(result.unwrap().is_kept, false)
+        assert!(result.is_drop());
     }
 
     #[test]
@@ -210,7 +207,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
         let result = match_rules(None, Some(&config), None, Some(&dsc), Utc::now());
-        assert_eq!(result.unwrap().is_kept, true)
+        assert!(result.is_keep());
     }
 
     #[test]
