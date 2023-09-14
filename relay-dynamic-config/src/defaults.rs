@@ -1,7 +1,9 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
-use relay_sampling::condition::{EqCondition, GlobCondition, RuleCondition};
+use relay_sampling::condition::{
+    AndCondition, EqCondition, GlobCondition, NotCondition, RuleCondition,
+};
 use serde_json::Value;
 
 use crate::feature::Feature;
@@ -38,9 +40,26 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         .features
         .has(Feature::SpanMetricsExtractionGAModules)
     {
-        Some(RuleCondition::Glob(GlobCondition {
-            name: span_op_field_name.into(),
-            value: GlobPatterns::new(vec!["db*".into()]),
+        Some(RuleCondition::And(AndCondition {
+            inner: vec![
+                RuleCondition::Glob(GlobCondition {
+                    name: span_op_field_name.into(),
+                    value: GlobPatterns::new(vec!["db*".into()]),
+                }),
+                RuleCondition::Not(NotCondition {
+                    inner: Box::new(RuleCondition::Glob(GlobCondition {
+                        name: span_op_field_name.into(),
+                        value: GlobPatterns::new(vec!["db*clickhouse".into()]),
+                    })),
+                }),
+                RuleCondition::Not(NotCondition {
+                    inner: Box::new(RuleCondition::Eq(EqCondition {
+                        name: span_op_field_name.into(),
+                        value: Value::String("db.redis".into()),
+                        options: Default::default(),
+                    })),
+                }),
+            ],
         }))
     } else {
         return;
