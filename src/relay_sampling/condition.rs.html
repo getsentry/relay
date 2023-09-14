@@ -468,7 +468,7 @@
 
     <span class="kw">fn </span>matches&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, instance: <span class="kw-2">&amp;</span>T) -&gt; bool
     <span class="kw">where
-        </span>T: Getter,
+        </span>T: Getter + <span class="question-mark">?</span>Sized,
     {
         <span class="kw">match </span>(instance.get_value(<span class="self">self</span>.name.as_str()), <span class="kw-2">&amp;</span><span class="self">self</span>.value) {
             (<span class="prelude-val">None</span>, Value::Null) =&gt; <span class="bool-val">true</span>,
@@ -500,7 +500,7 @@
         <span class="kw">impl </span><span class="macro-nonterminal">$struct_name </span>{
             <span class="kw">fn </span>matches&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, instance: <span class="kw-2">&amp;</span>T) -&gt; bool
             <span class="kw">where
-                </span>T: Getter
+                </span>T: Getter + <span class="question-mark">?</span>Sized,
             {
                 <span class="kw">let </span><span class="prelude-val">Some</span>(value) = instance.get_value(<span class="self">self</span>.name.as_str()) <span class="kw">else </span>{
                     <span class="kw">return </span><span class="bool-val">false</span>;
@@ -547,7 +547,7 @@
 <span class="kw">impl </span>GlobCondition {
     <span class="kw">fn </span>matches&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, instance: <span class="kw-2">&amp;</span>T) -&gt; bool
     <span class="kw">where
-        </span>T: Getter,
+        </span>T: Getter + <span class="question-mark">?</span>Sized,
     {
         <span class="kw">match </span>instance.get_value(<span class="self">self</span>.name.as_str()) {
             <span class="prelude-val">Some</span>(Val::String(s)) =&gt; <span class="self">self</span>.value.is_match(s),
@@ -572,7 +572,7 @@
 
     <span class="kw">fn </span>matches&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>T) -&gt; bool
     <span class="kw">where
-        </span>T: Getter,
+        </span>T: Getter + <span class="question-mark">?</span>Sized,
     {
         <span class="self">self</span>.inner.iter().any(|cond| cond.matches(value))
     }
@@ -593,7 +593,7 @@
     }
     <span class="kw">fn </span>matches&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>T) -&gt; bool
     <span class="kw">where
-        </span>T: Getter,
+        </span>T: Getter + <span class="question-mark">?</span>Sized,
     {
         <span class="self">self</span>.inner.iter().all(|cond| cond.matches(value))
     }
@@ -615,7 +615,7 @@
 
     <span class="kw">fn </span>matches&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>T) -&gt; bool
     <span class="kw">where
-        </span>T: Getter,
+        </span>T: Getter + <span class="question-mark">?</span>Sized,
     {
         !<span class="self">self</span>.inner.matches(value)
     }
@@ -677,7 +677,7 @@
     <span class="doccomment">/// Returns `true` if the rule matches the given value instance.
     </span><span class="kw">pub fn </span>matches&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, value: <span class="kw-2">&amp;</span>T) -&gt; bool
     <span class="kw">where
-        </span>T: Getter,
+        </span>T: Getter + <span class="question-mark">?</span>Sized,
     {
         <span class="kw">match </span><span class="self">self </span>{
             RuleCondition::Eq(condition) =&gt; condition.matches(value),
