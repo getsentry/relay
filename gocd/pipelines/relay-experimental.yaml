@@ -43,7 +43,7 @@ pipelines:
                     "Test (macos-latest)" \
                     "Test (windows-latest)" \
                     "Test All Features (ubuntu-latest)" \
-                    "Push GCR Docker Image (relay-internal)"
+                    "Push GCR Docker Image (relay)"
 
       - deploy-experimental:
           approval:
@@ -64,7 +64,7 @@ pipelines:
               elastic_profile_id: relay
               tasks:
                 - script: |
-                    ./relay/scripts/create-sentry-relay-internal-release "${GO_REVISION_RELAY_REPO}" "relay-internal"
+                    ./relay/scripts/create-sentry-relay-release "${GO_REVISION_RELAY_REPO}" "relay"
 
             deploy:
               timeout: 1200
@@ -74,5 +74,5 @@ pipelines:
                     /devinfra/scripts/k8s/k8stunnel \
                     && /devinfra/scripts/k8s/k8s-deploy.py \
                     --label-selector="service=relay,deploy_if_canary=true" \
-                    --image="us.gcr.io/sentryio/relay-internal:${GO_REVISION_RELAY_REPO}" \
+                    --image="us.gcr.io/sentryio/relay:${GO_REVISION_RELAY_REPO}" \
                     --container-name="relay"
