@@ -385,60 +385,6 @@
 <a href="#385" id="385">385</a>
 <a href="#386" id="386">386</a>
 <a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -449,7 +395,6 @@
 <span class="kw">use </span>std::os::raw::c_char;
 <span class="kw">use </span>std::slice;
 
-<span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>relay_common::glob::{glob_match_bytes, GlobOptions};
 <span class="kw">use </span>relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
@@ -464,10 +409,7 @@
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Remark};
 <span class="kw">use </span>relay_sampling::condition::RuleCondition;
-<span class="kw">use </span>relay_sampling::config::SamplingRule;
-<span class="kw">use </span>relay_sampling::evaluation::SamplingMatch;
-<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
-<span class="kw">use </span>serde::Serialize;
+<span class="kw">use </span>relay_sampling::SamplingConfig;
 
 <span class="kw">use </span><span class="kw">crate</span>::core::{RelayBuf, RelayStr};
 
@@ -779,56 +721,6 @@
         <span class="prelude-val">Ok</span>(normalized) =&gt; RelayStr::from_string(normalized),
         <span class="prelude-val">Err</span>(e) =&gt; RelayStr::from_string(e.to_string()),
     }
-}
-
-<span class="attr">#[derive(Debug, Serialize)]
-</span><span class="kw">struct </span>EphemeralSamplingResult {
-    merged_sampling_configs: Vec&lt;SamplingRule&gt;,
-    sampling_match: <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt;,
-}
-
-<span class="doccomment">/// Runs dynamic sampling given the sampling config, root sampling config, DSC and event.
-///
-/// Returns the sampling decision containing the sample_rate and the list of matched rule ids.
-</span><span class="attr">#[no_mangle]
-#[relay_ffi::catch_unwind]
-</span><span class="kw">pub unsafe extern </span><span class="string">&quot;C&quot; </span><span class="kw">fn </span>run_dynamic_sampling(
-    sampling_config: <span class="kw-2">&amp;</span>RelayStr,
-    root_sampling_config: <span class="kw-2">&amp;</span>RelayStr,
-    dsc: <span class="kw-2">&amp;</span>RelayStr,
-    event: <span class="kw-2">&amp;</span>RelayStr,
-) -&gt; RelayStr {
-    <span class="kw">let </span>sampling_config = serde_json::from_str::&lt;SamplingConfig&gt;(sampling_config.as_str())<span class="question-mark">?</span>;
-    <span class="kw">let </span>root_sampling_config =
-        serde_json::from_str::&lt;SamplingConfig&gt;(root_sampling_config.as_str())<span class="question-mark">?</span>;
-    <span class="comment">// We can optionally accept a dsc and event.
-    </span><span class="kw">let </span>dsc = serde_json::from_str::&lt;DynamicSamplingContext&gt;(dsc.as_str());
-    <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(event.as_str());
-
-    <span class="comment">// Instead of creating a new function, we decided to reuse the existing code here. This will have
-    // the only downside of not having the possibility to set the sample rate to a different value
-    // based on the `SamplingMode` but for this simulation it is not that relevant.
-    </span><span class="kw">let </span>rules: Vec&lt;SamplingRule&gt; = relay_sampling::evaluation::merge_rules_from_configs(
-        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
-        <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_sampling_config),
-    )
-    .cloned()
-    .collect();
-
-    <span class="comment">// Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
-    // the merged sampling configs.
-    </span><span class="kw">let </span>match_result = <span class="kw">if let </span>(<span class="prelude-val">Ok</span>(event), <span class="prelude-val">Ok</span>(dsc)) = (event, dsc) {
-        SamplingMatch::match_against_rules(rules.iter(), event.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc), Utc::now())
-    } <span class="kw">else </span>{
-        <span class="prelude-val">None
-    </span>};
-
-    <span class="kw">let </span>result = EphemeralSamplingResult {
-        merged_sampling_configs: rules,
-        sampling_match: match_result,
-    };
-
-    RelayStr::from(serde_json::to_string(<span class="kw-2">&amp;</span>result).unwrap())
 }
 
 <span class="attr">#[test]
