@@ -189,8 +189,8 @@ impl SamplingMatch {
         !self.is_no_match()
     }
 
-    /// Returns true if item should be kept.
-    pub fn is_keep(&self) -> bool {
+    /// Returns true if the event should be kept.
+    pub fn should_keep(&self) -> bool {
         match self {
             SamplingMatch::Match { is_kept, .. } => *is_kept,
             // If no rules matched on an event, we want to keep it.
@@ -198,9 +198,9 @@ impl SamplingMatch {
         }
     }
 
-    /// Returns true if item should be dropped.
-    pub fn is_drop(&self) -> bool {
-        !self.is_keep()
+    /// Returns true if the event should be dropped.
+    pub fn should_drop(&self) -> bool {
+        !self.should_keep()
     }
 }
 

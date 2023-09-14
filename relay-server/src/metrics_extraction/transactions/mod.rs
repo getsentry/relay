@@ -333,7 +333,7 @@ impl TransactionExtractor<'_> {
                     .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
             TransactionCPRTags {
-                decision: if self.sampling_result.is_keep() {
+                decision: if self.sampling_result.should_keep() {
                     "keep".to_owned()
                 } else {
                     "drop".to_owned()

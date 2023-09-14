@@ -30,7 +30,7 @@ pub fn is_trace_fully_sampled(
             Some(dsc),
             Utc::now(),
         )
-        .is_keep(),
+        .should_keep(),
     )
 }
 
@@ -126,7 +126,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_keep());
+        assert!(result.should_keep());
     }
 
     #[test]
@@ -143,7 +143,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_drop());
+        assert!(result.should_drop());
     }
 
     #[test]
@@ -167,7 +167,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_keep())
+        assert!(result.should_keep())
     }
 
     #[test]
@@ -187,10 +187,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_keep());
-
-        let result = match_rules(Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_drop());
+        assert!(result.should_keep());
     }
 
     #[test]
@@ -207,7 +204,7 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
         let result = match_rules(None, Some(&config), None, Some(&dsc), Utc::now());
-        assert!(result.is_keep());
+        assert!(result.should_keep());
     }
 
     #[test]

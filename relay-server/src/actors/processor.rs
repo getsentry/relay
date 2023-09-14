@@ -2379,7 +2379,7 @@ impl EnvelopeProcessorService {
         match std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
             SamplingMatch::Match { matched_rules, .. }
-                if state.sampling_result.is_drop()
+                if state.sampling_result.should_drop()
                     && state.event_type() == Some(EventType::Transaction) =>
             {
                 state
@@ -3088,17 +3088,17 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
         service.run_dynamic_sampling(&mut state);
-        assert!(state.sampling_result.is_keep());
+        assert!(state.sampling_result.should_keep());
 
         // Current version is 1, so it won't run DS if it's outdated
         let mut state = get_state(Some(0));
         service.run_dynamic_sampling(&mut state);
-        assert!(state.sampling_result.is_keep());
+        assert!(state.sampling_result.should_keep());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(1));
         service.run_dynamic_sampling(&mut state);
-        assert!(state.sampling_result.is_drop());
+        assert!(state.sampling_result.should_drop());
     }
 
     #[tokio::test]
@@ -3121,7 +3121,7 @@ mod tests {
             ..Event::default()
         };
 
-        for (sample_rate, expected_result) in [(0.0, false), (1.0, true)] {
+        for (sample_rate, should_keep) in [(0.0, false), (1.0, true)] {
             let project_state = state_with_rule_and_condition(
                 Some(sample_rate),
                 RuleType::Transaction,
@@ -3151,7 +3151,7 @@ mod tests {
             // refactored to send a proper Envelope in and call process_state to cover the full
             // pipeline.
             service.compute_sampling_decision(&mut state);
-            assert!(state.sampling_result.is_keep());
+            assert_eq!(state.sampling_result.should_keep(), should_keep);
         }
     }
 
