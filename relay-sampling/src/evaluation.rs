@@ -82,6 +82,26 @@ fn get_and_verify_rules<'a>(
     ))
 }
 
+fn get_adjusted_sample_rate(
+    base_sample_rate: f64,
+    dsc: Option<&DynamicSamplingContext>,
+    sampling_mode: SamplingMode,
+) -> f64 {
+    match sampling_mode {
+        SamplingMode::Total => match dsc {
+            Some(dsc) => dsc.adjusted_sample_rate(base_sample_rate),
+            None => base_sample_rate,
+        },
+        SamplingMode::Received => base_sample_rate,
+        SamplingMode::Unsupported => {
+            #[cfg(feature = "processing")]
+            relay_log::error!("found unsupported sampling mode even as processing Relay");
+
+            base_sample_rate
+        }
+    }
+}
+
 /// The result of a sampling operation.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum SamplingResult {
@@ -221,7 +241,7 @@ impl SamplingResult {
         event: Option<&Event>,
         dsc: Option<&DynamicSamplingContext>,
         now: DateTime<Utc>,
-        mode: SamplingMode,
+        sampling_mode: SamplingMode,
     ) -> SamplingResult {
         let mut matched_rule_ids = vec![];
         // Even though this seed is changed based on whether we match event or trace rules, we will
@@ -261,48 +281,32 @@ impl SamplingResult {
             if matches {
                 matched_rule_ids.push(rule.id);
 
-                match SamplingValueEvaluator::create(rule, now) {
-                    Some(value) => match rule.sampling_value {
+                if let Some(value) = SamplingValueEvaluator::create(rule, now) {
+                    match rule.sampling_value {
                         SamplingValue::Factor { value } => accumulated_factors *= value,
                         SamplingValue::SampleRate { value } => {
                             let sample_rate = {
                                 let base = (value * accumulated_factors).clamp(0.0, 1.0);
                                 get_adjusted_sample_rate(base, dsc, sampling_mode)
                             };
-                            if let Some(seed) = seed {}
-                        }
-                    },
-                    None => {}
-                }
+                            let Some(seed) = seed else {
+                                break;
+                            };
 
-                /*
-                SamplingValueEvaluator::SamplingValue(value) => match rule.sampling_value {
-                    SamplingValue::Factor { .. } => accumulated_factors *= value,
-                    SamplingValue::SampleRate { .. } => {
-                        let sample_rate = {
-                            let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                            get_adjusted_sample_rate(base, dsc, sampling_mode)
-                        };
-
-                        if let Some(seed) = seed {
                             return Self::determine_from_sampling_match(
                                 sample_rate,
-                                seed,
                                 MatchedRuleIds(matched_rule_ids),
+                                seed,
                             );
-                        } else {
-                            break;
-                        };
+                        }
                     }
-                },
-                */
-            };
+                }
+            }
         }
 
         // In case no match is available, we won't return any specification.
-
         relay_log::trace!("keeping event that didn't match the configuration");
-        SamplingResult::Keep(None)
+        SamplingResult::Keep
     }
 }
 
