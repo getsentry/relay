@@ -91,6 +91,9 @@
 <a href="#91" id="91">91</a>
 <a href="#92" id="92">92</a>
 <a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -115,6 +118,9 @@
     <span class="doccomment">/// Allow ingestion of metrics in the &quot;custom&quot; namespace.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:custom-metrics&quot;</span>)]
     </span>CustomMetrics,
+    <span class="doccomment">/// Enable extracting spans for all modules.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-all-modules&quot;</span>)]
+    </span>SpanMetricsExtractionAllModules,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]

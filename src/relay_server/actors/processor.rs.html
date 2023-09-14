@@ -4001,6 +4001,16 @@
 <a href="#4001" id="4001">4001</a>
 <a href="#4002" id="4002">4002</a>
 <a href="#4003" id="4003">4003</a>
+<a href="#4004" id="4004">4004</a>
+<a href="#4005" id="4005">4005</a>
+<a href="#4006" id="4006">4006</a>
+<a href="#4007" id="4007">4007</a>
+<a href="#4008" id="4008">4008</a>
+<a href="#4009" id="4009">4009</a>
+<a href="#4010" id="4010">4010</a>
+<a href="#4011" id="4011">4011</a>
+<a href="#4012" id="4012">4012</a>
+<a href="#4013" id="4013">4013</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6281,23 +6291,33 @@
             state.managed_envelope.envelope_mut().add_item(item);
         };
 
+        <span class="kw">let </span>all_modules_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionAllModules);
+
         <span class="comment">// Add child spans as envelope items.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
             <span class="kw">for </span>span <span class="kw">in </span>child_spans {
-                <span class="comment">// HACK: clone the span to set the segment_id. This should happen
-                // as part of normalization once standalone spans reach wider adoption.
-                </span><span class="kw">let </span><span class="kw-2">mut </span>span = span.clone();
-                <span class="kw">let </span><span class="prelude-val">Some</span>(inner_span) = span.value_mut() <span class="kw">else </span>{
-                    <span class="kw">continue</span>;
-                };
-                inner_span.segment_id = transaction_span.segment_id.clone();
-                inner_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
-                add_span(span);
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_span) = span.value() {
+                    <span class="comment">// HACK: filter spans based on module until we figure out grouping.
+                    </span><span class="kw">let </span><span class="prelude-val">Some</span>(span_op) = inner_span.op.value() <span class="kw">else </span>{
+                        <span class="kw">continue</span>;
+                    };
+                    <span class="kw">if </span>all_modules_enabled || span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
+                        <span class="comment">// HACK: clone the span to set the segment_id. This should happen
+                        // as part of normalization once standalone spans reach wider adoption.
+                        </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
+                        new_span.segment_id = transaction_span.segment_id.clone();
+                        new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
+                        add_span(Annotated::new(new_span));
+                    }
+                }
             }
         }
 
-        <span class="comment">// Add transaction span as an envelope item.
-        </span>add_span(transaction_span.into());
+        <span class="kw">if </span>all_modules_enabled {
+            add_span(transaction_span.into());
+        }
     }
 
     <span class="doccomment">/// Computes the sampling decision on the incoming event
