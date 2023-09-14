@@ -30,20 +30,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
-    let mut span_op_conditions: Vec<RuleCondition> = Vec::new();
     let span_op_field_name = "span.op";
-
-    if project_config
+    let span_op_conditions = if project_config
         .features
         .has(Feature::SpanMetricsExtractionAllModules)
     {
-        span_op_conditions.push(RuleCondition::And(AndCondition { inner: Vec::new() }));
+        None
     } else {
+        let mut rules: Vec<RuleCondition> = Vec::new();
+
         if project_config
             .features
             .has(Feature::SpanMetricsExtractionDBModule)
         {
-            span_op_conditions.push(RuleCondition::And(AndCondition {
+            rules.push(RuleCondition::And(AndCondition {
                 inner: vec![
                     RuleCondition::Glob(GlobCondition {
                         name: span_op_field_name.into(),
@@ -68,7 +68,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             .features
             .has(Feature::SpanMetricsExtractionBrowserModule)
         {
-            span_op_conditions.push(RuleCondition::Glob(GlobCondition {
+            rules.push(RuleCondition::Glob(GlobCondition {
                 name: span_op_field_name.into(),
                 value: GlobPatterns::new(vec![
                     "browser*".into(),
@@ -78,19 +78,13 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ]),
             }));
         }
-    }
 
-    // If every module is disabled, no extraction.
-    if span_op_conditions.is_empty() {
-        return;
-    }
+        // If every module is disabled, no extraction.
+        if rules.is_empty() {
+            return;
+        }
 
-    let additional_conditions: RuleCondition = if span_op_conditions.len() == 1 {
-        span_op_conditions.remove(0)
-    } else {
-        RuleCondition::Or(OrCondition {
-            inner: span_op_conditions,
-        })
+        Some(RuleCondition::Or(OrCondition { inner: rules }))
     };
 
     config.metrics.extend([
@@ -98,7 +92,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(additional_conditions.clone()),
+            condition: span_op_conditions.clone(),
             tags: vec![TagSpec {
                 key: "transaction".into(),
                 field: Some("span.data.transaction".into()),
@@ -110,7 +104,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(additional_conditions.clone()),
+            condition: span_op_conditions.clone(),
             tags: Default::default(),
         },
     ]);
