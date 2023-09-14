@@ -122,7 +122,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 key: key.into(),
                 field: Some(format!("span.data.{}", key.replace('.', "\\."))),
                 value: None,
-                condition: Some(additional_conditions.clone()),
+                condition: None,
             })
             .into(),
         },
@@ -133,15 +133,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     key: key.into(),
                     field: Some(format!("span.data.{}", key.replace('.', "\\."))),
                     value: None,
-                    condition: Some(RuleCondition::And(AndCondition {
-                        inner: vec![
-                            RuleCondition::Eq(EqCondition {
-                                name: "span.data.mobile".into(),
-                                value: Value::Bool(true),
-                                options: Default::default(),
-                            }),
-                            additional_conditions.clone(),
-                        ],
+                    condition: Some(RuleCondition::Eq(EqCondition {
+                        name: "span.data.mobile".into(),
+                        value: Value::Bool(true),
+                        options: Default::default(),
                     })),
                 })
                 .into(),
