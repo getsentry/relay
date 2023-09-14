@@ -82,7 +82,6 @@ mod utils;
 pub use config::SamplingConfig;
 pub use dsc::DynamicSamplingContext;
 
-/*
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -109,7 +108,7 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::MatchedRuleIds;
+    use crate::evaluation::{get_sampling_result, MatchedRuleIds};
 
     use super::*;
 
@@ -856,40 +855,48 @@ mod tests {
     #[test]
     /// test that the multi-matching returns none in case there is no match.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
-        let result = match_against_rules(
-            &mocked_sampling_config_with_rules(vec![
-                SamplingRule {
-                    condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                    sampling_value: SamplingValue::Factor { value: 2.0 },
-                    ty: RuleType::Transaction,
-                    id: RuleId(1),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["prod"], true),
-                    ]),
-                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                    ty: RuleType::Trace,
-                    id: RuleId(2),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-            ]),
-            &mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing"),
-            &mocked_dynamic_sampling_context(
-                "root_transaction",
-                "1.1.1",
-                "debug",
-                "vip",
-                "user-id",
-                None,
-            ),
+        let sampling_config = mocked_sampling_config_with_rules(vec![
+            SamplingRule {
+                condition: and(vec![eq("event.transaction", &["foo"], true)]),
+                sampling_value: SamplingValue::Factor { value: 2.0 },
+                ty: RuleType::Transaction,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+            SamplingRule {
+                condition: and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["prod"], true),
+                ]),
+                sampling_value: SamplingValue::SampleRate { value: 0.5 },
+                ty: RuleType::Trace,
+                id: RuleId(2),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            },
+        ]);
+
+        let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
+
+        let dsc = mocked_dynamic_sampling_context(
+            "root_transaction",
+            "1.1.1",
+            "debug",
+            "vip",
+            "user-id",
+            None,
+        );
+
+        let result = get_sampling_result(
+            Some(&sampling_config),
+            None,
+            Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
-        assert_eq!(result, None, "did not return none for no match");
+
+        assert!(!result.is_keep())
     }
 
     #[test]
@@ -962,7 +969,7 @@ mod tests {
             "user-id",
             None,
         );
-        let result = match_against_rules(&config, &event, &dsc, Utc::now());
+        let result = get_sampling_result(Some(&config), None, Some(&event), Some(&dsc), Utc::now());
         assert_transaction_match!(result, 0.1, event, 1);
 
         // early return of second rule
@@ -1597,4 +1604,3 @@ mod tests {
         assert_no_match!(result);
     }
 }
-*/

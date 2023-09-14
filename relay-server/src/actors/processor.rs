@@ -2327,14 +2327,14 @@ impl EnvelopeProcessorService {
             .as_ref()
             .and_then(|state| state.config.dynamic_sampling.as_ref());
 
-        state.sampling_result = get_sampling_result(
-            self.inner.config.processing_enabled(),
+        state.sampling_result = match_rules(
             sampling_config,
             root_sampling_config,
             state.event.value(),
             state.envelope().dsc(),
             Utc::now(),
-        );
+        )
+        .evaluate();
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
@@ -2354,11 +2354,7 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        let sampled = utils::is_trace_fully_sampled(
-            self.inner.config.processing_enabled(),
-            project_state,
-            dsc,
-        );
+        let sampled = utils::is_trace_fully_sampled(project_state, dsc);
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;

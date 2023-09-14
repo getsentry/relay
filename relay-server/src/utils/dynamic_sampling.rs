@@ -11,7 +11,6 @@ use crate::envelope::{Envelope, ItemType};
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
-    processing_enabled: bool,
     root_project_state: &ProjectState,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
@@ -24,7 +23,6 @@ pub fn is_trace_fully_sampled(
     }
 
     let sampling_result = get_sampling_result(
-        processing_enabled,
         None,
         root_project_state.config.dynamic_sampling.as_ref(),
         None,
