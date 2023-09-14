@@ -123,7 +123,7 @@ impl Error for ParseMetricError {}
 ///
 /// At a later stage, namespaces are used to route metrics to their associated infra structure and
 /// enforce usecase-specific configuration.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MetricNamespace {
     /// Metrics extracted from sessions.
     Sessions,
@@ -145,6 +145,19 @@ pub enum MetricNamespace {
     Unsupported,
 }
 
+impl MetricNamespace {
+    /// Returns the string representation for this metric type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MetricNamespace::Sessions => "sessions",
+            MetricNamespace::Transactions => "transactions",
+            MetricNamespace::Spans => "spans",
+            MetricNamespace::Custom => "custom",
+            MetricNamespace::Unsupported => "unsupported",
+        }
+    }
+}
+
 impl std::str::FromStr for MetricNamespace {
     type Err = ParseMetricError;
 
@@ -163,13 +176,7 @@ relay_common::impl_str_serde!(MetricNamespace, "a valid metric namespace");
 
 impl fmt::Display for MetricNamespace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MetricNamespace::Sessions => write!(f, "sessions"),
-            MetricNamespace::Transactions => write!(f, "transactions"),
-            MetricNamespace::Spans => write!(f, "spans"),
-            MetricNamespace::Custom => write!(f, "custom"),
-            MetricNamespace::Unsupported => write!(f, "unsupported"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
