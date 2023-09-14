@@ -86,7 +86,7 @@ impl SamplingRule {
                 } = self.time_range
                 {
                     // As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    if sampling_base_value > decayed_value && start <= now && now < end {
+                    if sampling_base_value > decayed_value && self.time_range.contains(now) {
                         let now_timestamp = now.timestamp() as f64;
                         let start_timestamp = start.timestamp() as f64;
                         let end_timestamp = end.timestamp() as f64;

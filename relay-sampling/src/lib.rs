@@ -213,26 +213,19 @@ mod tests {
         }
     }
 
-    fn mocked_dynamic_sampling_context(
-        transaction: &str,
-        release: &str,
-        environment: &str,
-        user_segment: &str,
-        user_id: &str,
-        replay_id: Option<Uuid>,
-    ) -> DynamicSamplingContext {
+    fn mocked_dsc(environment: &str, user_segment: &str, release: &str) -> DynamicSamplingContext {
         DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
             public_key: "12345678901234567890123456789012".parse().unwrap(),
             release: Some(release.to_string()),
             environment: Some(environment.to_string()),
-            transaction: Some(transaction.to_string()),
+            transaction: Some("root_transaction".to_string()),
             sample_rate: Some(1.0),
             user: TraceUserContext {
                 user_segment: user_segment.to_string(),
-                user_id: user_id.to_string(),
+                user_id: "user-id".to_string(),
             },
-            replay_id,
+            replay_id: None,
             sampled: None,
             other: Default::default(),
         }
@@ -364,6 +357,8 @@ mod tests {
         dsc: &DynamicSamplingContext,
         now: DateTime<Utc>,
     ) -> SamplingMatch {
+        // This essentially bypasses the verification of the rules, which won't happen in prod.
+        // Todo(tor): figure out if we want this behaviour.
         get_sampling_match(
             config.rules_v2.iter(),
             Some(event),
@@ -876,8 +871,8 @@ mod tests {
     #[test]
     /// test that the multi-matching returns none in case there is no match.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
-        let result = match_against_rules(
-            &mocked_sampling_config_with_rules(vec![
+        let result = match_rules(
+            Some(&mocked_sampling_config_with_rules(vec![
                 SamplingRule {
                     condition: and(vec![eq("event.transaction", &["foo"], true)]),
                     sampling_value: SamplingValue::Factor { value: 2.0 },
@@ -897,16 +892,15 @@ mod tests {
                     time_range: Default::default(),
                     decaying_fn: Default::default(),
                 },
-            ]),
-            &mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing"),
-            &mocked_dynamic_sampling_context(
-                "root_transaction",
+            ])),
+            None,
+            Some(&mocked_event(
+                EventType::Transaction,
+                "healthcheck",
                 "1.1.1",
-                "debug",
-                "vip",
-                "user-id",
-                None,
-            ),
+                "testing",
+            )),
+            Some(&mocked_dsc("debug", "vip", "1.1.1")),
             Utc::now(),
         );
         assert!(result.is_no_match(), "did not return none for no match");
@@ -974,81 +968,37 @@ mod tests {
 
         // early return of first rule
         let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "debug",
-            "vip",
-            "user-id",
-            None,
-        );
+        let dsc = mocked_dsc("debug", "vip", "1.1.1");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
-        //        assert_transaction_match!(result, 0.1, event, 1);
-
         assert_eq!(result, transaction_match(0.1, &event, &[1]));
 
         // early return of second rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "dev",
-            "vip",
-            "user-id",
-            None,
-        );
+        let dsc = mocked_dsc("dev", "vip", "1.1.1");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_eq!(result, trace_match(1.0, &dsc, &[2]));
 
         // factor match third rule and early return sixth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.2",
-            "testing",
-            "non-vip",
-            "user-id",
-            None,
-        );
+        let dsc = mocked_dsc("testing", "non-vip", "1.1.2");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_eq!(result, trace_match(0.04, &dsc, &[3, 6]));
 
         // factor match third rule and early return fourth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "prod",
-            "vip",
-            "user-id",
-            None,
-        );
+        let dsc = mocked_dsc("prod", "vip", "1.1.1");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_eq!(result, trace_match(1.0, &dsc, &[3, 4]));
 
         // factor match third, fifth rule and early return sixth rule
         let event = mocked_event(EventType::Transaction, "foo", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "prod",
-            "non-vip",
-            "user-id",
-            None,
-        );
+        let dsc = mocked_dsc("prod", "non-vip", "1.1.1");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_eq!(result, trace_match(0.06, &dsc, &[3, 5, 6]));
 
         // factor match fifth and early return sixth rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "prod",
-            "non-vip",
-            "user-id",
-            None,
-        );
+        let dsc = mocked_dsc("prod", "non-vip", "1.1.1");
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_eq!(result, trace_match(0.03, &dsc, &[5, 6]));
     }
@@ -1056,7 +1006,7 @@ mod tests {
     #[test]
     /// Test that the multi-matching works for a mixture of decaying and non-decaying rules.
     fn test_match_against_rules_with_trace_event_type_decaying_rules_and_matches() {
-        let config = mocked_sampling_config_with_rules(vec![
+        let sampling_config = mocked_sampling_config_with_rules(vec![
             SamplingRule {
                 condition: and(vec![
                     eq("trace.release", &["1.1.1"], true),
@@ -1095,19 +1045,13 @@ mod tests {
             },
         ]);
 
-        // factor match first rule and early return third rule
         let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "dev",
-            "vip",
-            "user-id",
-            None,
-        );
+
+        // factor match first rule and early return third rule
         // We will use a time in the middle of 10th and 11th.
+        let dsc = mocked_dsc("dev", "vip", "1.1.1");
         let result = match_against_rules(
-            &config,
+            &sampling_config,
             &event,
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
@@ -1115,18 +1059,10 @@ mod tests {
         assert_eq!(result, trace_match(0.03, &dsc, &[1, 3]));
 
         // early return second rule
-        let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "prod",
-            "vip",
-            "user-id",
-            None,
-        );
         // We will use a time in the middle of 10th and 11th.
+        let dsc = mocked_dsc("prod", "vip", "1.1.1");
         let result = match_against_rules(
-            &config,
+            &sampling_config,
             &event,
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
@@ -1139,18 +1075,10 @@ mod tests {
         );
 
         // early return third rule
-        let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "testing",
-            "vip",
-            "user-id",
-            None,
-        );
         // We will use a time in the middle of 10th and 11th.
+        let dsc = mocked_dsc("testing", "vip", "1.1.1");
         let result = match_against_rules(
-            &config,
+            &sampling_config,
             &event,
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
@@ -1162,26 +1090,21 @@ mod tests {
     /// test that the correct match is performed when replay id is present in the dsc.
     fn test_sampling_match_with_trace_replay_id() {
         let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
-        let dsc = mocked_dynamic_sampling_context(
-            "root_transaction",
-            "1.1.1",
-            "prod",
-            "vip",
-            "user-id",
-            Some(Uuid::new_v4()),
-        );
+        let mut dsc = mocked_dsc("prod", "vip", "1.1.1");
+        dsc.replay_id = Some(Uuid::new_v4());
 
-        let result = match_against_rules(
-            &mocked_sampling_config_with_rules(vec![SamplingRule {
+        let result = match_rules(
+            None,
+            Some(&mocked_sampling_config_with_rules(vec![SamplingRule {
                 condition: and(vec![not(eq_null("trace.replay_id"))]),
                 sampling_value: SamplingValue::SampleRate { value: 1.0 },
                 ty: RuleType::Trace,
                 id: RuleId(1),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
-            }]),
-            &event,
-            &dsc,
+            }])),
+            Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert_eq!(result, trace_match(1.0, &dsc, &[1]));

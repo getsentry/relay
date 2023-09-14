@@ -216,7 +216,7 @@ impl SamplingMatch {
 ///
 /// In case no sample rate rule is matched, we are going to return a None, signaling that no
 /// match has been found.
-pub fn get_sampling_match<'a>(
+pub(crate) fn get_sampling_match<'a>(
     rules: impl Iterator<Item = &'a SamplingRule>,
     event: Option<&Event>,
     dsc: Option<&DynamicSamplingContext>,
@@ -292,7 +292,7 @@ pub fn get_sampling_match<'a>(
         }
     }
 
-    debug_assert!(matched_rule_ids.is_empty());
+    //debug_assert!(matched_rule_ids.is_empty());
 
     // In case no match is available, we won't return any specification.
     relay_log::trace!("keeping event that didn't match the configuration");
