@@ -22,6 +22,12 @@ pub enum Feature {
     /// Allow ingestion of metrics in the "custom" namespace.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
+    /// Enable extracting spans for the DB module
+    #[serde(rename = "projects:span-metrics-extraction-db-module")]
+    SpanMetricsExtractionDBModule,
+    /// Enable extracting spans for the browser module
+    #[serde(rename = "projects:span-metrics-extraction-browser-module")]
+    SpanMetricsExtractionBrowserModule,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

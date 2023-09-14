@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
@@ -58,6 +57,7 @@ use {
     relay_event_normalization::{StoreConfig, StoreProcessor},
     relay_event_schema::protocol::ProfileContext,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    std::collections::HashSet,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
