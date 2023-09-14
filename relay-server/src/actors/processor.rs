@@ -2290,6 +2290,9 @@ impl EnvelopeProcessorService {
             "resource".into(),
             "ui".into(),
         ];
+        let all_modules_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionAllModules);
         let db_module_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionDBModule);
@@ -2311,9 +2314,10 @@ impl EnvelopeProcessorService {
                     continue;
                 };
 
-                if (db_module_enabled
-                    && span_op.starts_with("db")
-                    && !span_op_db_module_denylist.contains(span_op))
+                if all_modules_enabled
+                    || (db_module_enabled
+                        && span_op.starts_with("db")
+                        && !span_op_db_module_denylist.contains(span_op))
                     || (browser_module_enabled
                         && span_op_browser_module_prefix_allowlist
                             .iter()
