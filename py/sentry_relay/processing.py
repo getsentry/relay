@@ -30,7 +30,6 @@ __all__ = [
     "validate_sampling_configuration",
     "validate_project_config",
     "normalize_global_config",
-    "run_dynamic_sampling",
 ]
 
 
@@ -279,23 +278,3 @@ def normalize_global_config(config):
         return json.loads(rv)
     except json.JSONDecodeError:
         raise ValueError(rv)
-
-
-def run_dynamic_sampling(sampling_config, root_sampling_config, dsc, event):
-    """
-    Runs dynamic sampling on an event and returns the merged rules together with the sample rate.
-    """
-    assert isinstance(sampling_config, str)
-    assert isinstance(root_sampling_config, str)
-    assert isinstance(dsc, str)
-    assert isinstance(event, str)
-
-    result_json = rustcall(
-        lib.run_dynamic_sampling,
-        encode_str(sampling_config),
-        encode_str(root_sampling_config),
-        encode_str(dsc),
-        encode_str(event),
-    )
-
-    return json.loads(decode_str(result_json, free=True))
