@@ -1,7 +1,5 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
-use crate::BucketValue;
-
 /// Set metrics for Relay Metrics.
 pub enum MetricSets {
     /// Count the number of unique buckets created.
@@ -15,7 +13,7 @@ pub enum MetricSets {
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric for which the bucket was created.
     UniqueBucketsCreated,
 }
 
@@ -33,14 +31,14 @@ pub enum MetricCounters {
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric.
     MergeHit,
 
     /// Incremented every time a bucket is created.
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric.
     MergeMiss,
 
     /// Incremented every time a bucket is dropped.
@@ -172,8 +170,8 @@ pub enum MetricGauges {
     /// The average number of elements in a bucket when flushed.
     ///
     /// This metric is tagged with:
-    ///  - `metric_type`: "counter", "distribution", "gauge" or "set".
-    ///  - `metric_name`: Low-cardinality name of the metric.
+    ///  - `metric_type`: "c", "d", "g" or "s".
+    ///  - `namespace`: The namespace of the metric.
     AvgBucketSize,
 }
 
@@ -184,51 +182,5 @@ impl GaugeMetric for MetricGauges {
             Self::BucketsCost => "metrics.buckets.cost",
             Self::AvgBucketSize => "metrics.buckets.size",
         }
-    }
-}
-
-/// Returns a low-cardinality metric name for use as a tag key on statsd metrics.
-///
-/// In order to keep this low-cardinality, we only enumerate a handful of well-known, high volume
-/// names. The rest gets mapped to "other".
-pub(crate) fn metric_name_tag(value: &str) -> &'static str {
-    if let Some(value) = [
-        "c:sessions/session@none",
-        "s:sessions/user@none",
-        "s:sessions/error@none",
-        "d:transactions/duration@millisecond",
-        "s:transactions/user@none",
-        "c:transactions/count_per_root_project@none",
-    ]
-    .into_iter()
-    .find(|x| x == &value)
-    {
-        return value;
-    }
-
-    if value.starts_with("d:transactions/breakdowns.") {
-        return "d:transactions/breakdowns.*";
-    }
-    if value.starts_with("d:transactions/measurements.") {
-        return "d:transactions/measurements.*";
-    }
-
-    if value.starts_with("s:spans/") {
-        return "s:spans/";
-    }
-    if value.starts_with("d:spans/") {
-        return "d:spans/";
-    }
-
-    "other"
-}
-
-/// Returns the metric type for use as a tag key on statsd metrics.
-pub(crate) fn metric_type_tag(value: &BucketValue) -> &'static str {
-    match value {
-        BucketValue::Counter(_) => "counter",
-        BucketValue::Distribution(_) => "distribution",
-        BucketValue::Set(_) => "set",
-        BucketValue::Gauge(_) => "gauge",
     }
 }

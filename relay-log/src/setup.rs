@@ -8,7 +8,7 @@ use tracing::{level_filters::LevelFilter, Level};
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
 #[cfg(feature = "dashboard")]
-use crate::LOGS;
+use crate::dashboard;
 
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
@@ -199,29 +199,6 @@ fn get_default_filters() -> EnvFilter {
     env_filter
 }
 
-#[cfg(feature = "dashboard")]
-struct LogsWriter;
-
-#[cfg(feature = "dashboard")]
-impl std::io::Write for LogsWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let tx = &*LOGS;
-        let buf_len = buf.len();
-        tx.send(buf.to_vec()).ok();
-        Ok(buf_len)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Returns the log writer.
-#[cfg(feature = "dashboard")]
-fn make_logs_writer() -> impl std::io::Write {
-    LogsWriter
-}
-
 /// Initialize the logging system and reporting to Sentry.
 ///
 /// # Example
@@ -245,13 +222,6 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         .with_writer(std::io::stderr)
         .with_target(true);
 
-    #[cfg(feature = "dashboard")]
-    let dashboard_subscriber = tracing_subscriber::fmt::layer()
-        .with_writer(make_logs_writer)
-        .with_target(true)
-        .with_ansi(true)
-        .compact();
-
     let format = match (config.format, console::user_attended()) {
         (LogFormat::Auto, true) | (LogFormat::Pretty, _) => {
             subscriber.compact().without_time().boxed()
@@ -269,7 +239,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             .boxed(),
     };
 
-    let trsub = tracing_subscriber::registry()
+    let logs_subscriber = tracing_subscriber::registry()
         .with(format.with_filter(LevelFilter::from(config.level)))
         .with(sentry::integrations::tracing::layer())
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
@@ -279,9 +249,9 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
 
     // Also add dashboard subscriber if the feature is enabled.
     #[cfg(feature = "dashboard")]
-    let trsub = trsub.with(dashboard_subscriber);
+    let logs_subscriber = logs_subscriber.with(dashboard::dashboard_subscriber());
 
-    trsub.init();
+    logs_subscriber.init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
         let guard = sentry::init(sentry::ClientOptions {

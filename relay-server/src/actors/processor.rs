@@ -2820,6 +2820,10 @@ impl Service for EnvelopeProcessorService {
                 return;
             };
 
+            // In case we use static global config, the watch wont be updated repeatedly, so we
+            // should immediatly use the content of the watch.
+            self.global_config = subscription.borrow().clone();
+
             loop {
                 let next_msg = async {
                     let permit_result = semaphore.clone().acquire_owned().await;

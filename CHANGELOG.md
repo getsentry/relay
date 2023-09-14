@@ -4,7 +4,6 @@
 
 **Features**:
 
-- Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
 - Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
 - Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
 - The Crons monitor check-in APIs have learned to accept JSON via POST. This allows for monitor upserts by specifying the `monitor_config` in the JSON body. ([#2448](https://github.com/getsentry/relay/pull/2448))
@@ -20,10 +19,13 @@
 
 **Internal**:
 
+- Use static global configuration if file is provided and not in managed mode. ([#2458](https://github.com/getsentry/relay/pull/2458))
+- Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
 - Support ingestion of custom metrics when the `organizations:custom-metrics` feature flag is enabled. ([#2443](https://github.com/getsentry/relay/pull/2443))
 - Merge span metrics and standalone spans extraction options. ([#2447](https://github.com/getsentry/relay/pull/2447))
 - Support parsing aggregated metric buckets directly from statsd payloads. ([#2468](https://github.com/getsentry/relay/pull/2468), [#2472](https://github.com/getsentry/relay/pull/2472))
 - Improve performance when ingesting distribution metrics with a large number of data points. ([#2483](https://github.com/getsentry/relay/pull/2483))
+- Improve documentation for metrics bucketing. ([#2503](https://github.com/getsentry/relay/pull/2503))
 - Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
 - Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
 - Add a timestamp field to report profile's start time on Android. ([#2486](https://github.com/getsentry/relay/pull/2486))

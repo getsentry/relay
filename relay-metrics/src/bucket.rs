@@ -136,52 +136,124 @@ pub type SetValue = BTreeSet<SetType>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
 pub enum BucketValue {
-    /// Aggregates [`MetricValue::Counter`](crate::MetricValue::Counter) values by adding them into
-    /// a single value.
+    /// Counts instances of an event ([`MetricType::Counter`]).
+    ///
+    /// Counters can be incremented and decremented. The default operation is to increment a counter
+    /// by `1`, although increments by larger values are equally possible.
+    ///
+    /// # Statsd Format
+    ///
+    /// Counters are declared as `"c"`. Alternatively, `"m"` is allowed.
+    ///
+    /// There can be a variable number of floating point values. If more than one value is given,
+    /// the values are summed into a single counter value:
     ///
     /// ```text
-    /// 2, 1, 3, 2 => 8
+    /// endpoint.hits:4.5:21:17.0|c
     /// ```
+    ///
+    /// # Serialization
     ///
     /// This variant serializes to a double precision float.
+    ///
+    /// # Aggregation
+    ///
+    /// Counters aggregate by folding individual values into a single sum value per bucket. The sum
+    /// is ingested and stored directly.
     #[serde(rename = "c")]
     Counter(CounterType),
-    /// Aggregates [`MetricValue::Distribution`](crate::MetricValue::Distribution) values by
-    /// collecting their values.
+
+    /// Builds a statistical distribution over values reported ([`MetricType::Distribution`]).
+    ///
+    /// Based on individual reported values, distributions allow to query the maximum, minimum, or
+    /// average of the reported values, as well as statistical quantiles. With an increasing number
+    /// of values in the distribution, its accuracy becomes approximate.
+    ///
+    /// # Statsd Format
+    ///
+    /// Distributions are declared as `"d"`. Alternatively, `"d"` and `"ms"` are allowed.
+    ///
+    /// There can be a variable number of floating point values. These values are collected directly
+    /// in a list per bucket.
     ///
     /// ```text
-    /// 2, 1, 3, 2 => [1, 2, 2, 3]
+    /// endpoint.response_time@millisecond:36:49:57:68|d
     /// ```
+    ///
+    /// # Serialization
     ///
     /// This variant serializes to a list of double precision floats, see [`DistributionValue`].
+    ///
+    /// # Aggregation
+    ///
+    /// During ingestion, all individual reported values are collected in a lossless format. In
+    /// storage, these values are compressed into data sketches that allow to query quantiles.
+    /// Separately, the count and sum of the reported values is stored, which makes distributions a
+    /// strict superset of counters.
     #[serde(rename = "d")]
     Distribution(DistributionValue),
-    /// Aggregates [`MetricValue::Set`](crate::MetricValue::Set) values by storing their hash values
-    /// in a set.
+
+    /// Counts the number of unique reported values.
+    ///
+    /// Sets allow sending arbitrary discrete values, including strings, and store the deduplicated
+    /// count. With an increasing number of unique values in the set, its accuracy becomes
+    /// approximate. It is not possible to query individual values from a set.
+    ///
+    /// # Statsd Format
+    ///
+    /// Sets are declared as `"s"`. Values in the list should be deduplicated.
+    ///
     ///
     /// ```text
-    /// 2, 1, 3, 2 => {1, 2, 3}
+    /// endpoint.users:3182887624:4267882815|s
+    /// endpoint.users:e2546e4c-ecd0-43ad-ae27-87960e57a658|s
     /// ```
+    ///
+    /// # Serialization
     ///
     /// This variant serializes to a list of 32-bit integers.
+    ///
+    /// # Aggregation
+    ///
+    /// Set values are internally represented as 32-bit integer hashes of the original value. These
+    /// hashes can be ingested directly as seen in the first example above. If raw strings are sent,
+    /// they will be hashed on-the-fly.
+    ///
+    /// Internally, set metrics are stored in data sketches that expose an approximate cardinality.
     #[serde(rename = "s")]
     Set(SetValue),
-    /// Aggregates [`MetricValue::Gauge`](crate::MetricValue::Gauge) values always retaining the
-    /// latest, minimum, and maximum value, as well as the sum and count of all values.
+
+    /// Stores absolute snapshots of values.
     ///
-    /// **Note**: The "last" component of this aggregation is not commutative.
+    /// In addition to plain [counters](Self::Counter), gauges store a snapshot of the maximum,
+    /// minimum and sum of all values, as well as the last reported value. Note that the "last"
+    /// component of this aggregation is not commutative. Which value is preserved as last value is
+    /// implementation-defined.
+    ///
+    /// # Statsd Format
+    ///
+    /// Gauges are declared as `"g"`. There are two ways to ingest gauges:
+    ///  1. As a single value. In this case, the provided value is assumed as the last, minimum,
+    ///     maximum, and the sum.
+    ///  2. As a sequence of five values in the order: `last`, `min`, `max`, `sum`, `count`.
     ///
     /// ```text
-    /// 1, 2, 3, 2 => {
-    ///   last: 2
-    ///   min: 1,
-    ///   max: 3,
-    ///   sum: 8,
-    ///   count: 4,
-    /// }
+    /// endpoint.parallel_requests:25|g
+    /// endpoint.parallel_requests:25:17:42:220:85|g
     /// ```
     ///
-    /// This variant serializes to a structure, see [`GaugeValue`].
+    /// # Serialization
+    ///
+    /// This variant serializes to a structure with named fields, see [`GaugeValue`].
+    ///
+    /// # Aggregation
+    ///
+    /// Gauges aggregate by folding each of the components based on their semantics:
+    ///  - `last` assumes the newly added value
+    ///  - `min` retains the smaller value
+    ///  - `max` retains the larger value
+    ///  - `sum` adds the new value to the existing sum
+    ///  - `count` adds the count of the newly added gauge (defaulting to `1`)
     #[serde(rename = "g")]
     Gauge(GaugeValue),
 }
@@ -400,10 +472,10 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// # Submission Protocol
 ///
 /// ```text
-/// <name>[@unit]:<value>[:<value>...]|<type>|#<tag_key>:<tag_value>,<tag>
+/// <name>[@unit]:<value>[:<value>...]|<type>|#<tag_key>:<tag_value>,<tag>|T<timestamp>
 /// ```
 ///
-/// See the field documentation on this struct for more information on the components. An example
+/// See the field documentation on [`Bucket`] for more information on the components. An example
 /// submission looks like this:
 ///
 /// ```text
@@ -414,24 +486,17 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 ///
 /// # JSON Representation
 ///
-/// In addition to the submission protocol, metrics can be represented as structured data in JSON.
-/// In addition to the field values from the submission protocol, a timestamp is added to every
-/// metric (see [crate documentation](crate)).
+/// Alternatively to the submission protocol, metrics can be represented as structured data in JSON.
+/// The data type of the `value` field is determined by the metric type.
+///
+/// In addition to the submission protocol, buckets have a required [`width`](Self::width) field in
+/// their JSON representation.
 ///
 /// ```json
 #[doc = include_str!("../tests/fixtures/buckets.json")]
 /// ```
 ///
-/// # Submission Protocol
-///
-/// Buckets are always represented as JSON. The data type of the `value` field is determined by the
-/// metric type.
-///
-/// ```json
-#[doc = include_str!("../tests/fixtures/buckets.json")]
-/// ```
-///
-/// To parse a submission payload, use [`Bucket::parse_all`].
+/// To parse a JSON payload, use [`serde_json`].
 ///
 /// # Hashing of Sets
 ///
@@ -452,33 +517,105 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// ```
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Bucket {
-    /// The start time of the time window.
+    /// The start time of the bucket's time window.
     ///
     /// If a timestamp is not supplied as part of the submission payload, the default timestamp
     /// supplied to [`Bucket::parse`] or [`Bucket::parse_all`] is associated with the metric. It is
     /// then aligned with the aggregation window.
-    pub timestamp: UnixTimestamp,
-    /// The length of the time window in seconds.
-    pub width: u64,
-    /// The MRI (metric resource identifier).
     ///
-    /// See [`Metric::name`](crate::Metric::name).
+    /// # Statsd Format
+    ///
+    /// In statsd, timestamps are part of the `|`-separated list following values. Timestamps start
+    /// with with the literal character `'T'` followed by the UNIX timestamp.
+    ///
+    /// # Example
+    ///
+    /// ```text
+    /// endpoint.hits:1|c|T1615889440
+    /// ```
+    pub timestamp: UnixTimestamp,
+
+    /// The length of the time window in seconds.
+    ///
+    /// To initialize a new bucket, choose `0` as width. Once the bucket is tracked by Relay's
+    /// aggregator, the width is aligned with configuration for the namespace and the  timestamp is
+    /// adjusted accordingly.
+    ///
+    /// # Statsd Format
+    ///
+    /// Specifying the bucket width in statsd is not supported.
+    pub width: u64,
+
+    /// The name of the metric in MRI (metric resource identifier) format.
+    ///
+    /// MRIs have the format `<type>:<ns>/<name>@<unit>`. See [`MetricResourceIdentifier`] for
+    /// information on fields and representations.
+    ///
+    /// # Statsd Format
+    ///
+    /// MRIs are sent in a more relaxed format: `[<namespace/]name[@unit]`. The value type is not
+    /// part of the metric name and namespaces are optional.
+    ///
+    /// # Examples
+    ///
+    /// ```text
+    /// endpoint.hits:1|c
+    /// custom/endpoint.hits:1|c
+    /// custom/endpoint.duration@millisecond:21.5|d
+    /// ```
     pub name: String,
+
     /// The type and aggregated values of this bucket.
     ///
-    /// See [`Metric::value`](crate::Metric::value) for a mapping to inbound data.
+    /// Buckets support multiple values that are aggregated and can be accessed using a range of
+    /// aggregation functions depending on the value type. While always a variable number of values
+    /// can be sent in, some aggregations reduce the raw values to a fixed set of aggregates.
+    ///
+    /// See [`BucketValue`] for more examples and semantics.
+    ///
+    /// # Statsd Payload
+    ///
+    /// The bucket value and its type are specified in separate fields following the metric name in
+    /// the format: `<name>:<value>|<type>`. Values must be base-10 floating point numbers with
+    /// optional decimal places.
+    ///
+    /// It is possible to pack multiple values into a single datagram, but note that the type and
+    /// the value representation must match for this. Refer to the [`BucketValue`] docs for more
+    /// examples.
+    ///
+    /// # Example
+    ///
+    /// ```text
+    /// endpoint.hits:21|c
+    /// endpoint.hits:4.5|c
+    /// ```
     #[serde(flatten)]
     pub value: BucketValue,
+
     /// A list of tags adding dimensions to the metric for filtering and aggregation.
     ///
-    /// See [`Metric::tags`](crate::Metric::tags). Every combination of tags results in a different
-    /// bucket.
+    /// Tags allow to compute separate aggregates to filter or group metric values by any number of
+    /// dimensions. Tags consist of a unique tag key and one associated value. For tags with missing
+    /// values, an empty `""` value is assumed at query time.
+    ///
+    /// # Statsd Format
+    ///
+    /// Tags are preceded with a hash `#` and specified in a comma (`,`) separated list. Each tag
+    /// can either be a tag name, or a `name:value` combination. Tags are optional and can be
+    /// omitted.
+    ///
+    /// # Example
+    ///
+    /// ```text
+    /// endpoint.hits:1|c|#route:user_index,environment:production,release:1.4.0
+    /// ```
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tags: BTreeMap<String, String>,
 }
 
 impl Bucket {
-    /// Parse statsd-compatible payload of format
+    /// Parses a statsd-compatible payload.
+    ///
     /// ```text
     /// [<ns>/]<name>[@<unit>]:<value>|<type>[|#<tags>]`
     /// ```
