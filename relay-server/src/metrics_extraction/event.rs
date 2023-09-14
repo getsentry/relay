@@ -61,14 +61,14 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 
 #[cfg(test)]
 mod tests {
-    use relay_dynamic_config::{Feature, ProjectConfig};
+    use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
     use relay_event_normalization::LightNormalizationConfig;
     use relay_protocol::Annotated;
+    use std::collections::BTreeSet;
 
     use super::*;
 
-    #[test]
-    fn test_extract_span_metrics() {
+    fn extract_span_metrics_with_features(features: FeatureSet) {
         let json = r#"
         {
             "type": "transaction",
@@ -453,7 +453,7 @@ mod tests {
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features,
             ..ProjectConfig::default()
         };
         project.sanitize();
@@ -461,6 +461,22 @@ mod tests {
         let config = project.metric_extraction.ok().unwrap();
         let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!(metrics);
+    }
+
+    #[test]
+    fn test_extract_span_metrics_all_modules() {
+        extract_span_metrics_with_features(FeatureSet(BTreeSet::from([
+            Feature::SpanMetricsExtraction,
+            Feature::SpanMetricsExtractionAllModules,
+        ])));
+    }
+
+    #[test]
+    fn test_extract_span_metrics_ga_modules() {
+        extract_span_metrics_with_features(FeatureSet(BTreeSet::from([
+            Feature::SpanMetricsExtraction,
+            Feature::SpanMetricsExtractionGAModules,
+        ])));
     }
 
     #[test]
@@ -511,7 +527,12 @@ mod tests {
 
         // Create a project config with the relevant feature flag. Sanitize to fill defaults.
         let mut project = ProjectConfig {
-            features: [Feature::SpanMetricsExtraction].into_iter().collect(),
+            features: [
+                Feature::SpanMetricsExtraction,
+                Feature::SpanMetricsExtractionAllModules,
+            ]
+            .into_iter()
+            .collect(),
             ..ProjectConfig::default()
         };
         project.sanitize();
