@@ -188,7 +188,7 @@ jobs:
         image_name: [relay, relay-pop]
 
 
-    name: Build Docker Image (${{ matrix.arch }}) for ${{ matrix.image_name }}
+    name: Build Docker Image
     runs-on: ubuntu-latest
 
     # Skip redundant checks for library releases
