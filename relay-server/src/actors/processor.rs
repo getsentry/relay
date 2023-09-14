@@ -2302,9 +2302,9 @@ impl EnvelopeProcessorService {
             }
         }
 
-        // Add transaction span as an envelope item.
-        // HACK: temporarily omit this span.
-        //add_span(transaction_span.into());
+        if all_modules_enabled {
+            add_span(transaction_span.into());
+        }
     }
 
     /// Computes the sampling decision on the incoming event
