@@ -82,7 +82,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: span_op_conditions.clone(),
+            condition: span_op_conditions,
             tags: Default::default(),
         },
     ]);
