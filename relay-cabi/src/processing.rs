@@ -8,7 +8,6 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
-use chrono::Utc;
 use once_cell::sync::OnceCell;
 use relay_common::glob::{glob_match_bytes, GlobOptions};
 use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
@@ -23,10 +22,7 @@ use relay_pii::{
 };
 use relay_protocol::{Annotated, Remark};
 use relay_sampling::condition::RuleCondition;
-use relay_sampling::config::SamplingRule;
-use relay_sampling::evaluation::SamplingMatch;
-use relay_sampling::{DynamicSamplingContext, SamplingConfig};
-use serde::Serialize;
+use relay_sampling::SamplingConfig;
 
 use crate::core::{RelayBuf, RelayStr};
 
@@ -338,56 +334,6 @@ pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> Rela
         Ok(normalized) => RelayStr::from_string(normalized),
         Err(e) => RelayStr::from_string(e.to_string()),
     }
-}
-
-#[derive(Debug, Serialize)]
-struct EphemeralSamplingResult {
-    merged_sampling_configs: Vec<SamplingRule>,
-    sampling_match: Option<SamplingMatch>,
-}
-
-/// Runs dynamic sampling given the sampling config, root sampling config, DSC and event.
-///
-/// Returns the sampling decision containing the sample_rate and the list of matched rule ids.
-#[no_mangle]
-#[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn run_dynamic_sampling(
-    sampling_config: &RelayStr,
-    root_sampling_config: &RelayStr,
-    dsc: &RelayStr,
-    event: &RelayStr,
-) -> RelayStr {
-    let sampling_config = serde_json::from_str::<SamplingConfig>(sampling_config.as_str())?;
-    let root_sampling_config =
-        serde_json::from_str::<SamplingConfig>(root_sampling_config.as_str())?;
-    // We can optionally accept a dsc and event.
-    let dsc = serde_json::from_str::<DynamicSamplingContext>(dsc.as_str());
-    let event = Annotated::<Event>::from_json(event.as_str());
-
-    // Instead of creating a new function, we decided to reuse the existing code here. This will have
-    // the only downside of not having the possibility to set the sample rate to a different value
-    // based on the `SamplingMode` but for this simulation it is not that relevant.
-    let rules: Vec<SamplingRule> = relay_sampling::evaluation::merge_rules_from_configs(
-        Some(&sampling_config),
-        Some(&root_sampling_config),
-    )
-    .cloned()
-    .collect();
-
-    // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
-    // the merged sampling configs.
-    let match_result = if let (Ok(event), Ok(dsc)) = (event, dsc) {
-        SamplingMatch::match_against_rules(rules.iter(), event.value(), Some(&dsc), Utc::now())
-    } else {
-        None
-    };
-
-    let result = EphemeralSamplingResult {
-        merged_sampling_configs: rules,
-        sampling_match: match_result,
-    };
-
-    RelayStr::from(serde_json::to_string(&result).unwrap())
 }
 
 #[test]
