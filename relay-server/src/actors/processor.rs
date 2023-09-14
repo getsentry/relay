@@ -42,7 +42,7 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
-use relay_sampling::evaluation::{get_sampling_result, MatchedRuleIds, SamplingResult};
+use relay_sampling::evaluation::{match_rules, MatchedRuleIds, SamplingMatch};
 use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -278,7 +278,7 @@ struct ProcessEnvelopeState {
     /// This defaults to [`SamplingResult::Keep`] and is determined based on dynamic sampling rules
     /// in the project configuration. In the drop case, this contains a list of rules that applied
     /// on the envelope.
-    sampling_result: SamplingResult,
+    sampling_result: Option<SamplingMatch>,
 
     /// Metrics extracted from items in the envelope.
     ///
@@ -1361,7 +1361,7 @@ impl EnvelopeProcessorService {
             event_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            sampling_result: SamplingResult::Keep,
+            sampling_result: None,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -2111,7 +2111,11 @@ impl EnvelopeProcessorService {
                         config: tx_config,
                         generic_tags: config.map(|c| c.tags.as_slice()).unwrap_or_default(),
                         transaction_from_dsc,
-                        sampling_result: &state.sampling_result,
+                        keep_sample: state
+                            .sampling_result
+                            .as_ref()
+                            .map(|res| res.is_kept)
+                            .unwrap_or(true),
                         has_profile: state.has_profile,
                     };
 
@@ -2333,8 +2337,7 @@ impl EnvelopeProcessorService {
             state.event.value(),
             state.envelope().dsc(),
             Utc::now(),
-        )
-        .evaluate();
+        );
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
@@ -2379,14 +2382,15 @@ impl EnvelopeProcessorService {
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         match std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
-            SamplingResult::Drop(rule_ids)
-                if state.event_type() == Some(EventType::Transaction) =>
+            Some(sampling_match)
+                if !sampling_match.is_kept
+                    && state.event_type() == Some(EventType::Transaction) =>
             {
-                state
-                    .managed_envelope
-                    .reject(Outcome::FilteredSampling(rule_ids.clone()));
+                state.managed_envelope.reject(Outcome::FilteredSampling(
+                    sampling_match.matched_rules.clone(),
+                ));
 
-                Err(ProcessingError::Sampled(rule_ids))
+                Err(ProcessingError::Sampled(sampling_match.matched_rules))
             }
             _ => Ok(()),
         }
@@ -3065,7 +3069,7 @@ mod tests {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingResult::Keep,
+                sampling_result: None,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -3084,17 +3088,17 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+        assert!(matches!(state.sampling_result.unwrap().is_kept, true));
 
         // Current version is 1, so it won't run DS if it's outdated
         let mut state = get_state(Some(0));
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+        assert!(matches!(state.sampling_result.unwrap().is_kept, true));
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(1));
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
+        assert!(matches!(state.sampling_result.unwrap().is_kept, false));
     }
 
     #[tokio::test]
@@ -3117,10 +3121,7 @@ mod tests {
             ..Event::default()
         };
 
-        for (sample_rate, expected_result) in [
-            (0.0, SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))),
-            (1.0, SamplingResult::Keep),
-        ] {
+        for (sample_rate, expected_result) in [(0.0, false), (1.0, true)] {
             let project_state = state_with_rule_and_condition(
                 Some(sample_rate),
                 RuleType::Transaction,
@@ -3132,7 +3133,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingResult::Keep,
+                sampling_result: None,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -3150,7 +3151,7 @@ mod tests {
             // refactored to send a proper Envelope in and call process_state to cover the full
             // pipeline.
             service.compute_sampling_decision(&mut state);
-            assert_eq!(state.sampling_result, expected_result);
+            assert_eq!(state.sampling_result.unwrap().is_kept, expected_result);
         }
     }
 

@@ -108,7 +108,7 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::{get_sampling_match, MatchedRuleIds, SamplingMatch};
+    use crate::evaluation::{get_sampling_match, match_rules, MatchedRuleIds, SamplingMatch};
 
     use super::*;
 
@@ -1196,14 +1196,7 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            Utc::now(),
-        );
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, Utc::now());
         assert_no_match!(result);
     }
 
@@ -1216,23 +1209,21 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
 
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            None,
             Some(&event),
+            None,
             Utc::now(),
         );
         assert!(transaction_match(result, 0.5, &event, &[3]));
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             None,
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert!(transaction_match(result, 0.1, &event, &[1]));
@@ -1247,12 +1238,11 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert!(transaction_match(result, 0.1, &event, &[1]));
@@ -1267,12 +1257,11 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
         let event = mocked_event(EventType::Transaction, "my_transaction", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert!(trace_match(result, 1.0, &dsc, &[6]));
@@ -1287,12 +1276,11 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None);
         let event = mocked_event(EventType::Transaction, "bar", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert!(trace_match(result, 0.75, &dsc, &[2, 5, 7]));
@@ -1305,14 +1293,7 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "foo", "1.0", "");
 
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            None,
-            None,
-            Some(&event),
-            Utc::now(),
-        );
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, Utc::now());
         assert!(transaction_match(result, 0.5, &event, &[3]));
     }
 
@@ -1324,12 +1305,11 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(0.8), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert!(transaction_match(result, 0.625, &event, &[3]));
@@ -1357,25 +1337,14 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
-        let result = merge_configs_and_match(
-            false,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert_no_match!(result);
-
-        let result = merge_configs_and_match(
-            true,
-            Some(&sampling_config),
-            Some(&root_project_sampling_config),
-            Some(&dsc),
-            Some(&event),
-            Utc::now(),
-        );
-        assert!(transaction_match(result, 0.5, &event, &[3]));
     }
 
     #[test]
@@ -1387,12 +1356,11 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert_no_match!(result);
@@ -1405,24 +1373,22 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
 
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             None,
-            Some(&dsc),
             Some(&event),
+            Some(&dsc),
             Utc::now(),
         );
         assert!(transaction_match(result, 0.1, &event, &[1]));
 
         let root_project_sampling_config =
             mocked_root_project_sampling_config(SamplingMode::Received);
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_project_sampling_config),
-            None,
             Some(&event),
+            None,
             Utc::now(),
         );
         assert!(transaction_match(result, 0.1, &event, &[1]));
@@ -1445,8 +1411,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
         assert!(transaction_match(result, 0.75, &event, &[1]));
 
         let sampling_config = SamplingConfig {
@@ -1460,8 +1425,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
         assert!(transaction_match(result, 1.0, &event, &[1]));
 
         let sampling_config = SamplingConfig {
@@ -1475,8 +1439,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
         assert_no_match!(result);
     }
 
@@ -1497,8 +1460,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -1512,8 +1474,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
         assert_no_match!(result);
 
         let sampling_config = SamplingConfig {
@@ -1527,8 +1488,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
         assert_no_match!(result);
     }
 
@@ -1560,8 +1520,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
 
-        let result =
-            merge_configs_and_match(true, Some(&sampling_config), None, None, Some(&event), now);
+        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
         assert!(result.is_some());
         if let Some(SamplingMatch {
             sample_rate,
@@ -1583,14 +1542,7 @@ mod tests {
 
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
         let root_sampling_config = mocked_root_project_sampling_config(SamplingMode::Total);
-        let result = merge_configs_and_match(
-            true,
-            None,
-            Some(&root_sampling_config),
-            Some(&dsc),
-            None,
-            now,
-        );
+        let result = match_rules(None, Some(&root_sampling_config), None, Some(&dsc), now);
         assert!(trace_match(result, 1.0, &dsc, &[6]));
     }
 
@@ -1600,8 +1552,7 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let root_sampling_config = mocked_root_project_sampling_config(SamplingMode::Total);
 
-        let result = merge_configs_and_match(
-            true,
+        let result = match_rules(
             Some(&sampling_config),
             Some(&root_sampling_config),
             None,
@@ -1617,8 +1568,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
 
-        let result =
-            merge_configs_and_match(true, None, None, Some(&dsc), Some(&event), Utc::now());
+        let result = match_rules(None, None, Some(&event), Some(&dsc), Utc::now());
         assert_no_match!(result);
     }
 }

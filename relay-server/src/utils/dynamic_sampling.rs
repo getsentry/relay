@@ -1,7 +1,7 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
-use relay_sampling::evaluation::{get_sampling_result, SamplingResult};
+use relay_sampling::evaluation::match_rules;
 use relay_sampling::DynamicSamplingContext;
 
 use crate::actors::project::ProjectState;
@@ -22,15 +22,17 @@ pub fn is_trace_fully_sampled(
         return Some(false);
     }
 
-    let sampling_result = get_sampling_result(
-        None,
-        root_project_state.config.dynamic_sampling.as_ref(),
-        None,
-        Some(dsc),
-        Utc::now(),
-    );
-
-    Some(matches!(sampling_result, SamplingResult::Keep))
+    Some(
+        match_rules(
+            None,
+            root_project_state.config.dynamic_sampling.as_ref(),
+            None,
+            Some(dsc),
+            Utc::now(),
+        )
+        .map(|res| res.is_kept)
+        .unwrap_or(true),
+    )
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.

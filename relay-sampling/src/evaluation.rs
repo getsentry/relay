@@ -80,98 +80,47 @@ fn get_adjusted_sample_rate(
     base_sample_rate: f64,
     dsc: Option<&DynamicSamplingContext>,
     sampling_mode: SamplingMode,
-) -> f64 {
+) -> Option<f64> {
     match sampling_mode {
         SamplingMode::Total => match dsc {
-            Some(dsc) => dsc.adjusted_sample_rate(base_sample_rate),
-            None => base_sample_rate,
+            Some(dsc) => Some(dsc.adjusted_sample_rate(base_sample_rate)),
+            None => Some(base_sample_rate),
         },
-        SamplingMode::Received => base_sample_rate,
+        SamplingMode::Received => Some(base_sample_rate),
         SamplingMode::Unsupported => {
             #[cfg(feature = "processing")]
             relay_log::error!("found unsupported sampling mode even as processing Relay");
 
-            base_sample_rate
+            None
         }
     }
 }
 
-/// The result of a sampling operation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SamplingResult {
-    /// Keep the event.
-    ///
-    /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
-    /// the rules.
-    Keep(MatchedRuleIds),
+fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
+    let random_number = pseudo_random_from_uuid(seed);
+    relay_log::trace!(
+        sample_rate,
+        random_number,
+        "applying dynamic sampling to matching event"
+    );
 
-    /// Drop the event, due to a list of rules with provided identifiers.
-    Drop(MatchedRuleIds),
-}
-
-impl Default for SamplingResult {
-    fn default() -> Self {
-        Self::empty_keep()
-    }
-}
-
-impl SamplingResult {
-    /// Calcualte SamplingResult.
-    fn new(sampling_match: SamplingMatch) -> Self {
-        let SamplingMatch {
-            sample_rate,
-            seed,
-            matched_rules,
-        } = sampling_match;
-
-        let random_number = pseudo_random_from_uuid(seed);
-        relay_log::trace!(
-            sample_rate,
-            random_number,
-            "applying dynamic sampling to matching event"
-        );
-
-        if random_number >= sample_rate {
-            relay_log::trace!("dropping event that matched the configuration");
-            SamplingResult::Drop(matched_rules)
-        } else {
-            relay_log::trace!("keeping event that matched the configuration");
-            SamplingResult::Keep(matched_rules)
-        }
-    }
-
-    /// Get slice of the matched ids.
-    pub fn matched_ids(&self) -> &[RuleId] {
-        match self {
-            SamplingResult::Keep(ids) => ids.0.as_slice(),
-            SamplingResult::Drop(ids) => ids.0.as_slice(),
-        }
-    }
-
-    /// Returns `true` if the [`SamplingResult`] is a `Keep` value.
-    pub fn is_keep(&self) -> bool {
-        matches!(self, &Self::Keep(_))
-    }
-
-    /// Keeping an event without matching any rules.
-    ///
-    /// Used for example when you keep an event by default because
-    /// you cannot run dynamic sampling.
-    ///
-    /// Same as default but more explicit.
-    pub fn empty_keep() -> Self {
-        Self::Keep(MatchedRuleIds(vec![]))
+    if random_number >= sample_rate {
+        relay_log::trace!("dropping event that matched the configuration");
+        false
+    } else {
+        relay_log::trace!("keeping event that matched the configuration");
+        true
     }
 }
 
 /// Get the sampling result.
-pub fn get_sampling_result<'a>(
+pub fn match_rules<'a>(
     sampling_config: Option<&'a SamplingConfig>,
     root_sampling_config: Option<&'a SamplingConfig>,
     event: Option<&Event>,
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
-) -> SamplingResult {
+) -> Option<SamplingMatch> {
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
     // Keep in mind that the sample rate received here has already been derived by the matching
@@ -184,19 +133,16 @@ pub fn get_sampling_result<'a>(
         Some(config) => config.mode,
         None => {
             relay_log::error!("cannot sample without at least one sampling config");
-            return SamplingResult::empty_keep();
+            return None;
         }
     };
 
     // We perform the rule matching with the multi-matching logic on the merged rules.
     let Some(rules) = get_and_verify_rules(sampling_config, root_sampling_config) else {
-        return SamplingResult::empty_keep();
+        return None;
     };
 
-    match get_sampling_match(rules, event, dsc, now, sampling_mode) {
-        Some(sampling_match) => SamplingResult::new(sampling_match),
-        None => SamplingResult::empty_keep(),
-    }
+    get_sampling_match(rules, event, dsc, now, sampling_mode)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -274,16 +220,19 @@ pub fn get_sampling_match<'a>(
                     SamplingValue::SampleRate { .. } => {
                         let sample_rate = {
                             let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                            get_adjusted_sample_rate(base, dsc, sampling_mode)
+                            get_adjusted_sample_rate(base, dsc, sampling_mode)?
                         };
                         let Some(seed) = seed else {
                             return None;
                         };
 
+                        let is_kept = sampling_match(sample_rate, seed);
+
                         return Some(SamplingMatch {
                             sample_rate,
                             seed,
                             matched_rules: MatchedRuleIds(matched_rule_ids),
+                            is_kept,
                         });
                     }
                 }
