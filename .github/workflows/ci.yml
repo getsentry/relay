@@ -185,7 +185,7 @@ jobs:
       matrix:
         # the arm64 build takes too long, so disable for now
         arch: [amd64]
-        image_name: [relay, relay-pop]
+        image_name: [relay, relay-internal]
 
 
     name: Build Docker Image
@@ -251,7 +251,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: [relay, relay-pop]
+        image_name: [relay, relay-internal]
 
     name: Push GCR Docker Image
     runs-on: ubuntu-latest
@@ -311,16 +311,14 @@ jobs:
           docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
 
       - name: Upload gocd deployment assets
-        # Collect assets only for processing Relay, since it contains more information.
-        if: matrix.image_name == 'relay'
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d" " -f2)"
-          echo "relay@$VERSION+$REVISION" > release-name
+          echo "relay@$VERSION+$REVISION" > ${{ matrix.image_name }}-release-name
 
-          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay-debug.zip > relay-debug.zip
-          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay.src.zip > relay.src.zip
-          docker run --rm --entrypoint tar "$IMG_VERSIONED" -cf - /lib/x86_64-linux-gnu > libs.tar
+          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay-debug.zip > ${{ matrix.image_name }}-debug.zip
+          docker run --rm --entrypoint cat "$IMG_VERSIONED" /opt/relay.src.zip > ${{ matrix.image_name }}.src.zip
+          docker run --rm --entrypoint tar "$IMG_VERSIONED" -cf - /lib/x86_64-linux-gnu > ${{ matrix.image_name }}-libs.tar
 
           # debugging for mysterious "Couldn't write tracker file" issue:
           (env | grep runner) || true
@@ -331,7 +329,7 @@ jobs:
             /home/runner/.gsutil/tracker-files \
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
-          gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
+          gsutil -m cp -L gsutil.log ./${{ matrix.image_name }}-libs.tar ./${{ matrix.image_name }}-debug.zip ./${{ matrix.image_name }}.src.zip ./${{ matrix.image_name }}-release-name \
             "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"

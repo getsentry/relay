@@ -11,6 +11,7 @@
 set -eu
 
 REVISION="${1:-}"
+NAME="${2:-relay}"
 GITHUB_PROJECT="getsentry/relay"
 
 if [ -z "${REVISION}" ]; then
@@ -27,20 +28,20 @@ fi
 
 echo 'Downloading debug info, source bundle, system symbols...'
 gsutil cp \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/release-name" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/relay-debug.zip" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/relay.src.zip" \
-  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/libs.tar" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}-release-name" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}-debug.zip" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}.src.zip" \
+  "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${NAME}-libs.tar" \
   .
 
 echo 'Uploading debug information and source bundle...'
-sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
+sentry-cli upload-dif ./"${NAME}-debug.zip" ./"${NAME}.src.zip"
 
 echo 'Uploading system symbols...'
-tar xf libs.tar
+tar xf "${NAME}-libs.tar"
 sentry-cli upload-dif lib/x86_64-linux-gnu
 
-RELEASE=$(< ./release-name)
+RELEASE=$(< ./"${NAME}-release-name")
 echo "Creating a new release and deploy for ${RELEASE} in Sentry..."
 sentry-cli releases new "${RELEASE}"
 # NOTE: Disabled until the repository is properly configured in Sentry

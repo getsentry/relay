@@ -53,7 +53,7 @@ function(region) {
             timeout: 1200,
             elastic_profile_id: 'relay',
             tasks: [
-              gocdtasks.script(importstr '../bash/create-sentry-release.sh'),
+              gocdtasks.script(importstr '../bash/create-sentry-relay-internal-release.sh'),
             ],
           },
           deploy: {
