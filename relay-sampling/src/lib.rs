@@ -872,6 +872,7 @@ mod tests {
     /// test that the multi-matching returns none in case there is no match.
     fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
         let result = match_rules(
+            true,
             Some(&mocked_sampling_config_with_rules(vec![
                 SamplingRule {
                     condition: and(vec![eq("event.transaction", &["foo"], true)]),
@@ -1094,6 +1095,7 @@ mod tests {
         dsc.replay_id = Some(Uuid::new_v4());
 
         let result = match_rules(
+            true,
             None,
             Some(&mocked_sampling_config_with_rules(vec![SamplingRule {
                 condition: and(vec![not(eq_null("trace.replay_id"))]),
@@ -1116,7 +1118,14 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
 
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, Utc::now());
+        let result = match_rules(
+            true,
+            Some(&sampling_config),
+            None,
+            Some(&event),
+            None,
+            Utc::now(),
+        );
         assert!(result.is_no_match());
     }
 
@@ -1130,6 +1139,7 @@ mod tests {
 
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1140,6 +1150,7 @@ mod tests {
 
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
         let result = match_rules(
+            true,
             Some(&sampling_config),
             None,
             Some(&event),
@@ -1159,6 +1170,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "healthcheck", "2.0", "");
 
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1178,6 +1190,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "my_transaction", "2.0", "");
 
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1197,6 +1210,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "bar", "2.0", "");
 
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1213,7 +1227,14 @@ mod tests {
         let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "foo", "1.0", "");
 
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, Utc::now());
+        let result = match_rules(
+            true,
+            Some(&sampling_config),
+            None,
+            Some(&event),
+            None,
+            Utc::now(),
+        );
         assert_eq!(result, transaction_match(0.5, &event, &[3]));
     }
 
@@ -1226,6 +1247,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1258,6 +1280,17 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
         let result = match_rules(
+            true,
+            Some(&sampling_config),
+            Some(&root_project_sampling_config),
+            Some(&event),
+            Some(&dsc),
+            Utc::now(),
+        );
+        assert!(result.is_match());
+
+        let result = match_rules(
+            false,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1277,6 +1310,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "foo", "2.0", "");
 
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1294,6 +1328,7 @@ mod tests {
 
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, None);
         let result = match_rules(
+            true,
             Some(&sampling_config),
             None,
             Some(&event),
@@ -1305,6 +1340,7 @@ mod tests {
         let root_project_sampling_config =
             mocked_root_project_sampling_config(SamplingMode::Received);
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_project_sampling_config),
             Some(&event),
@@ -1331,7 +1367,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
+        let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         assert_eq!(result, transaction_match(0.75, &event, &[1]));
 
         let sampling_config = SamplingConfig {
@@ -1345,7 +1381,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
+        let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         assert_eq!(result, transaction_match(1.0, &event, &[1]));
 
         let sampling_config = SamplingConfig {
@@ -1359,7 +1395,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
+        let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         assert!(result.is_no_match());
     }
 
@@ -1380,7 +1416,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
+        let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         assert!(result.is_no_match());
 
         let sampling_config = SamplingConfig {
@@ -1394,7 +1430,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
+        let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         assert!(result.is_no_match());
 
         let sampling_config = SamplingConfig {
@@ -1408,7 +1444,7 @@ mod tests {
             )],
             mode: SamplingMode::Received,
         };
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
+        let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         assert!(result.is_no_match());
     }
 
@@ -1440,7 +1476,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
 
-        let result = match_rules(Some(&sampling_config), None, Some(&event), None, now);
+        let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         if let SamplingMatch::Match {
             sample_rate,
             seed,
@@ -1461,7 +1497,14 @@ mod tests {
 
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
         let root_sampling_config = mocked_root_project_sampling_config(SamplingMode::Total);
-        let result = match_rules(None, Some(&root_sampling_config), None, Some(&dsc), now);
+        let result = match_rules(
+            true,
+            None,
+            Some(&root_sampling_config),
+            None,
+            Some(&dsc),
+            now,
+        );
         assert_eq!(result, trace_match(1.0, &dsc, &[6]));
     }
 
@@ -1472,6 +1515,7 @@ mod tests {
         let root_sampling_config = mocked_root_project_sampling_config(SamplingMode::Total);
 
         let result = match_rules(
+            true,
             Some(&sampling_config),
             Some(&root_sampling_config),
             None,
@@ -1487,7 +1531,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
 
-        let result = match_rules(None, None, Some(&event), Some(&dsc), Utc::now());
+        let result = match_rules(true, None, None, Some(&event), Some(&dsc), Utc::now());
         assert!(result.is_no_match());
     }
 }
