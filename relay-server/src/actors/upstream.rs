@@ -880,21 +880,25 @@ struct UpstreamQueue {
     retry_high: VecDeque<Entry>,
     /// Low priority retry queue.
     retry_low: VecDeque<Entry>,
-    /// Backoff handler for retry entries.
-    retry_backoff: RetryBackoff,
     /// Retries should not be dequeued before this instant.
+    ///
+    /// This retry increments by a [constant factor][`Self::RETRY_AFTER`]
+    /// instead of backoff, since it only kicks in for a short period of time
+    /// before Relay gets into network outage mode (see [`IsNetworkOutage`]).
     next_retry: Instant,
 }
 
 impl UpstreamQueue {
+    /// Time to wait before retrying another request from the retry queue.
+    const RETRY_AFTER: Duration = Duration::from_millis(500);
+
     /// Creates an empty upstream queue.
-    pub fn new(retry_backoff_duration: Duration) -> Self {
+    pub fn new() -> Self {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
             retry_high: VecDeque::new(),
             retry_low: VecDeque::new(),
-            retry_backoff: RetryBackoff::new(retry_backoff_duration),
             next_retry: Instant::now(),
         }
     }
@@ -942,7 +946,7 @@ impl UpstreamQueue {
             attempt = "retry"
         );
 
-        self.next_retry = Instant::now() + self.retry_backoff.next_backoff();
+        self.next_retry = Instant::now() + Self::RETRY_AFTER;
     }
 
     /// Dequeues the entry with highest priority.
@@ -964,11 +968,11 @@ impl UpstreamQueue {
         self.low.pop_front()
     }
 
-    /// Resets the retry backoff, if started.
+    /// Resets the retry, if started.
     pub fn retry_backoff_reset(&mut self) {
-        if self.retry_backoff.started() {
-            self.next_retry = Instant::now();
-            self.retry_backoff.reset();
+        let now = Instant::now();
+        if self.next_retry > now {
+            self.next_retry = now;
         }
     }
 }
@@ -1483,7 +1487,7 @@ impl Service for UpstreamRelayService {
         // and authentication state.
         let mut broker = UpstreamBroker {
             client: client.clone(),
-            queue: UpstreamQueue::new(config.http_outage_grace_period()),
+            queue: UpstreamQueue::new(),
             auth_state: AuthState::init(&config),
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
