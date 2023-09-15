@@ -882,9 +882,9 @@ struct UpstreamQueue {
     retry_low: VecDeque<Entry>,
     /// Retries should not be dequeued before this instant.
     ///
-    /// This retry increments by a [constant factor][`Self::RETRY_AFTER`]
-    /// instead of backoff, since it only kicks in for a short period of time
-    /// before Relay gets into network outage mode (see [`IsNetworkOutage`]).
+    /// This retry increments by the constant `retry_after` instead of backoff,
+    /// since it only kicks in for a short period of time before Relay gets into
+    /// network outage mode (see [`IsNetworkOutage`]).
     next_retry: Instant,
     /// Time to wait before retrying another request from the retry queue.
     retry_after: Duration,
