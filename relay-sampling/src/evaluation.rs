@@ -13,6 +13,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::config::{RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue};
+use crate::dsc::adjusted_sample_rate;
 use crate::DynamicSamplingContext;
 
 /// Generates a pseudo random number by seeding the generator with the given id.
@@ -67,19 +68,6 @@ fn check_unsupported_rules(
     Ok(())
 }
 
-fn verify_and_merge_rules<'a>(
-    processing_enabled: bool,
-    sampling_config: Option<&'a SamplingConfig>,
-    root_sampling_config: Option<&'a SamplingConfig>,
-) -> Option<impl Iterator<Item = &'a SamplingRule>> {
-    check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
-
-    Some(merge_rules_from_configs(
-        sampling_config,
-        root_sampling_config,
-    ))
-}
-
 fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
     let random_number = pseudo_random_from_uuid(seed);
     relay_log::trace!(
@@ -118,42 +106,65 @@ pub fn match_rules<'a>(
             }
             return SamplingResult::NoMatch;
         }
-        None => {
-            relay_log::info!("cannot sample without at least one sampling config");
-            return SamplingResult::NoMatch;
-        }
+        None => return SamplingResult::NoMatch,
     };
 
-    // We perform the rule matching with the multi-matching logic on the merged rules.
-    let Some(rules) =
-        verify_and_merge_rules(processing_enabled, sampling_config, root_sampling_config)
-    else {
+    if check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).is_err() {
         return SamplingResult::NoMatch;
-    };
+    }
+
+    let rules = merge_rules_from_configs(sampling_config, root_sampling_config);
 
     get_sampling_match(rules, event, dsc, now, adjust_sample_rate)
+}
+
+/// Represents the specification for sampling an incoming event.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SamplingMatch {
+    /// The sample rate to use for the incoming event.
+    sample_rate: f64,
+    /// The seed to feed to the random number generator which allows the same number to be
+    /// generated given the same seed.
+    ///
+    /// This is especially important for trace sampling, even though we can have inconsistent
+    /// traces due to multi-matching.
+    seed: Uuid,
+    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
+    matched_rules: MatchedRuleIds,
+    /// Whether this sampling match results in the item getting sampled.
+    /// It's essentially a cache, as the value can be deterministically derived from
+    /// the sample rate and the seed.
+    is_kept: bool,
+}
+
+impl SamplingMatch {
+    fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
+        let matched_rules = MatchedRuleIds(matched_rules);
+        let is_kept = sampling_match(sample_rate, seed);
+        Self {
+            sample_rate,
+            seed,
+            matched_rules,
+            is_kept,
+        }
+    }
+
+    /// Returns the matched rules for the sampling match.
+    pub fn matched_rules(&self) -> &MatchedRuleIds {
+        &self.matched_rules
+    }
+
+    /// Returns true if event should be kept.
+    pub fn is_kept(&self) -> bool {
+        self.is_kept
+    }
 }
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum SamplingResult {
     /// The event matched a sampling condition.
-    Match {
-        /// The sample rate to use for the incoming event.
-        sample_rate: f64,
-        /// The seed to feed to the random number generator which allows the same number to be
-        /// generated given the same seed.
-        ///
-        /// This is especially important for trace sampling, even though we can have inconsistent
-        /// traces due to multi-matching.
-        seed: Uuid,
-        /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-        matched_rules: MatchedRuleIds,
-        /// Whether this sampling match results in the item getting sampled.
-        /// It's essentially a cache, as the value can be deterministically derived from
-        /// the sample rate and the seed.
-        is_kept: bool,
-    },
+    Match(SamplingMatch),
     /// The event did not match a sampling condition.
     #[default]
     NoMatch,
@@ -162,26 +173,26 @@ pub enum SamplingResult {
 impl SamplingResult {
     /// Returns the sample rate.
     pub fn sample_rate(&self) -> Option<f64> {
-        if let Self::Match { sample_rate, .. } = self {
-            return Some(*sample_rate);
+        if let Self::Match(sampling_match) = self {
+            return Some(sampling_match.sample_rate);
         }
         None
     }
 
     /// Returns true if the event matched on any rules.
-    pub fn no_match(&self) -> bool {
+    pub fn is_no_match(&self) -> bool {
         matches!(self, &Self::NoMatch)
     }
 
     /// Returns true if the event did not match on any rules.
-    pub fn matches(&self) -> bool {
-        !self.no_match()
+    pub fn is_match(&self) -> bool {
+        !self.is_no_match()
     }
 
     /// Returns true if the event should be kept.
     pub fn should_keep(&self) -> bool {
         match self {
-            SamplingResult::Match { is_kept, .. } => *is_kept,
+            SamplingResult::Match(sampling_match) => sampling_match.is_kept(),
             // If no rules matched on an event, we want to keep it.
             SamplingResult::NoMatch => true,
         }
@@ -226,13 +237,11 @@ fn get_sampling_match<'a>(
     // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
     let mut seed = event.and_then(|e| e.id.value()).map(|id| id.0);
     let mut accumulated_factors = 1.0;
+    let client_sample_rate = dsc.and_then(|dsc| dsc.sample_rate);
 
     for rule in rules {
         let matches = match rule.ty {
-            RuleType::Trace => match dsc {
-                Some(dsc) => rule.condition.matches(dsc),
-                _ => false,
-            },
+            RuleType::Trace => dsc.map_or(false, |dsc| rule.condition.matches(dsc)),
             RuleType::Transaction => event.map_or(false, |event| match event.ty.0 {
                 Some(EventType::Transaction) => rule.condition.matches(event),
                 _ => false,
@@ -240,49 +249,38 @@ fn get_sampling_match<'a>(
             _ => false,
         };
 
-        if matches {
-            if let Some(value) = rule.sample_rate(now) {
-                matched_rule_ids.push(rule.id);
+        let (true, Some(sampling_value)) = (matches, rule.sample_rate(now)) else {
+            continue;
+        };
 
-                if rule.ty == RuleType::Trace {
-                    if let Some(dsc) = dsc {
-                        seed = Some(dsc.trace_id);
-                    }
-                }
+        matched_rule_ids.push(rule.id);
 
-                match rule.sampling_value {
-                    SamplingValue::Factor { .. } => accumulated_factors *= value,
-                    SamplingValue::SampleRate { .. } => {
-                        let sample_rate = {
-                            let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                            if adjust_sample_rate {
-                                dsc.and_then(|d| d.sample_rate)
-                                    .map(|client_sample_rate| {
-                                        DynamicSamplingContext::adjust_sample_rate(
-                                            client_sample_rate,
-                                            base,
-                                        )
-                                    })
-                                    .unwrap_or(base)
-                            } else {
-                                base
-                            }
-                        };
+        if rule.ty == RuleType::Trace {
+            if let Some(dsc) = dsc {
+                seed = Some(dsc.trace_id);
+            }
+        }
 
-                        let Some(seed) = seed else {
-                            return SamplingResult::NoMatch;
-                        };
+        match sampling_value {
+            SamplingValue::Factor { value } => accumulated_factors *= value,
+            SamplingValue::SampleRate { value } => {
+                let Some(seed) = seed else {
+                    return SamplingResult::NoMatch;
+                };
 
-                        let is_kept = sampling_match(sample_rate, seed);
+                let sample_rate = {
+                    let base = (value * accumulated_factors).clamp(0.0, 1.0);
+                    client_sample_rate
+                        .filter(|_| adjust_sample_rate)
+                        .map(|rate| adjusted_sample_rate(rate, base))
+                        .unwrap_or(base)
+                };
 
-                        return SamplingResult::Match {
-                            sample_rate,
-                            seed,
-                            matched_rules: MatchedRuleIds(matched_rule_ids),
-                            is_kept,
-                        };
-                    }
-                }
+                return SamplingResult::Match(SamplingMatch::new(
+                    sample_rate,
+                    seed,
+                    matched_rule_ids,
+                ));
             }
         }
     }
@@ -354,7 +352,7 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::{get_sampling_match, match_rules, MatchedRuleIds, SamplingResult};
+    use crate::evaluation::{MatchedRuleIds, SamplingResult};
 
     use super::*;
 
@@ -563,23 +561,7 @@ mod tests {
         dsc: &DynamicSamplingContext,
         now: DateTime<Utc>,
     ) -> SamplingResult {
-        // This essentially bypasses the verification of the rules, which won't happen in prod.
-        // Todo(tor): figure out if we want this behaviour.
         get_sampling_match(config.rules_v2.iter(), Some(event), Some(dsc), now, false)
-    }
-
-    fn sampling_match_from_parts(
-        sample_rate: f64,
-        seed: Uuid,
-        matched_rules: MatchedRuleIds,
-    ) -> SamplingResult {
-        let is_kept = sampling_match(sample_rate, seed);
-        SamplingResult::Match {
-            sample_rate,
-            seed,
-            matched_rules,
-            is_kept,
-        }
     }
 
     fn transaction_match(
@@ -587,11 +569,11 @@ mod tests {
         event: &Event,
         matched_rule_ids: &[u32],
     ) -> SamplingResult {
-        sampling_match_from_parts(
+        SamplingResult::Match(SamplingMatch::new(
             sample_rate,
             event.id.value().unwrap().0,
-            MatchedRuleIds(matched_rule_ids.iter().map(|id| RuleId(*id)).collect()),
-        )
+            matched_rule_ids.iter().map(|id| RuleId(*id)).collect(),
+        ))
     }
 
     fn trace_match(
@@ -599,11 +581,11 @@ mod tests {
         dsc: &DynamicSamplingContext,
         matched_rule_ids: &[u32],
     ) -> SamplingResult {
-        sampling_match_from_parts(
+        SamplingResult::Match(SamplingMatch::new(
             sample_rate,
             dsc.trace_id,
-            MatchedRuleIds(matched_rule_ids.iter().map(|id| RuleId(*id)).collect()),
-        )
+            matched_rule_ids.iter().map(|id| RuleId(*id)).collect(),
+        ))
     }
 
     fn mocked_sampling_rule(id: u32, ty: RuleType, sample_rate: f64) -> SamplingRule {
@@ -1388,7 +1370,7 @@ mod tests {
             Some(&mocked_dsc("debug", "vip", "1.1.1")),
             Utc::now(),
         );
-        assert!(result.no_match(), "did not return none for no match");
+        assert!(result.is_no_match(), "did not return none for no match");
     }
 
     #[test]
@@ -1455,7 +1437,7 @@ mod tests {
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
-        assert!(result.matches());
+        assert!(result.is_match());
 
         assert!(
             (result.sample_rate().unwrap() - 0.45).abs() < f64::EPSILON, // 0.45
@@ -1513,7 +1495,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert!(result.no_match());
+        assert!(result.is_no_match());
     }
 
     #[test]
@@ -1674,7 +1656,7 @@ mod tests {
             Some(&dsc),
             Utc::now(),
         );
-        assert!(result.no_match());
+        assert!(result.is_no_match());
 
         let result = match_rules(
             true,
@@ -1684,7 +1666,7 @@ mod tests {
             Some(&dsc),
             Utc::now(),
         );
-        assert!(result.matches());
+        assert!(result.is_match());
     }
 
     #[test]
@@ -1704,7 +1686,7 @@ mod tests {
             Some(&dsc),
             Utc::now(),
         );
-        assert!(result.no_match());
+        assert!(result.is_no_match());
     }
 
     #[test]
@@ -1783,7 +1765,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.no_match());
+        assert!(result.is_no_match());
     }
 
     #[test]
@@ -1804,7 +1786,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.no_match());
+        assert!(result.is_no_match());
 
         let sampling_config = SamplingConfig {
             rules: vec![],
@@ -1818,7 +1800,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.no_match());
+        assert!(result.is_no_match());
 
         let sampling_config = SamplingConfig {
             rules: vec![],
@@ -1832,7 +1814,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.no_match());
+        assert!(result.is_no_match());
     }
 
     #[test]
@@ -1865,15 +1847,13 @@ mod tests {
 
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
         match result {
-            SamplingResult::Match {
-                sample_rate,
-                seed,
-                matched_rules,
-                ..
-            } => {
-                assert!((sample_rate - 0.9).abs() < f64::EPSILON);
-                assert_eq!(seed, event.id.0.unwrap().0);
-                assert_eq!(matched_rules, MatchedRuleIds(vec![RuleId(1), RuleId(2)]))
+            SamplingResult::Match(sampling_match) => {
+                assert!((sampling_match.sample_rate - 0.9).abs() < f64::EPSILON);
+                assert_eq!(sampling_match.seed, event.id.0.unwrap().0);
+                assert_eq!(
+                    sampling_match.matched_rules,
+                    MatchedRuleIds(vec![RuleId(1), RuleId(2)])
+                )
             }
             SamplingResult::NoMatch => panic!("should have matched"),
         }
@@ -1911,7 +1891,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert!(result.no_match());
+        assert!(result.is_no_match());
     }
 
     #[test]
@@ -1921,6 +1901,6 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
 
         let result = match_rules(true, None, None, Some(&event), Some(&dsc), Utc::now());
-        assert!(result.no_match());
+        assert!(result.is_no_match());
     }
 }

@@ -75,38 +75,34 @@ impl SamplingRule {
     }
 
     /// Returns the sample rate if the rule is active.
-    pub fn sample_rate(&self, now: DateTime<Utc>) -> Option<f64> {
-        let sampling_base_value = self.sampling_value.value();
-
-        match self.decaying_fn {
-            DecayingFunction::Linear { decayed_value } => {
-                if let TimeRange {
-                    start: Some(start),
-                    end: Some(end),
-                } = self.time_range
-                {
-                    if sampling_base_value > decayed_value && self.time_range.contains(now) {
-                        let now_timestamp = now.timestamp() as f64;
-                        let start_timestamp = start.timestamp() as f64;
-                        let end_timestamp = end.timestamp() as f64;
-                        let progress_ratio = ((now_timestamp - start_timestamp)
-                            / (end_timestamp - start_timestamp))
-                            .clamp(0.0, 1.0);
-
-                        // This interval will always be < 0.
-                        let interval = decayed_value - sampling_base_value;
-                        return Some(sampling_base_value + (interval * progress_ratio));
-                    }
-                }
-            }
-            DecayingFunction::Constant => {
-                if self.time_range.contains(now) {
-                    return Some(sampling_base_value);
-                }
-            }
+    pub fn sample_rate(&self, now: DateTime<Utc>) -> Option<SamplingValue> {
+        if !self.time_range.contains(now) {
+            return None;
         }
 
-        None
+        let sampling_base_value = self.sampling_value.value();
+
+        let value = match self.decaying_fn {
+            DecayingFunction::Linear { decayed_value } => {
+                let (Some(start), Some(end)) = (self.time_range.start, self.time_range.end) else {
+                    return None;
+                };
+
+                (sampling_base_value > decayed_value).then_some(())?;
+
+                let now = now.timestamp() as f64;
+                let start = start.timestamp() as f64;
+                let end = end.timestamp() as f64;
+                let progress_ratio = ((now - start) / (end - start)).clamp(0.0, 1.0);
+
+                // This interval will always be < 0.
+                let interval = decayed_value - sampling_base_value;
+                sampling_base_value + (interval * progress_ratio)
+            }
+            DecayingFunction::Constant => sampling_base_value,
+        };
+
+        Some(self.sampling_value.set_value(value))
     }
 }
 
@@ -143,6 +139,14 @@ impl SamplingValue {
             SamplingValue::SampleRate { value } => value,
             SamplingValue::Factor { value } => value,
         }
+    }
+
+    fn set_value(mut self, new_value: f64) -> Self {
+        match self {
+            SamplingValue::SampleRate { ref mut value } => *value = new_value,
+            SamplingValue::Factor { ref mut value } => *value = new_value,
+        }
+        self
     }
 }
 
