@@ -848,6 +848,15 @@ enum RequestAttempt {
     Retry,
 }
 
+impl RequestAttempt {
+    pub fn name(self) -> &'static str {
+        match self {
+            RequestAttempt::First => "first",
+            RequestAttempt::Retry => "retry",
+        }
+    }
+}
+
 /// An upstream request enqueued in the [`UpstreamQueue`].
 ///
 /// This is the primary type with which requests are passed around the service.
@@ -878,10 +887,15 @@ impl Entry {
 /// is synchronous and managed by the [`UpstreamBroker`].
 #[derive(Debug)]
 struct UpstreamQueue {
+    /// High priority queue.
     high: VecDeque<Entry>,
+    /// Low priority queue.
     low: VecDeque<Entry>,
+    /// Retry queue, sorted by [priority][`RequestPriority`].
     retries: VecDeque<Entry>,
+    /// Backoff handler for retry entries.
     retry_backoff: RetryBackoff,
+    /// Retries should not be dequeued before this instant.
     next_retry: Instant,
 }
 
@@ -903,7 +917,11 @@ impl UpstreamQueue {
         self.high.len() + self.low.len() + self.retries.len()
     }
 
-    /// Puts an entry into the queue at the given position.
+    /// Puts an entry into the queue.
+    ///
+    /// High priority entries go in the front of the queue, and low priority
+    /// items in the back. [Retries][RequestAttempt::Retry] are tracked
+    /// independently.
     fn put(&mut self, entry: Entry, attempt: RequestAttempt) {
         let priority = entry.request.priority();
 
@@ -928,28 +946,42 @@ impl UpstreamQueue {
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
-            retry = "false"
+            attempt = attempt.name()
         );
     }
 
     /// Places an entry at the back of the queue.
     ///
-    /// Since entries are dequeued in FIFO order, this entry will be dequeued last within its
-    /// priority class.
+    /// Since entries are dequeued in FIFO order, this entry will be dequeued
+    /// last within its priority class; see
+    /// [`dequeue`][`UpstreamQueue::dequeue`] for more details.
     pub fn enqueue(&mut self, entry: Entry) {
+        // relay_log::trace!("enqueueing normal");
         self.put(entry, RequestAttempt::First)
     }
 
+    /// Places an entry in the retry queue.
+    ///
+    /// If the entry is high priority it's placed at the front of the queue, or
+    /// at the back if it's low priority. Entries in the retry queue are
+    /// dequeued from front to back.
+    ///
+    /// It also schedules the next retry time, based on the retry back off. The
+    /// retry queue is not dequeued until the next retry has ellapsed.
     pub fn enqueue_retry(&mut self, entry: Entry) {
         self.put(entry, RequestAttempt::Retry);
-        let next = Instant::now() + self.retry_backoff.next_backoff();
-        self.next_retry = next;
+        self.next_retry = Instant::now() + self.retry_backoff.next_backoff();
     }
 
     /// Removes the head of the queue with highest priority.
     ///
-    /// This always returns entries with [high](RequestPriority::High) first before dequeueing
-    /// entries with low priority.
+    /// Dequeues entries in the following order:
+    /// 1. [High priority][RequestPriority::High] requests.
+    /// 2. [High priority][RequestPriority::High]
+    /// [retries][RequestAttempt::Retry], after backoff ellapsed.
+    /// 3. [Low priority][RequestPriority::High]
+    /// [retries][RequestAttempt::Retry], after backoff ellapsed.
+    /// 4. [Low priority][RequestPriority::Low] requests.
     pub fn dequeue(&mut self) -> Option<Entry> {
         if !self.high.is_empty() {
             return self.high.pop_front();
@@ -960,9 +992,12 @@ impl UpstreamQueue {
         self.low.pop_front()
     }
 
+    /// Resets the retry backoff, if started.
     pub fn retry_backoff_reset(&mut self) {
-        self.next_retry = Instant::now();
-        self.retry_backoff.reset();
+        if self.retry_backoff.started() {
+            self.next_retry = Instant::now();
+            self.retry_backoff.reset();
+        }
     }
 }
 
@@ -1029,7 +1064,10 @@ enum Action {
     ///
     /// The entry is placed on the front of the [`UpstreamQueue`].
     Retry(Entry),
-    RetryReset,
+    /// Notifies a request has been completed successfully to upstream.
+    ///
+    /// Successful requests reset the retry backoff.
+    SuccessfulRequest,
     /// Notifies completion of a request with a given outcome.
     ///
     /// Dropped request that need retries will additionally invoke the [`Retry`](Self::Retry)
@@ -1400,7 +1438,7 @@ impl UpstreamBroker {
                 }
                 _ => {
                     entry.request.respond(result).await;
-                    action_tx.send(Action::RetryReset).ok();
+                    action_tx.send(Action::SuccessfulRequest).ok();
                 }
             }
 
@@ -1428,7 +1466,7 @@ impl UpstreamBroker {
                 relay_log::trace!("retry - enqueue immediatelly");
                 self.queue.enqueue_retry(request);
             }
-            Action::RetryReset => {
+            Action::SuccessfulRequest => {
                 relay_log::trace!("retry reset");
                 self.queue.retry_backoff_reset();
             }
