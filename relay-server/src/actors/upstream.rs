@@ -842,14 +842,10 @@ impl SharedClient {
     }
 }
 
-/// The position for enqueueing an upstream request.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-enum EnqueuePosition {
-    /// The default position for FIFO to be dequeued last.
-    Back,
-
-    /// Places an element at the front to be dequeued next.
-    Front,
+enum RequestAttempt {
+    First,
+    Retry,
 }
 
 /// An upstream request enqueued in the [`UpstreamQueue`].
@@ -906,20 +902,25 @@ impl UpstreamQueue {
     }
 
     /// Puts an entry into the queue at the given position.
-    fn put(&mut self, entry: Entry, position: EnqueuePosition) {
+    fn put(&mut self, entry: Entry, attempt: RequestAttempt) {
         let priority = entry.request.priority();
 
         // We can ignore send errors here. Once the channel closes, we drop all incoming requests
         // here. The receiving end of the request will be notified of the drop if they are waiting
         // for it.
-        let queue = match priority {
-            RequestPriority::High => &mut self.high,
-            RequestPriority::Low => &mut self.low,
-        };
-
-        match position {
-            EnqueuePosition::Front => queue.push_front(entry),
-            EnqueuePosition::Back => queue.push_back(entry),
+        match attempt {
+            RequestAttempt::First => {
+                match priority {
+                    RequestPriority::High => self.high.push_back(entry),
+                    RequestPriority::Low => self.low.push_back(entry),
+                };
+            }
+            RequestAttempt::Retry => {
+                match priority {
+                    RequestPriority::High => self.retries.push_front(entry),
+                    RequestPriority::Low => self.retries.push_back(entry),
+                };
+            }
         }
 
         relay_statsd::metric!(
@@ -934,20 +935,11 @@ impl UpstreamQueue {
     /// Since entries are dequeued in FIFO order, this entry will be dequeued last within its
     /// priority class.
     pub fn enqueue(&mut self, entry: Entry) {
-        self.put(entry, EnqueuePosition::Back)
+        self.put(entry, RequestAttempt::First)
     }
 
     pub fn enqueue_retry(&mut self, entry: Entry) {
-        let priority = entry.request.priority();
-        match priority {
-            RequestPriority::High => self.retries.push_front(entry),
-            RequestPriority::Low => self.retries.push_back(entry),
-        };
-        relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
-            priority = priority.name(),
-            retry = "true"
-        );
+        self.put(entry, RequestAttempt::Retry)
     }
 
     /// Removes the head of the queue with highest priority.
