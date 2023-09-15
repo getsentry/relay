@@ -886,20 +886,20 @@ struct UpstreamQueue {
     /// instead of backoff, since it only kicks in for a short period of time
     /// before Relay gets into network outage mode (see [`IsNetworkOutage`]).
     next_retry: Instant,
+    /// Time to wait before retrying another request from the retry queue.
+    retry_after: Duration,
 }
 
 impl UpstreamQueue {
-    /// Time to wait before retrying another request from the retry queue.
-    const RETRY_AFTER: Duration = Duration::from_millis(500);
-
     /// Creates an empty upstream queue.
-    pub fn new() -> Self {
+    pub fn new(retry_after: Duration) -> Self {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
             retry_high: VecDeque::new(),
             retry_low: VecDeque::new(),
             next_retry: Instant::now(),
+            retry_after,
         }
     }
 
@@ -946,7 +946,7 @@ impl UpstreamQueue {
             attempt = "retry"
         );
 
-        self.next_retry = Instant::now() + Self::RETRY_AFTER;
+        self.next_retry = Instant::now() + self.retry_after
     }
 
     /// Dequeues the entry with highest priority.
@@ -1487,7 +1487,7 @@ impl Service for UpstreamRelayService {
         // and authentication state.
         let mut broker = UpstreamBroker {
             client: client.clone(),
-            queue: UpstreamQueue::new(),
+            queue: UpstreamQueue::new(config.http_unavailable_upstream_period()),
             auth_state: AuthState::init(&config),
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
