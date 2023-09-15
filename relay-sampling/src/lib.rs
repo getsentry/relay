@@ -359,13 +359,7 @@ mod tests {
     ) -> SamplingResult {
         // This essentially bypasses the verification of the rules, which won't happen in prod.
         // Todo(tor): figure out if we want this behaviour.
-        get_sampling_match(
-            config.rules_v2.iter(),
-            Some(event),
-            Some(dsc),
-            now,
-            config.mode,
-        )
+        get_sampling_match(config.rules_v2.iter(), Some(event), Some(dsc), now, false)
     }
 
     #[test]

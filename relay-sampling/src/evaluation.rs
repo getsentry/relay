@@ -80,29 +80,6 @@ fn verify_and_merge_rules<'a>(
     ))
 }
 
-fn get_adjusted_sample_rate(
-    base_sample_rate: f64,
-    client_sample_rate: Option<f64>,
-    sampling_mode: SamplingMode,
-) -> Option<f64> {
-    match sampling_mode {
-        SamplingMode::Total => match client_sample_rate {
-            Some(client_sample_rate) => Some(DynamicSamplingContext::adjusted_sample_rate(
-                client_sample_rate,
-                base_sample_rate,
-            )),
-            None => Some(base_sample_rate),
-        },
-        SamplingMode::Received => Some(base_sample_rate),
-        SamplingMode::Unsupported => {
-            #[cfg(feature = "processing")]
-            relay_log::error!("found unsupported sampling mode even as processing Relay");
-
-            None
-        }
-    }
-}
-
 pub(crate) fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
     let random_number = pseudo_random_from_uuid(seed);
     relay_log::trace!(
@@ -137,8 +114,18 @@ pub fn match_rules<'a>(
     // The determination of the sampling mode occurs with the following priority:
     // 1. Non-root project sampling mode
     // 2. Root project sampling mode
-    let sampling_mode = match sampling_config.or(root_sampling_config) {
-        Some(config) => config.mode,
+    let adjust_sample_rate = match sampling_config
+        .or(root_sampling_config)
+        .map(|config| config.mode)
+    {
+        Some(SamplingMode::Total) => true,
+        Some(SamplingMode::Received) => false,
+        Some(SamplingMode::Unsupported) => {
+            if processing_enabled {
+                relay_log::error!("found unsupported sampling mode even as processing Relay");
+            }
+            return SamplingResult::NoMatch;
+        }
         None => {
             relay_log::info!("cannot sample without at least one sampling config");
             return SamplingResult::NoMatch;
@@ -152,7 +139,7 @@ pub fn match_rules<'a>(
         return SamplingResult::NoMatch;
     };
 
-    get_sampling_match(rules, event, dsc, now, sampling_mode)
+    get_sampling_match(rules, event, dsc, now, adjust_sample_rate)
 }
 
 /// Represents the specification for sampling an incoming event.
@@ -231,7 +218,7 @@ pub(crate) fn get_sampling_match<'a>(
     event: Option<&Event>,
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
-    sampling_mode: SamplingMode,
+    adjust_sample_rate: bool,
 ) -> SamplingResult {
     let mut matched_rule_ids = vec![];
     // Even though this seed is changed based on whether we match event or trace rules, we will
@@ -279,15 +266,20 @@ pub(crate) fn get_sampling_match<'a>(
                     SamplingValue::SampleRate { .. } => {
                         let sample_rate = {
                             let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                            match get_adjusted_sample_rate(
-                                base,
-                                dsc.and_then(|dsc| dsc.sample_rate),
-                                sampling_mode,
-                            ) {
-                                Some(adjusted_sample_rate) => adjusted_sample_rate,
-                                None => return SamplingResult::NoMatch,
+                            if adjust_sample_rate {
+                                dsc.and_then(|d| d.sample_rate)
+                                    .map(|client_sample_rate| {
+                                        DynamicSamplingContext::adjust_sample_rate(
+                                            client_sample_rate,
+                                            base,
+                                        )
+                                    })
+                                    .unwrap_or(base)
+                            } else {
+                                base
                             }
                         };
+
                         let Some(seed) = seed else {
                             return SamplingResult::NoMatch;
                         };
