@@ -10,6 +10,7 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use itertools::Itertools;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
@@ -883,6 +884,8 @@ impl Entry {
 struct UpstreamQueue {
     high: VecDeque<Entry>,
     low: VecDeque<Entry>,
+    retries: VecDeque<Entry>,
+    retry_backoff: RetryBackoff,
 }
 
 impl UpstreamQueue {
@@ -891,12 +894,15 @@ impl UpstreamQueue {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
+            retries: VecDeque::new(),
+            // TODO: set max backoff as relay going into network outage mode
+            retry_backoff: RetryBackoff::new(Duration::from_secs(1)),
         }
     }
 
     /// Returns the number of entries in the queue.
     pub fn len(&self) -> usize {
-        self.high.len() + self.low.len()
+        self.high.len() + self.low.len() + self.retries.len()
     }
 
     /// Puts an entry into the queue at the given position.
@@ -919,6 +925,7 @@ impl UpstreamQueue {
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
+            retry = "false"
         );
     }
 
@@ -930,12 +937,17 @@ impl UpstreamQueue {
         self.put(entry, EnqueuePosition::Back)
     }
 
-    /// Place an entry at the front of the queue.
-    ///
-    /// This entry will be dequeued next within its priority class, unless another call to
-    /// `enqueue_immediate` follows.
-    pub fn enqueue_immediate(&mut self, entry: Entry) {
-        self.put(entry, EnqueuePosition::Front)
+    pub fn enqueue_retry(&mut self, entry: Entry) {
+        let priority = entry.request.priority();
+        match priority {
+            RequestPriority::High => self.retries.push_front(entry),
+            RequestPriority::Low => self.retries.push_back(entry),
+        };
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            priority = priority.name(),
+            retry = "true"
+        );
     }
 
     /// Removes the head of the queue with highest priority.
@@ -943,6 +955,7 @@ impl UpstreamQueue {
     /// This always returns entries with [high](RequestPriority::High) first before dequeueing
     /// entries with low priority.
     pub fn dequeue(&mut self) -> Option<Entry> {
+        // TODO: pop order: high, backoff if available, low
         self.high.pop_front().or_else(|| self.low.pop_front())
     }
 }
@@ -1401,10 +1414,22 @@ impl UpstreamBroker {
     /// Handler of the internal action channel.
     fn handle_action(&mut self, action: Action) {
         match action {
-            Action::Retry(request) => self.queue.enqueue_immediate(request),
-            Action::Complete(status) => self.complete(status),
-            Action::Connected => self.conn.reset_error(),
-            Action::UpdateAuth(state) => self.auth_state = state,
+            Action::Retry(request) => {
+                relay_log::trace!("retry - enqueue immediatelly");
+                self.queue.enqueue_retry(request);
+            }
+            Action::Complete(status) => {
+                relay_log::trace!("complete");
+                self.complete(status);
+            }
+            Action::Connected => {
+                relay_log::trace!("connected");
+                self.conn.reset_error();
+            }
+            Action::UpdateAuth(state) => {
+                relay_log::trace!("update auth");
+                self.auth_state = state;
+            }
         }
     }
 }
