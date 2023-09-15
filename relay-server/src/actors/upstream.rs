@@ -842,9 +842,12 @@ impl SharedClient {
     }
 }
 
+/// Attempt type of a request.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum RequestAttempt {
+    /// First attempt to make the request.
     First,
+    /// A retry, after previous requests have failed.
     Retry,
 }
 
