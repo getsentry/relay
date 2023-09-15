@@ -193,7 +193,7 @@ impl SamplingResult {
 
     /// Returns true if dynamic sampling has been on run on event.
     pub fn is_not_pending(&self) -> bool {
-        matches!(self, &Self::Pending)
+        !self.is_pending()
     }
 
     /// Returns true if dynamic sampling has not been on run on event.
