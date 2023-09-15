@@ -842,24 +842,6 @@ impl SharedClient {
     }
 }
 
-/// Attempt type of a request.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-enum RequestAttempt {
-    /// First attempt to make the request.
-    First,
-    /// A retry, after previous requests have failed.
-    Retry,
-}
-
-impl RequestAttempt {
-    pub fn name(self) -> &'static str {
-        match self {
-            RequestAttempt::First => "first",
-            RequestAttempt::Retry => "retry",
-        }
-    }
-}
-
 /// An upstream request enqueued in the [`UpstreamQueue`].
 ///
 /// This is the primary type with which requests are passed around the service.
@@ -919,46 +901,22 @@ impl UpstreamQueue {
         self.high.len() + self.low.len() + self.retries.len()
     }
 
-    /// Puts an entry into the queue.
-    ///
-    /// High priority entries go in the front of the queue, and low priority
-    /// items in the back. [Retries][RequestAttempt::Retry] are tracked
-    /// independently.
-    fn put(&mut self, entry: Entry, attempt: RequestAttempt) {
-        let priority = entry.request.priority();
-
-        // We can ignore send errors here. Once the channel closes, we drop all incoming requests
-        // here. The receiving end of the request will be notified of the drop if they are waiting
-        // for it.
-        match attempt {
-            RequestAttempt::First => {
-                match priority {
-                    RequestPriority::High => self.high.push_back(entry),
-                    RequestPriority::Low => self.low.push_back(entry),
-                };
-            }
-            RequestAttempt::Retry => {
-                match priority {
-                    RequestPriority::High => self.retries.push_front(entry),
-                    RequestPriority::Low => self.retries.push_back(entry),
-                };
-            }
-        }
-
-        relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
-            priority = priority.name(),
-            attempt = attempt.name()
-        );
-    }
-
     /// Places an entry at the back of the queue.
     ///
     /// Since entries are dequeued in FIFO order, this entry will be dequeued
     /// last within its priority class; see
     /// [`dequeue`][`UpstreamQueue::dequeue`] for more details.
     pub fn enqueue(&mut self, entry: Entry) {
-        self.put(entry, RequestAttempt::First)
+        let priority = entry.request.priority();
+        match priority {
+            RequestPriority::High => self.retries.push_back(entry),
+            RequestPriority::Low => self.retries.push_back(entry),
+        }
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            priority = priority.name(),
+            attempt = "first"
+        );
     }
 
     /// Places an entry in the retry queue.
@@ -969,8 +927,18 @@ impl UpstreamQueue {
     ///
     /// It also schedules the next retry time, based on the retry back off. The
     /// retry queue is not dequeued until the next retry has elapsed.
-    pub fn enqueue_retry(&mut self, entry: Entry) {
-        self.put(entry, RequestAttempt::Retry);
+    pub fn retry(&mut self, entry: Entry) {
+        let priority = entry.request.priority();
+        match priority {
+            RequestPriority::High => self.retries.push_front(entry),
+            RequestPriority::Low => self.retries.push_back(entry),
+        };
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            priority = priority.name(),
+            attempt = "retry"
+        );
+
         self.next_retry = Instant::now() + self.retry_backoff.next_backoff();
     }
 
@@ -1463,7 +1431,7 @@ impl UpstreamBroker {
     /// Handler of the internal action channel.
     fn handle_action(&mut self, action: Action) {
         match action {
-            Action::Retry(request) => self.queue.enqueue_retry(request),
+            Action::Retry(request) => self.queue.retry(request),
             Action::SuccessfulRequest => self.queue.retry_backoff_reset(),
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
