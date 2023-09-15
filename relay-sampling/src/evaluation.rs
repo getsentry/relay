@@ -72,7 +72,10 @@ fn get_and_verify_rules<'a>(
     sampling_config: Option<&'a SamplingConfig>,
     root_sampling_config: Option<&'a SamplingConfig>,
 ) -> Option<impl Iterator<Item = &'a SamplingRule>> {
+    (sampling_config.is_some() || root_sampling_config.is_some()).then_some(())?;
+
     check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
+
     Some(merge_rules_from_configs(
         sampling_config,
         root_sampling_config,
@@ -128,6 +131,13 @@ pub fn match_rules<'a>(
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
 ) -> SamplingMatch {
+    // We perform the rule matching with the multi-matching logic on the merged rules.
+    let Some(rules) =
+        get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
+    else {
+        return SamplingMatch::NoMatch;
+    };
+
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
     // Keep in mind that the sample rate received here has already been derived by the matching
@@ -139,16 +149,9 @@ pub fn match_rules<'a>(
     let sampling_mode = match sampling_config.or(root_sampling_config) {
         Some(config) => config.mode,
         None => {
-            //relay_log::error!("cannot sample without at least one sampling config");
+            relay_log::error!("cannot sample without at least one sampling config");
             return SamplingMatch::NoMatch;
         }
-    };
-
-    // We perform the rule matching with the multi-matching logic on the merged rules.
-    let Some(rules) =
-        get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
-    else {
-        return SamplingMatch::NoMatch;
     };
 
     get_sampling_match(rules, event, dsc, now, sampling_mode)
