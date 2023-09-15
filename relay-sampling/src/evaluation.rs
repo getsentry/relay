@@ -13,7 +13,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::config::{RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue};
-use crate::dsc::DynamicSamplingContext;
+use crate::DynamicSamplingContext;
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///

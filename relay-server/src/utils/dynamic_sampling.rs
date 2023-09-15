@@ -1,8 +1,8 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
+use relay_sampling::dsc::DynamicSamplingContext;
 use relay_sampling::evaluation::match_rules;
-use relay_sampling::DynamicSamplingContext;
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};

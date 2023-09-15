@@ -22,7 +22,7 @@ use relay_pii::{
 };
 use relay_protocol::{Annotated, Remark};
 use relay_sampling::condition::RuleCondition;
-use relay_sampling::SamplingConfig;
+use relay_sampling::config::SamplingConfig;
 
 use crate::core::{RelayBuf, RelayStr};
 

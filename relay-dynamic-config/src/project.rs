@@ -8,7 +8,7 @@ use relay_event_normalization::{
 use relay_filter::FiltersConfig;
 use relay_pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::Quota;
-use relay_sampling::SamplingConfig;
+use relay_sampling::config::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
