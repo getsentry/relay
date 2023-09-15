@@ -106,14 +106,6 @@ pub fn match_rules<'a>(
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
 ) -> SamplingResult {
-    // If we have a match, we will try to derive the sample rate based on the sampling mode.
-    //
-    // Keep in mind that the sample rate received here has already been derived by the matching
-    // logic, based on multiple matches and decaying functions.
-    //
-    // The determination of the sampling mode occurs with the following priority:
-    // 1. Non-root project sampling mode
-    // 2. Root project sampling mode
     let adjust_sample_rate = match sampling_config
         .or(root_sampling_config)
         .map(|config| config.mode)
@@ -210,10 +202,7 @@ impl SamplingResult {
 /// The default accumulated factors equal to 1 because it is the identity of the multiplication
 /// operation, thus in case no factor rules are matched, the final result will just be the
 /// sample rate of the matching rule.
-///
-/// In case no sample rate rule is matched, we are going to return a None, signaling that no
-/// match has been found.
-pub(crate) fn get_sampling_match<'a>(
+fn get_sampling_match<'a>(
     rules: impl Iterator<Item = &'a SamplingRule>,
     event: Option<&Event>,
     dsc: Option<&DynamicSamplingContext>,
