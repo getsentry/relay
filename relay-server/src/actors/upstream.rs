@@ -876,8 +876,10 @@ struct UpstreamQueue {
     high: VecDeque<Entry>,
     /// Low priority queue.
     low: VecDeque<Entry>,
-    /// Retry queue, sorted by [priority][`RequestPriority`].
-    retries: VecDeque<Entry>,
+    /// Low priority retry queue.
+    retry_high: VecDeque<Entry>,
+    /// Low priority retry queue.
+    retry_low: VecDeque<Entry>,
     /// Backoff handler for retry entries.
     retry_backoff: RetryBackoff,
     /// Retries should not be dequeued before this instant.
@@ -890,7 +892,8 @@ impl UpstreamQueue {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
-            retries: VecDeque::new(),
+            retry_high: VecDeque::new(),
+            retry_low: VecDeque::new(),
             retry_backoff: RetryBackoff::new(retry_backoff_duration),
             next_retry: Instant::now(),
         }
@@ -898,7 +901,7 @@ impl UpstreamQueue {
 
     /// Returns the number of entries in the queue.
     pub fn len(&self) -> usize {
-        self.high.len() + self.low.len() + self.retries.len()
+        self.high.len() + self.low.len() + self.retry_high.len() + self.retry_low.len()
     }
 
     /// Places an entry at the back of the queue.
@@ -909,8 +912,8 @@ impl UpstreamQueue {
     pub fn enqueue(&mut self, entry: Entry) {
         let priority = entry.request.priority();
         match priority {
-            RequestPriority::High => self.retries.push_back(entry),
-            RequestPriority::Low => self.retries.push_back(entry),
+            RequestPriority::High => self.high.push_back(entry),
+            RequestPriority::Low => self.low.push_back(entry),
         }
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
@@ -930,8 +933,8 @@ impl UpstreamQueue {
     pub fn retry(&mut self, entry: Entry) {
         let priority = entry.request.priority();
         match priority {
-            RequestPriority::High => self.retries.push_front(entry),
-            RequestPriority::Low => self.retries.push_back(entry),
+            RequestPriority::High => self.retry_high.push_back(entry),
+            RequestPriority::Low => self.retry_low.push_back(entry),
         };
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
@@ -942,21 +945,21 @@ impl UpstreamQueue {
         self.next_retry = Instant::now() + self.retry_backoff.next_backoff();
     }
 
-    /// Removes the head of the queue with highest priority.
+    /// Dequeues the entry with highest priority.
     ///
-    /// Dequeues entries in the following order:
-    /// 1. [High priority][RequestPriority::High] requests.
-    /// 2. [High priority][RequestPriority::High]
-    /// [retries][RequestAttempt::Retry], after backoff elapsed.
-    /// 3. [Low priority][RequestPriority::High]
-    /// [retries][RequestAttempt::Retry], after backoff elapsed.
-    /// 4. [Low priority][RequestPriority::Low] requests.
+    /// Highest priority entry is determined by (1) request priority and (2)
+    /// retries first.
     pub fn dequeue(&mut self) -> Option<Entry> {
+        let now = Instant::now();
+
+        if !self.retry_high.is_empty() && self.next_retry <= now {
+            return self.retry_high.pop_front();
+        }
         if !self.high.is_empty() {
             return self.high.pop_front();
         }
-        if !self.retries.is_empty() && self.next_retry <= Instant::now() {
-            return self.retries.pop_front();
+        if !self.retry_low.is_empty() && self.next_retry <= now {
+            return self.retry_low.pop_front();
         }
         self.low.pop_front()
     }
