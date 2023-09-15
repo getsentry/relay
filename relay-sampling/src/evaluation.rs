@@ -166,8 +166,10 @@ pub enum SamplingResult {
     /// The event matched a sampling condition.
     Match(SamplingMatch),
     /// The event did not match a sampling condition.
-    #[default]
     NoMatch,
+    /// The event has yet to be run a dynamic sampling decision.
+    #[default]
+    Pending,
 }
 
 impl SamplingResult {
@@ -186,7 +188,17 @@ impl SamplingResult {
 
     /// Returns true if the event did not match on any rules.
     pub fn is_match(&self) -> bool {
-        !self.is_no_match()
+        matches!(self, &Self::Match(_))
+    }
+
+    /// Returns true if dynamic sampling has been on run on event.
+    pub fn is_not_pending(&self) -> bool {
+        matches!(self, &Self::Pending)
+    }
+
+    /// Returns true if dynamic sampling has not been on run on event.
+    pub fn is_pending(&self) -> bool {
+        matches!(self, &Self::Pending)
     }
 
     /// Returns true if the event should be kept.
@@ -195,6 +207,7 @@ impl SamplingResult {
             SamplingResult::Match(sampling_match) => sampling_match.is_kept(),
             // If no rules matched on an event, we want to keep it.
             SamplingResult::NoMatch => true,
+            SamplingResult::Pending => true,
         }
     }
 
@@ -1855,7 +1868,7 @@ mod tests {
                     MatchedRuleIds(vec![RuleId(1), RuleId(2)])
                 )
             }
-            SamplingResult::NoMatch => panic!("should have matched"),
+            SamplingResult::NoMatch | SamplingResult::Pending => panic!("should have matched"),
         }
     }
 

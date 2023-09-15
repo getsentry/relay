@@ -223,7 +223,7 @@ pub struct TransactionExtractor<'a> {
     pub config: &'a TransactionMetricsConfig,
     pub generic_tags: &'a [TagMapping],
     pub transaction_from_dsc: Option<&'a str>,
-    pub sampling_result: Option<&'a SamplingResult>,
+    pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
 }
 
@@ -333,10 +333,7 @@ impl TransactionExtractor<'_> {
                     .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
             TransactionCPRTags {
-                decision: if self
-                    .sampling_result
-                    .map_or(true, |result| result.should_keep())
-                {
+                decision: if self.sampling_result.should_keep() {
                     "keep".to_owned()
                 } else {
                     "drop".to_owned()
@@ -500,7 +497,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -698,7 +695,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -801,7 +798,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -885,7 +882,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -952,7 +949,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1041,7 +1038,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1080,7 +1077,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1148,7 +1145,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1182,7 +1179,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1218,7 +1215,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("root_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1481,7 +1478,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1610,7 +1607,7 @@ mod tests {
             config: &config,
             generic_tags: &generic_tags,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: None,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
