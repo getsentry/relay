@@ -27,7 +27,7 @@ pub enum TransactionMetric {
     DurationCoarse {
         unit: DurationUnit,
         value: DistributionType,
-        tags: CommonTags,
+        tags: TransactionDurationTags,
     },
     /// An internal counter metric used to compute dynamic sampling biases.
     ///
