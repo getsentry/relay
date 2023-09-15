@@ -109,7 +109,7 @@ mod tests {
     };
     use crate::dsc::TraceUserContext;
     use crate::evaluation::{
-        get_sampling_match, match_rules, sampling_match, MatchedRuleIds, SamplingMatch,
+        get_sampling_match, match_rules, sampling_match, MatchedRuleIds, SamplingResult,
     };
 
     use super::*;
@@ -118,9 +118,9 @@ mod tests {
         sample_rate: f64,
         seed: Uuid,
         matched_rules: MatchedRuleIds,
-    ) -> SamplingMatch {
+    ) -> SamplingResult {
         let is_kept = sampling_match(sample_rate, seed);
-        SamplingMatch::Match {
+        SamplingResult::Match {
             sample_rate,
             seed,
             matched_rules,
@@ -132,7 +132,7 @@ mod tests {
         sample_rate: f64,
         event: &Event,
         matched_rule_ids: &[u32],
-    ) -> SamplingMatch {
+    ) -> SamplingResult {
         sampling_match_from_parts(
             sample_rate,
             event.id.value().unwrap().0,
@@ -144,7 +144,7 @@ mod tests {
         sample_rate: f64,
         dsc: &DynamicSamplingContext,
         matched_rule_ids: &[u32],
-    ) -> SamplingMatch {
+    ) -> SamplingResult {
         sampling_match_from_parts(
             sample_rate,
             dsc.trace_id,
@@ -356,7 +356,7 @@ mod tests {
         event: &Event,
         dsc: &DynamicSamplingContext,
         now: DateTime<Utc>,
-    ) -> SamplingMatch {
+    ) -> SamplingResult {
         // This essentially bypasses the verification of the rules, which won't happen in prod.
         // Todo(tor): figure out if we want this behaviour.
         get_sampling_match(
@@ -1477,7 +1477,7 @@ mod tests {
         };
 
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        if let SamplingMatch::Match {
+        if let SamplingResult::Match {
             sample_rate,
             seed,
             matched_rules,

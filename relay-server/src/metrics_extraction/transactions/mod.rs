@@ -8,7 +8,7 @@ use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 use relay_metrics::{Bucket, DurationUnit};
-use relay_sampling::evaluation::SamplingMatch;
+use relay_sampling::evaluation::SamplingResult;
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -223,7 +223,7 @@ pub struct TransactionExtractor<'a> {
     pub config: &'a TransactionMetricsConfig,
     pub generic_tags: &'a [TagMapping],
     pub transaction_from_dsc: Option<&'a str>,
-    pub sampling_result: &'a SamplingMatch,
+    pub sampling_result: &'a SamplingResult,
     pub has_profile: bool,
 }
 
@@ -497,7 +497,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -695,7 +695,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -798,7 +798,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -882,7 +882,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -949,7 +949,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -1038,7 +1038,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -1077,7 +1077,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -1145,7 +1145,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -1179,7 +1179,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -1215,7 +1215,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("root_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -1478,7 +1478,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 
@@ -1607,7 +1607,7 @@ mod tests {
             config: &config,
             generic_tags: &generic_tags,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingMatch::NoMatch,
+            sampling_result: &SamplingResult::NoMatch,
             has_profile: false,
         };
 

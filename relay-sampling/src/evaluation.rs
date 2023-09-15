@@ -67,13 +67,11 @@ fn check_unsupported_rules(
     Ok(())
 }
 
-fn get_and_verify_rules<'a>(
+fn verify_and_merge_rules<'a>(
     processing_enabled: bool,
     sampling_config: Option<&'a SamplingConfig>,
     root_sampling_config: Option<&'a SamplingConfig>,
 ) -> Option<impl Iterator<Item = &'a SamplingRule>> {
-    (sampling_config.is_some() || root_sampling_config.is_some()).then_some(())?;
-
     check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()?;
 
     Some(merge_rules_from_configs(
@@ -122,7 +120,7 @@ pub(crate) fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
     }
 }
 
-/// Get the sampling result.
+/// Gets the sampling match for an event.
 pub fn match_rules<'a>(
     processing_enabled: bool,
     sampling_config: Option<&'a SamplingConfig>,
@@ -130,14 +128,7 @@ pub fn match_rules<'a>(
     event: Option<&Event>,
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
-) -> SamplingMatch {
-    // We perform the rule matching with the multi-matching logic on the merged rules.
-    let Some(rules) =
-        get_and_verify_rules(processing_enabled, sampling_config, root_sampling_config)
-    else {
-        return SamplingMatch::NoMatch;
-    };
-
+) -> SamplingResult {
     // If we have a match, we will try to derive the sample rate based on the sampling mode.
     //
     // Keep in mind that the sample rate received here has already been derived by the matching
@@ -149,9 +140,16 @@ pub fn match_rules<'a>(
     let sampling_mode = match sampling_config.or(root_sampling_config) {
         Some(config) => config.mode,
         None => {
-            relay_log::error!("cannot sample without at least one sampling config");
-            return SamplingMatch::NoMatch;
+            relay_log::info!("cannot sample without at least one sampling config");
+            return SamplingResult::NoMatch;
         }
+    };
+
+    // We perform the rule matching with the multi-matching logic on the merged rules.
+    let Some(rules) =
+        verify_and_merge_rules(processing_enabled, sampling_config, root_sampling_config)
+    else {
+        return SamplingResult::NoMatch;
     };
 
     get_sampling_match(rules, event, dsc, now, sampling_mode)
@@ -159,7 +157,7 @@ pub fn match_rules<'a>(
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Default, Clone, Debug, PartialEq)]
-pub enum SamplingMatch {
+pub enum SamplingResult {
     /// The event matched a sampling condition.
     Match {
         /// The sample rate to use for the incoming event.
@@ -182,7 +180,7 @@ pub enum SamplingMatch {
     NoMatch,
 }
 
-impl SamplingMatch {
+impl SamplingResult {
     /// Returns the sample rate.
     pub fn sample_rate(&self) -> Option<f64> {
         if let Self::Match { sample_rate, .. } = self {
@@ -204,9 +202,9 @@ impl SamplingMatch {
     /// Returns true if the event should be kept.
     pub fn should_keep(&self) -> bool {
         match self {
-            SamplingMatch::Match { is_kept, .. } => *is_kept,
+            SamplingResult::Match { is_kept, .. } => *is_kept,
             // If no rules matched on an event, we want to keep it.
-            SamplingMatch::NoMatch => true,
+            SamplingResult::NoMatch => true,
         }
     }
 
@@ -234,7 +232,7 @@ pub(crate) fn get_sampling_match<'a>(
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
     sampling_mode: SamplingMode,
-) -> SamplingMatch {
+) -> SamplingResult {
     let mut matched_rule_ids = vec![];
     // Even though this seed is changed based on whether we match event or trace rules, we will
     // still incur in inconsistent trace sampling because of multi-matching of rules across event
@@ -287,16 +285,16 @@ pub(crate) fn get_sampling_match<'a>(
                                 sampling_mode,
                             ) {
                                 Some(adjusted_sample_rate) => adjusted_sample_rate,
-                                None => return SamplingMatch::NoMatch,
+                                None => return SamplingResult::NoMatch,
                             }
                         };
                         let Some(seed) = seed else {
-                            return SamplingMatch::NoMatch;
+                            return SamplingResult::NoMatch;
                         };
 
                         let is_kept = sampling_match(sample_rate, seed);
 
-                        return SamplingMatch::Match {
+                        return SamplingResult::Match {
                             sample_rate,
                             seed,
                             matched_rules: MatchedRuleIds(matched_rule_ids),
@@ -310,7 +308,7 @@ pub(crate) fn get_sampling_match<'a>(
 
     // In case no match is available, we won't return any specification.
     relay_log::trace!("keeping event that didn't match the configuration");
-    SamplingMatch::NoMatch
+    SamplingResult::NoMatch
 }
 
 /// Represents a list of rule ids which is used for outcomes.

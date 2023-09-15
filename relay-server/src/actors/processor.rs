@@ -42,7 +42,7 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
-use relay_sampling::evaluation::{match_rules, MatchedRuleIds, SamplingMatch};
+use relay_sampling::evaluation::{match_rules, MatchedRuleIds, SamplingResult};
 use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -276,7 +276,7 @@ struct ProcessEnvelopeState {
     /// The result of a dynamic sampling operation on this envelope.
     ///
     /// The event will be kept if there's either no match, or there's a match and it was sampled.
-    sampling_result: SamplingMatch,
+    sampling_result: SamplingResult,
 
     /// Metrics extracted from items in the envelope.
     ///
@@ -1359,7 +1359,7 @@ impl EnvelopeProcessorService {
             event_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            sampling_result: SamplingMatch::NoMatch,
+            sampling_result: SamplingResult::NoMatch,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -2391,7 +2391,7 @@ impl EnvelopeProcessorService {
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         match std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
-            SamplingMatch::Match {
+            SamplingResult::Match {
                 matched_rules,
                 is_kept,
                 ..
@@ -3083,7 +3083,7 @@ mod tests {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingMatch::NoMatch,
+                sampling_result: SamplingResult::NoMatch,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -3147,7 +3147,7 @@ mod tests {
                 event_metrics_extracted: false,
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingMatch::NoMatch,
+                sampling_result: SamplingResult::NoMatch,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
