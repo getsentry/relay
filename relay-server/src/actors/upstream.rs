@@ -904,13 +904,12 @@ struct UpstreamQueue {
 
 impl UpstreamQueue {
     /// Creates an empty upstream queue.
-    pub fn new() -> Self {
+    pub fn new(retry_backoff_duration: Duration) -> Self {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
             retries: VecDeque::new(),
-            // TODO: set max backoff as relay going into network outage mode
-            retry_backoff: RetryBackoff::new(Duration::from_secs(1)),
+            retry_backoff: RetryBackoff::new(retry_backoff_duration),
             next_retry: Instant::now(),
         }
     }
@@ -1513,7 +1512,7 @@ impl Service for UpstreamRelayService {
         // and authentication state.
         let mut broker = UpstreamBroker {
             client: client.clone(),
-            queue: UpstreamQueue::new(),
+            queue: UpstreamQueue::new(config.http_outage_grace_period()),
             auth_state: AuthState::init(&config),
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
