@@ -30,6 +30,7 @@
 - Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
 - Add a timestamp field to report profile's start time on Android. ([#2486](https://github.com/getsentry/relay/pull/2486))
 - Filter span metrics extraction based on features. ([#2511](https://github.com/getsentry/relay/pull/2511))
+- Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
 
 ## 23.8.0
 
