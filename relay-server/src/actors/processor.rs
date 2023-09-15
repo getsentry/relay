@@ -2391,9 +2391,11 @@ impl EnvelopeProcessorService {
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         match std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
-            SamplingMatch::Match { matched_rules, .. }
-                if state.event_type() == Some(EventType::Transaction) =>
-            {
+            SamplingMatch::Match {
+                matched_rules,
+                is_kept,
+                ..
+            } if state.event_type() == Some(EventType::Transaction) && !is_kept => {
                 state
                     .managed_envelope
                     .reject(Outcome::FilteredSampling(matched_rules.clone()));
