@@ -57,10 +57,10 @@ fn check_unsupported_rules(
     if sampling_config.map_or(false, |config| config.unsupported())
         || root_sampling_config.map_or(false, |config| config.unsupported())
     {
-        if processing_enabled {
-            relay_log::error!("found unsupported rules even as processing relay");
-        } else {
+        if !processing_enabled {
             return Err(());
+        } else {
+            relay_log::error!("found unsupported rules even as processing relay");
         }
     }
 
@@ -81,12 +81,15 @@ fn get_and_verify_rules<'a>(
 
 fn get_adjusted_sample_rate(
     base_sample_rate: f64,
-    dsc: Option<&DynamicSamplingContext>,
+    client_sample_rate: Option<f64>,
     sampling_mode: SamplingMode,
 ) -> Option<f64> {
     match sampling_mode {
-        SamplingMode::Total => match dsc {
-            Some(dsc) => Some(dsc.adjusted_sample_rate(base_sample_rate)),
+        SamplingMode::Total => match client_sample_rate {
+            Some(client_sample_rate) => Some(DynamicSamplingContext::adjusted_sample_rate(
+                client_sample_rate,
+                base_sample_rate,
+            )),
             None => Some(base_sample_rate),
         },
         SamplingMode::Received => Some(base_sample_rate),
@@ -154,7 +157,7 @@ pub fn match_rules<'a>(
 /// Represents the specification for sampling an incoming event.
 #[derive(Default, Clone, Debug, PartialEq)]
 pub enum SamplingMatch {
-    /// oh nice, a match!
+    /// The event matched a sampling condition.
     Match {
         /// The sample rate to use for the incoming event.
         sample_rate: f64,
@@ -171,7 +174,7 @@ pub enum SamplingMatch {
         /// the sample rate and the seed.
         is_kept: bool,
     },
-    /// tfw no match
+    /// The event did not match a sampling condition.
     #[default]
     NoMatch,
 }
@@ -186,13 +189,13 @@ impl SamplingMatch {
     }
 
     /// Returns true if the event matched on any rules.
-    pub fn is_no_match(&self) -> bool {
+    pub fn no_match(&self) -> bool {
         matches!(self, &Self::NoMatch)
     }
 
     /// Returns true if the event did not match on any rules.
-    pub fn is_match(&self) -> bool {
-        !self.is_no_match()
+    pub fn matches(&self) -> bool {
+        !self.no_match()
     }
 
     /// Returns true if the event should be kept.
@@ -275,7 +278,11 @@ pub(crate) fn get_sampling_match<'a>(
                     SamplingValue::SampleRate { .. } => {
                         let sample_rate = {
                             let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                            match get_adjusted_sample_rate(base, dsc, sampling_mode) {
+                            match get_adjusted_sample_rate(
+                                base,
+                                dsc.and_then(|dsc| dsc.sample_rate),
+                                sampling_mode,
+                            ) {
                                 Some(adjusted_sample_rate) => adjusted_sample_rate,
                                 None => return SamplingMatch::NoMatch,
                             }

@@ -189,10 +189,10 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
 
         let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_match());
+        assert!(result.matches());
 
         let result = match_rules(false, Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 
     #[test]

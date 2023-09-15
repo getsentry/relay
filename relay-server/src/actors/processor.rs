@@ -2392,8 +2392,7 @@ impl EnvelopeProcessorService {
         match std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
             SamplingMatch::Match { matched_rules, .. }
-                if state.sampling_result.should_drop()
-                    && state.event_type() == Some(EventType::Transaction) =>
+                if state.event_type() == Some(EventType::Transaction) =>
             {
                 state
                     .managed_envelope

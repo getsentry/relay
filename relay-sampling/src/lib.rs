@@ -904,7 +904,7 @@ mod tests {
             Some(&mocked_dsc("debug", "vip", "1.1.1")),
             Utc::now(),
         );
-        assert!(result.is_no_match(), "did not return none for no match");
+        assert!(result.no_match(), "did not return none for no match");
     }
 
     #[test]
@@ -1068,7 +1068,7 @@ mod tests {
             &dsc,
             Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
         );
-        assert!(result.is_match());
+        assert!(result.matches());
 
         assert!(
             (result.sample_rate().unwrap() - 0.45).abs() < f64::EPSILON, // 0.45
@@ -1126,7 +1126,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 
     #[test]
@@ -1287,7 +1287,7 @@ mod tests {
             Some(&dsc),
             Utc::now(),
         );
-        assert!(result.is_match());
+        assert!(result.matches());
 
         let result = match_rules(
             false,
@@ -1297,7 +1297,7 @@ mod tests {
             Some(&dsc),
             Utc::now(),
         );
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 
     #[test]
@@ -1317,7 +1317,7 @@ mod tests {
             Some(&dsc),
             Utc::now(),
         );
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 
     #[test]
@@ -1396,7 +1396,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 
     #[test]
@@ -1417,7 +1417,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.is_no_match());
+        assert!(result.no_match());
 
         let sampling_config = SamplingConfig {
             rules: vec![],
@@ -1431,7 +1431,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.is_no_match());
+        assert!(result.no_match());
 
         let sampling_config = SamplingConfig {
             rules: vec![],
@@ -1445,7 +1445,7 @@ mod tests {
             mode: SamplingMode::Received,
         };
         let result = match_rules(true, Some(&sampling_config), None, Some(&event), None, now);
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 
     #[test]
@@ -1522,7 +1522,7 @@ mod tests {
             None,
             Utc::now(),
         );
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 
     #[test]
@@ -1532,6 +1532,6 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("1.0"), None, Some("dev"));
 
         let result = match_rules(true, None, None, Some(&event), Some(&dsc), Utc::now());
-        assert!(result.is_no_match());
+        assert!(result.no_match());
     }
 }

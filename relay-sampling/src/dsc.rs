@@ -111,8 +111,7 @@ impl DynamicSamplingContext {
 
     /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
     /// the matching rule.
-    pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
-        let client_sample_rate = self.sample_rate.unwrap_or(1.0);
+    pub fn adjusted_sample_rate(client_sample_rate: f64, rule_sample_rate: f64) -> f64 {
         if client_sample_rate <= 0.0 {
             // client_sample_rate is 0, which is bogus because the SDK should've dropped the
             // envelope. In that case let's pretend the sample rate was not sent, because clearly
@@ -297,33 +296,11 @@ mod tests {
 
     #[test]
     fn test_adjust_sample_rate() {
-        let mut dsc = DynamicSamplingContext {
-            trace_id: Uuid::default(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: None,
-            environment: None,
-            transaction: None,
-            sample_rate: None,
-            user: TraceUserContext::default(),
-            replay_id: None,
-            sampled: None,
-            other: BTreeMap::new(),
-        };
-
-        dsc.sample_rate = Some(0.0);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
-
-        dsc.sample_rate = Some(1.0);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
-
-        dsc.sample_rate = Some(0.1);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
-
-        dsc.sample_rate = Some(0.5);
-        assert_eq!(dsc.adjusted_sample_rate(0.1), 0.2);
-
-        dsc.sample_rate = Some(-0.5);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
+        assert_eq!(DynamicSamplingContext::adjusted_sample_rate(0.0, 0.5), 0.5);
+        assert_eq!(DynamicSamplingContext::adjusted_sample_rate(1.0, 0.5), 0.5);
+        assert_eq!(DynamicSamplingContext::adjusted_sample_rate(0.1, 0.5), 1.0);
+        assert_eq!(DynamicSamplingContext::adjusted_sample_rate(0.5, 0.1), 0.2);
+        assert_eq!(DynamicSamplingContext::adjusted_sample_rate(-0.5, 0.5), 0.5);
     }
 
     #[test]
