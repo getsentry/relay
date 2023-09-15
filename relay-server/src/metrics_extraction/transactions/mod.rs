@@ -337,7 +337,7 @@ impl TransactionExtractor<'_> {
 
         // Lower cardinality duration
         metrics.project_metrics.push(
-            TransactionMetric::Duration {
+            TransactionMetric::DurationCoarse {
                 unit: DurationUnit::MilliSecond,
                 value: relay_common::time::chrono_to_positive_millis(end - start),
                 tags: TransactionDurationTags {
