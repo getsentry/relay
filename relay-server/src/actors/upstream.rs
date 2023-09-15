@@ -951,8 +951,13 @@ impl UpstreamQueue {
     /// This always returns entries with [high](RequestPriority::High) first before dequeueing
     /// entries with low priority.
     pub fn dequeue(&mut self) -> Option<Entry> {
-        // TODO: pop order: high, backoff if available, low
-        self.high.pop_front().or_else(|| self.low.pop_front())
+        if !self.high.is_empty() {
+            return self.high.pop_front();
+        }
+        if !self.retries.is_empty() && self.next_retry <= Instant::now() {
+            return self.retries.pop_front();
+        }
+        self.low.pop_front()
     }
 
     pub fn retry_backoff_reset(&mut self) {
