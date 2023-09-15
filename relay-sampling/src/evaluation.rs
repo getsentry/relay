@@ -139,7 +139,7 @@ pub fn match_rules<'a>(
     let sampling_mode = match sampling_config.or(root_sampling_config) {
         Some(config) => config.mode,
         None => {
-            relay_log::error!("cannot sample without at least one sampling config");
+            //relay_log::error!("cannot sample without at least one sampling config");
             return SamplingMatch::NoMatch;
         }
     };
