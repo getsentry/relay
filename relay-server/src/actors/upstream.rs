@@ -968,7 +968,7 @@ impl UpstreamQueue {
     /// dequeued from front to back.
     ///
     /// It also schedules the next retry time, based on the retry back off. The
-    /// retry queue is not dequeued until the next retry has ellapsed.
+    /// retry queue is not dequeued until the next retry has elapsed.
     pub fn enqueue_retry(&mut self, entry: Entry) {
         self.put(entry, RequestAttempt::Retry);
         self.next_retry = Instant::now() + self.retry_backoff.next_backoff();
@@ -979,9 +979,9 @@ impl UpstreamQueue {
     /// Dequeues entries in the following order:
     /// 1. [High priority][RequestPriority::High] requests.
     /// 2. [High priority][RequestPriority::High]
-    /// [retries][RequestAttempt::Retry], after backoff ellapsed.
+    /// [retries][RequestAttempt::Retry], after backoff elapsed.
     /// 3. [Low priority][RequestPriority::High]
-    /// [retries][RequestAttempt::Retry], after backoff ellapsed.
+    /// [retries][RequestAttempt::Retry], after backoff elapsed.
     /// 4. [Low priority][RequestPriority::Low] requests.
     pub fn dequeue(&mut self) -> Option<Entry> {
         if !self.high.is_empty() {
