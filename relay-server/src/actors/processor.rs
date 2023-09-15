@@ -3101,12 +3101,12 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
         service.run_dynamic_sampling(&mut state);
-        assert!(state.sampling_result.unwrap().should_keep());
+        assert!(state.sampling_result.is_none());
 
         // Current version is 1, so it won't run DS if it's outdated
         let mut state = get_state(Some(0));
         service.run_dynamic_sampling(&mut state);
-        assert!(state.sampling_result.unwrap().should_keep());
+        assert!(state.sampling_result.is_none());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(1));
