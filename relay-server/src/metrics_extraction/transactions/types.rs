@@ -71,7 +71,7 @@ impl IntoMetric for TransactionMetric {
             TransactionMetric::DurationCoarse { unit, value, tags } => (
                 Cow::Borrowed("duration_coarse"),
                 BucketValue::distribution(value),
-                MetricUnit::DurationCoarse(unit),
+                MetricUnit::Duration(unit),
                 tags.into(),
             ),
             TransactionMetric::CountPerRootProject { value, tags } => (
