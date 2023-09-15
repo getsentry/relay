@@ -956,7 +956,6 @@ impl UpstreamQueue {
     /// last within its priority class; see
     /// [`dequeue`][`UpstreamQueue::dequeue`] for more details.
     pub fn enqueue(&mut self, entry: Entry) {
-        // relay_log::trace!("enqueueing normal");
         self.put(entry, RequestAttempt::First)
     }
 
@@ -1462,26 +1461,11 @@ impl UpstreamBroker {
     /// Handler of the internal action channel.
     fn handle_action(&mut self, action: Action) {
         match action {
-            Action::Retry(request) => {
-                relay_log::trace!("retry - enqueue immediatelly");
-                self.queue.enqueue_retry(request);
-            }
-            Action::SuccessfulRequest => {
-                relay_log::trace!("retry reset");
-                self.queue.retry_backoff_reset();
-            }
-            Action::Complete(status) => {
-                relay_log::trace!("complete");
-                self.complete(status);
-            }
-            Action::Connected => {
-                relay_log::trace!("connected");
-                self.conn.reset_error();
-            }
-            Action::UpdateAuth(state) => {
-                relay_log::trace!("update auth");
-                self.auth_state = state;
-            }
+            Action::Retry(request) => self.queue.enqueue_retry(request),
+            Action::SuccessfulRequest => self.queue.retry_backoff_reset(),
+            Action::Complete(status) => self.complete(status),
+            Action::Connected => self.conn.reset_error(),
+            Action::UpdateAuth(state) => self.auth_state = state,
         }
     }
 }
