@@ -882,6 +882,7 @@ struct UpstreamQueue {
     low: VecDeque<Entry>,
     retries: VecDeque<Entry>,
     retry_backoff: RetryBackoff,
+    next_retry: Instant,
 }
 
 impl UpstreamQueue {
@@ -893,6 +894,7 @@ impl UpstreamQueue {
             retries: VecDeque::new(),
             // TODO: set max backoff as relay going into network outage mode
             retry_backoff: RetryBackoff::new(Duration::from_secs(1)),
+            next_retry: Instant::now(),
         }
     }
 
@@ -939,7 +941,9 @@ impl UpstreamQueue {
     }
 
     pub fn enqueue_retry(&mut self, entry: Entry) {
-        self.put(entry, RequestAttempt::Retry)
+        self.put(entry, RequestAttempt::Retry);
+        let next = Instant::now() + self.retry_backoff.next_backoff();
+        self.next_retry = next;
     }
 
     /// Removes the head of the queue with highest priority.
@@ -949,6 +953,11 @@ impl UpstreamQueue {
     pub fn dequeue(&mut self) -> Option<Entry> {
         // TODO: pop order: high, backoff if available, low
         self.high.pop_front().or_else(|| self.low.pop_front())
+    }
+
+    pub fn retry_backoff_reset(&mut self) {
+        self.next_retry = Instant::now();
+        self.retry_backoff.reset();
     }
 }
 
@@ -1015,6 +1024,7 @@ enum Action {
     ///
     /// The entry is placed on the front of the [`UpstreamQueue`].
     Retry(Entry),
+    RetryReset,
     /// Notifies completion of a request with a given outcome.
     ///
     /// Dropped request that need retries will additionally invoke the [`Retry`](Self::Retry)
@@ -1383,7 +1393,10 @@ impl UpstreamBroker {
                     entry.retries += 1;
                     action_tx.send(Action::Retry(entry)).ok();
                 }
-                _ => entry.request.respond(result).await,
+                _ => {
+                    entry.request.respond(result).await;
+                    action_tx.send(Action::RetryReset).ok();
+                }
             }
 
             // Send an action back to the action channel of the broker, which will invoke
@@ -1409,6 +1422,10 @@ impl UpstreamBroker {
             Action::Retry(request) => {
                 relay_log::trace!("retry - enqueue immediatelly");
                 self.queue.enqueue_retry(request);
+            }
+            Action::RetryReset => {
+                relay_log::trace!("retry reset");
+                self.queue.retry_backoff_reset();
             }
             Action::Complete(status) => {
                 relay_log::trace!("complete");
