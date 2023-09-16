@@ -2335,14 +2335,14 @@ impl EnvelopeProcessorService {
             .as_ref()
             .and_then(|state| state.config.dynamic_sampling.as_ref());
 
-        state.sampling_result = match_rules(
+        state.sampling_result = Some(match_rules(
             self.inner.config.processing_enabled(),
             sampling_config,
             root_sampling_config,
             state.event.value(),
             state.envelope().dsc(),
             Utc::now(),
-        );
+        ));
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
@@ -2391,13 +2391,13 @@ impl EnvelopeProcessorService {
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
             if state.event_type() == Some(EventType::Transaction) && !sampling_match.is_kept() {
-                state.managed_envelope.reject(Outcome::FilteredSampling(
-                    sampling_match.matched_rules().to_owned(),
-                ));
+                let rules = sampling_match.take_matched_rules();
 
-                return Err(ProcessingError::Sampled(
-                    sampling_match.matched_rules().to_owned(),
-                ));
+                state
+                    .managed_envelope
+                    .reject(Outcome::FilteredSampling(rules.clone()));
+
+                return Err(ProcessingError::Sampled(rules));
             }
         }
         Ok(())

@@ -150,8 +150,10 @@ impl SamplingMatch {
     }
 
     /// Returns the matched rules for the sampling match.
-    pub fn matched_rules(&self) -> &MatchedRuleIds {
-        &self.matched_rules
+    /// Takes ownership, useful if you don't need the [`SamplingMatch`] anymore
+    /// and you want to avoid allocations.
+    pub fn take_matched_rules(self) -> MatchedRuleIds {
+        self.matched_rules
     }
 
     /// Returns true if event should be kept.
