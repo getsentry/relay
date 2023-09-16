@@ -2390,7 +2390,7 @@ impl EnvelopeProcessorService {
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
-            if state.event_type() == Some(EventType::Transaction) && sampling_match.is_kept() {
+            if state.event_type() == Some(EventType::Transaction) && !sampling_match.is_kept() {
                 state.managed_envelope.reject(Outcome::FilteredSampling(
                     sampling_match.matched_rules().to_owned(),
                 ));
