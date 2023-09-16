@@ -150,6 +150,7 @@ impl SamplingMatch {
     }
 
     /// Returns the matched rules for the sampling match.
+    ///
     /// Takes ownership, useful if you don't need the [`SamplingMatch`] anymore
     /// and you want to avoid allocations.
     pub fn take_matched_rules(self) -> MatchedRuleIds {

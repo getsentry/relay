@@ -2335,14 +2335,14 @@ impl EnvelopeProcessorService {
             .as_ref()
             .and_then(|state| state.config.dynamic_sampling.as_ref());
 
-        state.sampling_result = Some(match_rules(
+        state.sampling_result = match_rules(
             self.inner.config.processing_enabled(),
             sampling_config,
             root_sampling_config,
             state.event.value(),
             state.envelope().dsc(),
             Utc::now(),
-        ));
+        );
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
