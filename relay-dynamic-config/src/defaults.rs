@@ -56,6 +56,21 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                         options: Default::default(),
                     })),
                 }),
+                RuleCondition::Not(NotCondition {
+                    inner: Box::new(RuleCondition::And(AndCondition {
+                        inner: vec![
+                            RuleCondition::Eq(EqCondition {
+                                name: span_op_field_name.into(),
+                                value: Value::String("db.sql.query".into()),
+                                options: Default::default(),
+                            }),
+                            RuleCondition::Glob(GlobCondition {
+                                name: "span.description".into(),
+                                value: GlobPatterns::new(vec![r#"*"$*"#.into()]),
+                            }),
+                        ],
+                    })),
+                }),
             ],
         }))
     };

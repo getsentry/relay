@@ -491,4 +491,51 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.module": "db",
+            "span.op": "db.sql.query",
+            "span.status": "ok",
+            "span.system": "mydatabase",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.module": "db",
+            "span.op": "db.sql.query",
+            "span.status": "ok",
+            "span.system": "mydatabase",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
 ]

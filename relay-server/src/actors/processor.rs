@@ -2290,7 +2290,12 @@ impl EnvelopeProcessorService {
                     let Some(span_op) = inner_span.op.value() else {
                         continue;
                     };
-                    if all_modules_enabled || span_op.starts_with("db") {
+                    let Some(span_description) = inner_span.description.value() else {
+                        continue;
+                    };
+                    if all_modules_enabled
+                        || span_op.starts_with("db") && !span_description.contains(r#""$"#)
+                    {
                         // HACK: clone the span to set the segment_id. This should happen
                         // as part of normalization once standalone spans reach wider adoption.
                         let mut new_span = inner_span.clone();
