@@ -2278,23 +2278,38 @@ impl EnvelopeProcessorService {
             state.managed_envelope.envelope_mut().add_item(item);
         };
 
+        let all_modules_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionAllModules);
+
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
-                // HACK: clone the span to set the segment_id. This should happen
-                // as part of normalization once standalone spans reach wider adoption.
-                let mut span = span.clone();
-                let Some(inner_span) = span.value_mut() else {
-                    continue;
-                };
-                inner_span.segment_id = transaction_span.segment_id.clone();
-                inner_span.is_segment = Annotated::new(false);
-                add_span(span);
+                if let Some(inner_span) = span.value() {
+                    // HACK: filter spans based on module until we figure out grouping.
+                    let Some(span_op) = inner_span.op.value() else {
+                        continue;
+                    };
+                    let Some(span_description) = inner_span.description.value() else {
+                        continue;
+                    };
+                    if all_modules_enabled
+                        || span_op.starts_with("db") && !span_description.contains(r#""$"#)
+                    {
+                        // HACK: clone the span to set the segment_id. This should happen
+                        // as part of normalization once standalone spans reach wider adoption.
+                        let mut new_span = inner_span.clone();
+                        new_span.segment_id = transaction_span.segment_id.clone();
+                        new_span.is_segment = Annotated::new(false);
+                        add_span(Annotated::new(new_span));
+                    }
+                }
             }
         }
 
-        // Add transaction span as an envelope item.
-        add_span(transaction_span.into());
+        if all_modules_enabled {
+            add_span(transaction_span.into());
+        }
     }
 
     /// Computes the sampling decision on the incoming event

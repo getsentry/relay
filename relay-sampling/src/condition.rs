@@ -54,7 +54,7 @@ impl EqCondition {
 
     fn matches<T>(&self, instance: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         match (instance.get_value(self.name.as_str()), &self.value) {
             (None, Value::Null) => true,
@@ -86,7 +86,7 @@ macro_rules! impl_cmp_condition {
         impl $struct_name {
             fn matches<T>(&self, instance: &T) -> bool
             where
-                T: Getter
+                T: Getter + ?Sized,
             {
                 let Some(value) = instance.get_value(self.name.as_str()) else {
                     return false;
@@ -133,7 +133,7 @@ pub struct GlobCondition {
 impl GlobCondition {
     fn matches<T>(&self, instance: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         match instance.get_value(self.name.as_str()) {
             Some(Val::String(s)) => self.value.is_match(s),
@@ -158,7 +158,7 @@ impl OrCondition {
 
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         self.inner.iter().any(|cond| cond.matches(value))
     }
@@ -179,7 +179,7 @@ impl AndCondition {
     }
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         self.inner.iter().all(|cond| cond.matches(value))
     }
@@ -201,7 +201,7 @@ impl NotCondition {
 
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         !self.inner.matches(value)
     }
@@ -263,7 +263,7 @@ impl RuleCondition {
     /// Returns `true` if the rule matches the given value instance.
     pub fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         match self {
             RuleCondition::Eq(condition) => condition.matches(value),
