@@ -2,7 +2,7 @@ use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
 use relay_common::glob3::GlobPatterns;
 use relay_sampling::condition::{
-    AndCondition, EqCondition, GlobCondition, NotCondition, RuleCondition,
+    AndCondition, EqCondition, GlobCondition, NotCondition, OrCondition, RuleCondition,
 };
 use serde_json::Value;
 
@@ -64,9 +64,18 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                                 value: Value::String("db.sql.query".into()),
                                 options: Default::default(),
                             }),
-                            RuleCondition::Glob(GlobCondition {
-                                name: "span.description".into(),
-                                value: GlobPatterns::new(vec![r#"*"$*"#.into()]),
+                            RuleCondition::Or(OrCondition {
+                                inner: vec![
+                                    RuleCondition::Eq(EqCondition {
+                                        name: "span.system".into(),
+                                        value: Value::String("mongodb".into()),
+                                        options: Default::default(),
+                                    }),
+                                    RuleCondition::Glob(GlobCondition {
+                                        name: "span.description".into(),
+                                        value: GlobPatterns::new(vec![r#"*"$*"#.into()]),
+                                    }),
+                                ],
                             }),
                         ],
                     })),
