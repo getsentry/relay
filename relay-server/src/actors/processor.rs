@@ -54,7 +54,7 @@ use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_event_normalization::{StoreConfig, StoreProcessor},
+    relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::ProfileContext,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -2259,12 +2259,6 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        // Extract transaction as a span.
-        let Some(event) = state.event.value() else {
-            return;
-        };
-        let transaction_span: Span = event.into();
-
         let mut add_span = |span: Annotated<Span>| {
             let span = match span.to_json() {
                 Ok(span) => span,
@@ -2277,6 +2271,13 @@ impl EnvelopeProcessorService {
             item.set_payload(ContentType::Json, span);
             state.managed_envelope.envelope_mut().add_item(item);
         };
+
+        let Some(event) = state.event.value() else {
+            return;
+        };
+
+        // Extract transaction as a span.
+        let mut transaction_span: Span = event.into();
 
         let all_modules_enabled = state
             .project_state
@@ -2308,6 +2309,18 @@ impl EnvelopeProcessorService {
         }
 
         if all_modules_enabled {
+            // Extract tags to add to this span as well
+            let shared_tags = span::tag_extraction::extract_shared_tags(event);
+            let data = transaction_span
+                .data
+                .value_mut()
+                .get_or_insert_with(Default::default);
+            data.extend(
+                shared_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+            );
             add_span(transaction_span.into());
         }
     }

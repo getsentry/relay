@@ -119,7 +119,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
 }
 
 /// Extracts tags shared by every span.
-fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
+pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
     let mut tags = BTreeMap::<SpanTagKey, Value>::new();
 
     if let Some(release) = event.release.as_str() {

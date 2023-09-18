@@ -76,10 +76,10 @@ pub struct Span {
 impl From<&Event> for Span {
     fn from(event: &Event) -> Self {
         let mut span = Self {
-            timestamp: event.timestamp.clone(),
-            start_timestamp: event.start_timestamp.clone(),
-            is_segment: Some(true).into(),
             description: event.transaction.clone(),
+            is_segment: Some(true).into(),
+            start_timestamp: event.start_timestamp.clone(),
+            timestamp: event.timestamp.clone(),
             ..Default::default()
         };
 
