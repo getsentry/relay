@@ -29,7 +29,7 @@
 - Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
 - Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
 - Add a timestamp field to report profile's start time on Android. ([#2486](https://github.com/getsentry/relay/pull/2486))
-- Filter span metrics extraction based on features. ([#2511](https://github.com/getsentry/relay/pull/2511))
+- Filter span metrics extraction based on features. ([#2511](https://github.com/getsentry/relay/pull/2511), [#2520](https://github.com/getsentry/relay/pull/2520))
 
 ## 23.8.0
 
