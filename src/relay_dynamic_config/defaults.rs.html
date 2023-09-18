@@ -131,11 +131,35 @@
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_common::glob3::GlobPatterns;
 <span class="kw">use </span>relay_sampling::condition::{
-    AndCondition, EqCondition, GlobCondition, NotCondition, RuleCondition,
+    AndCondition, EqCondition, GlobCondition, NotCondition, OrCondition, RuleCondition,
 };
 <span class="kw">use </span>serde_json::Value;
 
@@ -187,6 +211,30 @@
                         name: span_op_field_name.into(),
                         value: Value::String(<span class="string">&quot;db.redis&quot;</span>.into()),
                         options: Default::default(),
+                    })),
+                }),
+                RuleCondition::Not(NotCondition {
+                    inner: Box::new(RuleCondition::And(AndCondition {
+                        inner: <span class="macro">vec!</span>[
+                            RuleCondition::Eq(EqCondition {
+                                name: span_op_field_name.into(),
+                                value: Value::String(<span class="string">&quot;db.sql.query&quot;</span>.into()),
+                                options: Default::default(),
+                            }),
+                            RuleCondition::Or(OrCondition {
+                                inner: <span class="macro">vec!</span>[
+                                    RuleCondition::Eq(EqCondition {
+                                        name: <span class="string">&quot;span.system&quot;</span>.into(),
+                                        value: Value::String(<span class="string">&quot;mongodb&quot;</span>.into()),
+                                        options: Default::default(),
+                                    }),
+                                    RuleCondition::Glob(GlobCondition {
+                                        name: <span class="string">&quot;span.description&quot;</span>.into(),
+                                        value: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">r#&quot;*&quot;$*&quot;#</span>.into()]),
+                                    }),
+                                ],
+                            }),
+                        ],
                     })),
                 }),
             ],

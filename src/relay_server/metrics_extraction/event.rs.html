@@ -928,6 +928,31 @@
 <a href="#928" id="928">928</a>
 <a href="#929" id="929">929</a>
 <a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1364,7 +1389,6 @@
                     &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
                     &quot;status&quot;: &quot;ok&quot;
                 }
-
             ]
         }
         &quot;#</span>;
@@ -1763,8 +1787,34 @@
                     &quot;timestamp&quot;: 1597976302.0000000,
                     &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
                     &quot;status&quot;: &quot;ok&quot;
+                },
+                {
+                    &quot;description&quot;: &quot;things.count({\&quot;$and\&quot;:[{\&quot;services\&quot;:{\&quot;$exists\&quot;:true}},{\&quot;test_id\&quot;:38}]})&quot;,
+                    &quot;op&quot;: &quot;db.sql.query&quot;,
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976302.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;db.system&quot;: &quot;mongodb&quot;,
+                        &quot;db.operation&quot;: &quot;count&quot;
+                    }
+                },
+                {
+                    &quot;description&quot;: &quot;DELETE FROM table WHERE conditions&quot;,
+                    &quot;op&quot;: &quot;db.sql.query&quot;,
+                    &quot;parent_span_id&quot;: &quot;8f5a2b8768cafb4e&quot;,
+                    &quot;span_id&quot;: &quot;bb7af8b99e95af5f&quot;,
+                    &quot;start_timestamp&quot;: 1597976300.0000000,
+                    &quot;timestamp&quot;: 1597976302.0000000,
+                    &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+                    &quot;status&quot;: &quot;ok&quot;,
+                    &quot;data&quot;: {
+                        &quot;db.system&quot;: &quot;MyDatabase&quot;
+                    }
                 }
-
             ]
         }
         &quot;#</span>;
