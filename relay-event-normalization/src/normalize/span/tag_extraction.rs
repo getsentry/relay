@@ -380,7 +380,9 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
                     .sum::<usize>()
                     + comma_size,
             );
-            s.push(',');
+            if !visitor.table_names.is_empty() {
+                s.push(',');
+            }
             for (_i, name) in visitor.table_names.into_iter().enumerate() {
                 write!(&mut s, "{name},").ok();
             }
