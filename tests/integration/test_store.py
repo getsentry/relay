@@ -429,7 +429,9 @@ def test_processing_quotas(
     elif event_type == "error":
         transform = make_error
     else:
-        transform = lambda e: e
+
+        def transform(e):
+            return e
 
     for i in range(5):
         # send using the first dsn
@@ -1247,6 +1249,11 @@ def test_spans(
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
         "span": {
+            "data": {
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "description": "hi",
             "exclusive_time": 2000.0,
             "is_segment": True,
             "op": "hi",
