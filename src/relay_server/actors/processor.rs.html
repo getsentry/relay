@@ -4016,6 +4016,19 @@
 <a href="#4016" id="4016">4016</a>
 <a href="#4017" id="4017">4017</a>
 <a href="#4018" id="4018">4018</a>
+<a href="#4019" id="4019">4019</a>
+<a href="#4020" id="4020">4020</a>
+<a href="#4021" id="4021">4021</a>
+<a href="#4022" id="4022">4022</a>
+<a href="#4023" id="4023">4023</a>
+<a href="#4024" id="4024">4024</a>
+<a href="#4025" id="4025">4025</a>
+<a href="#4026" id="4026">4026</a>
+<a href="#4027" id="4027">4027</a>
+<a href="#4028" id="4028">4028</a>
+<a href="#4029" id="4029">4029</a>
+<a href="#4030" id="4030">4030</a>
+<a href="#4031" id="4031">4031</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4072,7 +4085,7 @@
     <span class="kw">crate</span>::actors::envelopes::SendMetrics,
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_event_normalization::{StoreConfig, StoreProcessor},
+    relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::ProfileContext,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
@@ -6277,12 +6290,6 @@
             <span class="kw">return</span>;
         };
 
-        <span class="comment">// Extract transaction as a span.
-        </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
-            <span class="kw">return</span>;
-        };
-        <span class="kw">let </span>transaction_span: Span = event.into();
-
         <span class="kw">let </span><span class="kw-2">mut </span>add_span = |span: Annotated&lt;Span&gt;| {
             <span class="kw">let </span>span = <span class="kw">match </span>span.to_json() {
                 <span class="prelude-val">Ok</span>(span) =&gt; span,
@@ -6295,6 +6302,13 @@
             item.set_payload(ContentType::Json, span);
             state.managed_envelope.envelope_mut().add_item(item);
         };
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
+
+        <span class="comment">// Extract transaction as a span.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>transaction_span: Span = event.into();
 
         <span class="kw">let </span>all_modules_enabled = state
             .project_state
@@ -6326,6 +6340,18 @@
         }
 
         <span class="kw">if </span>all_modules_enabled {
+            <span class="comment">// Extract tags to add to this span as well
+            </span><span class="kw">let </span>shared_tags = span::tag_extraction::extract_shared_tags(event);
+            <span class="kw">let </span>data = transaction_span
+                .data
+                .value_mut()
+                .get_or_insert_with(Default::default);
+            data.extend(
+                shared_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+            );
             add_span(transaction_span.into());
         }
     }
