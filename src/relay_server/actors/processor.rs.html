@@ -4029,6 +4029,20 @@
 <a href="#4029" id="4029">4029</a>
 <a href="#4030" id="4030">4030</a>
 <a href="#4031" id="4031">4031</a>
+<a href="#4032" id="4032">4032</a>
+<a href="#4033" id="4033">4033</a>
+<a href="#4034" id="4034">4034</a>
+<a href="#4035" id="4035">4035</a>
+<a href="#4036" id="4036">4036</a>
+<a href="#4037" id="4037">4037</a>
+<a href="#4038" id="4038">4038</a>
+<a href="#4039" id="4039">4039</a>
+<a href="#4040" id="4040">4040</a>
+<a href="#4041" id="4041">4041</a>
+<a href="#4042" id="4042">4042</a>
+<a href="#4043" id="4043">4043</a>
+<a href="#4044" id="4044">4044</a>
+<a href="#4045" id="4045">4045</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4086,7 +4100,7 @@
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::ProfileContext,
+    relay_event_schema::protocol::{ProfileContext, Span},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -6268,11 +6282,31 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>is_span_allowed(<span class="kw-2">&amp;</span><span class="self">self</span>, span: <span class="kw-2">&amp;</span>Span) -&gt; bool {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(op) = span.op.value() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        };
+        <span class="kw">let </span><span class="prelude-val">Some</span>(description) = span.description.value() <span class="kw">else </span>{
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        };
+        <span class="kw">let </span>system: <span class="kw-2">&amp;</span>str = span
+            .data
+            .value()
+            .and_then(|v| v.get(<span class="string">&quot;span.system&quot;</span>))
+            .and_then(|system| system.as_str())
+            .unwrap_or_default();
+        op.starts_with(<span class="string">&quot;db&quot;</span>)
+            &amp;&amp; !(op.contains(<span class="string">&quot;clickhouse&quot;</span>)
+                || op.contains(<span class="string">&quot;mongodb&quot;</span>)
+                || op.contains(<span class="string">&quot;redis&quot;</span>)
+                || op.contains(<span class="string">&quot;activerecord&quot;</span>))
+            &amp;&amp; !(op == <span class="string">&quot;db.sql.query&quot; </span>&amp;&amp; !(description.contains(<span class="string">r#&quot;&quot;$&quot;#</span>) || system == <span class="string">&quot;mongodb&quot;</span>))
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>extract_spans(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
         <span class="comment">// For now, drop any spans submitted by the SDK.
-
-        </span><span class="kw">use </span>relay_event_schema::protocol::Span;
-        state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+        </span>state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::Span =&gt; ItemAction::DropSilently,
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
@@ -6317,25 +6351,19 @@
         <span class="comment">// Add child spans as envelope items.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
             <span class="kw">for </span>span <span class="kw">in </span>child_spans {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_span) = span.value() {
-                    <span class="comment">// HACK: filter spans based on module until we figure out grouping.
-                    </span><span class="kw">let </span><span class="prelude-val">Some</span>(span_op) = inner_span.op.value() <span class="kw">else </span>{
-                        <span class="kw">continue</span>;
-                    };
-                    <span class="kw">let </span><span class="prelude-val">Some</span>(span_description) = inner_span.description.value() <span class="kw">else </span>{
-                        <span class="kw">continue</span>;
-                    };
-                    <span class="kw">if </span>all_modules_enabled
-                        || span_op.starts_with(<span class="string">&quot;db&quot;</span>) &amp;&amp; !span_description.contains(<span class="string">r#&quot;&quot;$&quot;#</span>)
-                    {
-                        <span class="comment">// HACK: clone the span to set the segment_id. This should happen
-                        // as part of normalization once standalone spans reach wider adoption.
-                        </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
-                        new_span.segment_id = transaction_span.segment_id.clone();
-                        new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
-                        add_span(Annotated::new(new_span));
-                    }
+                <span class="kw">let </span><span class="prelude-val">Some</span>(inner_span) = span.value() <span class="kw">else </span>{
+                    <span class="kw">continue</span>;
+                };
+                <span class="comment">// HACK: filter spans based on module until we figure out grouping.
+                </span><span class="kw">if </span>!all_modules_enabled &amp;&amp; !<span class="self">self</span>.is_span_allowed(inner_span) {
+                    <span class="kw">continue</span>;
                 }
+                <span class="comment">// HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
+                new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
+                add_span(Annotated::new(new_span));
             }
         }
 

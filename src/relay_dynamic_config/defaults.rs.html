@@ -153,8 +153,6 @@
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_common::glob3::GlobPatterns;
@@ -203,14 +201,12 @@
                 RuleCondition::Not(NotCondition {
                     inner: Box::new(RuleCondition::Glob(GlobCondition {
                         name: span_op_field_name.into(),
-                        value: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">&quot;db*clickhouse&quot;</span>.into()]),
-                    })),
-                }),
-                RuleCondition::Not(NotCondition {
-                    inner: Box::new(RuleCondition::Eq(EqCondition {
-                        name: span_op_field_name.into(),
-                        value: Value::String(<span class="string">&quot;db.redis&quot;</span>.into()),
-                        options: Default::default(),
+                        value: GlobPatterns::new(<span class="macro">vec!</span>[
+                            <span class="string">&quot;*activerecord*&quot;</span>.into(),
+                            <span class="string">&quot;*clickhouse*&quot;</span>.into(),
+                            <span class="string">&quot;*mongodb*&quot;</span>.into(),
+                            <span class="string">&quot;*redis*&quot;</span>.into(),
+                        ]),
                     })),
                 }),
                 RuleCondition::Not(NotCondition {
