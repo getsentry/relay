@@ -57,6 +57,7 @@ use {
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::ProfileContext,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    std::collections::HashSet,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -2283,7 +2284,7 @@ impl EnvelopeProcessorService {
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
 
-        let op_denylist = vec!["clickhouse", "mongodb", "redis", "activerecord"];
+        let op_denylist = HashSet::from(["clickhouse", "mongodb", "redis", "activerecord"]);
 
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
@@ -2304,10 +2305,7 @@ impl EnvelopeProcessorService {
                         .unwrap_or_default();
                     if all_modules_enabled
                         || (span_op.starts_with("db")
-                            && op_denylist
-                                .clone()
-                                .into_iter()
-                                .any(|op| span_op.contains(op))
+                            && op_denylist.iter().any(|op| span_op.contains(op))
                             && !(span_op == "db.sql.query"
                                 && !(span_description.contains(r#""$"#)
                                     || span_system == "mongodb")))
