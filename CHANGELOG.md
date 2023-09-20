@@ -4,7 +4,7 @@
 
 **Bug Fixes**:
 
-- Remove profile_id from context when no profile is in the envelope. ([#2522](https://github.com/getsentry/relay/pull/2523))
+- Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
 
 **Internal**:
 
