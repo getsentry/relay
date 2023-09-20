@@ -2283,6 +2283,8 @@ impl EnvelopeProcessorService {
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
 
+        let op_denylist = vec!["clickhouse", "mongodb", "redis", "activerecord"];
+
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
@@ -2294,8 +2296,21 @@ impl EnvelopeProcessorService {
                     let Some(span_description) = inner_span.description.value() else {
                         continue;
                     };
+                    let span_system: &str = inner_span
+                        .data
+                        .value()
+                        .and_then(|v| v.get("span.system"))
+                        .and_then(|system| system.as_str())
+                        .unwrap_or_default();
                     if all_modules_enabled
-                        || span_op.starts_with("db") && !span_description.contains(r#""$"#)
+                        || (span_op.starts_with("db")
+                            && op_denylist
+                                .clone()
+                                .into_iter()
+                                .any(|op| span_op.contains(op))
+                            && !(span_op == "db.sql.query"
+                                && !(span_description.contains(r#""$"#)
+                                    || span_system == "mongodb")))
                     {
                         // HACK: clone the span to set the segment_id. This should happen
                         // as part of normalization once standalone spans reach wider adoption.

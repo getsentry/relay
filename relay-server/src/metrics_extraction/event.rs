@@ -859,6 +859,43 @@ mod tests {
                     "data": {
                         "db.system": "MyDatabase"
                     }
+                },
+                {
+                    "description": "things.count({\"$and\":[{\"services\":{\"$exists\":true}},{\"test_id\":38}]})",
+                    "op": "db.mongodb.find",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {}
+                },
+                {
+                    "description": "DELETE FROM table WHERE conditions",
+                    "op": "db.sql.activerecord",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "MyDatabase"
+                    }
+                },
+                {
+                    "description": "SAVEPOINT save_this_one",
+                    "op": "db.redis.command",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok",
+                    "data": {
+                        "db.system": "redis"
+                    }
                 }
             ]
         }
