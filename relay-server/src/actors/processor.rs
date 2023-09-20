@@ -55,7 +55,7 @@ use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::ProfileContext,
+    relay_event_schema::protocol::{ProfileContext, Span},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -2237,10 +2237,30 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
+    fn is_span_allowed(&self, span: &Span) -> bool {
+        let Some(op) = span.op.value() else {
+            return false;
+        };
+        let Some(description) = span.description.value() else {
+            return false;
+        };
+        let system: &str = span
+            .data
+            .value()
+            .and_then(|v| v.get("span.system"))
+            .and_then(|system| system.as_str())
+            .unwrap_or_default();
+        op.starts_with("db")
+            && !(op.contains("clickhouse")
+                || op.contains("mongodb")
+                || op.contains("redis")
+                || op.contains("activerecord"))
+            && !(op == "db.sql.query" && !(description.contains(r#""$"#) || system == "mongodb"))
+    }
+
+    #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
         // For now, drop any spans submitted by the SDK.
-
-        use relay_event_schema::protocol::Span;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Span => ItemAction::DropSilently,
             _ => ItemAction::Keep,
@@ -2286,25 +2306,19 @@ impl EnvelopeProcessorService {
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
-                if let Some(inner_span) = span.value() {
-                    // HACK: filter spans based on module until we figure out grouping.
-                    let Some(span_op) = inner_span.op.value() else {
-                        continue;
-                    };
-                    let Some(span_description) = inner_span.description.value() else {
-                        continue;
-                    };
-                    if all_modules_enabled
-                        || span_op.starts_with("db") && !span_description.contains(r#""$"#)
-                    {
-                        // HACK: clone the span to set the segment_id. This should happen
-                        // as part of normalization once standalone spans reach wider adoption.
-                        let mut new_span = inner_span.clone();
-                        new_span.segment_id = transaction_span.segment_id.clone();
-                        new_span.is_segment = Annotated::new(false);
-                        add_span(Annotated::new(new_span));
-                    }
+                let Some(inner_span) = span.value() else {
+                    continue;
+                };
+                // HACK: filter spans based on module until we figure out grouping.
+                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
+                    continue;
                 }
+                // HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                let mut new_span = inner_span.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
+                new_span.is_segment = Annotated::new(false);
+                add_span(Annotated::new(new_span));
             }
         }
 
