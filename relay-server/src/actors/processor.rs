@@ -2310,7 +2310,7 @@ impl EnvelopeProcessorService {
                     continue;
                 };
                 // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled || !self.is_span_allowed(inner_span) {
+                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
                     continue;
                 }
                 // HACK: clone the span to set the segment_id. This should happen
