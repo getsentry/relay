@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Remove profile_id from context when no profile is in the envelope. ([#2522](https://github.com/getsentry/relay/pull/2523))
+
 **Internal**:
 
 - Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522))
