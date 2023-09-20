@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522))
+
 ## 23.9.0
 
 **Features**:
