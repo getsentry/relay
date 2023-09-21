@@ -1129,29 +1129,16 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let mut found_profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
                     Ok((profile_id, payload)) => {
                         if payload.len() <= self.inner.config.max_profile_size() {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(ProfileContext {
-                                        profile_id: Annotated::new(profile_id),
-                                    });
-                                }
-                            }
+                            found_profile_id = Some(profile_id);
                             item.set_payload(ContentType::Json, payload);
                             ItemAction::Keep
                         } else {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    if let Some(ref mut contexts) = event.contexts.value_mut() {
-                                        contexts.remove::<ProfileContext>();
-                                    }
-                                }
-                            }
                             ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
                                     relay_profiling::ProfileError::ExceedSizeLimit,
@@ -1160,13 +1147,6 @@ impl EnvelopeProcessorService {
                         }
                     }
                     Err(err) => {
-                        if let Some(event) = state.event.value_mut() {
-                            if event.ty.value() == Some(&EventType::Transaction) {
-                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove::<ProfileContext>();
-                            }
-                        }
-
                         match err {
                             relay_profiling::ProfileError::InvalidJson(_) => {
                                 relay_log::warn!(error = &err as &dyn Error, "invalid profile");
@@ -1181,6 +1161,20 @@ impl EnvelopeProcessorService {
             }
             _ => ItemAction::Keep,
         });
+        if let Some(event) = state.event.value_mut() {
+            if event.ty.value() == Some(&EventType::Transaction) {
+                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                // If we found a profile, add its ID to the profile context on the transaction.
+                if let Some(profile_id) = found_profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                // If not, we delete the profile context.
+                } else {
+                    contexts.remove::<ProfileContext>();
+                }
+            }
+        }
     }
 
     /// Remove replays if the feature flag is not enabled.
