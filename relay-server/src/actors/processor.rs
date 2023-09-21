@@ -2245,10 +2245,11 @@ impl EnvelopeProcessorService {
             .and_then(|system| system.as_str())
             .unwrap_or_default();
         op.starts_with("db")
-            && !(op.contains("clickhouse")
+            && !(op.contains("active_record")
+                || op.contains("activerecord")
+                || op.contains("clickhouse")
                 || op.contains("mongodb")
-                || op.contains("redis")
-                || op.contains("activerecord"))
+                || op.contains("redis"))
             && !(op == "db.sql.query" && !(description.contains(r#""$"#) || system == "mongodb"))
     }
 

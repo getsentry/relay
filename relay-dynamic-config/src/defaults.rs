@@ -47,7 +47,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     inner: Box::new(RuleCondition::Glob(GlobCondition {
                         name: span_op_field_name.into(),
                         value: GlobPatterns::new(vec![
-                            "*activerecord*".into(),
+                            "*active*record*".into(),
                             "*clickhouse*".into(),
                             "*mongodb*".into(),
                             "*redis*".into(),

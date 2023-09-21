@@ -8,7 +8,7 @@
 
 **Internal**:
 
-- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522))
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522), [#2525](https://github.com/getsentry/relay/pull/2525))
 
 ## 23.9.1
 
