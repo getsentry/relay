@@ -7,16 +7,19 @@ pub fn match_rules<'a>(
     dsc: Option<&DynamicSamplingContext>,
     now: DateTime<Utc>,
 ) -> SamplingResult {
-    let should_adjust_sample_rate = |mode: SamplingMode| -> Option<bool> {
-        match mode {
-            SamplingMode::Total => Some(true),
-            SamplingMode::Received => Some(false),
-            SamplingMode::Unsupported => {
-                if processing_enabled {
-                    relay_log::error!("found unsupported sampling mode even as processing Relay");
-                }
-                None
-            }
+    let adjust_sample_rate = match sampling_config
+        .or(root_sampling_config)
+        .map(|config| config.mode)
+    {
+        Some(SamplingMode::Received) => false,
+        Some(SamplingMode::Total) => true,
+        Some(SamplingMode::Unsupported) => {
+            relay_log::error!("found unsupported sampling mode");
+            return SamplingResult::NoMatch;
+        }
+        None => {
+            relay_log::error!("cannot sample without at least one sampling config");
+            return SamplingResult::NoMatch;
         }
     };
 
@@ -25,33 +28,29 @@ pub fn match_rules<'a>(
     }
 
     if let (Some(event), Some(sampling_config)) = (event, sampling_config) {
-        if let Some(adjust_sample_rate) = should_adjust_sample_rate(sampling_config.mode) {
-            let rules = sampling_config
-                .rules_v2
-                .iter()
-                .filter(|&rule| rule.ty == RuleType::Transaction);
-            let res = match_transaction_rules(
-                rules,
-                event,
-                dsc.and_then(|dsc| dsc.sample_rate),
-                adjust_sample_rate,
-                now,
-            );
-            if res.is_match() {
-                return res;
-            }
+        let rules = sampling_config
+            .rules_v2
+            .iter()
+            .filter(|&rule| rule.ty == RuleType::Transaction);
+        let res = match_transaction_rules(
+            rules,
+            event,
+            dsc.and_then(|dsc| dsc.sample_rate),
+            adjust_sample_rate,
+            now,
+        );
+        if res.is_match() {
+            return res;
         }
     }
 
-    if let (Some(dsc), Some(sampling_config)) = (dsc, root_sampling_config) {
-        if let Some(adjust_sample_rate) = should_adjust_sample_rate(sampling_config.mode) {
-            let rules = root_sampling_config
-                .into_iter()
-                .flat_map(|config| config.rules_v2.iter())
-                .filter(|&rule| rule.ty == RuleType::Trace);
+    if let Some(dsc) = dsc {
+        let rules = root_sampling_config
+            .into_iter()
+            .flat_map(|config| config.rules_v2.iter())
+            .filter(|&rule| rule.ty == RuleType::Trace);
 
-            return match_trace_rules(rules, dsc, now, adjust_sample_rate);
-        }
+        return match_trace_rules(rules, dsc, now, adjust_sample_rate);
     }
 
     SamplingResult::NoMatch
