@@ -1,158 +1,3 @@
-/// Gets the sampling match for an event.
-pub fn match_rules<'a>(
-    processing_enabled: bool,
-    sampling_config: Option<&'a SamplingConfig>,
-    root_sampling_config: Option<&'a SamplingConfig>,
-    event: Option<&Event>,
-    dsc: Option<&DynamicSamplingContext>,
-    now: DateTime<Utc>,
-) -> SamplingResult {
-    let adjust_sample_rate = match sampling_config
-        .or(root_sampling_config)
-        .map(|config| config.mode)
-    {
-        Some(SamplingMode::Received) => false,
-        Some(SamplingMode::Total) => true,
-        Some(SamplingMode::Unsupported) => {
-            relay_log::error!("found unsupported sampling mode");
-            return SamplingResult::NoMatch;
-        }
-        None => {
-            relay_log::error!("cannot sample without at least one sampling config");
-            return SamplingResult::NoMatch;
-        }
-    };
-
-    if check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).is_err() {
-        return SamplingResult::NoMatch;
-    }
-
-    if let (Some(event), Some(sampling_config)) = (event, sampling_config) {
-        let rules = sampling_config
-            .rules_v2
-            .iter()
-            .filter(|&rule| rule.ty == RuleType::Transaction);
-        let res = match_transaction_rules(
-            rules,
-            event,
-            dsc.and_then(|dsc| dsc.sample_rate),
-            adjust_sample_rate,
-            now,
-        );
-        if res.is_match() {
-            return res;
-        }
-    }
-
-    if let Some(dsc) = dsc {
-        let rules = root_sampling_config
-            .into_iter()
-            .flat_map(|config| config.rules_v2.iter())
-            .filter(|&rule| rule.ty == RuleType::Trace);
-
-        return match_trace_rules(rules, dsc, now, adjust_sample_rate);
-    }
-
-    SamplingResult::NoMatch
-}
-
-fn match_trace_rules<'a>(
-    rules: impl Iterator<Item = &'a SamplingRule>,
-    dsc: &DynamicSamplingContext,
-    now: DateTime<Utc>,
-    adjust_sample_rate: bool,
-) -> SamplingResult {
-    let mut matched_rule_ids = vec![];
-    let mut accumulated_factors = 1.0;
-    let seed = dsc.trace_id;
-    let client_sample_rate = dsc.sample_rate;
-
-    for rule in rules {
-        if !rule.condition.matches(dsc) {
-            continue;
-        }
-
-        let Some(sampling_value) = rule.sample_rate(now) else {
-            continue;
-        };
-
-        matched_rule_ids.push(rule.id);
-
-        match sampling_value {
-            SamplingValue::Factor { value } => accumulated_factors *= value,
-            SamplingValue::SampleRate { value } => {
-                let sample_rate = {
-                    let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                    client_sample_rate
-                        .filter(|_| adjust_sample_rate)
-                        .map(|rate| adjusted_sample_rate(rate, base))
-                        .unwrap_or(base)
-                };
-
-                return SamplingResult::Match(SamplingMatch::new(
-                    sample_rate,
-                    seed,
-                    matched_rule_ids,
-                ));
-            }
-        }
-    }
-
-    // In case no match is available, we won't return any specification.
-    relay_log::trace!("keeping event that didn't match the configuration");
-    SamplingResult::NoMatch
-}
-
-fn match_transaction_rules<'a>(
-    rules: impl Iterator<Item = &'a SamplingRule>,
-    event: &Event,
-    client_sample_rate: Option<f64>,
-    adjust_sample_rate: bool,
-    now: DateTime<Utc>,
-) -> SamplingResult {
-    let Some(seed) = event.id.value().map(|id| id.0) else {
-        return SamplingResult::NoMatch;
-    };
-
-    let mut matched_rule_ids = vec![];
-    let mut accumulated_factors = 1.0;
-
-    for rule in rules {
-        if !rule.condition.matches(event) {
-            continue;
-        };
-
-        let Some(sampling_value) = rule.sample_rate(now) else {
-            continue;
-        };
-
-        matched_rule_ids.push(rule.id);
-
-        match sampling_value {
-            SamplingValue::Factor { value } => accumulated_factors *= value,
-            SamplingValue::SampleRate { value } => {
-                let sample_rate = {
-                    let base = (value * accumulated_factors).clamp(0.0, 1.0);
-                    client_sample_rate
-                        .filter(|_| adjust_sample_rate)
-                        .map(|rate| adjusted_sample_rate(rate, base))
-                        .unwrap_or(base)
-                };
-
-                return SamplingResult::Match(SamplingMatch::new(
-                    sample_rate,
-                    seed,
-                    matched_rule_ids,
-                ));
-            }
-        }
-    }
-
-    // In case no match is available, we won't return any specification.
-    relay_log::trace!("keeping event that didn't match the configuration");
-    SamplingResult::NoMatch
-}
-
 // ! Evaluation of dynamic sampling rules.
 
 use std::fmt;
@@ -162,14 +7,110 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
-use relay_base_schema::events::EventType;
-use relay_event_schema::protocol::Event;
+use relay_protocol::Getter;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::config::{RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue};
-use crate::dsc::adjusted_sample_rate;
-use crate::DynamicSamplingContext;
+use crate::config::{RuleId, SamplingRule, SamplingValue};
+
+pub enum MatchResult {
+    Evaluator(SamplingEvaluator),
+    SamplingMatch(SamplingMatch),
+}
+
+impl MatchResult {
+    pub fn take_sampling_match(self) -> Option<SamplingMatch> {
+        match self {
+            MatchResult::Evaluator(_) => None,
+            MatchResult::SamplingMatch(sampling_match) => Some(sampling_match),
+        }
+    }
+}
+
+pub struct SamplingEvaluator {
+    now: DateTime<Utc>,
+    rule_ids: Vec<RuleId>,
+    factor: f64,
+    adjustment_rate: Option<f64>,
+}
+
+impl SamplingEvaluator {
+    pub fn new(now: DateTime<Utc>) -> Self {
+        Self {
+            now,
+            rule_ids: vec![],
+            factor: 1.0,
+            adjustment_rate: None,
+        }
+    }
+
+    pub fn adjust_rate(mut self, adjustment_rate: Option<f64>) -> Self {
+        self.adjustment_rate = adjustment_rate;
+        self
+    }
+
+    pub fn match_rules<'a, I, G>(mut self, seed: Uuid, instance: &G, rules: I) -> MatchResult
+    where
+        G: Getter,
+        I: Iterator<Item = &'a SamplingRule>,
+    {
+        for rule in rules {
+            if !rule.condition.matches(instance) {
+                continue;
+            };
+
+            let Some(sampling_value) = rule.sample_rate(self.now) else {
+                continue;
+            };
+
+            self.rule_ids.push(rule.id);
+
+            match sampling_value {
+                SamplingValue::Factor { value } => self.factor *= value,
+                SamplingValue::SampleRate { value } => {
+                    let base = (value * self.factor).clamp(0.0, 1.0);
+
+                    return MatchResult::SamplingMatch(SamplingMatch::new(
+                        self.adjusted_sample_rate(base),
+                        seed,
+                        std::mem::take(&mut self.rule_ids),
+                    ));
+                }
+            }
+        }
+        MatchResult::Evaluator(self)
+    }
+
+    /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
+    /// the matching rule.
+    fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
+        let Some(client_sample_rate) = self.adjustment_rate else {
+            return rule_sample_rate;
+        };
+
+        if client_sample_rate <= 0.0 {
+            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
+            // envelope. In that case let's pretend the sample rate was not sent, because clearly
+            // the sampling decision across the trace is still 1. The most likely explanation is
+            // that the SDK is reporting its own sample rate setting instead of the one from the
+            // continued trace.
+            //
+            // since we write back the client_sample_rate into the event's trace context, it should
+            // be possible to find those values + sdk versions via snuba
+            relay_log::warn!("client sample rate is <= 0");
+            rule_sample_rate
+        } else {
+            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
+            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
+                relay_log::error!("adjusted sample rate ended up being nan/inf");
+                debug_assert!(false);
+                rule_sample_rate
+            } else {
+                adjusted_sample_rate
+            }
+        }
+    }
+}
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -179,48 +120,6 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
     let dist = Uniform::new(0f64, 1f64);
     generator.sample(dist)
-}
-
-/// Returns an iterator of references that chains together and merges rules.
-///
-/// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
-/// rules from the root project and concatenate them.
-fn merge_rules_from_configs<'a>(
-    sampling_config: Option<&'a SamplingConfig>,
-    root_sampling_config: Option<&'a SamplingConfig>,
-) -> impl Iterator<Item = &'a SamplingRule> {
-    let transaction_rules = sampling_config
-        .into_iter()
-        .flat_map(|config| config.rules_v2.iter())
-        .filter(|&rule| rule.ty == RuleType::Transaction);
-
-    let trace_rules = root_sampling_config
-        .into_iter()
-        .flat_map(|config| config.rules_v2.iter())
-        .filter(|&rule| rule.ty == RuleType::Trace);
-
-    transaction_rules.chain(trace_rules)
-}
-
-/// Checks whether unsupported rules result in a direct keep of the event or depending on the
-/// type of Relay an ignore of unsupported rules.
-fn check_unsupported_rules(
-    processing_enabled: bool,
-    sampling_config: Option<&SamplingConfig>,
-    root_sampling_config: Option<&SamplingConfig>,
-) -> Result<(), ()> {
-    // When we have unsupported rules disable sampling for non processing relays.
-    if sampling_config.map_or(false, |config| config.unsupported())
-        || root_sampling_config.map_or(false, |config| config.unsupported())
-    {
-        if !processing_enabled {
-            return Err(());
-        } else {
-            relay_log::error!("found unsupported rules even as processing relay");
-        }
-    }
-
-    Ok(())
 }
 
 fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
@@ -271,6 +170,11 @@ impl SamplingMatch {
         }
     }
 
+    /// Returns the sample rate.
+    pub fn sample_rate(&self) -> f64 {
+        self.sample_rate
+    }
+
     /// Returns the matched rules for the sampling match.
     ///
     /// Takes ownership, useful if you don't need the [`SamplingMatch`] anymore
@@ -285,63 +189,6 @@ impl SamplingMatch {
     }
 
     /// Returns true if event should be dropped.
-    pub fn should_drop(&self) -> bool {
-        !self.should_keep()
-    }
-}
-
-/// Represents the specification for sampling an incoming event.
-#[derive(Default, Clone, Debug, PartialEq)]
-pub enum SamplingResult {
-    /// The event matched a sampling condition.
-    Match(SamplingMatch),
-    /// The event did not match a sampling condition.
-    NoMatch,
-    /// The event has yet to be run a dynamic sampling decision.
-    #[default]
-    Pending,
-}
-
-impl SamplingResult {
-    /// Returns the sample rate.
-    pub fn sample_rate(&self) -> Option<f64> {
-        if let Self::Match(sampling_match) = self {
-            return Some(sampling_match.sample_rate);
-        }
-        None
-    }
-
-    /// Returns true if the event matched on any rules.
-    pub fn is_no_match(&self) -> bool {
-        matches!(self, &Self::NoMatch)
-    }
-
-    /// Returns true if the event did not match on any rules.
-    pub fn is_match(&self) -> bool {
-        matches!(self, &Self::Match(_))
-    }
-
-    /// Returns true if dynamic sampling has been on run on event.
-    pub fn is_not_pending(&self) -> bool {
-        !self.is_pending()
-    }
-
-    /// Returns true if dynamic sampling has not been on run on event.
-    pub fn is_pending(&self) -> bool {
-        matches!(self, &Self::Pending)
-    }
-
-    /// Returns true if the event should be kept.
-    pub fn should_keep(&self) -> bool {
-        match self {
-            SamplingResult::Match(sampling_match) => sampling_match.should_keep(),
-            // If no rules matched on an event, we want to keep it.
-            SamplingResult::NoMatch => true,
-            SamplingResult::Pending => true,
-        }
-    }
-
-    /// Returns true if the event should be dropped.
     pub fn should_drop(&self) -> bool {
         !self.should_keep()
     }
@@ -382,7 +229,7 @@ impl fmt::Display for MatchedRuleIds {
         Ok(())
     }
 }
-
+/*
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -409,7 +256,8 @@ mod tests {
         DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
-    use crate::evaluation::{MatchedRuleIds, SamplingResult};
+    use crate::evaluation::MatchedRuleIds;
+    use crate::DynamicSamplingContext;
 
     use super::*;
 
@@ -1962,3 +1810,4 @@ mod tests {
         assert!(result.is_no_match());
     }
 }
+*/

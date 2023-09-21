@@ -8,6 +8,7 @@ use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_sampling::config::{RuleType, SamplingRule};
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
@@ -338,6 +339,15 @@ impl ProjectState {
     /// Returns `true` if the given feature is enabled for this project.
     pub fn has_feature(&self, feature: Feature) -> bool {
         self.config.features.has(feature)
+    }
+
+    pub fn iter_rules(&self, rule_type: RuleType) -> impl Iterator<Item = &SamplingRule> {
+        self.config
+            .dynamic_sampling
+            .as_ref()
+            .into_iter()
+            .flat_map(|c| &c.rules_v2)
+            .filter(move |rule| rule.ty == rule_type)
     }
 }
 

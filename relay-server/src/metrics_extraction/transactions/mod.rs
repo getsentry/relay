@@ -8,7 +8,6 @@ use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
 use relay_metrics::{Bucket, DurationUnit};
-use relay_sampling::evaluation::SamplingResult;
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
@@ -17,7 +16,7 @@ use crate::metrics_extraction::transactions::types::{
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
-use crate::utils;
+use crate::utils::{self, SamplingResult};
 
 pub mod types;
 

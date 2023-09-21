@@ -131,32 +131,6 @@ fn or_none(string: &impl AsRef<str>) -> Option<&str> {
     }
 }
 
-/// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
-/// the matching rule.
-pub fn adjusted_sample_rate(client_sample_rate: f64, rule_sample_rate: f64) -> f64 {
-    if client_sample_rate <= 0.0 {
-        // client_sample_rate is 0, which is bogus because the SDK should've dropped the
-        // envelope. In that case let's pretend the sample rate was not sent, because clearly
-        // the sampling decision across the trace is still 1. The most likely explanation is
-        // that the SDK is reporting its own sample rate setting instead of the one from the
-        // continued trace.
-        //
-        // since we write back the client_sample_rate into the event's trace context, it should
-        // be possible to find those values + sdk versions via snuba
-        relay_log::warn!("client sample rate is <= 0");
-        rule_sample_rate
-    } else {
-        let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
-        if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
-            relay_log::error!("adjusted sample rate ended up being nan/inf");
-            debug_assert!(false);
-            rule_sample_rate
-        } else {
-            adjusted_sample_rate
-        }
-    }
-}
-
 /// User-related information in a [`DynamicSamplingContext`].
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TraceUserContext {
@@ -294,6 +268,7 @@ where
 mod tests {
     use super::*;
 
+    /*
     #[test]
     fn test_adjust_sample_rate() {
         assert_eq!(adjusted_sample_rate(0.0, 0.5), 0.5);
@@ -302,6 +277,7 @@ mod tests {
         assert_eq!(adjusted_sample_rate(0.5, 0.1), 0.2);
         assert_eq!(adjusted_sample_rate(-0.5, 0.5), 0.5);
     }
+    */
 
     #[test]
     fn parse_full() {

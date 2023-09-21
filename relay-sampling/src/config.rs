@@ -77,6 +77,7 @@ impl SamplingRule {
     /// Returns the sample rate if the rule is active.
     pub fn sample_rate(&self, now: DateTime<Utc>) -> Option<SamplingValue> {
         if !self.time_range.contains(now) {
+            // Return None if rule is inactive.
             return None;
         }
 
@@ -93,6 +94,7 @@ impl SamplingRule {
                 let now = now.timestamp() as f64;
                 let start = start.timestamp() as f64;
                 let end = end.timestamp() as f64;
+
                 let progress_ratio = ((now - start) / (end - start)).clamp(0.0, 1.0);
 
                 // This interval will always be < 0.

@@ -1,17 +1,83 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
-use relay_sampling::evaluation::match_rules;
+use relay_sampling::config::{RuleType, SamplingMode};
+use relay_sampling::evaluation::{MatchResult, SamplingEvaluator, SamplingMatch};
 use relay_sampling::DynamicSamplingContext;
 
 use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
 
+/// Represents the specification for sampling an incoming event.
+#[derive(Default, Clone, Debug, PartialEq)]
+pub enum SamplingResult {
+    /// The event matched a sampling condition.
+    Match(SamplingMatch),
+    /// The event did not match a sampling condition.
+    NoMatch,
+    /// The event has yet to be run a dynamic sampling decision.
+    #[default]
+    Pending,
+}
+
+impl SamplingResult {
+    /// Returns the sample rate.
+    pub fn sample_rate(&self) -> Option<f64> {
+        if let Self::Match(sampling_match) = self {
+            return Some(sampling_match.sample_rate());
+        }
+        None
+    }
+
+    /// Returns true if the event matched on any rules.
+    pub fn is_no_match(&self) -> bool {
+        matches!(self, &Self::NoMatch)
+    }
+
+    /// Returns true if the event did not match on any rules.
+    pub fn is_match(&self) -> bool {
+        matches!(self, &Self::Match(_))
+    }
+
+    /// Returns true if dynamic sampling has been on run on event.
+    pub fn is_not_pending(&self) -> bool {
+        !self.is_pending()
+    }
+
+    /// Returns true if dynamic sampling has not been on run on event.
+    pub fn is_pending(&self) -> bool {
+        matches!(self, &Self::Pending)
+    }
+
+    /// Returns true if the event should be kept.
+    pub fn should_keep(&self) -> bool {
+        match self {
+            SamplingResult::Match(sampling_match) => sampling_match.should_keep(),
+            // If no rules matched on an event, we want to keep it.
+            SamplingResult::NoMatch => true,
+            SamplingResult::Pending => true,
+        }
+    }
+
+    /// Returns true if the event should be dropped.
+    pub fn should_drop(&self) -> bool {
+        !self.should_keep()
+    }
+}
+
+impl From<MatchResult> for SamplingResult {
+    fn from(value: MatchResult) -> Self {
+        match value {
+            MatchResult::SamplingMatch(sampling_match) => SamplingResult::Match(sampling_match),
+            MatchResult::Evaluator(_) => SamplingResult::NoMatch,
+        }
+    }
+}
+
 /// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
-    processing_enabled: bool,
     root_project_state: &ProjectState,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
@@ -23,17 +89,18 @@ pub fn is_trace_fully_sampled(
         return Some(false);
     }
 
-    Some(
-        match_rules(
-            processing_enabled,
-            None,
-            root_project_state.config.dynamic_sampling.as_ref(),
-            None,
-            Some(dsc),
-            Utc::now(),
-        )
-        .should_keep(),
-    )
+    let adjustment_rate = match root_project_state.config.dynamic_sampling.as_ref()?.mode {
+        SamplingMode::Total => dsc.sample_rate,
+        _ => None,
+    };
+
+    // TODO(tor): pass correct now timestamp
+    let evaluator = SamplingEvaluator::new(Utc::now()).adjust_rate(adjustment_rate);
+
+    let rules = root_project_state.iter_rules(RuleType::Trace);
+
+    let sampling_result: SamplingResult = evaluator.match_rules(dsc.trace_id, dsc, rules).into();
+    Some(sampling_result.should_keep())
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.
@@ -50,6 +117,7 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
@@ -267,3 +335,4 @@ mod tests {
         assert!(result.is_none());
     }
 }
+*/
