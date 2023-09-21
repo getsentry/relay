@@ -4037,12 +4037,6 @@
 <a href="#4037" id="4037">4037</a>
 <a href="#4038" id="4038">4038</a>
 <a href="#4039" id="4039">4039</a>
-<a href="#4040" id="4040">4040</a>
-<a href="#4041" id="4041">4041</a>
-<a href="#4042" id="4042">4042</a>
-<a href="#4043" id="4043">4043</a>
-<a href="#4044" id="4044">4044</a>
-<a href="#4045" id="4045">4045</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -5174,29 +5168,16 @@
     <span class="doccomment">/// Process profiles and set the profile ID in the profile context on the transaction if successful
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>process_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+        <span class="kw">let </span><span class="kw-2">mut </span>found_profile_id = <span class="prelude-val">None</span>;
         state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::Profile =&gt; {
                 <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload(), state.event.value()) {
                     <span class="prelude-val">Ok</span>((profile_id, payload)) =&gt; {
                         <span class="kw">if </span>payload.len() &lt;= <span class="self">self</span>.inner.config.max_profile_size() {
-                            <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
-                                <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                                    <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(ProfileContext {
-                                        profile_id: Annotated::new(profile_id),
-                                    });
-                                }
-                            }
+                            found_profile_id = <span class="prelude-val">Some</span>(profile_id);
                             item.set_payload(ContentType::Json, payload);
                             ItemAction::Keep
                         } <span class="kw">else </span>{
-                            <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
-                                <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                                    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>contexts) = event.contexts.value_mut() {
-                                        contexts.remove::&lt;ProfileContext&gt;();
-                                    }
-                                }
-                            }
                             ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
                                     relay_profiling::ProfileError::ExceedSizeLimit,
@@ -5205,13 +5186,6 @@
                         }
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
-                            <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                                <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove::&lt;ProfileContext&gt;();
-                            }
-                        }
-
                         <span class="kw">match </span>err {
                             relay_profiling::ProfileError::InvalidJson(<span class="kw">_</span>) =&gt; {
                                 <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid profile&quot;</span>);
@@ -5226,6 +5200,20 @@
             }
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
+            <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+                <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
+                <span class="comment">// If we found a profile, add its ID to the profile context on the transaction.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(profile_id) = found_profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                <span class="comment">// If not, we delete the profile context.
+                </span>} <span class="kw">else </span>{
+                    contexts.remove::&lt;ProfileContext&gt;();
+                }
+            }
+        }
     }
 
     <span class="doccomment">/// Remove replays if the feature flag is not enabled.
