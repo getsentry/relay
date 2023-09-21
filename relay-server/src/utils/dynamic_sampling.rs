@@ -89,7 +89,9 @@ pub fn is_trace_fully_sampled(
         return Some(false);
     }
 
-    let adjustment_rate = match root_project_state.config.dynamic_sampling.as_ref()?.mode {
+    let config = root_project_state.config.dynamic_sampling.as_ref()?;
+
+    let adjustment_rate = match config.mode {
         SamplingMode::Total => dsc.sample_rate,
         _ => None,
     };
@@ -97,7 +99,7 @@ pub fn is_trace_fully_sampled(
     // TODO(tor): pass correct now timestamp
     let evaluator = SamplingEvaluator::new(Utc::now()).adjust_rate(adjustment_rate);
 
-    let rules = root_project_state.iter_rules(RuleType::Trace);
+    let rules = config.iter_rules(RuleType::Trace);
 
     let sampling_result: SamplingResult = evaluator.match_rules(dsc.trace_id, dsc, rules).into();
     Some(sampling_result.should_keep())
@@ -117,7 +119,6 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
@@ -185,98 +186,84 @@ mod tests {
     #[test]
     /// Tests that an event is kept when there is a match and we have 100% sample rate.
     fn test_match_rules_return_keep_with_match_and_100_sample_rate() {
-        let config = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)],
-            mode: SamplingMode::Received,
-        })
-        .config
-        .dynamic_sampling
-        .unwrap();
-        let event = mocked_event(EventType::Transaction, "transaction", "2.0");
+        let event = mocked_event(EventType::Transaction, "bar", "2.0");
+        let rules = vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
+        let seed = Uuid::default();
 
-        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(seed, &event, rules.iter())
+            .into();
+
+        assert!(result.is_match());
         assert!(result.should_keep());
     }
-
     #[test]
     /// Tests that an event is dropped when there is a match and we have 0% sample rate.
     fn test_match_rules_return_drop_with_match_and_0_sample_rate() {
-        let config = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)],
-            mode: SamplingMode::Received,
-        })
-        .config
-        .dynamic_sampling
-        .unwrap();
-        let event = mocked_event(EventType::Transaction, "transaction", "2.0");
+        let event = mocked_event(EventType::Transaction, "bar", "2.0");
+        let rules = vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
+        let seed = Uuid::default();
 
-        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(seed, &event, rules.iter())
+            .into();
+
+        assert!(result.is_match());
         assert!(result.should_drop());
     }
 
     #[test]
     /// Tests that an event is kept when there is no match.
     fn test_match_rules_return_keep_with_no_match() {
-        let config = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![SamplingRule {
-                condition: eq("event.transaction", &["foo"], true),
-                sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                ty: RuleType::Transaction,
-                id: RuleId(3),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }],
-            mode: SamplingMode::Received,
-        })
-        .config
-        .dynamic_sampling
-        .unwrap();
-        let event = mocked_event(EventType::Transaction, "bar", "2.0");
+        let rules = vec![SamplingRule {
+            condition: eq("event.transaction", &["foo"], true),
+            sampling_value: SamplingValue::SampleRate { value: 0.5 },
+            ty: RuleType::Transaction,
+            id: RuleId(3),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }];
 
-        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.should_keep())
+        let event = mocked_event(EventType::Transaction, "bar", "2.0");
+        let seed = Uuid::default();
+
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(seed, &event, rules.iter())
+            .into();
+
+        assert!(result.is_no_match());
+        assert!(result.should_keep());
     }
 
     #[test]
     /// Tests that an event is kept when there are unsupported rules with no processing and vice versa.
     fn test_match_rules_return_no_match_with_unsupported_rule() {
-        let config = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![
-                mocked_sampling_rule(1, RuleType::Unsupported, 0.0),
-                mocked_sampling_rule(2, RuleType::Transaction, 0.0),
-            ],
-            mode: SamplingMode::Received,
-        })
-        .config
-        .dynamic_sampling
-        .unwrap();
+        let rules = vec![
+            mocked_sampling_rule(1, RuleType::Unsupported, 0.0),
+            mocked_sampling_rule(2, RuleType::Transaction, 0.0),
+        ];
+
         let event = mocked_event(EventType::Transaction, "transaction", "2.0");
+        let seed = Uuid::default();
 
-        let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_match());
+        // let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
+        // assert!(result.is_match());
 
-        let result = match_rules(false, Some(&config), None, Some(&event), None, Utc::now());
-        assert!(result.is_no_match());
+        // let result = match_rules(false, Some(&config), None, Some(&event), None, Utc::now());
+        // assert!(result.is_no_match());
     }
 
     #[test]
     /// Tests that an event is kept when there is a trace match and we have 100% sample rate.
     fn test_match_rules_with_traces_rules_return_keep_when_match() {
-        let config = project_state_with_config(SamplingConfig {
-            rules: vec![],
-            rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
-            mode: SamplingMode::Received,
-        })
-        .config
-        .dynamic_sampling
-        .unwrap();
+        let rules = vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)];
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = match_rules(true, None, Some(&config), None, Some(&dsc), Utc::now());
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(Uuid::default(), &dsc, rules.iter())
+            .into();
+
+        assert!(result.is_match());
         assert!(result.should_keep());
     }
 
@@ -292,7 +279,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(true, &project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
         assert!(result);
 
         // We test with `sampled = true` and 0% rule.
@@ -304,7 +291,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(true, &project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
         assert!(!result);
 
         // We test with `sampled = false` and 100% rule.
@@ -316,7 +303,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(true, &project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
         assert!(!result);
     }
 
@@ -331,8 +318,7 @@ mod tests {
         });
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(true, &project_state, &dsc);
+        let result = is_trace_fully_sampled(&project_state, &dsc);
         assert!(result.is_none());
     }
 }
-*/

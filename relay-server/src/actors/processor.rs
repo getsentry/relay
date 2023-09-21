@@ -44,7 +44,7 @@ use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{MatchResult, MatchedRuleIds, SamplingEvaluator};
-use relay_sampling::DynamicSamplingContext;
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use serde_json::Value as SerdeValue;
@@ -2322,7 +2322,13 @@ impl EnvelopeProcessorService {
                     if config.is_enabled() {
                         state.sampling_result = Self::compute_sampling_decision(
                             self.inner.config.processing_enabled(),
-                            state,
+                            state.project_state.config.dynamic_sampling.as_ref(),
+                            state.event.value(),
+                            state
+                                .sampling_project_state
+                                .as_ref()
+                                .and_then(|state| state.config.dynamic_sampling.as_ref()),
+                            state.envelope().dsc(),
                         );
                     }
                 }
@@ -2335,15 +2341,11 @@ impl EnvelopeProcessorService {
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(
         processing_enabled: bool,
-        state: &mut ProcessEnvelopeState,
+        sampling_config: Option<&SamplingConfig>,
+        event: Option<&Event>,
+        root_sampling_config: Option<&SamplingConfig>,
+        dsc: Option<&DynamicSamplingContext>,
     ) -> SamplingResult {
-        let dsc = state.envelope().dsc();
-        let sampling_config = state.project_state.config.dynamic_sampling.as_ref();
-        let root_sampling_config = state
-            .sampling_project_state
-            .as_ref()
-            .and_then(|state| state.config.dynamic_sampling.as_ref());
-
         if sampling_config.map_or(false, |config| config.unsupported())
             || root_sampling_config.map_or(false, |config| config.unsupported())
         {
@@ -2374,9 +2376,9 @@ impl EnvelopeProcessorService {
 
         let mut evaluator = SamplingEvaluator::new(Utc::now()).adjust_rate(adjustment_rate);
 
-        if let Some(event) = state.event.value() {
+        if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
             if let Some(seed) = event.id.value().map(|id| id.0) {
-                let rules = state.project_state.iter_rules(RuleType::Transaction);
+                let rules = sampling_state.iter_rules(RuleType::Transaction);
                 evaluator = match evaluator.match_rules(seed, event, rules) {
                     MatchResult::Evaluator(evaluator) => evaluator,
                     MatchResult::SamplingMatch(sampling_match) => {
@@ -2386,12 +2388,12 @@ impl EnvelopeProcessorService {
             };
         }
 
-        if let (Some(dsc), Some(sampling_state)) = (dsc, state.sampling_project_state.as_ref()) {
+        if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
             let rules = sampling_state.iter_rules(RuleType::Trace);
-            evaluator.match_rules(dsc.trace_id, dsc, rules).into()
-        } else {
-            SamplingResult::NoMatch
+            return evaluator.match_rules(dsc.trace_id, dsc, rules).into();
         }
+
+        SamplingResult::NoMatch
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling

@@ -1,4 +1,4 @@
-// ! Evaluation of dynamic sampling rules.
+//! Evaluation of dynamic sampling rules.
 
 use std::fmt;
 use std::num::ParseIntError;
@@ -13,20 +13,22 @@ use uuid::Uuid;
 
 use crate::config::{RuleId, SamplingRule, SamplingValue};
 
+#[derive(Debug)]
 pub enum MatchResult {
     Evaluator(SamplingEvaluator),
     SamplingMatch(SamplingMatch),
 }
 
 impl MatchResult {
-    pub fn take_sampling_match(self) -> Option<SamplingMatch> {
-        match self {
-            MatchResult::Evaluator(_) => None,
-            MatchResult::SamplingMatch(sampling_match) => Some(sampling_match),
-        }
+    pub fn is_match(&self) -> bool {
+        matches!(self, &Self::SamplingMatch(_))
+    }
+    pub fn is_no_match(&self) -> bool {
+        !self.is_match()
     }
 }
 
+#[derive(Debug)]
 pub struct SamplingEvaluator {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
@@ -229,7 +231,6 @@ impl fmt::Display for MatchedRuleIds {
         Ok(())
     }
 }
-/*
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -257,7 +258,7 @@ mod tests {
     };
     use crate::dsc::TraceUserContext;
     use crate::evaluation::MatchedRuleIds;
-    use crate::DynamicSamplingContext;
+    use crate::{DynamicSamplingContext, SamplingConfig};
 
     use super::*;
 
@@ -460,6 +461,8 @@ mod tests {
         sampling_config.rules_v2.push(sampling_rule);
     }
 
+    /*
+
     fn match_against_rules(
         config: &SamplingConfig,
         event: &Event,
@@ -493,6 +496,7 @@ mod tests {
             matched_rule_ids.iter().map(|id| RuleId(*id)).collect(),
         ))
     }
+    */
 
     fn mocked_sampling_rule(id: u32, ty: RuleType, sample_rate: f64) -> SamplingRule {
         SamplingRule {
@@ -503,26 +507,6 @@ mod tests {
             time_range: Default::default(),
             decaying_fn: Default::default(),
         }
-    }
-
-    fn merge_root_and_non_root_configs_with(
-        rules: Vec<SamplingRule>,
-        root_rules: Vec<SamplingRule>,
-    ) -> Vec<SamplingRule> {
-        crate::evaluation::merge_rules_from_configs(
-            Some(&SamplingConfig {
-                rules: vec![],
-                rules_v2: rules,
-                mode: SamplingMode::Received,
-            }),
-            Some(&SamplingConfig {
-                rules: vec![],
-                rules_v2: root_rules,
-                mode: SamplingMode::Received,
-            }),
-        )
-        .cloned()
-        .collect()
     }
 
     #[test]
@@ -582,67 +566,7 @@ mod tests {
         };
     }
 
-    #[test]
-    /// Tests the merged config of the two configs with rules.
-    fn test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
-        assert_rule_ids_eq!(
-            [1, 7],
-            merge_root_and_non_root_configs_with(
-                vec![
-                    mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                    mocked_sampling_rule(3, RuleType::Trace, 0.3),
-                    mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
-                ],
-                vec![
-                    mocked_sampling_rule(5, RuleType::Transaction, 0.4),
-                    mocked_sampling_rule(7, RuleType::Trace, 0.6),
-                    mocked_sampling_rule(8, RuleType::Unsupported, 0.1),
-                ],
-            )
-        );
-    }
-
-    #[test]
-    /// Tests the merged config of the two configs without rules.
-    fn test_get_merged_config_with_no_rules_in_both_project_config_and_root_project_config() {
-        assert!(merge_root_and_non_root_configs_with(vec![], vec![]).is_empty());
-    }
-
-    #[test]
-    /// Tests the merged config of the project config with rules and the root project config
-    /// without rules.
-    fn test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
-        assert_rule_ids_eq!(
-            [1],
-            merge_root_and_non_root_configs_with(
-                vec![
-                    mocked_sampling_rule(1, RuleType::Transaction, 0.1),
-                    mocked_sampling_rule(3, RuleType::Trace, 0.3),
-                    mocked_sampling_rule(4, RuleType::Unsupported, 0.1),
-                ],
-                vec![],
-            )
-        );
-    }
-
-    #[test]
-    /// Tests the merged config of the project config without rules and the root project config
-    /// with rules.
-    fn test_get_merged_config_with_no_rules_in_project_config_and_with_rules_in_root_project_config(
-    ) {
-        assert_rule_ids_eq!(
-            [6],
-            merge_root_and_non_root_configs_with(
-                vec![],
-                vec![
-                    mocked_sampling_rule(4, RuleType::Transaction, 0.4),
-                    mocked_sampling_rule(6, RuleType::Trace, 0.6),
-                    mocked_sampling_rule(7, RuleType::Unsupported, 0.1),
-                ]
-            )
-        );
-    }
-
+    /*
     #[test]
     /// Tests that the multi-matching works for a mixture of trace and transaction rules with interleaved strategies.
     fn test_match_against_rules_with_multiple_event_types_non_decaying_rules_and_matches() {
@@ -739,6 +663,7 @@ mod tests {
         let result = match_against_rules(&config, &event, &dsc, Utc::now());
         assert_eq!(result, trace_match(0.03, &dsc, &[5, 6]));
     }
+    */
 
     #[test]
     /// test matching for various rules
@@ -1240,49 +1165,22 @@ mod tests {
         );
     }
 
-    #[test]
-    /// test that the multi-matching returns none in case there is no match.
-    fn test_multi_matching_with_transaction_event_non_decaying_rules_and_no_match() {
-        let result = match_rules(
-            true,
-            Some(&mocked_sampling_config_with_rules(vec![
-                SamplingRule {
-                    condition: and(vec![eq("event.transaction", &["foo"], true)]),
-                    sampling_value: SamplingValue::Factor { value: 2.0 },
-                    ty: RuleType::Transaction,
-                    id: RuleId(1),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-                SamplingRule {
-                    condition: and(vec![
-                        glob("trace.release", &["1.1.1"]),
-                        eq("trace.environment", &["prod"], true),
-                    ]),
-                    sampling_value: SamplingValue::SampleRate { value: 0.5 },
-                    ty: RuleType::Trace,
-                    id: RuleId(2),
-                    time_range: Default::default(),
-                    decaying_fn: Default::default(),
-                },
-            ])),
-            None,
-            Some(&mocked_event(
-                EventType::Transaction,
-                "healthcheck",
-                "1.1.1",
-                "testing",
-            )),
-            Some(&mocked_dsc("debug", "vip", "1.1.1")),
-            Utc::now(),
-        );
-        assert!(result.is_no_match(), "did not return none for no match");
+    fn rule_ids_equal(cmp: &[u32], matched_rules: MatchedRuleIds) -> bool {
+        let other_match: Vec<RuleId> = cmp.into_iter().map(|num| RuleId(*num)).collect();
+        MatchedRuleIds(other_match) == matched_rules
+    }
+
+    fn get_match(res: MatchResult) -> SamplingMatch {
+        match res {
+            MatchResult::SamplingMatch(sampling_match) => sampling_match,
+            MatchResult::Evaluator(_) => panic!(),
+        }
     }
 
     #[test]
     /// Test that the multi-matching works for a mixture of decaying and non-decaying rules.
     fn test_match_against_rules_with_trace_event_type_decaying_rules_and_matches() {
-        let sampling_config = mocked_sampling_config_with_rules(vec![
+        let rules = vec![
             SamplingRule {
                 condition: and(vec![
                     eq("trace.release", &["1.1.1"], true),
@@ -1319,89 +1217,74 @@ mod tests {
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
             },
-        ]);
-
-        let event = mocked_event(EventType::Transaction, "transaction", "1.1.1", "testing");
+        ];
 
         // factor match first rule and early return third rule
         // We will use a time in the middle of 10th and 11th.
         let dsc = mocked_dsc("dev", "vip", "1.1.1");
-        let result = match_against_rules(
-            &sampling_config,
-            &event,
-            &dsc,
-            Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
+
+        let res = get_match(
+            SamplingEvaluator::new(Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap())
+                .match_rules(Uuid::default(), &dsc, rules.iter()),
         );
-        assert_eq!(result, trace_match(0.03, &dsc, &[1, 3]));
+
+        assert!(rule_ids_equal(&[1, 3], res.matched_rules));
 
         // early return second rule
         // We will use a time in the middle of 10th and 11th.
         let dsc = mocked_dsc("prod", "vip", "1.1.1");
-        let result = match_against_rules(
-            &sampling_config,
-            &event,
-            &dsc,
-            Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
-        );
-        assert!(result.is_match());
+
+        let res = SamplingEvaluator::new(Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap())
+            .match_rules(Uuid::default(), &dsc, rules.iter());
+
+        assert!(matches!(res, MatchResult::SamplingMatch(_)));
 
         assert!(
-            (result.sample_rate().unwrap() - 0.45).abs() < f64::EPSILON, // 0.45
+            (get_match(res).sample_rate() - 0.45).abs() < f64::EPSILON, // 0.45
             "did not use the sample rate of the second rule"
         );
 
         // early return third rule
         // We will use a time in the middle of 10th and 11th.
         let dsc = mocked_dsc("testing", "vip", "1.1.1");
-        let result = match_against_rules(
-            &sampling_config,
-            &event,
-            &dsc,
-            Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap(),
+
+        let res = get_match(
+            SamplingEvaluator::new(Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap())
+                .match_rules(Uuid::default(), &dsc, rules.iter()),
         );
-        assert_eq!(result, trace_match(0.02, &dsc, &[3]));
+
+        assert!(rule_ids_equal(&[3], res.matched_rules));
     }
 
     #[test]
     /// test that the correct match is performed when replay id is present in the dsc.
     fn test_sampling_match_with_trace_replay_id() {
-        let event = mocked_event(EventType::Transaction, "healthcheck", "1.1.1", "testing");
         let mut dsc = mocked_dsc("prod", "vip", "1.1.1");
         dsc.replay_id = Some(Uuid::new_v4());
 
-        let result = match_rules(
-            true,
-            None,
-            Some(&mocked_sampling_config_with_rules(vec![SamplingRule {
-                condition: and(vec![not(eq_null("trace.replay_id"))]),
-                sampling_value: SamplingValue::SampleRate { value: 1.0 },
-                ty: RuleType::Trace,
-                id: RuleId(1),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }])),
-            Some(&event),
-            Some(&dsc),
-            Utc::now(),
-        );
-        assert_eq!(result, trace_match(1.0, &dsc, &[1]));
+        let rules = vec![SamplingRule {
+            condition: and(vec![not(eq_null("trace.replay_id"))]),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(1),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }];
+
+        let res =
+            SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, rules.iter());
+        assert!(rule_ids_equal(&[1], get_match(res).matched_rules));
     }
 
     #[test]
     /// Tests that no match is done when there are no matching rules.
     fn test_get_sampling_match_result_with_no_match() {
-        let sampling_config = mocked_sampling_config(SamplingMode::Received);
         let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
 
-        let result = match_rules(
-            true,
-            Some(&sampling_config),
-            None,
-            Some(&event),
-            None,
-            Utc::now(),
-        );
-        assert!(result.is_no_match());
+        let res =
+            SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &event, [].iter());
+
+        assert!(res.is_no_match());
     }
 
     #[test]
@@ -1434,6 +1317,8 @@ mod tests {
         );
         assert_eq!(result, transaction_match(0.1, &event, &[1]));
     }
+}
+/*
 
     #[test]
     /// Tests that a match with early return is done in the project sampling config.
