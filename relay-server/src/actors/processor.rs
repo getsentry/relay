@@ -1129,7 +1129,7 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
-        let mut found_profile_id: Option<EventId> = Default::default();
+        let mut found_profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
