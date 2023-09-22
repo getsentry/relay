@@ -112,7 +112,7 @@ impl CategoryUnit {
             | DataCategory::MonitorSeat
             | DataCategory::Monitor => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
-            DataCategory::Session => Some(Self::Batched),
+            DataCategory::Session | DataCategory::Statsd => Some(Self::Batched),
 
             DataCategory::Unknown => None,
         }
