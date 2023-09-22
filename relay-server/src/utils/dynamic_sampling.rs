@@ -2,7 +2,7 @@
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{MatchResult, SamplingEvaluator, SamplingMatch};
+use relay_sampling::evaluation::{RuleMatchingState, SamplingEvaluator, SamplingMatch};
 use relay_sampling::DynamicSamplingContext;
 
 use crate::actors::project::ProjectState;
@@ -50,11 +50,13 @@ impl SamplingResult {
     }
 }
 
-impl From<MatchResult> for SamplingResult {
-    fn from(value: MatchResult) -> Self {
+impl From<RuleMatchingState> for SamplingResult {
+    fn from(value: RuleMatchingState) -> Self {
         match value {
-            MatchResult::SamplingMatch(sampling_match) => SamplingResult::Match(sampling_match),
-            MatchResult::Evaluator(_) => SamplingResult::NoMatch,
+            RuleMatchingState::SamplingMatch(sampling_match) => {
+                SamplingResult::Match(sampling_match)
+            }
+            RuleMatchingState::Evaluator(_) => SamplingResult::NoMatch,
         }
     }
 }
@@ -82,7 +84,7 @@ pub fn is_trace_fully_sampled(
     };
 
     // TODO(tor): pass correct now timestamp
-    let evaluator = SamplingEvaluator::new(Utc::now()).adjust_rate(adjustment_rate);
+    let evaluator = SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
 
     let rules = config.filter_rules(RuleType::Trace);
 

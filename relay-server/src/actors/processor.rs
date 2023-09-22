@@ -43,7 +43,7 @@ use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{MatchResult, MatchedRuleIds, SamplingEvaluator};
+use relay_sampling::evaluation::{MatchedRuleIds, RuleMatchingState, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -2374,15 +2374,16 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let mut evaluator = SamplingEvaluator::new(Utc::now()).adjust_rate(adjustment_rate);
+        let mut evaluator =
+            SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
 
         if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
             if let Some(seed) = event.id.value().map(|id| id.0) {
                 let rules = sampling_state.filter_rules(RuleType::Transaction);
                 evaluator = match evaluator.match_rules(seed, event, rules) {
-                    MatchResult::Evaluator(evaluator) => evaluator,
-                    MatchResult::SamplingMatch(sampling_match) => {
-                        return dbg!(SamplingResult::Match(sampling_match));
+                    RuleMatchingState::Evaluator(evaluator) => evaluator,
+                    RuleMatchingState::SamplingMatch(sampling_match) => {
+                        return SamplingResult::Match(sampling_match);
                     }
                 }
             };

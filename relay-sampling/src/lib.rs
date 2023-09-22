@@ -33,7 +33,7 @@
 //! - Relay resolves the [`SamplingConfig`] of the project to which the incoming data belongs.
 //!   Additionally, it tries to resolve the configuration of the project that started the trace, the
 //!   so-called "root project".
-//! - The two [`SamplingConfig`]'s are merged together and dynamic sampling evaluates a result. The
+//! - The two [`SamplingConfig`]s are merged together and dynamic sampling evaluates a result. The
 //!   algorithm goes over each rule and compute either a factor or sample rate based on the
 //!   value of the rule.
 //! - The [`SamplingResult`](crate::evaluation::SamplingResult) is finally returned containing the

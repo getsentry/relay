@@ -111,7 +111,10 @@ impl SamplingRule {
             DecayingFunction::Constant => sampling_base_value,
         };
 
-        Some(self.sampling_value.set_value(value))
+        match self.sampling_value {
+            SamplingValue::SampleRate { .. } => Some(SamplingValue::SampleRate { value }),
+            SamplingValue::Factor { .. } => Some(SamplingValue::Factor { value }),
+        }
     }
 }
 
@@ -148,14 +151,6 @@ impl SamplingValue {
             SamplingValue::SampleRate { value } => value,
             SamplingValue::Factor { value } => value,
         }
-    }
-
-    fn set_value(mut self, new_value: f64) -> Self {
-        match self {
-            SamplingValue::SampleRate { ref mut value } => *value = new_value,
-            SamplingValue::Factor { ref mut value } => *value = new_value,
-        }
-        self
     }
 }
 
@@ -283,6 +278,7 @@ mod tests {
     use chrono::TimeZone;
 
     use crate::condition::AndCondition;
+    use crate::tests::and;
 
     use super::*;
 
@@ -499,5 +495,48 @@ mod tests {
 }"#;
 
         assert_eq!(serialized_config, expected_serialized_config)
+    }
+
+    #[test]
+    fn test_decaying_rule() {
+        let rule = SamplingRule {
+            condition: and(vec![]),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: TimeRange {
+                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
+                end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
+            },
+            decaying_fn: DecayingFunction::Linear { decayed_value: 0.5 },
+        };
+
+        let start = Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap();
+        let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(1970, 10, 11, 23, 59, 59).unwrap();
+        let out_of_range = Utc.with_ymd_and_hms(1971, 10, 11, 23, 59, 59).unwrap();
+
+        // At the start of the time range, sample rate is equal to the rule's initial sampling value.
+        assert_eq!(
+            rule.sample_rate(start).unwrap(),
+            SamplingValue::SampleRate { value: 1.0 }
+        );
+
+        // Halfway in the time range, the value is exactly between 1.0 and 0.5.
+        assert_eq!(
+            rule.sample_rate(halfway).unwrap(),
+            SamplingValue::SampleRate { value: 0.75 }
+        );
+
+        // Approaches 0.5 at the end.
+        assert_eq!(
+            rule.sample_rate(end).unwrap(),
+            SamplingValue::SampleRate {
+                value: 0.5000028935185186
+            }
+        );
+
+        // None value outside of the time range.
+        assert!(rule.sample_rate(out_of_range).is_none());
     }
 }

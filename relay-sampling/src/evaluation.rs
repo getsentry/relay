@@ -23,16 +23,18 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     generator.sample(dist)
 }
 
-/// State of sampling.
+/// State of the [`SamplingEvaluator`]'s rule matching.
+///
+/// Enforces a pattern to avoid matching on more rules if a match has already been found.
 #[derive(Debug)]
-pub enum MatchResult {
+pub enum RuleMatchingState {
     /// No match has been found.
     Evaluator(SamplingEvaluator),
     /// Rule(s) have been matched.
     SamplingMatch(SamplingMatch),
 }
 
-impl MatchResult {
+impl RuleMatchingState {
     /// Returns true if a rule has matched.
     pub fn is_match(&self) -> bool {
         matches!(self, &Self::SamplingMatch(_))
@@ -50,7 +52,7 @@ pub struct SamplingEvaluator {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
     factor: f64,
-    adjustment_rate: Option<f64>,
+    client_sample_rate: Option<f64>,
 }
 
 impl SamplingEvaluator {
@@ -60,18 +62,18 @@ impl SamplingEvaluator {
             now,
             rule_ids: vec![],
             factor: 1.0,
-            adjustment_rate: None,
+            client_sample_rate: None,
         }
     }
 
     /// Sets a new client sample rate value.
-    pub fn adjust_rate(mut self, adjustment_rate: Option<f64>) -> Self {
-        self.adjustment_rate = adjustment_rate;
+    pub fn adjust_client_sample_rate(mut self, client_sample_rate: Option<f64>) -> Self {
+        self.client_sample_rate = client_sample_rate;
         self
     }
 
     /// Attemps to find a match for sampling rules.
-    pub fn match_rules<'a, I, G>(mut self, seed: Uuid, instance: &G, rules: I) -> MatchResult
+    pub fn match_rules<'a, I, G>(mut self, seed: Uuid, instance: &G, rules: I) -> RuleMatchingState
     where
         G: Getter,
         I: Iterator<Item = &'a SamplingRule>,
@@ -90,23 +92,23 @@ impl SamplingEvaluator {
             match sampling_value {
                 SamplingValue::Factor { value } => self.factor *= value,
                 SamplingValue::SampleRate { value } => {
-                    let base = (value * self.factor).clamp(0.0, 1.0);
+                    let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
-                    return MatchResult::SamplingMatch(SamplingMatch::new(
-                        self.adjusted_sample_rate(base),
+                    return RuleMatchingState::SamplingMatch(SamplingMatch::new(
+                        self.adjusted_sample_rate(sample_rate),
                         seed,
                         self.rule_ids,
                     ));
                 }
             }
         }
-        MatchResult::Evaluator(self)
+        RuleMatchingState::Evaluator(self)
     }
 
     /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
     /// the matching rule.
     fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
-        let Some(client_sample_rate) = self.adjustment_rate else {
+        let Some(client_sample_rate) = self.client_sample_rate else {
             return rule_sample_rate;
         };
 
@@ -167,18 +169,19 @@ pub struct SamplingMatch {
     /// Whether this sampling match results in the item getting sampled.
     /// It's essentially a cache, as the value can be deterministically derived from
     /// the sample rate and the seed.
-    is_kept: bool,
+    should_keep: bool,
 }
 
 impl SamplingMatch {
     fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
-        let is_kept = sampling_match(sample_rate, seed);
+        let should_keep = sampling_match(sample_rate, seed);
+
         Self {
             sample_rate,
             seed,
             matched_rules,
-            is_kept,
+            should_keep,
         }
     }
 
@@ -197,7 +200,7 @@ impl SamplingMatch {
 
     /// Returns true if event should be kept.
     pub fn should_keep(&self) -> bool {
-        self.is_kept
+        self.should_keep
     }
 
     /// Returns true if event should be dropped.
@@ -246,17 +249,11 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{TimeZone, Utc};
-    use relay_base_schema::events::EventType;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
 
-    use relay_event_schema::protocol::{Event, EventId, LenientString};
-    use relay_protocol::Annotated;
-
     use crate::condition::RuleCondition;
-    use crate::config::{
-        DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue, TimeRange,
-    };
+    use crate::config::{RuleId, RuleType, SamplingRule, SamplingValue, TimeRange};
     use crate::dsc::TraceUserContext;
     use crate::evaluation::MatchedRuleIds;
     use crate::tests::{and, eq, glob};
@@ -264,18 +261,19 @@ mod tests {
 
     use super::*;
 
-    // Helper to extract the sampling match after evaluating rules.
+    /// Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> Option<SamplingMatch> {
         let res =
             SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), instance, rules.iter());
 
-        let MatchResult::SamplingMatch(sampling_match) = res else {
+        let RuleMatchingState::SamplingMatch(sampling_match) = res else {
             return None;
         };
 
         Some(sampling_match)
     }
 
+    /// Helper to check if certain rules are matched on.
     fn matches_rule_ids(rule_ids: &[u32], rules: &[SamplingRule], instance: &impl Getter) -> bool {
         let matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(*num)).collect());
         let sampling_match = get_sampling_match(rules, instance).unwrap();
@@ -320,57 +318,14 @@ mod tests {
         let eval = SamplingEvaluator::new(Utc::now());
         assert_eq!(eval.adjusted_sample_rate(0.2), 0.2);
 
-        let eval = eval.adjust_rate(Some(0.5));
+        let eval = eval.adjust_client_sample_rate(Some(0.5));
         assert_eq!(eval.adjusted_sample_rate(0.2), 0.4);
 
-        let eval = eval.adjust_rate(Some(0.005));
+        let eval = eval.adjust_client_sample_rate(Some(0.005));
         assert_eq!(eval.adjusted_sample_rate(0.2), 1.0);
 
-        let eval = eval.adjust_rate(Some(0.005));
+        let eval = eval.adjust_client_sample_rate(Some(0.005));
         assert_eq!(eval.adjusted_sample_rate(-0.2), 0.0);
-    }
-
-    #[test]
-    fn test_decaying_rule() {
-        let rule = SamplingRule {
-            condition: and(vec![]),
-            sampling_value: SamplingValue::SampleRate { value: 1.0 },
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange {
-                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
-                end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
-            },
-            decaying_fn: DecayingFunction::Linear { decayed_value: 0.5 },
-        };
-
-        let start = Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap();
-        let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        let end = Utc.with_ymd_and_hms(1970, 10, 11, 23, 59, 59).unwrap();
-        let out_of_range = Utc.with_ymd_and_hms(1971, 10, 11, 23, 59, 59).unwrap();
-
-        // At the start of the time range, sample rate is equal to the rule's initial sampling value.
-        assert_eq!(
-            rule.sample_rate(start).unwrap(),
-            SamplingValue::SampleRate { value: 1.0 }
-        );
-
-        // Halfway in the time range, the value is exactly between 1.0 and 0.5.
-        assert_eq!(
-            rule.sample_rate(halfway).unwrap(),
-            SamplingValue::SampleRate { value: 0.75 }
-        );
-
-        // Approaches 0.5 at the end.
-        assert_eq!(
-            rule.sample_rate(end).unwrap(),
-            SamplingValue::SampleRate {
-                value: 0.5000028935185186
-            }
-        );
-
-        // None value outside of the time range.
-        assert!(rule.sample_rate(out_of_range).is_none());
     }
 
     #[test]
@@ -383,10 +338,10 @@ mod tests {
         let dsc = mocked_dynamic_sampling_context(vec![]);
 
         let res = SamplingEvaluator::new(Utc::now())
-            .adjust_rate(Some(0.2))
+            .adjust_client_sample_rate(Some(0.2))
             .match_rules(Uuid::default(), &dsc, rules.iter());
 
-        let MatchResult::SamplingMatch(sampling_match) = res else {
+        let RuleMatchingState::SamplingMatch(sampling_match) = res else {
             panic!();
         };
 
@@ -519,22 +474,6 @@ mod tests {
         assert!(matches_rule_ids(&[4, 5], &rules, &dsc));
     }
 
-    fn mocked_event(
-        event_type: EventType,
-        transaction: &str,
-        release: &str,
-        environment: &str,
-    ) -> Event {
-        Event {
-            id: Annotated::new(EventId::new()),
-            ty: Annotated::new(event_type),
-            transaction: Annotated::new(transaction.to_string()),
-            release: Annotated::new(LenientString(release.to_string())),
-            environment: Annotated::new(environment.to_string()),
-            ..Event::default()
-        }
-    }
-
     #[test]
     /// Test that the we get the same sampling decision from the same trace id
     fn test_repeatable_seed() {
@@ -583,10 +522,9 @@ mod tests {
     #[test]
     /// Tests that no match is done when there are no matching rules.
     fn test_get_sampling_match_result_with_no_match() {
-        let event = mocked_event(EventType::Transaction, "transaction", "2.0", "");
+        let dsc = mocked_dynamic_sampling_context(vec![]);
 
-        let res =
-            SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &event, [].iter());
+        let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
 
         assert!(res.is_no_match());
     }
