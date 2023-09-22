@@ -96,14 +96,11 @@ impl NormalizeVisitor {
         let mut collapse = vec![];
 
         // Iterate over selected item.
-        for mut item in std::mem::take(&mut select.projection) {
+        for item in std::mem::take(&mut select.projection) {
             // Normalize aliases.
             let item = match item {
                 // Remove alias.
-                SelectItem::ExprWithAlias { ref mut alias, .. } => {
-                    alias.quote_style = None;
-                    item
-                }
+                SelectItem::ExprWithAlias { expr, .. } => SelectItem::UnnamedExpr(expr),
                 // Strip prefix, e.g. `"mytable".*`.
                 SelectItem::QualifiedWildcard(_, options) => SelectItem::Wildcard(options),
                 _ => item,
