@@ -37,7 +37,8 @@ impl SamplingConfig {
         !self.rules_v2.iter().all(SamplingRule::supported)
     }
 
-    pub fn iter_rules(&self, rule_type: RuleType) -> impl Iterator<Item = &SamplingRule> {
+    /// Filters the sampling rules by the given [`RuleType`].
+    pub fn filter_rules(&self, rule_type: RuleType) -> impl Iterator<Item = &SamplingRule> {
         self.rules_v2
             .iter()
             .filter(move |rule| rule.ty == rule_type)

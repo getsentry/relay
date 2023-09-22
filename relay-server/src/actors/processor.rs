@@ -2378,7 +2378,7 @@ impl EnvelopeProcessorService {
 
         if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
             if let Some(seed) = event.id.value().map(|id| id.0) {
-                let rules = sampling_state.iter_rules(RuleType::Transaction);
+                let rules = sampling_state.filter_rules(RuleType::Transaction);
                 evaluator = match evaluator.match_rules(seed, event, rules) {
                     MatchResult::Evaluator(evaluator) => evaluator,
                     MatchResult::SamplingMatch(sampling_match) => {
@@ -2389,7 +2389,7 @@ impl EnvelopeProcessorService {
         }
 
         if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
-            let rules = sampling_state.iter_rules(RuleType::Trace);
+            let rules = sampling_state.filter_rules(RuleType::Trace);
             return evaluator.match_rules(dsc.trace_id, dsc, rules).into();
         }
 

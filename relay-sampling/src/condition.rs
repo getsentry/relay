@@ -282,6 +282,15 @@ impl RuleCondition {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use relay_base_schema::project::ProjectKey;
+    use uuid::Uuid;
+
+    use crate::dsc::TraceUserContext;
+    use crate::tests::{and, eq, glob, not, or};
+    use crate::DynamicSamplingContext;
+
     use super::*;
 
     #[test]
@@ -410,5 +419,334 @@ mod tests {
 
         let rule: RuleCondition = serde_json::from_str(bad_json).unwrap();
         assert!(matches!(rule, RuleCondition::Unsupported));
+    }
+
+    #[test]
+    /// test matching for various rules
+    fn test_matches() {
+        let conditions = [
+            (
+                "simple",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                    eq("trace.transaction", &["transaction1"], true),
+                ]),
+            ),
+            (
+                "glob releases",
+                and(vec![
+                    glob("trace.release", &["1.*"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "glob transaction",
+                and(vec![glob("trace.transaction", &["trans*"])]),
+            ),
+            (
+                "multiple releases",
+                and(vec![
+                    glob("trace.release", &["2.1.1", "1.1.*"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "multiple user segments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["paid", "vip", "free"], true),
+                ]),
+            ),
+            (
+                "multiple transactions",
+                and(vec![glob("trace.transaction", &["t22", "trans*", "t33"])]),
+            ),
+            (
+                "case insensitive user segments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["ViP", "FrEe"], true),
+                ]),
+            ),
+            (
+                "multiple user environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq(
+                        "trace.environment",
+                        &["integration", "debug", "production"],
+                        true,
+                    ),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "case insensitive environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["DeBuG", "PrOd"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "all environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "undefined environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            ("match no conditions", and(vec![])),
+        ];
+
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".into()),
+            user: TraceUserContext {
+                user_segment: "vip".into(),
+                user_id: "user-id".into(),
+            },
+            replay_id: Some(Uuid::new_v4()),
+            environment: Some("debug".into()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: None,
+            other: BTreeMap::new(),
+        };
+
+        for (rule_test_name, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc), "{failure_name}");
+        }
+    }
+
+    #[test]
+    fn test_or_combinator() {
+        let conditions = [
+            (
+                "both",
+                true,
+                or(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "first",
+                true,
+                or(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            (
+                "second",
+                true,
+                or(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "none",
+                false,
+                or(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            ("empty", false, or(vec![])),
+        ];
+
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            replay_id: Some(Uuid::new_v4()),
+            environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: None,
+            other: BTreeMap::new(),
+        };
+
+        for (rule_test_name, expected, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+        }
+    }
+
+    #[test]
+    fn test_and_combinator() {
+        let conditions = [
+            (
+                "both",
+                true,
+                and(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "first",
+                false,
+                and(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            (
+                "second",
+                false,
+                and(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "none",
+                false,
+                and(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            ("empty", true, and(vec![])),
+        ];
+
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            replay_id: Some(Uuid::new_v4()),
+            environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: None,
+            other: BTreeMap::new(),
+        };
+
+        for (rule_test_name, expected, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+        }
+    }
+
+    #[test]
+    fn test_not_combinator() {
+        let conditions = [
+            (
+                "not true",
+                false,
+                not(eq("trace.environment", &["debug"], true)),
+            ),
+            (
+                "not false",
+                true,
+                not(eq("trace.environment", &["prod"], true)),
+            ),
+        ];
+
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            replay_id: Some(Uuid::new_v4()),
+            environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: None,
+            other: BTreeMap::new(),
+        };
+
+        for (rule_test_name, expected, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+        }
+    }
+
+    #[test]
+    /// test various rules that do not match
+    fn test_does_not_match() {
+        let conditions = [
+            (
+                "release",
+                and(vec![
+                    glob("trace.release", &["1.1.2"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user", &["vip"], true),
+                ]),
+            ),
+            (
+                "user segment",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user", &["all"], true),
+                ]),
+            ),
+            (
+                "environment",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user", &["vip"], true),
+                ]),
+            ),
+            (
+                "transaction",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    glob("trace.transaction", &["t22"]),
+                    eq("trace.user", &["vip"], true),
+                ]),
+            ),
+        ];
+
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            replay_id: Some(Uuid::new_v4()),
+            environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: None,
+            other: BTreeMap::new(),
+        };
+
+        for (rule_test_name, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(!condition.matches(&dsc), "{failure_name}");
+        }
     }
 }

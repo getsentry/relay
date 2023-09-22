@@ -49,6 +49,11 @@ impl SamplingResult {
         matches!(self, &Self::Pending)
     }
 
+    /// Returns true if the event should be dropped.
+    pub fn should_drop(&self) -> bool {
+        !self.should_keep()
+    }
+
     /// Returns true if the event should be kept.
     pub fn should_keep(&self) -> bool {
         match self {
@@ -57,11 +62,6 @@ impl SamplingResult {
             SamplingResult::NoMatch => true,
             SamplingResult::Pending => true,
         }
-    }
-
-    /// Returns true if the event should be dropped.
-    pub fn should_drop(&self) -> bool {
-        !self.should_keep()
     }
 }
 
@@ -99,7 +99,7 @@ pub fn is_trace_fully_sampled(
     // TODO(tor): pass correct now timestamp
     let evaluator = SamplingEvaluator::new(Utc::now()).adjust_rate(adjustment_rate);
 
-    let rules = config.iter_rules(RuleType::Trace);
+    let rules = config.filter_rules(RuleType::Trace);
 
     let sampling_result: SamplingResult = evaluator.match_rules(dsc.trace_id, dsc, rules).into();
     Some(sampling_result.should_keep())
