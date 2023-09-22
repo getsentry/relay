@@ -778,7 +778,12 @@ def test_events_buffered_before_auth(relay, mini_sentry):
 
 def test_events_are_retried(relay, mini_sentry):
     # keep max backoff as short as the configuration allows (1 sec)
-    relay_options = {"http": {"max_retry_interval": 1}}
+    relay_options = {
+        "http": {
+            "max_retry_interval": 1,
+            "unavailable_upstream_retry_period": 0,
+        }
+    }
     relay = relay(mini_sentry, relay_options)
 
     project_id = 42
@@ -834,6 +839,7 @@ def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
             "max_retry_interval": 1,
             "auth_interval": 1000,
             "outage_grace_period": 1,
+            "unavailable_upstream_retry_period": 0,
         }
     }
     relay = relay(mini_sentry, relay_options)
