@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
-use uuid::Uuid;
-
 use crate::annotated::{Annotated, MetaMap, MetaTree};
 use crate::value::{Val, Value};
 

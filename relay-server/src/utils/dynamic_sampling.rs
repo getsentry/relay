@@ -21,35 +21,20 @@ pub enum SamplingResult {
 }
 
 impl SamplingResult {
-    /// Returns the sample rate.
-    pub fn sample_rate(&self) -> Option<f64> {
-        if let Self::Match(sampling_match) = self {
-            return Some(sampling_match.sample_rate());
-        }
-        None
-    }
-
     /// Returns true if the event matched on any rules.
+    #[cfg(test)]
     pub fn is_no_match(&self) -> bool {
         matches!(self, &Self::NoMatch)
     }
 
     /// Returns true if the event did not match on any rules.
+    #[cfg(test)]
     pub fn is_match(&self) -> bool {
         matches!(self, &Self::Match(_))
     }
 
-    /// Returns true if dynamic sampling has been on run on event.
-    pub fn is_not_pending(&self) -> bool {
-        !self.is_pending()
-    }
-
-    /// Returns true if dynamic sampling has not been on run on event.
-    pub fn is_pending(&self) -> bool {
-        matches!(self, &Self::Pending)
-    }
-
     /// Returns true if the event should be dropped.
+    #[cfg(test)]
     pub fn should_drop(&self) -> bool {
         !self.should_keep()
     }
@@ -233,24 +218,6 @@ mod tests {
 
         assert!(result.is_no_match());
         assert!(result.should_keep());
-    }
-
-    #[test]
-    /// Tests that an event is kept when there are unsupported rules with no processing and vice versa.
-    fn test_match_rules_return_no_match_with_unsupported_rule() {
-        let rules = vec![
-            mocked_sampling_rule(1, RuleType::Unsupported, 0.0),
-            mocked_sampling_rule(2, RuleType::Transaction, 0.0),
-        ];
-
-        let event = mocked_event(EventType::Transaction, "transaction", "2.0");
-        let seed = Uuid::default();
-
-        // let result = match_rules(true, Some(&config), None, Some(&event), None, Utc::now());
-        // assert!(result.is_match());
-
-        // let result = match_rules(false, Some(&config), None, Some(&event), None, Utc::now());
-        // assert!(result.is_no_match());
     }
 
     #[test]
