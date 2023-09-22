@@ -876,7 +876,7 @@ struct UpstreamQueue {
     high: VecDeque<Entry>,
     /// Low priority queue.
     low: VecDeque<Entry>,
-    /// Low priority retry queue.
+    /// High priority retry queue.
     retry_high: VecDeque<Entry>,
     /// Low priority retry queue.
     retry_low: VecDeque<Entry>,
