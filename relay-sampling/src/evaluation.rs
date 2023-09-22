@@ -331,8 +331,11 @@ mod tests {
     #[test]
     fn test_client_sample_rate() {
         let rules = simple_sampling_rules(vec![
-            (and(vec![]), SamplingValue::Factor { value: 0.5 }),
-            (and(vec![]), SamplingValue::SampleRate { value: 0.25 }),
+            (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: 0.25 },
+            ),
         ]);
 
         let dsc = mocked_dynamic_sampling_context(vec![]);
@@ -351,8 +354,11 @@ mod tests {
     #[test]
     fn test_factors() {
         let rules = simple_sampling_rules(vec![
-            (and(vec![]), SamplingValue::Factor { value: 0.5 }),
-            (and(vec![]), SamplingValue::SampleRate { value: 0.25 }),
+            (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: 0.25 },
+            ),
         ]);
         let dsc = mocked_dynamic_sampling_context(vec![]);
 
@@ -382,7 +388,7 @@ mod tests {
     #[test]
     fn test_expired_rules() {
         let rule = SamplingRule {
-            condition: and(vec![]),
+            condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
             ty: RuleType::Trace,
             id: RuleId(0),
@@ -435,7 +441,10 @@ mod tests {
                 ]),
                 SamplingValue::Factor { value: 1.5 },
             ),
-            (and(vec![]), SamplingValue::SampleRate { value: 0.02 }),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: 0.02 },
+            ),
         ]);
 
         // early return of first rule

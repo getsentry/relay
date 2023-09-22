@@ -278,7 +278,6 @@ mod tests {
     use chrono::TimeZone;
 
     use crate::condition::AndCondition;
-    use crate::tests::and;
 
     use super::*;
 
@@ -500,7 +499,7 @@ mod tests {
     #[test]
     fn test_decaying_rule() {
         let rule = SamplingRule {
-            condition: and(vec![]),
+            condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
             ty: RuleType::Trace,
             id: RuleId(0),

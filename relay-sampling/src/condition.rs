@@ -293,6 +293,24 @@ mod tests {
 
     use super::*;
 
+    fn dsc_dummy() -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            replay_id: Some(Uuid::new_v4()),
+            environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: None,
+            other: BTreeMap::new(),
+        }
+    }
+
     #[test]
     fn deserialize() {
         let serialized_rules = r#"[
@@ -508,24 +526,10 @@ mod tests {
                     eq("trace.user.segment", &["vip"], true),
                 ]),
             ),
-            ("match no conditions", and(vec![])),
+            ("match no conditions", RuleCondition::all()),
         ];
 
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".into()),
-            user: TraceUserContext {
-                user_segment: "vip".into(),
-                user_id: "user-id".into(),
-            },
-            replay_id: Some(Uuid::new_v4()),
-            environment: Some("debug".into()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: None,
-            other: BTreeMap::new(),
-        };
+        let dsc = dsc_dummy();
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -571,21 +575,7 @@ mod tests {
             ("empty", false, or(vec![])),
         ];
 
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            replay_id: Some(Uuid::new_v4()),
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: None,
-            other: BTreeMap::new(),
-        };
+        let dsc = dsc_dummy();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -628,24 +618,10 @@ mod tests {
                     eq("trace.user.segment", &["all"], true),
                 ]),
             ),
-            ("empty", true, and(vec![])),
+            ("empty", true, RuleCondition::all()),
         ];
 
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            replay_id: Some(Uuid::new_v4()),
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: None,
-            other: BTreeMap::new(),
-        };
+        let dsc = dsc_dummy();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -668,21 +644,7 @@ mod tests {
             ),
         ];
 
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            replay_id: Some(Uuid::new_v4()),
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: None,
-            other: BTreeMap::new(),
-        };
+        let dsc = dsc_dummy();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -728,21 +690,7 @@ mod tests {
             ),
         ];
 
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            replay_id: Some(Uuid::new_v4()),
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: None,
-            other: BTreeMap::new(),
-        };
+        let dsc = dsc_dummy();
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
