@@ -2382,7 +2382,7 @@ impl EnvelopeProcessorService {
                 evaluator = match evaluator.match_rules(seed, event, rules) {
                     MatchResult::Evaluator(evaluator) => evaluator,
                     MatchResult::SamplingMatch(sampling_match) => {
-                        return SamplingResult::Match(sampling_match);
+                        return dbg!(SamplingResult::Match(sampling_match));
                     }
                 }
             };
@@ -2918,10 +2918,11 @@ mod tests {
     use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_sampling::condition::RuleCondition;
+    use relay_sampling::condition::{AndCondition, RuleCondition};
     use relay_sampling::config::{
-        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue, TimeRange,
     };
+    use relay_sampling::evaluation::SamplingMatch;
     use relay_test::mock_service;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
@@ -2932,6 +2933,7 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
+    use crate::tests::mocked_event;
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
 
@@ -4067,5 +4069,142 @@ mod tests {
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         );
+    }
+
+    fn get_match(sampling_result: SamplingResult) -> SamplingMatch {
+        if let SamplingResult::Match(sampling_match) = sampling_result {
+            sampling_match
+        } else {
+            panic!()
+        }
+    }
+
+    #[test]
+    fn test_matched() {
+        let event = mocked_event(EventType::Transaction, "foo", "bar");
+        let rule = SamplingRule {
+            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Transaction,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule],
+            mode: SamplingMode::Received,
+        };
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_match());
+    }
+
+    #[test]
+    fn test_matching_with_unsupported_rule() {
+        let event = mocked_event(EventType::Transaction, "foo", "bar");
+        let rule = SamplingRule {
+            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Transaction,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let unsupported_rule = SamplingRule {
+            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Unsupported,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule, unsupported_rule],
+            mode: SamplingMode::Received,
+        };
+
+        // Unsupported rule should result in no match if processing is not enabled.
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_no_match());
+
+        // Match if processing is enabled.
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            true,
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_match());
+    }
+
+    #[test]
+    fn test_client_sample_rate() {
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        let rule = SamplingRule {
+            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            sampling_value: SamplingValue::SampleRate { value: 0.2 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let mut sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule],
+            mode: SamplingMode::Received,
+        };
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            None,
+            None,
+            Some(&sampling_config),
+            Some(&dsc),
+        );
+
+        assert_eq!(get_match(res).sample_rate(), 0.2);
+
+        sampling_config.mode = SamplingMode::Total;
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            None,
+            None,
+            Some(&sampling_config),
+            Some(&dsc),
+        );
+
+        assert_eq!(get_match(res).sample_rate(), 0.4);
     }
 }

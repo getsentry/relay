@@ -268,17 +268,6 @@ where
 mod tests {
     use super::*;
 
-    /*
-    #[test]
-    fn test_adjust_sample_rate() {
-        assert_eq!(adjusted_sample_rate(0.0, 0.5), 0.5);
-        assert_eq!(adjusted_sample_rate(1.0, 0.5), 0.5);
-        assert_eq!(adjusted_sample_rate(0.1, 0.5), 1.0);
-        assert_eq!(adjusted_sample_rate(0.5, 0.1), 0.2);
-        assert_eq!(adjusted_sample_rate(-0.5, 0.5), 0.5);
-    }
-    */
-
     #[test]
     fn parse_full() {
         let json = include_str!("../tests/fixtures/dynamic_sampling_context.json");

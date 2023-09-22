@@ -126,7 +126,7 @@ mod tests {
         })
     }
 
-    fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
+    pub fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(event_type),

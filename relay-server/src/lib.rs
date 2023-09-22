@@ -310,3 +310,20 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     relay_log::info!("relay shutdown complete");
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use relay_base_schema::events::EventType;
+    use relay_event_schema::protocol::{Event, EventId, LenientString};
+    use relay_protocol::Annotated;
+
+    pub fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
+        Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(event_type),
+            transaction: Annotated::new(transaction.to_string()),
+            release: Annotated::new(LenientString(release.to_string())),
+            ..Event::default()
+        }
+    }
+}

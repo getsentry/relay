@@ -84,9 +84,7 @@ pub use dsc::DynamicSamplingContext;
 
 #[cfg(test)]
 mod tests {
-
     use relay_common::glob3::GlobPatterns;
-    use serde_json::Value;
 
     use crate::condition::{
         AndCondition, EqCondOptions, EqCondition, GlobCondition, NotCondition, OrCondition,
@@ -98,14 +96,6 @@ mod tests {
             name: name.to_owned(),
             value: value.iter().map(|s| s.to_string()).collect(),
             options: EqCondOptions { ignore_case },
-        })
-    }
-
-    pub fn _eq_null(name: &str) -> RuleCondition {
-        RuleCondition::Eq(EqCondition {
-            name: name.to_owned(),
-            value: Value::Null,
-            options: EqCondOptions { ignore_case: true },
         })
     }
 
