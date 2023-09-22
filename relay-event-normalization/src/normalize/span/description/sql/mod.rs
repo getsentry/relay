@@ -281,6 +281,12 @@ mod tests {
     );
 
     scrub_sql_test!(
+        declare_cursor_advanced,
+        r#"DECLARE c123456 NO SCROLL CURSOR FOR SELECT "t".* FROM "t" WHERE "t".x = 1 AND y = %s"#,
+        "DECLARE %s NO SCROLL CURSOR FOR SELECT * FROM t WHERE x = %s AND y = %s"
+    );
+
+    scrub_sql_test!(
         fetch_cursor,
         "FETCH LAST FROM curs3 INTO x",
         "FETCH LAST IN %s INTO %s"
