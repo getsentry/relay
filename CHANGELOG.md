@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
+
+**Internal**:
+
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522), [#2525](https://github.com/getsentry/relay/pull/2525))
+- Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
+
+## 23.9.1
+
+- No documented changes.
+
+## 23.9.0
+
 **Features**:
 
 - Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
@@ -29,8 +44,8 @@
 - Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
 - Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
 - Add a timestamp field to report profile's start time on Android. ([#2486](https://github.com/getsentry/relay/pull/2486))
-- Filter span metrics extraction based on features. ([#2511](https://github.com/getsentry/relay/pull/2511))
-- Extract new low-cardinality transaction duration metric. ([#2513](https://github.com/getsentry/relay/pull/2513))
+- Filter span metrics extraction based on features. ([#2511](https://github.com/getsentry/relay/pull/2511), [#2520](https://github.com/getsentry/relay/pull/2520))
+- Extract shared tags on the segment. ([#2512](https://github.com/getsentry/relay/pull/2512))
 
 ## 23.8.0
 
