@@ -275,6 +275,20 @@ mod tests {
     );
 
     scrub_sql_test!(
+        declare_cursor,
+        "DECLARE curs2 CURSOR FOR SELECT * FROM t1",
+        "DECLARE %s CURSOR FOR SELECT * FROM t1"
+    );
+
+    scrub_sql_test!(
+        fetch_cursor,
+        "FETCH LAST FROM curs3 INTO x",
+        "FETCH LAST IN %s INTO %s"
+    );
+
+    scrub_sql_test!(close_cursor, "CLOSE curs1", "CLOSE %s");
+
+    scrub_sql_test!(
         savepoint_quoted_backtick,
         "SAVEPOINT `backtick_quoted_identifier`",
         "SAVEPOINT %s"

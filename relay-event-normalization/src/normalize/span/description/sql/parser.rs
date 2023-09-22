@@ -3,8 +3,8 @@ use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use sqlparser::ast::{
-    Assignment, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
-    TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
+    Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
+    TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -151,6 +151,11 @@ impl NormalizeVisitor {
             *parts = vec![last];
         }
     }
+
+    fn scrub_name(name: &mut Ident) {
+        name.quote_style = None;
+        name.value = "%s".into()
+    }
 }
 
 impl VisitorMut for NormalizeVisitor {
@@ -245,10 +250,23 @@ impl VisitorMut for NormalizeVisitor {
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            Statement::Savepoint { name } => {
-                name.quote_style = None;
-                name.value = "%s".into()
+            Statement::Savepoint { name } => Self::scrub_name(name),
+            Statement::Declare { name, query, .. } => {
+                Self::scrub_name(name);
+                Self::transform_query(query);
             }
+            Statement::Fetch { name, into, .. } => {
+                Self::scrub_name(name);
+                if let Some(into) = into {
+                    into.0 = vec![Ident {
+                        value: "%s".into(),
+                        quote_style: None,
+                    }];
+                }
+            }
+            Statement::Close {
+                cursor: CloseCursor::Specific { name },
+            } => Self::scrub_name(name),
             _ => {}
         }
         ControlFlow::Continue(())
