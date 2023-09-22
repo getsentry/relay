@@ -13,6 +13,16 @@ use uuid::Uuid;
 
 use crate::config::{RuleId, SamplingRule, SamplingValue};
 
+/// Generates a pseudo random number by seeding the generator with the given id.
+///
+/// The return is deterministic, always generates the same number from the same id.
+fn pseudo_random_from_uuid(id: Uuid) -> f64 {
+    let big_seed = id.as_u128();
+    let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
+    let dist = Uniform::new(0f64, 1f64);
+    generator.sample(dist)
+}
+
 /// State of sampling.
 #[derive(Debug)]
 pub enum MatchResult {
@@ -122,16 +132,6 @@ impl SamplingEvaluator {
             }
         }
     }
-}
-
-/// Generates a pseudo random number by seeding the generator with the given id.
-///
-/// The return is deterministic, always generates the same number from the same id.
-fn pseudo_random_from_uuid(id: Uuid) -> f64 {
-    let big_seed = id.as_u128();
-    let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
-    let dist = Uniform::new(0f64, 1f64);
-    generator.sample(dist)
 }
 
 fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
@@ -264,6 +264,7 @@ mod tests {
 
     use super::*;
 
+    // Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> Option<SamplingMatch> {
         let res =
             SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), instance, rules.iter());
@@ -278,7 +279,7 @@ mod tests {
     fn matches_rule_ids(rule_ids: &[u32], rules: &[SamplingRule], instance: &impl Getter) -> bool {
         let matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(*num)).collect());
         let sampling_match = get_sampling_match(rules, instance).unwrap();
-        matched_rule_ids == dbg!(sampling_match.matched_rules)
+        matched_rule_ids == sampling_match.matched_rules
     }
 
     fn mocked_dynamic_sampling_context(vals: Vec<(&str, &str)>) -> DynamicSamplingContext {
@@ -314,6 +315,22 @@ mod tests {
     }
 
     #[test]
+    fn test_adjust_sample_rate() {
+        // return the same as input if no client sample rate set in the sampling evaluator.
+        let eval = SamplingEvaluator::new(Utc::now());
+        assert_eq!(eval.adjusted_sample_rate(0.2), 0.2);
+
+        let eval = eval.adjust_rate(Some(0.5));
+        assert_eq!(eval.adjusted_sample_rate(0.2), 0.4);
+
+        let eval = eval.adjust_rate(Some(0.005));
+        assert_eq!(eval.adjusted_sample_rate(0.2), 1.0);
+
+        let eval = eval.adjust_rate(Some(0.005));
+        assert_eq!(eval.adjusted_sample_rate(-0.2), 0.0);
+    }
+
+    #[test]
     fn test_decaying_rule() {
         let rule = SamplingRule {
             condition: and(vec![]),
@@ -332,16 +349,19 @@ mod tests {
         let end = Utc.with_ymd_and_hms(1970, 10, 11, 23, 59, 59).unwrap();
         let out_of_range = Utc.with_ymd_and_hms(1971, 10, 11, 23, 59, 59).unwrap();
 
+        // At the start of the time range, sample rate is equal to the rule's initial sampling value.
         assert_eq!(
             rule.sample_rate(start).unwrap(),
             SamplingValue::SampleRate { value: 1.0 }
         );
 
+        // Halfway in the time range, the value is exactly between 1.0 and 0.5.
         assert_eq!(
             rule.sample_rate(halfway).unwrap(),
             SamplingValue::SampleRate { value: 0.75 }
         );
 
+        // Approaches 0.5 at the end.
         assert_eq!(
             rule.sample_rate(end).unwrap(),
             SamplingValue::SampleRate {
@@ -349,6 +369,7 @@ mod tests {
             }
         );
 
+        // None value outside of the time range.
         assert!(rule.sample_rate(out_of_range).is_none());
     }
 

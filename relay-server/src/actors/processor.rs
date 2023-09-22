@@ -3162,8 +3162,6 @@ mod tests {
         assert!(state.sampling_result.should_drop());
     }
 
-    /*
-
     #[tokio::test]
     async fn test_it_keeps_or_drops_transactions() {
         relay_test::setup();
@@ -3191,7 +3189,7 @@ mod tests {
                 RuleCondition::all(),
             );
 
-            let mut state = ProcessEnvelopeState {
+            let state = ProcessEnvelopeState {
                 event: Annotated::from(event.clone()),
                 event_metrics_extracted: false,
                 metrics: Default::default(),
@@ -3213,11 +3211,19 @@ mod tests {
             // TODO: This does not test if the sampling decision is actually applied. This should be
             // refactored to send a proper Envelope in and call process_state to cover the full
             // pipeline.
-            service.compute_sampling_decision(&mut state);
+            EnvelopeProcessorService::compute_sampling_decision(
+                service.inner.config.processing_enabled(),
+                state.project_state.config.dynamic_sampling.as_ref(),
+                state.event.value(),
+                state
+                    .sampling_project_state
+                    .as_ref()
+                    .and_then(|state| state.config.dynamic_sampling.as_ref()),
+                state.envelope().dsc(),
+            );
             assert_eq!(state.sampling_result.should_keep(), should_keep);
         }
     }
-     */
 
     #[test]
     fn test_breadcrumbs_file1() {

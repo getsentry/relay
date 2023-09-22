@@ -24,7 +24,7 @@
 //! - [`DynamicSamplingContext`]: a container for information associated with the trace.
 //! - [`SamplingRule`](crate::config::SamplingRule): a rule that is matched against incoming data.
 //!   It specifies a condition that acts as predicate on the incoming payload.
-//! - [`SamplingResult`](crate::evaluation::SamplingResult): the result of the matching of one or more
+//! - [`SamplingMatch`](crate::evaluation::SamplingMatch): the result of the matching of one or more
 //!   rules.
 //!
 //! # How It Works
