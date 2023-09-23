@@ -321,9 +321,11 @@ mod tests {
         let eval = eval.adjust_client_sample_rate(Some(0.5));
         assert_eq!(eval.adjusted_sample_rate(0.2), 0.4);
 
+        // tests that it doesn't exceed 1.0.
         let eval = eval.adjust_client_sample_rate(Some(0.005));
         assert_eq!(eval.adjusted_sample_rate(0.2), 1.0);
 
+        // tests that it doesn't go below 0.0.
         let eval = eval.adjust_client_sample_rate(Some(0.005));
         assert_eq!(eval.adjusted_sample_rate(-0.2), 0.0);
     }
@@ -352,8 +354,9 @@ mod tests {
     }
 
     #[test]
-    fn test_factors() {
+    fn test_sample_rate_compounding() {
         let rules = simple_sampling_rules(vec![
+            (RuleCondition::all(), SamplingValue::Factor { value: 0.8 }),
             (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
             (
                 RuleCondition::all(),
@@ -362,9 +365,12 @@ mod tests {
         ]);
         let dsc = mocked_dynamic_sampling_context(vec![]);
 
-        assert_eq!(get_sampling_match(&rules, &dsc).sample_rate(), 0.125);
+        // 0.8 * 0.5 * 0.25 == 0.1
+        assert_eq!(get_sampling_match(&rules, &dsc).sample_rate(), 0.1);
     }
 
+    /// Helper function to quickly construct many rules with their condition and value, and a unique id,
+    /// so the caller can easily check which rules are matching.
     fn simple_sampling_rules(vals: Vec<(RuleCondition, SamplingValue)>) -> Vec<SamplingRule> {
         let mut vec = vec![];
 
@@ -382,6 +388,7 @@ mod tests {
         vec
     }
 
+    /// Checks that rules don't match if the time is outside the time range.
     #[test]
     fn test_expired_rules() {
         let rule = SamplingRule {
@@ -398,23 +405,30 @@ mod tests {
 
         let dsc = mocked_dynamic_sampling_context(vec![]);
 
-        let within_range = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(within_range)
+        // Baseline test.
+        let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
+        assert!(SamplingEvaluator::new(within_timerange)
             .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
             .is_match());
 
-        let outside_range = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(outside_range)
+        let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
+        assert!(SamplingEvaluator::new(before_timerange)
+            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
+            .is_no_match());
+
+        let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
+        assert!(SamplingEvaluator::new(after_timerange)
             .match_rules(Uuid::default(), &dsc, [rule].iter())
             .is_no_match());
     }
 
+    /// Checks that `SamplingValueEvaluator` correctly matches the right rules.
     #[test]
     fn condition_matching() {
         let rules = simple_sampling_rules(vec![
             (
                 and(vec![glob("trace.transaction", &["*healthcheck*"])]),
-                SamplingValue::SampleRate { value: 0.1 },
+                SamplingValue::SampleRate { value: 1.0 },
             ),
             (
                 and(vec![glob("trace.environment", &["*dev*"])]),
@@ -422,25 +436,25 @@ mod tests {
             ),
             (
                 and(vec![eq("trace.transaction", &["raboof"], true)]),
-                SamplingValue::Factor { value: 2.0 },
+                SamplingValue::Factor { value: 1.0 },
             ),
             (
                 and(vec![
                     glob("trace.release", &["1.1.1"]),
                     eq("trace.user.segment", &["vip"], true),
                 ]),
-                SamplingValue::SampleRate { value: 0.5 },
+                SamplingValue::SampleRate { value: 1.0 },
             ),
             (
                 and(vec![
                     eq("trace.release", &["1.1.1"], true),
                     eq("trace.environment", &["prod"], true),
                 ]),
-                SamplingValue::Factor { value: 1.5 },
+                SamplingValue::Factor { value: 1.0 },
             ),
             (
                 RuleCondition::all(),
-                SamplingValue::SampleRate { value: 0.02 },
+                SamplingValue::SampleRate { value: 1.0 },
             ),
         ]);
 
