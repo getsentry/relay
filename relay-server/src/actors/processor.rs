@@ -55,8 +55,8 @@ use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_event_normalization::{StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::ProfileContext,
+    relay_event_normalization::{span, StoreConfig, StoreProcessor},
+    relay_event_schema::protocol::{ProfileContext, Span},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -1128,29 +1128,16 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let mut found_profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
                     Ok((profile_id, payload)) => {
                         if payload.len() <= self.inner.config.max_profile_size() {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(ProfileContext {
-                                        profile_id: Annotated::new(profile_id),
-                                    });
-                                }
-                            }
+                            found_profile_id = Some(profile_id);
                             item.set_payload(ContentType::Json, payload);
                             ItemAction::Keep
                         } else {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    if let Some(ref mut contexts) = event.contexts.value_mut() {
-                                        contexts.remove::<ProfileContext>();
-                                    }
-                                }
-                            }
                             ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
                                     relay_profiling::ProfileError::ExceedSizeLimit,
@@ -1159,13 +1146,6 @@ impl EnvelopeProcessorService {
                         }
                     }
                     Err(err) => {
-                        if let Some(event) = state.event.value_mut() {
-                            if event.ty.value() == Some(&EventType::Transaction) {
-                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove::<ProfileContext>();
-                            }
-                        }
-
                         match err {
                             relay_profiling::ProfileError::InvalidJson(_) => {
                                 relay_log::warn!(error = &err as &dyn Error, "invalid profile");
@@ -1180,6 +1160,20 @@ impl EnvelopeProcessorService {
             }
             _ => ItemAction::Keep,
         });
+        if let Some(event) = state.event.value_mut() {
+            if event.ty.value() == Some(&EventType::Transaction) {
+                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                // If we found a profile, add its ID to the profile context on the transaction.
+                if let Some(profile_id) = found_profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                // If not, we delete the profile context.
+                } else {
+                    contexts.remove::<ProfileContext>();
+                }
+            }
+        }
     }
 
     /// Remove replays if the feature flag is not enabled.
@@ -2236,10 +2230,31 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
+    fn is_span_allowed(&self, span: &Span) -> bool {
+        let Some(op) = span.op.value() else {
+            return false;
+        };
+        let Some(description) = span.description.value() else {
+            return false;
+        };
+        let system: &str = span
+            .data
+            .value()
+            .and_then(|v| v.get("span.system"))
+            .and_then(|system| system.as_str())
+            .unwrap_or_default();
+        op.starts_with("db")
+            && !(op.contains("active_record")
+                || op.contains("activerecord")
+                || op.contains("clickhouse")
+                || op.contains("mongodb")
+                || op.contains("redis"))
+            && !(op == "db.sql.query" && !(description.contains(r#""$"#) || system == "mongodb"))
+    }
+
+    #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
         // For now, drop any spans submitted by the SDK.
-
-        use relay_event_schema::protocol::Span;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Span => ItemAction::DropSilently,
             _ => ItemAction::Keep,
@@ -2258,12 +2273,6 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        // Extract transaction as a span.
-        let Some(event) = state.event.value() else {
-            return;
-        };
-        let transaction_span: Span = event.into();
-
         let mut add_span = |span: Annotated<Span>| {
             let span = match span.to_json() {
                 Ok(span) => span,
@@ -2277,6 +2286,13 @@ impl EnvelopeProcessorService {
             state.managed_envelope.envelope_mut().add_item(item);
         };
 
+        let Some(event) = state.event.value() else {
+            return;
+        };
+
+        // Extract transaction as a span.
+        let mut transaction_span: Span = event.into();
+
         let all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
@@ -2284,24 +2300,35 @@ impl EnvelopeProcessorService {
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
-                if let Some(inner_span) = span.value() {
-                    // HACK: filter spans based on module until we figure out grouping.
-                    let Some(span_op) = inner_span.op.value() else {
-                        continue;
-                    };
-                    if all_modules_enabled || span_op.starts_with("db") {
-                        // HACK: clone the span to set the segment_id. This should happen
-                        // as part of normalization once standalone spans reach wider adoption.
-                        let mut new_span = inner_span.clone();
-                        new_span.segment_id = transaction_span.segment_id.clone();
-                        new_span.is_segment = Annotated::new(false);
-                        add_span(Annotated::new(new_span));
-                    }
+                let Some(inner_span) = span.value() else {
+                    continue;
+                };
+                // HACK: filter spans based on module until we figure out grouping.
+                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
+                    continue;
                 }
+                // HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                let mut new_span = inner_span.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
+                new_span.is_segment = Annotated::new(false);
+                add_span(Annotated::new(new_span));
             }
         }
 
         if all_modules_enabled {
+            // Extract tags to add to this span as well
+            let shared_tags = span::tag_extraction::extract_shared_tags(event);
+            let data = transaction_span
+                .data
+                .value_mut()
+                .get_or_insert_with(Default::default);
+            data.extend(
+                shared_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+            );
             add_span(transaction_span.into());
         }
     }
