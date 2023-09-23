@@ -496,8 +496,9 @@ mod tests {
         assert_eq!(serialized_config, expected_serialized_config)
     }
 
+    /// Checks if the sample rate decays linearly if `DecayingFunction::Linear` is set.
     #[test]
-    fn test_decaying_rule() {
+    fn test_linear_decaying_rule() {
         let rule = SamplingRule {
             condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },

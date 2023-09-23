@@ -262,21 +262,21 @@ mod tests {
     use super::*;
 
     /// Helper to extract the sampling match after evaluating rules.
-    fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> Option<SamplingMatch> {
+    fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
         let res =
             SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), instance, rules.iter());
 
         let RuleMatchingState::SamplingMatch(sampling_match) = res else {
-            return None;
+            panic!("no match found");
         };
 
-        Some(sampling_match)
+        sampling_match
     }
 
     /// Helper to check if certain rules are matched on.
     fn matches_rule_ids(rule_ids: &[u32], rules: &[SamplingRule], instance: &impl Getter) -> bool {
         let matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(*num)).collect());
-        let sampling_match = get_sampling_match(rules, instance).unwrap();
+        let sampling_match = get_sampling_match(rules, instance);
         matched_rule_ids == sampling_match.matched_rules
     }
 
@@ -362,10 +362,7 @@ mod tests {
         ]);
         let dsc = mocked_dynamic_sampling_context(vec![]);
 
-        assert_eq!(
-            get_sampling_match(&rules, &dsc).unwrap().sample_rate(),
-            0.125
-        );
+        assert_eq!(get_sampling_match(&rules, &dsc).sample_rate(), 0.125);
     }
 
     fn simple_sampling_rules(vals: Vec<(RuleCondition, SamplingValue)>) -> Vec<SamplingRule> {
