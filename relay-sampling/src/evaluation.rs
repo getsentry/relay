@@ -263,14 +263,14 @@ mod tests {
 
     /// Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
-        let res =
-            SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), instance, rules.iter());
-
-        let RuleMatchingState::SamplingMatch(sampling_match) = res else {
-            panic!("no match found");
-        };
-
-        sampling_match
+        match SamplingEvaluator::new(Utc::now()).match_rules(
+            Uuid::default(),
+            instance,
+            rules.iter(),
+        ) {
+            RuleMatchingState::SamplingMatch(sampling_match) => sampling_match,
+            RuleMatchingState::Evaluator(_) => panic!("no match found"),
+        }
     }
 
     /// Helper to check if certain rules are matched on.
@@ -280,36 +280,36 @@ mod tests {
         matched_rule_ids == sampling_match.matched_rules
     }
 
-    fn mocked_dynamic_sampling_context(vals: Vec<(&str, &str)>) -> DynamicSamplingContext {
-        let mut def = DynamicSamplingContext {
+    /// Helper function to create a dsc with the provided getter-values set.
+    fn mocked_dsc_with_getter_values(
+        paths_and_values: Vec<(&str, &str)>,
+    ) -> DynamicSamplingContext {
+        let mut dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
-            public_key: "12345678901234567890123456789012".parse().unwrap(),
+            public_key: "12345678123456781234567812345678".parse().unwrap(),
             release: None,
             environment: None,
             transaction: None,
-            sample_rate: Some(1.0),
-            user: TraceUserContext {
-                user_segment: "".to_string(),
-                user_id: "".to_string(),
-            },
+            sample_rate: None,
+            user: TraceUserContext::default(),
             replay_id: None,
             sampled: None,
             other: Default::default(),
         };
 
-        for val in vals {
-            let (key, val) = val;
-            match key {
-                "trace.release" => def.release = Some(val.to_owned()),
-                "trace.environment" => def.environment = Some(val.to_owned()),
-                "trace.user.id" => def.user.user_id = val.to_owned(),
-                "trace.user.segment" => def.user.user_segment = val.to_owned(),
-                "trace.transaction" => def.transaction = Some(val.to_owned()),
-                "trace.replay_id" => def.replay_id = Some(Uuid::from_str(val).unwrap()),
-                _ => panic!("invalid key"),
+        for (path, value) in paths_and_values {
+            match path {
+                "trace.release" => dsc.release = Some(value.to_owned()),
+                "trace.environment" => dsc.environment = Some(value.to_owned()),
+                "trace.user.id" => dsc.user.user_id = value.to_owned(),
+                "trace.user.segment" => dsc.user.user_segment = value.to_owned(),
+                "trace.transaction" => dsc.transaction = Some(value.to_owned()),
+                "trace.replay_id" => dsc.replay_id = Some(Uuid::from_str(value).unwrap()),
+                _ => panic!("invalid path"),
             }
         }
-        def
+
+        dsc
     }
 
     #[test]
@@ -340,7 +340,7 @@ mod tests {
             ),
         ]);
 
-        let dsc = mocked_dynamic_sampling_context(vec![]);
+        let dsc = mocked_dsc_with_getter_values(vec![]);
 
         let res = SamplingEvaluator::new(Utc::now())
             .adjust_client_sample_rate(Some(0.2))
@@ -350,6 +350,7 @@ mod tests {
             panic!();
         };
 
+        // ((0.5 * 0.25) / 0.2) == 0.625
         assert_eq!(sampling_match.sample_rate(), 0.625);
     }
 
@@ -363,7 +364,7 @@ mod tests {
                 SamplingValue::SampleRate { value: 0.25 },
             ),
         ]);
-        let dsc = mocked_dynamic_sampling_context(vec![]);
+        let dsc = mocked_dsc_with_getter_values(vec![]);
 
         // 0.8 * 0.5 * 0.25 == 0.1
         assert_eq!(get_sampling_match(&rules, &dsc).sample_rate(), 0.1);
@@ -403,7 +404,7 @@ mod tests {
             decaying_fn: Default::default(),
         };
 
-        let dsc = mocked_dynamic_sampling_context(vec![]);
+        let dsc = mocked_dsc_with_getter_values(vec![]);
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
@@ -459,19 +460,19 @@ mod tests {
         ]);
 
         // early return of first rule
-        let dsc = mocked_dynamic_sampling_context(vec![("trace.transaction", "foohealthcheckbar")]);
+        let dsc = mocked_dsc_with_getter_values(vec![("trace.transaction", "foohealthcheckbar")]);
         assert!(matches_rule_ids(&[0], &rules, &dsc));
 
         // early return of second rule
-        let dsc = mocked_dynamic_sampling_context(vec![("trace.environment", "dev")]);
+        let dsc = mocked_dsc_with_getter_values(vec![("trace.environment", "dev")]);
         assert!(matches_rule_ids(&[1], &rules, &dsc));
 
         // factor match third rule and early return sixth rule
-        let dsc = mocked_dynamic_sampling_context(vec![("trace.transaction", "raboof")]);
+        let dsc = mocked_dsc_with_getter_values(vec![("trace.transaction", "raboof")]);
         assert!(matches_rule_ids(&[2, 5], &rules, &dsc));
 
         // factor match third rule and early return fourth rule
-        let dsc = mocked_dynamic_sampling_context(vec![
+        let dsc = mocked_dsc_with_getter_values(vec![
             ("trace.transaction", "raboof"),
             ("trace.release", "1.1.1"),
             ("trace.user.segment", "vip"),
@@ -479,7 +480,7 @@ mod tests {
         assert!(matches_rule_ids(&[2, 3], &rules, &dsc));
 
         // factor match third, fifth rule and early return sixth rule
-        let dsc = mocked_dynamic_sampling_context(vec![
+        let dsc = mocked_dsc_with_getter_values(vec![
             ("trace.transaction", "raboof"),
             ("trace.release", "1.1.1"),
             ("trace.environment", "prod"),
@@ -487,7 +488,7 @@ mod tests {
         assert!(matches_rule_ids(&[2, 4, 5], &rules, &dsc));
 
         // factor match fifth and early return sixth rule
-        let dsc = mocked_dynamic_sampling_context(vec![
+        let dsc = mocked_dsc_with_getter_values(vec![
             ("trace.release", "1.1.1"),
             ("trace.environment", "prod"),
         ]);
@@ -542,7 +543,7 @@ mod tests {
     #[test]
     /// Tests that no match is done when there are no matching rules.
     fn test_get_sampling_match_result_with_no_match() {
-        let dsc = mocked_dynamic_sampling_context(vec![]);
+        let dsc = mocked_dsc_with_getter_values(vec![]);
 
         let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
 
