@@ -3,9 +3,8 @@ use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{RuleMatchingState, SamplingEvaluator, SamplingMatch};
-use relay_sampling::DynamicSamplingContext;
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::actors::project::ProjectState;
 use crate::envelope::{Envelope, ItemType};
 
 /// Represents the specification for sampling an incoming event.
@@ -65,7 +64,7 @@ impl From<RuleMatchingState> for SamplingResult {
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
-    root_project_state: &ProjectState,
+    root_project_config: &SamplingConfig,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
     // If the sampled field is not set, we prefer to not tag the error since we have no clue on
@@ -76,9 +75,7 @@ pub fn is_trace_fully_sampled(
         return Some(false);
     }
 
-    let config = root_project_state.config.dynamic_sampling.as_ref()?;
-
-    let adjustment_rate = match config.mode {
+    let adjustment_rate = match root_project_config.mode {
         SamplingMode::Total => dsc.sample_rate,
         _ => None,
     };
@@ -86,7 +83,7 @@ pub fn is_trace_fully_sampled(
     // TODO(tor): pass correct now timestamp
     let evaluator = SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
 
-    let rules = config.filter_rules(RuleType::Trace);
+    let rules = root_project_config.filter_rules(RuleType::Trace);
 
     let sampling_result: SamplingResult = evaluator.match_rules(dsc.trace_id, dsc, rules).into();
     Some(sampling_result.should_keep())
@@ -118,7 +115,6 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::testutils::project_state_with_config;
 
     fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
         RuleCondition::Eq(EqCondition {
@@ -240,39 +236,43 @@ mod tests {
     /// Tests that a trace is marked as fully sampled correctly when dsc and project state are set.
     fn test_is_trace_fully_sampled_with_valid_dsc_and_project_state() {
         // We test with `sampled = true` and 100% rule.
-        let project_state = project_state_with_config(SamplingConfig {
+
+        let config = SamplingConfig {
             rules: vec![],
             rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
             mode: SamplingMode::Received,
-        });
+        };
+
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
         assert!(result);
 
         // We test with `sampled = true` and 0% rule.
-        let project_state = project_state_with_config(SamplingConfig {
+        let config = SamplingConfig {
             rules: vec![],
             rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 0.0)],
             mode: SamplingMode::Received,
-        });
+        };
+
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
         assert!(!result);
 
         // We test with `sampled = false` and 100% rule.
-        let project_state = project_state_with_config(SamplingConfig {
+        let config = SamplingConfig {
             rules: vec![],
             rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
             mode: SamplingMode::Received,
-        });
+        };
+
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(&project_state, &dsc).unwrap();
+        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
         assert!(!result);
     }
 
@@ -280,14 +280,14 @@ mod tests {
     /// Tests that a trace is not marked as fully sampled or not if inputs are invalid.
     fn test_is_trace_fully_sampled_with_invalid_inputs() {
         // We test with missing `sampled`.
-        let project_state = project_state_with_config(SamplingConfig {
+        let config = SamplingConfig {
             rules: vec![],
             rules_v2: vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)],
             mode: SamplingMode::Received,
-        });
+        };
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(&project_state, &dsc);
+        let result = is_trace_fully_sampled(&config, &dsc);
         assert!(result.is_none());
     }
 }

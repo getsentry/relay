@@ -2312,9 +2312,7 @@ impl EnvelopeProcessorService {
         // - Tagging whether an incoming error has a sampled trace connected to it.
         // - Computing the actual sampling decision on an incoming transaction.
         match state.event_type().unwrap_or_default() {
-            EventType::Default | EventType::Error => {
-                self.tag_error_with_sampling_decision(state);
-            }
+            EventType::Default | EventType::Error => self.tag_error_with_sampling_decision(state),
             EventType::Transaction => {
                 if let Some(ErrorBoundary::Ok(config)) =
                     &state.project_state.config.transaction_metrics
@@ -2346,6 +2344,12 @@ impl EnvelopeProcessorService {
         root_sampling_config: Option<&SamplingConfig>,
         dsc: Option<&DynamicSamplingContext>,
     ) -> SamplingResult {
+        if (sampling_config.is_none() || event.is_none())
+            && (root_sampling_config.is_none() || dsc.is_none())
+        {
+            return SamplingResult::NoMatch;
+        }
+
         if sampling_config.map_or(false, |config| config.unsupported())
             || root_sampling_config.map_or(false, |config| config.unsupported())
         {
@@ -2407,14 +2411,17 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let (Some(project_state), Some(dsc)) = (
-            state.sampling_project_state.as_deref(),
+        let (Some(config), Some(dsc)) = (
+            state
+                .sampling_project_state
+                .as_deref()
+                .and_then(|state| state.config.dynamic_sampling.as_ref()),
             state.envelope().dsc(),
         ) else {
             return;
         };
 
-        let sampled = utils::is_trace_fully_sampled(project_state, dsc);
+        let sampled = utils::is_trace_fully_sampled(config, dsc);
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;
