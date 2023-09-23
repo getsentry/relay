@@ -64,6 +64,7 @@ impl From<RuleMatchingState> for SamplingResult {
 /// transactions received with such dsc and project state would be kept or dropped by dynamic
 /// sampling.
 pub fn is_trace_fully_sampled(
+    processing_enabled: bool,
     root_project_config: &SamplingConfig,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
@@ -73,6 +74,14 @@ pub fn is_trace_fully_sampled(
     // the trace as not fully sampled.
     if !(dsc.sampled?) {
         return Some(false);
+    }
+
+    if root_project_config.unsupported() {
+        if processing_enabled {
+            relay_log::error!("found unsupported rules even as processing relay");
+        } else {
+            return Some(true);
+        }
     }
 
     let adjustment_rate = match root_project_config.mode {
@@ -246,7 +255,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(result);
 
         // We test with `sampled = true` and 0% rule.
@@ -259,7 +268,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(!result);
 
         // We test with `sampled = false` and 100% rule.
@@ -272,7 +281,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(&config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(!result);
     }
 
@@ -287,7 +296,7 @@ mod tests {
         };
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(&config, &dsc);
+        let result = is_trace_fully_sampled(false, &config, &dsc);
         assert!(result.is_none());
     }
 }

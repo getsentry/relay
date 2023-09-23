@@ -425,7 +425,7 @@ mod tests {
 
     /// Checks that `SamplingValueEvaluator` correctly matches the right rules.
     #[test]
-    fn condition_matching() {
+    fn test_condition_matching() {
         let rules = simple_sampling_rules(vec![
             (
                 and(vec![glob("trace.transaction", &["*healthcheck*"])]),

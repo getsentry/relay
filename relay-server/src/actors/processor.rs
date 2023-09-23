@@ -2448,7 +2448,8 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        let sampled = utils::is_trace_fully_sampled(config, dsc);
+        let sampled =
+            utils::is_trace_fully_sampled(self.inner.config.processing_enabled(), config, dsc);
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;
