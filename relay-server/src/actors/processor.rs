@@ -2928,7 +2928,8 @@ mod tests {
     use relay_pii::DataScrubbingConfig;
     use relay_sampling::condition::{AndCondition, RuleCondition};
     use relay_sampling::config::{
-        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue, TimeRange,
+        DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule,
+        SamplingValue, TimeRange,
     };
     use relay_sampling::evaluation::SamplingMatch;
     use relay_test::mock_service;
@@ -3170,19 +3171,8 @@ mod tests {
         assert!(state.sampling_result.should_drop());
     }
 
-    #[tokio::test]
-    async fn test_it_keeps_or_drops_transactions() {
-        relay_test::setup();
-
-        let (outcome_aggregator, test_store) = services();
-
-        // an empty json still produces a valid config
-        let json_config = serde_json::json!({});
-
-        let config = Config::from_json_value(json_config).unwrap();
-
-        let service = create_test_processor(config);
-
+    #[test]
+    fn test_it_keeps_or_drops_transactions() {
         let event = Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Transaction),
@@ -3191,45 +3181,30 @@ mod tests {
         };
 
         for (sample_rate, should_keep) in [(0.0, false), (1.0, true)] {
-            let project_state = state_with_rule_and_condition(
-                Some(sample_rate),
-                RuleType::Transaction,
-                RuleCondition::all(),
-            );
-
-            let state = ProcessEnvelopeState {
-                event: Annotated::from(event.clone()),
-                event_metrics_extracted: false,
-                metrics: Default::default(),
-                sample_rates: None,
-                sampling_result: SamplingResult::Pending,
-                extracted_metrics: Default::default(),
-                project_state: Arc::new(project_state),
-                sampling_project_state: None,
-                project_id: ProjectId::new(42),
-                managed_envelope: ManagedEnvelope::new(
-                    new_envelope(false, "foo"),
-                    TestSemaphore::new(42).try_acquire().unwrap(),
-                    outcome_aggregator.clone(),
-                    test_store.clone(),
-                ),
-                has_profile: false,
+            let sampling_config = SamplingConfig {
+                rules: vec![],
+                rules_v2: vec![SamplingRule {
+                    condition: RuleCondition::all(),
+                    sampling_value: SamplingValue::SampleRate { value: sample_rate },
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: Default::default(),
+                    decaying_fn: DecayingFunction::Constant,
+                }],
+                mode: SamplingMode::Received,
             };
 
             // TODO: This does not test if the sampling decision is actually applied. This should be
             // refactored to send a proper Envelope in and call process_state to cover the full
             // pipeline.
-            EnvelopeProcessorService::compute_sampling_decision(
-                service.inner.config.processing_enabled(),
-                state.project_state.config.dynamic_sampling.as_ref(),
-                state.event.value(),
-                state
-                    .sampling_project_state
-                    .as_ref()
-                    .and_then(|state| state.config.dynamic_sampling.as_ref()),
-                state.envelope().dsc(),
+            let res = EnvelopeProcessorService::compute_sampling_decision(
+                false,
+                Some(&sampling_config),
+                Some(&event),
+                None,
+                None,
             );
-            assert_eq!(state.sampling_result.should_keep(), should_keep);
+            assert_eq!(res.should_keep(), should_keep);
         }
     }
 

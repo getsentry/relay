@@ -36,7 +36,7 @@
 //! - The two [`SamplingConfig`]s are merged together and dynamic sampling evaluates a result. The
 //!   algorithm goes over each rule and compute either a factor or sample rate based on the
 //!   value of the rule.
-//! - The [`SamplingResult`](crate::evaluation::SamplingResult) is finally returned containing the
+//! - The [`SamplingMatch`](crate::evaluation::SamplingMatch) is finally returned containing the
 //!   final `sample_rate` and some additional data that will be used in `relay_server` to perform
 //!   the sampling decision.
 //!
