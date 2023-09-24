@@ -52,10 +52,8 @@ impl SamplingResult {
 impl From<RuleMatchingState> for SamplingResult {
     fn from(value: RuleMatchingState) -> Self {
         match value {
-            RuleMatchingState::SamplingMatch(sampling_match) => {
-                SamplingResult::Match(sampling_match)
-            }
-            RuleMatchingState::Evaluator(_) => SamplingResult::NoMatch,
+            RuleMatchingState::SamplingMatch(sampling_match) => Self::Match(sampling_match),
+            RuleMatchingState::Evaluator(_) => Self::NoMatch,
         }
     }
 }
@@ -232,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn test_with_unsupported_rules() {
+    fn test_is_trace_fully_sampled_return_true_with_unsupported_rules() {
         let config = SamplingConfig {
             rules: vec![],
             rules_v2: vec![
