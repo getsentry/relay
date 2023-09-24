@@ -115,13 +115,13 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
-    use relay_event_schema::protocol::{Event, EventId, LenientString};
-    use relay_protocol::Annotated;
     use relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
     use uuid::Uuid;
+
+    use crate::tests::mocked_event;
 
     use super::*;
 
@@ -131,16 +131,6 @@ mod tests {
             value: value.iter().map(|s| s.to_string()).collect(),
             options: EqCondOptions { ignore_case },
         })
-    }
-
-    pub fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
-        Event {
-            id: Annotated::new(EventId::new()),
-            ty: Annotated::new(event_type),
-            transaction: Annotated::new(transaction.to_string()),
-            release: Annotated::new(LenientString(release.to_string())),
-            ..Event::default()
-        }
     }
 
     fn mocked_simple_dynamic_sampling_context(
