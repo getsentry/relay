@@ -496,7 +496,7 @@ mod tests {
 
     /// Checks if the sample rate decays linearly if `DecayingFunction::Linear` is set.
     #[test]
-    fn test_linear_decaying_rule() {
+    fn test_sample_rate_with_linear_decay() {
         let rule = SamplingRule {
             condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
@@ -512,7 +512,6 @@ mod tests {
         let start = Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap();
         let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
         let end = Utc.with_ymd_and_hms(1970, 10, 11, 23, 59, 59).unwrap();
-        let out_of_range = Utc.with_ymd_and_hms(1971, 10, 11, 23, 59, 59).unwrap();
 
         // At the start of the time range, sample rate is equal to the rule's initial sampling value.
         assert_eq!(
@@ -530,11 +529,124 @@ mod tests {
         assert_eq!(
             rule.sample_rate(end).unwrap(),
             SamplingValue::SampleRate {
+                // It won't go to exactly 0.5 because the time range is end-exclusive.
                 value: 0.5000028935185186
             }
         );
 
-        // None value outside of the time range.
-        assert!(rule.sample_rate(out_of_range).is_none());
+        // If the end or beginning is missing, the linear decay shouldn't be run.
+        let rule_without_start = {
+            let mut rule = rule.clone();
+            rule.time_range.start = None;
+            rule
+        };
+
+        assert!(rule_without_start.sample_rate(halfway).is_none());
+
+        let rule_without_end = {
+            let mut rule = rule.clone();
+            rule.time_range.end = None;
+            rule
+        };
+
+        assert!(rule_without_end.sample_rate(halfway).is_none());
+    }
+
+    /// If the decayingfunction is set to `Constant` then it shouldn't adjust the sample rate.
+    #[test]
+    fn test_sample_rate_with_constant_decayingfn() {
+        let sampling_value = SamplingValue::SampleRate { value: 0.42 };
+
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value,
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: TimeRange {
+                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
+                end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
+            },
+            decaying_fn: DecayingFunction::Constant,
+        };
+
+        let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
+
+        assert_eq!(rule.sample_rate(halfway), Some(sampling_value));
+    }
+
+    /// Validates the `sample_rate` method for different time range configurations.
+    /// The method should return `None` for times outside of the valid range and `Some` for times within it.
+    /// When the `start` or `end` of the range is missing, it defaults to always include times before the `end` or after the `start`, respectively.
+    #[test]
+    fn test_sample_rate_valid_time_range() {
+        let time_range = TimeRange {
+            start: Some(Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap()),
+            end: Some(Utc.with_ymd_and_hms(1980, 1, 1, 0, 0, 0).unwrap()),
+        };
+
+        let before_time_range = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
+        let during_time_range = Utc.with_ymd_and_hms(1975, 1, 1, 0, 0, 0).unwrap();
+        let after_time_range = Utc.with_ymd_and_hms(1981, 1, 1, 0, 0, 0).unwrap();
+
+        // [start..end]
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range,
+            decaying_fn: DecayingFunction::Constant,
+        };
+        assert!(rule.sample_rate(before_time_range).is_none());
+        assert!(rule.sample_rate(during_time_range).is_some());
+        assert!(rule.sample_rate(after_time_range).is_none());
+
+        // [start..]
+        let mut rule_without_end = rule.clone();
+        rule_without_end.time_range.end = None;
+        assert!(rule_without_end.sample_rate(before_time_range).is_none());
+        assert!(rule_without_end.sample_rate(during_time_range).is_some());
+        assert!(rule_without_end.sample_rate(after_time_range).is_some());
+
+        // [..end]
+        let mut rule_without_start = rule.clone();
+        rule_without_start.time_range.start = None;
+        assert!(rule_without_start.sample_rate(before_time_range).is_some());
+        assert!(rule_without_start.sample_rate(during_time_range).is_some());
+        assert!(rule_without_start.sample_rate(after_time_range).is_none());
+
+        // [..]
+        let mut rule_without_range = rule.clone();
+        rule_without_range.time_range = TimeRange::default();
+        assert!(rule_without_range.sample_rate(before_time_range).is_some());
+        assert!(rule_without_range.sample_rate(during_time_range).is_some());
+        assert!(rule_without_range.sample_rate(after_time_range).is_some());
+    }
+
+    /// You can pass in a SamplingValue of either variant, and it should return the same one if
+    /// the rule is valid.
+    #[test]
+    fn test_sample_rate_returns_same_samplingvalue_variant() {
+        let sampling_value = SamplingValue::SampleRate { value: 0.42 };
+
+        let mut rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value,
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: DecayingFunction::Constant,
+        };
+
+        matches!(
+            rule.sample_rate(Utc::now()).unwrap(),
+            SamplingValue::SampleRate { .. }
+        );
+
+        rule.sampling_value = SamplingValue::Factor { value: 0.42 };
+        matches!(
+            rule.sample_rate(Utc::now()).unwrap(),
+            SamplingValue::Factor { .. }
+        );
     }
 }

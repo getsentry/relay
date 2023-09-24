@@ -105,8 +105,8 @@ impl SamplingEvaluator {
         RuleMatchingState::Evaluator(self)
     }
 
-    /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
-    /// the matching rule.
+    /// Tries to negate the client side sampling if the evaluator has been provided
+    /// with a client sample rate.
     fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
         let Some(client_sample_rate) = self.client_sample_rate else {
             return rule_sample_rate;
@@ -330,8 +330,9 @@ mod tests {
         assert_eq!(eval.adjusted_sample_rate(-0.2), 0.0);
     }
 
+    /// Checks that server side sampling can correctly negate any client side sampling if configured to.
     #[test]
-    fn test_client_sample_rate() {
+    fn test_adjust_by_client_sample_rate() {
         let rules = simple_sampling_rules(vec![
             (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
             (
