@@ -2954,7 +2954,7 @@ mod tests {
     use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_sampling::condition::{AndCondition, RuleCondition};
+    use relay_sampling::condition::RuleCondition;
     use relay_sampling::config::{
         DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule,
         SamplingValue, TimeRange,

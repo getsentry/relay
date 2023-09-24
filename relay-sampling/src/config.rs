@@ -277,8 +277,6 @@ impl Default for SamplingMode {
 mod tests {
     use chrono::TimeZone;
 
-    use crate::condition::AndCondition;
-
     use super::*;
 
     #[test]
