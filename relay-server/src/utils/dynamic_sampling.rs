@@ -232,8 +232,28 @@ mod tests {
     }
 
     #[test]
+    fn test_with_unsupported_rules() {
+        let config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![
+                mocked_sampling_rule(1, RuleType::Unsupported, 1.0),
+                mocked_sampling_rule(1, RuleType::Trace, 0.0),
+            ],
+            mode: SamplingMode::Received,
+        };
+
+        let dsc = mocked_simple_dynamic_sampling_context(None, None, None, None, Some(true));
+
+        // Return true if any unsupported rules.
+        assert_eq!(is_trace_fully_sampled(false, &config, &dsc), Some(true));
+
+        // If processing is enabled, we simply log an error and otherwise proceed as usual.
+        assert_eq!(is_trace_fully_sampled(true, &config, &dsc), Some(false));
+    }
+
+    #[test]
     /// Tests that a trace is marked as fully sampled correctly when dsc and project state are set.
-    fn test_is_trace_fully_sampled_with_valid_dsc_and_project_state() {
+    fn test_is_trace_fully_sampled_with_valid_dsc_and_sampling_config() {
         // We test with `sampled = true` and 100% rule.
 
         let config = SamplingConfig {

@@ -4097,8 +4097,9 @@ mod tests {
         }
     }
 
+    /// Happy path test for compute_sampling_decision.
     #[test]
-    fn test_matched() {
+    fn test_compute_sampling_decision_matching() {
         let event = mocked_event(EventType::Transaction, "foo", "bar");
         let rule = SamplingRule {
             condition: RuleCondition::all(),
