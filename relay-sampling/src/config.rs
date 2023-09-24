@@ -464,7 +464,7 @@ mod tests {
         let config = SamplingConfig {
             rules: vec![],
             rules_v2: vec![SamplingRule {
-                condition: RuleCondition::And(AndCondition { inner: vec![] }),
+                condition: RuleCondition::all(),
                 sampling_value: SamplingValue::Factor { value: 2.0 },
                 ty: RuleType::Transaction,
                 id: RuleId(1),

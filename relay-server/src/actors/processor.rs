@@ -4088,7 +4088,8 @@ mod tests {
         );
     }
 
-    fn get_match(sampling_result: SamplingResult) -> SamplingMatch {
+    // Helper to extract the sampling match from SamplingResult if thats the variant.
+    fn get_sampling_match(sampling_result: SamplingResult) -> SamplingMatch {
         if let SamplingResult::Match(sampling_match) = sampling_result {
             sampling_match
         } else {
@@ -4100,7 +4101,7 @@ mod tests {
     fn test_matched() {
         let event = mocked_event(EventType::Transaction, "foo", "bar");
         let rule = SamplingRule {
-            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
             ty: RuleType::Transaction,
             id: RuleId(0),
@@ -4128,7 +4129,7 @@ mod tests {
     fn test_matching_with_unsupported_rule() {
         let event = mocked_event(EventType::Transaction, "foo", "bar");
         let rule = SamplingRule {
-            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
             ty: RuleType::Transaction,
             id: RuleId(0),
@@ -4137,7 +4138,7 @@ mod tests {
         };
 
         let unsupported_rule = SamplingRule {
-            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
             ty: RuleType::Unsupported,
             id: RuleId(0),
@@ -4188,7 +4189,7 @@ mod tests {
         };
 
         let rule = SamplingRule {
-            condition: RuleCondition::And(AndCondition { inner: vec![] }),
+            condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 0.2 },
             ty: RuleType::Trace,
             id: RuleId(0),
@@ -4210,7 +4211,7 @@ mod tests {
             Some(&dsc),
         );
 
-        assert_eq!(get_match(res).sample_rate(), 0.2);
+        assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
 
         sampling_config.mode = SamplingMode::Total;
 
@@ -4222,6 +4223,6 @@ mod tests {
             Some(&dsc),
         );
 
-        assert_eq!(get_match(res).sample_rate(), 0.4);
+        assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
     }
 }
