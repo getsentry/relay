@@ -282,6 +282,8 @@
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::env;
 <span class="kw">use </span>std::path::PathBuf;
@@ -449,10 +451,10 @@
 }
 
 <span class="doccomment">/// Captures an envelope from the native crash reporter using the main Sentry SDK.
-</span><span class="attr">#[cfg(feature = <span class="string">&quot;relay-crash&quot;</span>)]
+</span><span class="attr">#[cfg(feature = <span class="string">&quot;crash-handler&quot;</span>)]
 </span><span class="kw">fn </span>capture_native_envelope(data: <span class="kw-2">&amp;</span>[u8]) {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(client) = sentry::Hub::main().client() {
-        <span class="kw">match </span>sentry::Envelope::from_slice(data) {
+        <span class="kw">match </span>sentry::Envelope::from_bytes_raw(data.to_owned()) {
             <span class="prelude-val">Ok</span>(envelope) =&gt; client.send_envelope(envelope),
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="kw">let </span>error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error;
@@ -554,13 +556,15 @@
 
     <span class="comment">// Initialize native crash reporting after the Rust SDK, so that `capture_native_envelope` has
     // access to an initialized Hub to capture crashes from the previous run.
-    </span><span class="attr">#[cfg(feature = <span class="string">&quot;relay-crash&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;crash-handler&quot;</span>)]
     </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(db) = sentry._crash_db.as_deref() {
+                <span class="macro">crate::info!</span>(<span class="string">&quot;initializing crash handler in {}&quot;</span>, db.display());
                 relay_crash::CrashHandler::new(dsn.as_str(), db)
                     .transport(capture_native_envelope)
                     .release(<span class="prelude-val">Some</span>(RELEASE))
+                    .environment(sentry.environment.as_deref())
                     .install();
             }
         }
