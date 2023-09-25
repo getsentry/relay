@@ -463,13 +463,13 @@ mod tests {
     scrub_sql_test!(
         collapse_partial_column_lists,
         r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table1 WHERE %s"#,
-        "SELECT .., count(*), .. FROM table1 WHERE %s"
+        "SELECT .., count(*) AS c, .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
         collapse_partial_column_lists_2,
         r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"#,
-        "SELECT DISTINCT .., COALESCE(foo, %s) FROM x"
+        "SELECT DISTINCT .., COALESCE(foo, %s) AS id FROM x"
     );
 
     scrub_sql_test!(
@@ -630,12 +630,6 @@ mod tests {
             ELSE 30
         END"#,
         "UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
-    );
-
-    scrub_sql_test!(
-        unique_alias,
-        "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
-        "SELECT pg_advisory_unlock(%s, %s)"
     );
 
     scrub_sql_test!(
