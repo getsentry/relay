@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
+- Fix reporting of Relay's crashes to Sentry. The `crash-handler` feature did not enable the crash reporter and uploads of crashes were broken. ([#2532](https://github.com/getsentry/relay/pull/2532))
 
 **Internal**:
 
