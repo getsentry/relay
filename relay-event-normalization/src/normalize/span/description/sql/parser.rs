@@ -3,8 +3,8 @@ use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use sqlparser::ast::{
-    Assignment, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
-    TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
+    Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
+    TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -96,14 +96,11 @@ impl NormalizeVisitor {
         let mut collapse = vec![];
 
         // Iterate over selected item.
-        for mut item in std::mem::take(&mut select.projection) {
+        for item in std::mem::take(&mut select.projection) {
             // Normalize aliases.
             let item = match item {
                 // Remove alias.
-                SelectItem::ExprWithAlias { ref mut alias, .. } => {
-                    alias.quote_style = None;
-                    item
-                }
+                SelectItem::ExprWithAlias { expr, .. } => SelectItem::UnnamedExpr(expr),
                 // Strip prefix, e.g. `"mytable".*`.
                 SelectItem::QualifiedWildcard(_, options) => SelectItem::Wildcard(options),
                 _ => item,
@@ -150,6 +147,11 @@ impl NormalizeVisitor {
             last.quote_style = None;
             *parts = vec![last];
         }
+    }
+
+    fn scrub_name(name: &mut Ident) {
+        name.quote_style = None;
+        name.value = "%s".into()
     }
 }
 
@@ -245,10 +247,23 @@ impl VisitorMut for NormalizeVisitor {
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            Statement::Savepoint { name } => {
-                name.quote_style = None;
-                name.value = "%s".into()
+            Statement::Savepoint { name } => Self::scrub_name(name),
+            Statement::Declare { name, query, .. } => {
+                Self::scrub_name(name);
+                Self::transform_query(query);
             }
+            Statement::Fetch { name, into, .. } => {
+                Self::scrub_name(name);
+                if let Some(into) = into {
+                    into.0 = vec![Ident {
+                        value: "%s".into(),
+                        quote_style: None,
+                    }];
+                }
+            }
+            Statement::Close {
+                cursor: CloseCursor::Specific { name },
+            } => Self::scrub_name(name),
             _ => {}
         }
         ControlFlow::Continue(())
