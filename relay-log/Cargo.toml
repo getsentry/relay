@@ -34,8 +34,8 @@ tracing-subscriber = { version = "0.3.17", features = [
 ], optional = true }
 
 [features]
-dashboard = ["dep:once_cell", "dep:tokio"]
 default = []
+dashboard = ["dep:once_cell", "dep:tokio"]
 test = ["dep:tracing-subscriber"]
 init = [
     "dep:chrono",
