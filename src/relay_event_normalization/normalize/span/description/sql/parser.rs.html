@@ -326,13 +326,31 @@
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>sqlparser::ast::{
-    Assignment, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
-    TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
+    Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
+    TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 <span class="kw">use </span>sqlparser::dialect::{Dialect, GenericDialect};
 
@@ -476,6 +494,11 @@
             <span class="kw-2">*</span>parts = <span class="macro">vec!</span>[last];
         }
     }
+
+    <span class="kw">fn </span>scrub_name(name: <span class="kw-2">&amp;mut </span>Ident) {
+        name.quote_style = <span class="prelude-val">None</span>;
+        name.value = <span class="string">&quot;%s&quot;</span>.into()
+    }
 }
 
 <span class="kw">impl </span>VisitorMut <span class="kw">for </span>NormalizeVisitor {
@@ -570,10 +593,23 @@
                 }
             }
             <span class="comment">// `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            </span>Statement::Savepoint { name } =&gt; {
-                name.quote_style = <span class="prelude-val">None</span>;
-                name.value = <span class="string">&quot;%s&quot;</span>.into()
+            </span>Statement::Savepoint { name } =&gt; <span class="self">Self</span>::scrub_name(name),
+            Statement::Declare { name, query, .. } =&gt; {
+                <span class="self">Self</span>::scrub_name(name);
+                <span class="self">Self</span>::transform_query(query);
             }
+            Statement::Fetch { name, into, .. } =&gt; {
+                <span class="self">Self</span>::scrub_name(name);
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(into) = into {
+                    into.<span class="number">0 </span>= <span class="macro">vec!</span>[Ident {
+                        value: <span class="string">&quot;%s&quot;</span>.into(),
+                        quote_style: <span class="prelude-val">None</span>,
+                    }];
+                }
+            }
+            Statement::Close {
+                cursor: CloseCursor::Specific { name },
+            } =&gt; <span class="self">Self</span>::scrub_name(name),
             <span class="kw">_ </span>=&gt; {}
         }
         ControlFlow::Continue(())
