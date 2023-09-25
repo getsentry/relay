@@ -618,6 +618,12 @@
 <a href="#618" id="618">618</a>
 <a href="#619" id="619">619</a>
 <a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1063,13 +1069,13 @@
     <span class="macro">scrub_sql_test!</span>(
         collapse_partial_column_lists,
         <span class="string">r#&quot;SELECT myfield1, &quot;a&quot;.&quot;b&quot;, count(*) AS c, another_field, another_field2 FROM table1 WHERE %s&quot;#</span>,
-        <span class="string">&quot;SELECT .., count(*) AS c, .. FROM table1 WHERE %s&quot;
+        <span class="string">&quot;SELECT .., count(*), .. FROM table1 WHERE %s&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
         collapse_partial_column_lists_2,
         <span class="string">r#&quot;SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS &quot;id&quot; FROM x&quot;#</span>,
-        <span class="string">&quot;SELECT DISTINCT .., COALESCE(foo, %s) AS id FROM x&quot;
+        <span class="string">&quot;SELECT DISTINCT .., COALESCE(foo, %s) FROM x&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
@@ -1230,6 +1236,12 @@
             ELSE 30
         END&quot;#</span>,
         <span class="string">&quot;UPDATE tbl SET foo = CASE WHEN .. THEN .. END&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        unique_alias,
+        <span class="string">&quot;SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef&quot;</span>,
+        <span class="string">&quot;SELECT pg_advisory_unlock(%s, %s)&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
