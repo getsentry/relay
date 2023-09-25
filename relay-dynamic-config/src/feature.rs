@@ -19,6 +19,13 @@ pub enum Feature {
     /// Enables metric extraction from spans.
     #[serde(rename = "projects:span-metrics-extraction")]
     SpanMetricsExtraction,
+    /// Allow ingestion of metrics in the "custom" namespace.
+    #[serde(rename = "organizations:custom-metrics")]
+    CustomMetrics,
+    /// Enable extracting spans for all modules.
+    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
+    SpanMetricsExtractionAllModules,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
     Deprecated1,
@@ -28,7 +35,9 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:profiling")]
     Deprecated3,
-
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[serde(rename = "projects:extract-standalone-spans")]
+    Deprecated4,
     /// Forward compatibility.
     #[serde(other)]
     Unknown,
@@ -43,6 +52,17 @@ impl FeatureSet {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Returns `true` if the given feature is in the set.
+    pub fn has(&self, feature: Feature) -> bool {
+        self.0.contains(&feature)
+    }
+}
+
+impl FromIterator<Feature> for FeatureSet {
+    fn from_iter<T: IntoIterator<Item = Feature>>(iter: T) -> Self {
+        Self(BTreeSet::from_iter(iter))
+    }
 }
 
 impl<'de> Deserialize<'de> for FeatureSet {
@@ -55,6 +75,7 @@ impl<'de> Deserialize<'de> for FeatureSet {
         Ok(Self(set))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

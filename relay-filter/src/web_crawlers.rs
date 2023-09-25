@@ -2,14 +2,13 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_general::protocol::Event;
-use relay_general::user_agent;
+use relay_event_schema::protocol::Event;
 
 use crate::{FilterConfig, FilterStatKey};
 
 static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?ix)
+        r"(?ix)
         Mediapartners-Google|
         AdsBot-Google|
         Googlebot|
@@ -31,23 +30,23 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
                                     # https://forums.aws.amazon.com/thread.jspa?messageID=932404
                                     # and https://github.com/getsentry/sentry-python/issues/641
         HubSpot\sCrawler            # HubSpot web crawler (web-crawlers@hubspot.com)
-    "#
+    "
     )
     .expect("Invalid web crawlers filter Regex")
 });
 
 static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
-        r#"(?ix)
+        r"(?ix)
         Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
-    "#,
+    ",
     )
     .expect("Invalid allowed web crawlers filter Regex")
 });
 
 /// Checks if the event originates from a known web crawler.
 pub fn matches(event: &Event) -> bool {
-    if let Some(user_agent) = user_agent::get_user_agent(&event.request) {
+    if let Some(user_agent) = event.user_agent() {
         WEB_CRAWLERS.is_match(user_agent) && !ALLOWED_WEB_CRAWLERS.is_match(user_agent)
     } else {
         false

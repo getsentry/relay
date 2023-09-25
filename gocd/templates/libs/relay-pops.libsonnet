@@ -68,9 +68,9 @@ local generic_pops_stage(region) =
 // The US region deploys create a sentry release and deploys to a number
 // of clusters, other regions only deploy to a single cluster.
 {
-  stage(region)::
+  stages(region)::
     if region == 'us' then
-      us_pops_stage()
+      [us_pops_stage()]
     else
-      generic_pops_stage(region),
+      [generic_pops_stage(region)],
 }

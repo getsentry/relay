@@ -207,6 +207,8 @@ pub enum RelayTimers {
     EventProcessingPii,
     /// Time spent converting the event from its in-memory reprsentation into a JSON string.
     EventProcessingSerialization,
+    /// Time used to extract span metrics from an event.
+    EventProcessingSpanMetricsExtraction,
     /// Time spent between the start of request handling and processing of the envelope.
     ///
     /// This includes streaming the request body, scheduling overheads, project config fetching,
@@ -314,6 +316,8 @@ pub enum RelayTimers {
     OutcomeAggregatorFlushTime,
     /// Time in milliseconds spent on parsing, normalizing and scrubbing replay recordings.
     ReplayRecordingProcessing,
+    /// Total time spent to send a request and receive the response from upstream.
+    GlobalConfigRequestDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -329,6 +333,9 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::EventProcessingRateLimiting => "event_processing.rate_limiting",
             RelayTimers::EventProcessingPii => "event_processing.pii",
+            RelayTimers::EventProcessingSpanMetricsExtraction => {
+                "event_processing.span_metrics_extraction"
+            }
             RelayTimers::EventProcessingSerialization => "event_processing.serialization",
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
@@ -344,6 +351,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::TimestampDelay => "requests.timestamp_delay",
             RelayTimers::OutcomeAggregatorFlushTime => "outcomes.aggregator.flush_time",
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
+            RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
         }
     }
 }
@@ -536,6 +544,12 @@ pub enum RelayCounters {
     ///  - `sdk`: The name of the Sentry SDK sending the transaction. This tag is only set for
     ///    Sentry's SDKs and defaults to "proprietary".
     OpenTelemetryEvent,
+    /// Number of global config fetches from upstream. Only 2XX responses are
+    /// considered and ignores send errors (e.g. auth or network errors).
+    ///
+    /// This metric is tagged with:
+    ///  - `success`: whether deserializing the global config succeeded.
+    GlobalConfigFetched,
 }
 
 impl CounterMetric for RelayCounters {
@@ -570,6 +584,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
+            RelayCounters::GlobalConfigFetched => "global_config.fetch",
         }
     }
 }

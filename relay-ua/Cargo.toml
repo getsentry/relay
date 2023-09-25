@@ -1,0 +1,17 @@
+[package]
+name = "relay-ua"
+authors = ["Sentry <oss@sentry.io>"]
+description = "User agent parser with built-in rules"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "23.9.1"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+once_cell = { workspace = true }
+uaparser = { version = "0.6.0" }
+
+[features]
+default = []

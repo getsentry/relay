@@ -1,9 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+#[doc(inline)]
+pub use relay_base_schema::data_category::DataCategory;
 
 /// Data scoping information.
 ///
@@ -85,9 +88,6 @@ impl ItemScoping<'_> {
     }
 }
 
-#[doc(inline)]
-pub use relay_common::DataCategory;
-
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CategoryUnit {
@@ -108,9 +108,12 @@ impl CategoryUnit {
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
+            | DataCategory::Span
+            | DataCategory::MonitorSeat
             | DataCategory::Monitor => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
+
             DataCategory::Unknown => None,
         }
     }
@@ -328,7 +331,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [],
@@ -336,7 +339,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -349,7 +352,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: None,
           categories: [
@@ -359,7 +362,7 @@ mod tests {
           limit: Some(0),
           reasonCode: Some(ReasonCode("not_yet")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -373,7 +376,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -382,7 +385,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -398,7 +401,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("p"),
           categories: [],
@@ -408,7 +411,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -424,7 +427,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("p"),
           categories: [],
@@ -434,7 +437,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -450,7 +453,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("k"),
           categories: [],
@@ -460,7 +463,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -477,7 +480,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("f"),
           categories: [
@@ -489,7 +492,7 @@ mod tests {
           window: Some(42),
           reasonCode: Some(ReasonCode("not_so_fast")),
         )
-        "###);
+        "#);
     }
 
     #[test]
@@ -501,7 +504,7 @@ mod tests {
 
         let quota = serde_json::from_str::<Quota>(json).expect("parse quota");
 
-        insta::assert_ron_snapshot!(quota, @r###"
+        insta::assert_ron_snapshot!(quota, @r#"
         Quota(
           id: Some("o"),
           categories: [],
@@ -509,7 +512,7 @@ mod tests {
           limit: None,
           window: Some(42),
         )
-        "###);
+        "#);
     }
 
     #[test]

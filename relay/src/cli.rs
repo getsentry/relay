@@ -5,10 +5,10 @@ use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};
-use relay_common::Uuid;
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
+use uuid::Uuid;
 
 use crate::cliapp::make_app;
 use crate::utils::get_theme;

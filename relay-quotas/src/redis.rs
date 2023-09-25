@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use relay_common::UnixTimestamp;
+use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool};
@@ -231,7 +231,7 @@ impl RedisRateLimiter {
 
         let mut client = self.pool.client().map_err(RateLimitingError::Redis)?;
         let rejections: Vec<bool> = invocation
-            .invoke(&mut client.connection())
+            .invoke(&mut client.connection().map_err(RateLimitingError::Redis)?)
             .map_err(RedisError::Redis)
             .map_err(RateLimitingError::Redis)?;
 
@@ -260,7 +260,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
 
@@ -273,7 +273,7 @@ mod tests {
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
         RedisRateLimiter {
-            pool: RedisPool::single(&url, &RedisConfigOptions::default()).unwrap(),
+            pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
             script: Arc::new(load_lua_script()),
             max_limit: None,
         }
@@ -695,7 +695,7 @@ mod tests {
 
         let rate_limiter = build_rate_limiter();
         let mut client = rate_limiter.pool.client().expect("get client");
-        let mut conn = client.connection();
+        let mut conn = client.connection().expect("Redis connection");
 
         // define a few keys with random seed such that they do not collide with repeated test runs
         let foo = format!("foo___{now}");

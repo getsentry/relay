@@ -38,10 +38,10 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use relay_common::{DataCategory, UnixTimestamp};
 use relay_dynamic_config::ErrorBoundary;
-use relay_general::protocol::{EventId, EventType};
-use relay_general::types::Value;
+use relay_event_schema::protocol::{EventId, EventType};
+use relay_protocol::Value;
+use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -96,7 +96,7 @@ pub enum ItemType {
     /// Aggregated session data.
     Sessions,
     /// Individual metrics in text encoding.
-    Metrics,
+    Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
     /// Client internal report (eg: outcomes).
@@ -109,6 +109,8 @@ pub enum ItemType {
     ReplayRecording,
     /// Monitor check-in encoded as JSON.
     CheckIn,
+    /// A standalone span.
+    Span,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -144,13 +146,14 @@ impl fmt::Display for ItemType {
             Self::UserReport => write!(f, "user_report"),
             Self::Session => write!(f, "session"),
             Self::Sessions => write!(f, "sessions"),
-            Self::Metrics => write!(f, "metrics"),
+            Self::Statsd => write!(f, "statsd"),
             Self::MetricBuckets => write!(f, "metric_buckets"),
             Self::ClientReport => write!(f, "client_report"),
             Self::Profile => write!(f, "profile"),
             Self::ReplayEvent => write!(f, "replay_event"),
             Self::ReplayRecording => write!(f, "replay_recording"),
             Self::CheckIn => write!(f, "check_in"),
+            Self::Span => write!(f, "span"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -171,13 +174,14 @@ impl std::str::FromStr for ItemType {
             "user_report" => Self::UserReport,
             "session" => Self::Session,
             "sessions" => Self::Sessions,
-            "metrics" => Self::Metrics,
+            "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
             "replay_recording" => Self::ReplayRecording,
             "check_in" => Self::CheckIn,
+            "span" => Self::Span,
             other => Self::Unknown(other.to_owned()),
         })
     }
@@ -465,13 +469,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sample_rates: Option<Value>,
 
-    /// A custom timestamp associated with the item.
-    ///
-    /// For metrics, this field can be used to backdate a submission.
-    /// The given timestamp determines the bucket into which the metric will be aggregated.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    timestamp: Option<UnixTimestamp>,
-
     /// Flag indicating if metrics have already been extracted from the item.
     ///
     /// In order to only extract metrics once from an item while through a
@@ -504,7 +501,6 @@ impl Item {
                 filename: None,
                 rate_limited: false,
                 sample_rates: None,
-                timestamp: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
             },
@@ -547,7 +543,7 @@ impl Item {
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Metrics | ItemType::MetricBuckets => None,
+            ItemType::Statsd | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::Profile => Some(if indexed {
@@ -559,6 +555,7 @@ impl Item {
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Unknown(_) => None,
+            ItemType::Span => None, // No outcomes, for now
         }
     }
 
@@ -643,11 +640,6 @@ impl Item {
         }
     }
 
-    /// Get custom timestamp for this item. Currently used to backdate metrics.
-    pub fn timestamp(&self) -> Option<UnixTimestamp> {
-        self.headers.timestamp
-    }
-
     /// Returns the metrics extracted flag.
     pub fn metrics_extracted(&self) -> bool {
         self.headers.metrics_extracted
@@ -716,13 +708,14 @@ impl Item {
             ItemType::UserReport
             | ItemType::Session
             | ItemType::Sessions
-            | ItemType::Metrics
+            | ItemType::Statsd
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
             | ItemType::Profile
-            | ItemType::CheckIn => false,
+            | ItemType::CheckIn
+            | ItemType::Span => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -746,12 +739,13 @@ impl Item {
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,
-            ItemType::Metrics => false,
+            ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::Profile => true,
             ItemType::CheckIn => false,
+            ItemType::Span => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two
@@ -1207,7 +1201,7 @@ impl Envelope {
 
 #[cfg(test)]
 mod tests {
-    use relay_common::ProjectId;
+    use relay_base_schema::project::ProjectId;
 
     use super::*;
 
@@ -1624,8 +1618,8 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
-"###);
+        insta::assert_snapshot!(stringified, @r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
+"#);
     }
 
     #[test]
@@ -1649,14 +1643,14 @@ mod tests {
         envelope.serialize(&mut buffer).unwrap();
 
         let stringified = String::from_utf8_lossy(&buffer);
-        insta::assert_snapshot!(stringified, @r###"
+        insta::assert_snapshot!(stringified, @r#"
         {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","client":"sentry/client","version":7,"origin":"http://origin/","remote_addr":"192.168.0.1","user_agent":"sentry/agent"}
         {"type":"event","length":41,"content_type":"application/json"}
         {"message":"hello world","level":"error"}
         {"type":"attachment","length":7,"content_type":"text/plain","filename":"application.log"}
         Hello
 
-        "###);
+        "#);
     }
 
     #[test]

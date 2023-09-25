@@ -2,8 +2,7 @@ use std::collections::BTreeMap;
 
 use chrono::SecondsFormat;
 
-use relay_common::SpanStatus;
-use relay_general::protocol::{AppContext, AsPair, Event, TraceContext};
+use relay_event_schema::protocol::{AppContext, AsPair, Event, SpanStatus, TraceContext};
 
 pub fn extract_transaction_metadata(event: &Event) -> BTreeMap<String, String> {
     let mut tags = BTreeMap::new();
@@ -81,7 +80,8 @@ pub fn extract_transaction_tags(event: &Event) -> BTreeMap<String, String> {
 }
 
 /// Extract transaction status, defaulting to [`SpanStatus::Unknown`].
-/// Must be consistent with `process_trace_context` in [`relay_general::store`].
+///
+/// Must be consistent with `process_trace_context` in `relay_event_normalization`.
 fn extract_transaction_status(trace_context: &TraceContext) -> SpanStatus {
     *trace_context.status.value().unwrap_or(&SpanStatus::Unknown)
 }
@@ -97,8 +97,8 @@ fn extract_http_method(transaction: &Event) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_general::protocol::Event;
-    use relay_general::types::FromValue;
+    use relay_event_schema::protocol::Event;
+    use relay_protocol::FromValue;
 
     #[test]
     fn test_extract_transaction_metadata() {
@@ -127,7 +127,7 @@ mod tests {
         );
 
         let metadata = extract_transaction_metadata(&event.0.unwrap());
-        insta::assert_debug_snapshot!(metadata, @r###"
+        insta::assert_debug_snapshot!(metadata, @r#"
         {
             "app.identifier": "io.sentry.myexample",
             "dist": "mydist",
@@ -140,6 +140,6 @@ mod tests {
             "transaction.start": "2011-05-02T17:40:36.000000000+00:00",
             "transaction.status": "ok",
         }
-        "###);
+        "#);
     }
 }

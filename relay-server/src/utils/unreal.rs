@@ -1,11 +1,11 @@
 use chrono::{TimeZone, Utc};
 use relay_config::Config;
-use relay_general::protocol::{
+use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
     User, UserReport, Values,
 };
-use relay_general::types::{self, Annotated, Array, Object, Value};
+use relay_protocol::{Annotated, Array, Object, Value};
 use symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
@@ -253,7 +253,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         ..ClientSdkInfo::default()
     });
 
-    if let Ok(Some(Value::Object(props))) = types::to_value(&runtime_props) {
+    if let Ok(Some(Value::Object(props))) = relay_protocol::to_value(&runtime_props) {
         let unreal_context =
             contexts.get_or_insert_with("unreal", || Context::Other(Object::new()));
 
@@ -317,7 +317,7 @@ mod tests {
     use super::*;
 
     fn get_context() -> Unreal4Context {
-        let raw_context = br##"<?xml version="1.0" encoding="UTF-8"?>
+        let raw_context = br#"<?xml version="1.0" encoding="UTF-8"?>
 <FGenericCrashContext>
 	<RuntimeProperties>
 		<UserName>bruno</UserName>
@@ -343,7 +343,7 @@ mod tests {
 		<PlatformCallbackResult>0</PlatformCallbackResult>
 	</PlatformProperties>
 </FGenericCrashContext>
-"##;
+"#;
 
         Unreal4Context::parse(raw_context).unwrap()
     }
@@ -386,11 +386,11 @@ mod tests {
 
     #[test]
     fn test_merge_unreal_logs() {
-        let logs = br##"Log file open, 10/29/18 17:56:37
+        let logs = br#"Log file open, 10/29/18 17:56:37
 [2018.10.29-16.56.38:332][  0]LogGameplayTags: Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0
 [2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
 [2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
-[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"##;
+[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"#;
 
         let mut event = Event::default();
         merge_unreal_logs(&mut event, logs).ok();

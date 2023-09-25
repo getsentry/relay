@@ -8,25 +8,21 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::slice;
 
-use chrono::Utc;
 use once_cell::sync::OnceCell;
-use relay_common::{codeowners_match_bytes, glob_match_bytes, GlobOptions};
-use relay_dynamic_config::{validate_json, ProjectConfig};
-use relay_general::pii::{
+use relay_common::glob::{glob_match_bytes, GlobOptions};
+use relay_dynamic_config::{normalize_json, validate_json, GlobalConfig, ProjectConfig};
+use relay_event_normalization::{
+    light_normalize_event, GeoIpLookup, LightNormalizationConfig, RawUserAgentInfo, StoreConfig,
+    StoreProcessor,
+};
+use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
+use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
+use relay_pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
-use relay_general::processor::{process_value, split_chunks, ProcessingState};
-use relay_general::protocol::{Event, VALID_PLATFORMS};
-use relay_general::store::{
-    light_normalize_event, GeoIpLookup, LightNormalizationConfig, StoreConfig, StoreProcessor,
-};
-use relay_general::types::{Annotated, Remark};
-use relay_general::user_agent::RawUserAgentInfo;
-use relay_sampling::{
-    merge_rules_from_configs, DynamicSamplingContext, RuleCondition, SamplingConfig, SamplingMatch,
-    SamplingRule,
-};
-use serde::Serialize;
+use relay_protocol::{Annotated, Remark};
+use relay_sampling::condition::RuleCondition;
+use relay_sampling::SamplingConfig;
 
 use crate::core::{RelayBuf, RelayStr};
 
@@ -126,8 +122,8 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         received_at: config.received_at,
         max_secs_in_past: config.max_secs_in_past,
         max_secs_in_future: config.max_secs_in_future,
-        measurements_config: None, // only supported in relay
-        breakdowns_config: None,   // only supported in relay
+        transaction_range: None, // only supported in relay
+        breakdowns_config: None, // only supported in relay
         normalize_user_agent: config.normalize_user_agent,
         transaction_name_config: Default::default(), // only supported in relay
         is_renormalize: config.is_renormalize.unwrap_or(false),
@@ -138,6 +134,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         span_description_rules: None,
         geoip_lookup: None, // only supported in relay
         enable_trimming: config.enable_trimming.unwrap_or_default(),
+        measurements: None,
     };
     light_normalize_event(&mut event, light_normalization_config)?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
@@ -172,7 +169,7 @@ pub unsafe extern "C" fn relay_validate_pii_config(value: *const RelayStr) -> Re
 pub unsafe extern "C" fn relay_convert_datascrubbing_config(config: *const RelayStr) -> RelayStr {
     let config: DataScrubbingConfig = serde_json::from_str((*config).as_str())?;
     match config.pii_config() {
-        Ok(Some(config)) => RelayStr::from_string(config.to_json()?),
+        Ok(Some(config)) => RelayStr::from_string(serde_json::to_string(config)?),
         Ok(None) => RelayStr::new("{}"),
         // NOTE: Callers of this function must be able to handle this error.
         Err(e) => RelayStr::from_string(e.to_string()),
@@ -210,6 +207,7 @@ pub unsafe extern "C" fn relay_pii_selector_suggestions_from_event(
 /// A test function that always panics.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
+#[allow(clippy::diverging_sub_expression)]
 pub unsafe extern "C" fn relay_test_panic() -> () {
     panic!("this is a test panic")
 }
@@ -252,16 +250,6 @@ pub unsafe extern "C" fn relay_is_glob_match(
         options.allow_newline = true;
     }
     glob_match_bytes((*value).as_bytes(), (*pat).as_str(), options)
-}
-
-/// Returns `true` if the codeowners path matches the value, `false` otherwise.
-#[no_mangle]
-#[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn relay_is_codeowners_path_match(
-    value: *const RelayBuf,
-    pattern: *const RelayStr,
-) -> bool {
-    codeowners_match_bytes((*value).as_bytes(), (*pattern).as_str())
 }
 
 /// Parse a sentry release structure from a string.
@@ -337,52 +325,15 @@ pub unsafe extern "C" fn relay_validate_project_config(
     }
 }
 
-#[derive(Debug, Serialize)]
-struct EphemeralSamplingResult {
-    merged_sampling_configs: Vec<SamplingRule>,
-    sampling_match: Option<SamplingMatch>,
-}
-
-/// Runs dynamic sampling given the sampling config, root sampling config, dsc and event.
-///
-/// Returns the sampling decision containing the sample_rate and the list of matched rule ids.
+/// Normalize a global config.
 #[no_mangle]
 #[relay_ffi::catch_unwind]
-pub unsafe extern "C" fn run_dynamic_sampling(
-    sampling_config: &RelayStr,
-    root_sampling_config: &RelayStr,
-    dsc: &RelayStr,
-    event: &RelayStr,
-) -> RelayStr {
-    let sampling_config = serde_json::from_str::<SamplingConfig>(sampling_config.as_str())?;
-    let root_sampling_config =
-        serde_json::from_str::<SamplingConfig>(root_sampling_config.as_str())?;
-    // We can optionally accept a dsc and event.
-    let dsc = serde_json::from_str::<DynamicSamplingContext>(dsc.as_str());
-    let event = Annotated::<Event>::from_json(event.as_str());
-
-    // Instead of creating a new function, we decided to reuse the existing code here. This will have
-    // the only downside of not having the possibility to set the sample rate to a different value
-    // based on the `SamplingMode` but for this simulation it is not that relevant.
-    let rules: Vec<SamplingRule> =
-        merge_rules_from_configs(Some(&sampling_config), Some(&root_sampling_config))
-            .cloned()
-            .collect();
-
-    // Only if we have both dsc and event we want to run dynamic sampling, otherwise we just return
-    // the merged sampling configs.
-    let match_result = if let (Ok(event), Ok(dsc)) = (event, dsc) {
-        SamplingMatch::match_against_rules(rules.iter(), event.value(), Some(&dsc), Utc::now())
-    } else {
-        None
-    };
-
-    let result = EphemeralSamplingResult {
-        merged_sampling_configs: rules,
-        sampling_match: match_result,
-    };
-
-    RelayStr::from(serde_json::to_string(&result).unwrap())
+pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> RelayStr {
+    let value = (*value).as_str();
+    match normalize_json::<GlobalConfig>(value) {
+        Ok(normalized) => RelayStr::from_string(normalized),
+        Err(e) => RelayStr::from_string(e.to_string()),
+    }
 }
 
 #[test]

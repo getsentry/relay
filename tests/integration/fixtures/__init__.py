@@ -1,4 +1,3 @@
-import datetime
 import time
 
 import requests
@@ -221,26 +220,16 @@ class SentryLike:
         envelope.add_item(Item(PayloadRef(json=payload), type="client_report"))
         self.send_envelope(project_id, envelope)
 
-    def send_metrics(self, project_id, payload, timestamp=None):
+    def send_metrics(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=payload.encode()),
-                type="metrics",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
+            Item(payload=PayloadRef(bytes=payload.encode()), type="statsd")
         )
         self.send_envelope(project_id, envelope)
 
-    def send_metrics_buckets(self, project_id, payload, timestamp=None):
+    def send_metrics_buckets(self, project_id, payload):
         envelope = Envelope()
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(json=payload),
-                type="metric_buckets",
-                headers=None if timestamp is None else {"timestamp": timestamp},
-            )
-        )
+        envelope.add_item(Item(payload=PayloadRef(json=payload), type="metric_buckets"))
         self.send_envelope(project_id, envelope)
 
     def send_security_report(

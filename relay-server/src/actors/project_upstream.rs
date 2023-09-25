@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use futures::future;
 use itertools::Itertools;
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_dynamic_config::ErrorBoundary;
 use relay_statsd::metric;
@@ -44,10 +44,12 @@ pub struct GetProjectStates {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetProjectStatesResponse {
+    /// Map of [`ProjectKey`] to [`ProjectState`] that was fetched from the upstream.
     #[serde(default)]
-    pub configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    configs: HashMap<ProjectKey, ErrorBoundary<Option<ProjectState>>>,
+    /// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     #[serde(default)]
-    pub pending: Vec<ProjectKey>,
+    pending: Vec<ProjectKey>,
 }
 
 impl UpstreamQuery for GetProjectStates {
@@ -257,6 +259,10 @@ impl UpstreamProjectSourceService {
         let nocache_batches = channels.nocache_channels.into_iter().chunks(batch_size);
 
         let mut requests = vec![];
+        // The `nocache_batches.into_iter()` still must be called here, since compiler produces the
+        // error: `that nocache_batches is not an iterator`.
+        // Since `IntoChunks` is not an iterator itself but only implements `IntoIterator` trait.
+        #[allow(clippy::useless_conversion)]
         for channels_batch in cache_batches.into_iter().chain(nocache_batches.into_iter()) {
             let mut channels_batch: ProjectStateChannels = channels_batch.collect();
             for channel in channels_batch.values_mut() {

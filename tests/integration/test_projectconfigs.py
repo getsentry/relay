@@ -5,13 +5,12 @@ Tests the project_configs endpoint (/api/0/relays/projectconfigs/)
 import uuid
 import pytest
 import time
-from requests.exceptions import HTTPError
-import queue
 from collections import namedtuple
 import tempfile
 import os
 
-from sentry_relay import PublicKey, SecretKey, generate_key_pair
+from .fixtures.mini_sentry import GLOBAL_CONFIG
+from sentry_relay.auth import PublicKey, SecretKey, generate_key_pair
 
 RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal"])
 
@@ -175,7 +174,7 @@ def test_pending_projects(mini_sentry, relay):
     # subsequent request will contain the response.  However if the machine executing this
     # test is very slow this could still be a flaky test.
     relay = relay(mini_sentry, wait_health_check=True)
-    project = mini_sentry.add_basic_project_config(42)
+    mini_sentry.add_basic_project_config(42)
     public_key = mini_sentry.get_dsn_public_key(42)
 
     body = {"publicKeys": [public_key]}
@@ -213,9 +212,9 @@ def test_pending_projects(mini_sentry, relay):
     assert data.get("pending") is None
 
 
-def request_config(relay, packed, signature):
+def request_config(relay, packed, signature, version: str):
     return relay.post(
-        "/api/0/relays/projectconfigs/?version=3",
+        f"/api/0/relays/projectconfigs/?version={version}",
         data=packed,
         headers={
             "X-Sentry-Relay-Id": relay.relay_id,
@@ -224,13 +223,13 @@ def request_config(relay, packed, signature):
     )
 
 
-def get_response(relay, packed, signature):
+def get_response(relay, packed, signature, version="3"):
     data = None
     deadline = time.monotonic() + 15
     while time.monotonic() <= deadline:
         # send 1 r/s
         time.sleep(1)
-        response = request_config(relay, packed, signature)
+        response = request_config(relay, packed, signature, version)
         assert response.ok
         data = response.json()
         if data["configs"]:
@@ -439,3 +438,18 @@ def test_cached_project_config(mini_sentry, relay):
         }
     finally:
         mini_sentry.test_failures.clear()
+
+
+def test_get_global_config(mini_sentry, relay):
+    project_key = 42
+    relay_config = {
+        "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
+    }
+    relay = relay(mini_sentry, relay_config, wait_health_check=True)
+    mini_sentry.add_full_project_config(project_key)
+
+    body = {"publicKeys": [], "global": True}
+    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+    data = get_response(relay, packed, signature, version="3")
+
+    assert data["global"] == GLOBAL_CONFIG

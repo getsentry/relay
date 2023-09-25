@@ -15,13 +15,15 @@ _version_re = re.compile(r'(?m)^version\s*=\s*"(.*?)"\s*$')
 
 DEBUG_BUILD = os.environ.get("RELAY_DEBUG") == "1"
 
-with open("README", "rb") as f:
+with open("README", encoding="UTF-8") as f:
     readme = f.read()
 
 
 if os.path.isfile("../relay-cabi/Cargo.toml"):
     with open("../relay-cabi/Cargo.toml") as f:
-        version = _version_re.search(f.read()).group(1)
+        match = _version_re.search(f.read())
+        assert match is not None
+        version = match[1]
 else:
     with open("version.txt") as f:
         version = f.readline().strip()
@@ -102,15 +104,16 @@ setup(
     version=version,
     packages=find_packages(),
     author="Sentry",
-    license="BSL-1.1",
+    license="BUSL-1.1",
     author_email="hello@sentry.io",
     description="A python library to access sentry relay functionality.",
     long_description=readme,
     include_package_data=True,
+    package_data={"sentry_relay": ["py.typed", "_lowlevel.pyi"]},
     zip_safe=False,
     platforms="any",
     python_requires=">=3.8",
-    install_requires=['enum34>=1.1.6,<1.2.0;python_version<"3.4"', "milksnake>=0.1.2"],
+    install_requires=["milksnake>=0.1.2"],
     setup_requires=["milksnake>=0.1.2"],
     milksnake_tasks=[build_native],
     cmdclass={"sdist": CustomSDist},

@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{level_filters::LevelFilter, Level};
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
+#[cfg(feature = "dashboard")]
+use crate::dashboard;
+
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
 
@@ -236,14 +239,19 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             .boxed(),
     };
 
-    tracing_subscriber::registry()
+    let logs_subscriber = tracing_subscriber::registry()
         .with(format.with_filter(LevelFilter::from(config.level)))
         .with(sentry::integrations::tracing::layer())
         .with(match env::var(EnvFilter::DEFAULT_ENV) {
             Ok(value) => EnvFilter::new(value),
             Err(_) => get_default_filters(),
-        })
-        .init();
+        });
+
+    // Also add dashboard subscriber if the feature is enabled.
+    #[cfg(feature = "dashboard")]
+    let logs_subscriber = logs_subscriber.with(dashboard::dashboard_subscriber());
+
+    logs_subscriber.init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
         let guard = sentry::init(sentry::ClientOptions {

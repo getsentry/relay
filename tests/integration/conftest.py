@@ -1,6 +1,5 @@
 import socket
 import subprocess
-import itertools
 import os
 from os import path
 from typing import Optional
@@ -14,7 +13,7 @@ from .fixtures.haproxy import haproxy  # noqa
 from .fixtures.mini_sentry import mini_sentry  # noqa
 from .fixtures.aws_lambda_runtime import aws_lambda_runtime  # noqa
 from .fixtures.relay import relay, get_relay_binary, latest_relay_version  # noqa
-from .fixtures.processing import (
+from .fixtures.processing import (  # noqa
     kafka_consumer,
     get_topic_name,
     processing_config,
@@ -28,7 +27,8 @@ from .fixtures.processing import (
     metrics_consumer,
     replay_events_consumer,
     monitors_consumer,
-)  # noqa
+    spans_consumer,
+)
 
 
 @pytest.fixture

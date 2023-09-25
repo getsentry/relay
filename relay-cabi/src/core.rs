@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::{mem, ptr, slice, str};
 
-use relay_common::Uuid;
+use uuid::Uuid;
 
 /// A length-prefixed UTF-8 string.
 ///
@@ -173,7 +173,7 @@ pub struct RelayBuf {
 impl RelayBuf {
     pub(crate) unsafe fn free(&mut self) {
         if self.owned {
-            Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
+            Vec::from_raw_parts(self.data, self.len, self.len);
             self.data = ptr::null_mut();
             self.len = 0;
             self.owned = false;

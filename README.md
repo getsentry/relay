@@ -31,7 +31,7 @@ SDKs as well as the Sentry server into a proxy process.
 
 ## License
 
-Like Sentry, Relay is licensed under the BSL. See the `LICENSE` file and [this
+Like Sentry, Relay is licensed under the BUSL. See the `LICENSE` file and [this
 forum post](https://forum.sentry.io/t/re-licensing-sentry-faq-discussion/8044)
 for more information.
 

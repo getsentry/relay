@@ -1,5 +1,11 @@
-#[cfg(debug_assertions)]
-use std::cell::RefCell;
+//! This module contains the kafka producer related code.
+//!
+//! There are two different producers that are supported in Relay right now:
+//! - [`SingleProducer`] - which sends all the messages to the defined kafka [`KafkaTopic`],
+//! - [`ShardedProducer`] - which expects to have at least one shard configured, and depending on
+//! the shard number the different messages will be sent to different topics using the configured
+//! producer for the this exact shard.
+
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
@@ -11,14 +17,12 @@ use relay_statsd::metric;
 use thiserror::Error;
 
 use crate::config::{KafkaConfig, KafkaParams, KafkaTopic};
-#[cfg(debug_assertions)]
-use crate::producer::schemas::Validator;
 use crate::statsd::KafkaHistograms;
 
 mod utils;
 use utils::{CaptureErrorContext, ThreadedProducer};
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "schemas")]
 mod schemas;
 
 /// Kafka producer errors.
@@ -45,7 +49,7 @@ pub enum ClientError {
     InvalidJson(#[source] serde_json::Error),
 
     /// Failed to run schema validation on message.
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "schemas")]
     #[error("failed to run schema validation on message")]
     SchemaValidationFailed(#[source] schemas::SchemaError),
 
@@ -142,8 +146,8 @@ impl fmt::Debug for ShardedProducer {
 #[derive(Debug)]
 pub struct KafkaClient {
     producers: HashMap<KafkaTopic, Producer>,
-    #[cfg(debug_assertions)]
-    schema_validator: RefCell<schemas::Validator>,
+    #[cfg(feature = "schemas")]
+    schema_validator: std::cell::RefCell<schemas::Validator>,
 }
 
 impl KafkaClient {
@@ -160,7 +164,7 @@ impl KafkaClient {
         message: &impl Message,
     ) -> Result<(), ClientError> {
         let serialized = message.serialize()?;
-        #[cfg(debug_assertions)]
+        #[cfg(feature = "schemas")]
         self.schema_validator
             .borrow_mut()
             .validate_message_schema(topic, &serialized)
@@ -196,7 +200,7 @@ impl KafkaClient {
     }
 }
 
-/// Helper structure responsable for building the actual [`KafkaClient`].
+/// Helper structure responsible for building the actual [`KafkaClient`].
 #[derive(Default)]
 pub struct KafkaClientBuilder {
     reused_producers: BTreeMap<Option<String>, Arc<ThreadedProducer>>,
@@ -303,8 +307,8 @@ impl KafkaClientBuilder {
     pub fn build(self) -> KafkaClient {
         KafkaClient {
             producers: self.producers,
-            #[cfg(debug_assertions)]
-            schema_validator: Validator::default().into(),
+            #[cfg(feature = "schemas")]
+            schema_validator: schemas::Validator::default().into(),
         }
     }
 }
@@ -318,7 +322,7 @@ impl fmt::Debug for KafkaClientBuilder {
     }
 }
 
-/// This object containes the Kafka producer variants for single and sharded configurations.
+/// This object contains the Kafka producer variants for single and sharded configurations.
 #[derive(Debug)]
 enum Producer {
     /// Configuration variant for the single kafka producer.

@@ -1,9 +1,11 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
-use relay_common::{MetricUnit, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    CounterType, DistributionType, DurationUnit, Metric, MetricNamespace, MetricValue,
+    Bucket, BucketValue, CounterType, DistributionType, DurationUnit, MetricNamespace,
+    MetricResourceIdentifier, MetricUnit,
 };
 
 use crate::metrics_extraction::IntoMetric;
@@ -28,13 +30,13 @@ pub enum TransactionMetric {
         value: CounterType,
         tags: TransactionCPRTags,
     },
-    /// A metric created from [`relay_general::protocol::Breakdowns`].
+    /// A metric created from [`relay_event_schema::protocol::Breakdowns`].
     Breakdown {
         name: String,
         value: DistributionType,
         tags: CommonTags,
     },
-    /// A metric created from a [`relay_general::protocol::Measurement`].
+    /// A metric created from a [`relay_event_schema::protocol::Measurement`].
     Measurement {
         name: String,
         value: DistributionType,
@@ -44,54 +46,60 @@ pub enum TransactionMetric {
 }
 
 impl IntoMetric for TransactionMetric {
-    fn into_metric(self, timestamp: UnixTimestamp) -> Metric {
+    fn into_metric(self, timestamp: UnixTimestamp) -> Bucket {
         let namespace = MetricNamespace::Transactions;
-        match self {
-            TransactionMetric::User { value, tags } => Metric::new_mri(
-                namespace,
-                "user",
+
+        let (name, value, unit, tags) = match self {
+            TransactionMetric::User { value, tags } => (
+                Cow::Borrowed("user"),
+                BucketValue::set_from_str(&value),
                 MetricUnit::None,
-                MetricValue::set_from_str(&value),
-                timestamp,
                 tags.into(),
             ),
-            TransactionMetric::Breakdown { value, tags, name } => Metric::new_mri(
-                namespace,
-                format!("breakdowns.{name}").as_str(),
-                MetricUnit::Duration(DurationUnit::MilliSecond),
-                MetricValue::Distribution(value),
-                timestamp,
-                tags.into(),
-            ),
-            TransactionMetric::CountPerRootProject { value, tags } => Metric::new_mri(
-                namespace,
-                "count_per_root_project",
-                MetricUnit::None,
-                MetricValue::Counter(value),
-                timestamp,
-                tags.into(),
-            ),
-            TransactionMetric::Duration { unit, value, tags } => Metric::new_mri(
-                namespace,
-                "duration",
+            TransactionMetric::Duration { unit, value, tags } => (
+                Cow::Borrowed("duration"),
+                BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
-                MetricValue::Distribution(value),
-                timestamp,
+                tags.into(),
+            ),
+            TransactionMetric::CountPerRootProject { value, tags } => (
+                Cow::Borrowed("count_per_root_project"),
+                BucketValue::counter(value),
+                MetricUnit::None,
+                tags.into(),
+            ),
+            TransactionMetric::Breakdown { name, value, tags } => (
+                Cow::Owned(format!("breakdowns.{name}")),
+                BucketValue::distribution(value),
+                MetricUnit::Duration(DurationUnit::MilliSecond),
                 tags.into(),
             ),
             TransactionMetric::Measurement {
-                name: kind,
+                name,
                 value,
                 unit,
                 tags,
-            } => Metric::new_mri(
-                namespace,
-                format!("measurements.{kind}").as_str(),
+            } => (
+                Cow::Owned(format!("measurements.{name}")),
+                BucketValue::distribution(value),
                 unit,
-                MetricValue::Distribution(value),
-                timestamp,
                 tags.into(),
             ),
+        };
+
+        let mri = MetricResourceIdentifier {
+            ty: value.ty(),
+            namespace,
+            name: &name,
+            unit,
+        };
+
+        Bucket {
+            timestamp,
+            width: 0,
+            name: mri.to_string(),
+            value,
+            tags,
         }
     }
 }
