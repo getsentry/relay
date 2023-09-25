@@ -2,10 +2,16 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
+- Fix reporting of Relay's crashes to Sentry. The `crash-handler` feature did not enable the crash reporter and uploads of crashes were broken. ([#2532](https://github.com/getsentry/relay/pull/2532))
+
 **Internal**:
 
 - Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522))
 - Remove filtering for Android events with missing close events. ([#2524](https://github.com/getsentry/relay/pull/2524))
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522), [#2525](https://github.com/getsentry/relay/pull/2525))
 
 ## 23.9.1
 

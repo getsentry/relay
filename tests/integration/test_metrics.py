@@ -1352,7 +1352,7 @@ def test_span_metrics_secondary_aggregator(
                     "span.action": "SELECT",
                     "span.description": "SELECT %s*",
                     "span.category": "db",
-                    "span.domain": "foo",
+                    "span.domain": ",foo,",
                     "span.module": "db",
                     "span.op": "db",
                 },

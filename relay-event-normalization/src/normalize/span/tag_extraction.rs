@@ -360,6 +360,10 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Returns a sorted, comma-separated list of SQL tables, if any.
+///
+/// HACK: When there is a single table, add comma separation so that the
+/// backend can understand the difference between tables and their subsets
+/// for example: table `,users,` and table `,users_config,` should be considered different
 fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
     match parse_query(db_system, query) {
         Ok(ast) => {
@@ -367,13 +371,20 @@ fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String>
                 table_names: Default::default(),
             };
             ast.visit(&mut visitor);
-            let mut s = String::with_capacity(visitor.table_names.iter().map(String::len).sum());
-            for (i, name) in visitor.table_names.into_iter().enumerate() {
-                if i == 0 {
-                    write!(&mut s, "{name}").ok();
-                } else {
-                    write!(&mut s, ",{name}").ok();
-                }
+            let comma_size: usize = 1;
+            let mut s = String::with_capacity(
+                visitor
+                    .table_names
+                    .iter()
+                    .map(|name| String::len(name) + comma_size)
+                    .sum::<usize>()
+                    + comma_size,
+            );
+            if !visitor.table_names.is_empty() {
+                s.push(',');
+            }
+            for (_i, name) in visitor.table_names.into_iter().enumerate() {
+                write!(&mut s, "{name},").ok();
             }
             (!s.is_empty()).then_some(s)
         }
@@ -586,14 +597,14 @@ mod tests {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
         assert_eq!(
             sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            "b"
+            ",b,"
         );
     }
 
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), "b");
+        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
     }
 
     #[test]
@@ -601,7 +612,7 @@ mod tests {
         let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
             sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            "a,b,c"
+            ",a,b,c,"
         );
     }
 
@@ -611,7 +622,7 @@ mod tests {
             r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
             sql_tables_from_query(Some("mysql"), query).unwrap(),
-            "a,b,c"
+            ",a,b,c,"
         );
     }
 
@@ -642,14 +653,14 @@ LIMIT 1
             "#;
         assert_eq!(
             sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            "sentry_environmentrelease,sentry_grouprelease,sentry_release_project"
+            ",sentry_environmentrelease,sentry_grouprelease,sentry_release_project,"
         );
     }
 
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), "b");
+        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
     }
 
     #[test]
@@ -657,7 +668,7 @@ LIMIT 1
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
         assert_eq!(
             sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            "a"
+            ",a,"
         );
     }
 
@@ -666,7 +677,7 @@ LIMIT 1
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
         assert_eq!(
             sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            "a"
+            ",a,"
         );
     }
 
