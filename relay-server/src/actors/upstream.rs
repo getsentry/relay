@@ -1040,10 +1040,6 @@ enum Action {
     ///
     /// The entry is placed on the front of the [`UpstreamQueue`].
     Retry(Entry),
-    /// Notifies a request has been completed successfully to upstream.
-    ///
-    /// Successful requests reset the retry backoff.
-    SuccessfulRequest,
     /// Notifies completion of a request with a given outcome.
     ///
     /// Dropped request that need retries will additionally invoke the [`Retry`](Self::Retry)
@@ -1412,10 +1408,7 @@ impl UpstreamBroker {
                     entry.retries += 1;
                     action_tx.send(Action::Retry(entry)).ok();
                 }
-                _ => {
-                    entry.request.respond(result).await;
-                    action_tx.send(Action::SuccessfulRequest).ok();
-                }
+                _ => entry.request.respond(result).await,
             }
 
             // Send an action back to the action channel of the broker, which will invoke
@@ -1431,7 +1424,10 @@ impl UpstreamBroker {
 
         match status {
             RequestOutcome::Dropped => self.conn.notify_error(&self.action_tx),
-            RequestOutcome::Received => self.conn.reset_error(),
+            RequestOutcome::Received => {
+                self.conn.reset_error();
+                self.queue.retry_backoff_reset();
+            }
         }
     }
 
@@ -1439,7 +1435,6 @@ impl UpstreamBroker {
     fn handle_action(&mut self, action: Action) {
         match action {
             Action::Retry(request) => self.queue.retry(request),
-            Action::SuccessfulRequest => self.queue.retry_backoff_reset(),
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
             Action::UpdateAuth(state) => self.auth_state = state,
