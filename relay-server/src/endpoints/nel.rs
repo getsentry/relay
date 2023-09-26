@@ -21,28 +21,6 @@ struct NelReportParams {
     body: Bytes,
 }
 
-impl NelReportParams {
-    fn extract_envelope(self) -> Result<Box<Envelope>, BadStoreRequest> {
-        let Self { meta, body } = self;
-
-        if body.is_empty() {
-            return Err(BadStoreRequest::EmptyBody);
-        }
-
-        let items: Value = serde_json::from_slice(&body).map_err(BadStoreRequest::InvalidJson)?;
-        let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
-
-        // Iterate only if the body contains the list of the items.
-        for item in items.as_array().into_iter().flatten() {
-            let mut report_item = Item::new(ItemType::Nel);
-            report_item.set_payload(ContentType::Json, item.to_owned().to_string());
-            envelope.add_item(report_item);
-        }
-
-        Ok(envelope)
-    }
-}
-
 fn is_nel_mime(mime: Mime) -> bool {
     let ty = mime.type_().as_str();
     let subty = mime.subtype().as_str();
@@ -64,8 +42,18 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
 
-    let envelope = params.extract_envelope()?;
-    common::handle_envelope(&state, envelope).await?;
+    let items: Value =
+        serde_json::from_slice(&params.body).map_err(BadStoreRequest::InvalidJson)?;
+
+    // Iterate only if the body contains the list of the items.
+    for item in items.as_array().into_iter().flatten() {
+        let mut envelope = Envelope::from_request(Some(EventId::new()), params.meta.clone());
+        let mut report_item = Item::new(ItemType::Nel);
+        report_item.set_payload(ContentType::Json, item.to_owned().to_string());
+        envelope.add_item(report_item);
+        common::handle_envelope(&state, envelope).await?;
+    }
+
     Ok(().into_response())
 }
 
