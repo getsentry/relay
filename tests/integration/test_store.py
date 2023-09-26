@@ -429,7 +429,9 @@ def test_processing_quotas(
     elif event_type == "error":
         transform = make_error
     else:
-        transform = lambda e: e
+
+        def transform(e):
+            return e
 
     for i in range(5):
         # send using the first dsn
@@ -1189,7 +1191,10 @@ def test_spans(
     relay = relay_with_processing()
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = ["projects:span-metrics-extraction"]
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
     end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
@@ -1244,6 +1249,11 @@ def test_spans(
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
         "span": {
+            "data": {
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "description": "hi",
             "exclusive_time": 2000.0,
             "is_segment": True,
             "op": "hi",

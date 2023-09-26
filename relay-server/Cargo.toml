@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.8.0"
+version = "23.9.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE"
@@ -32,7 +32,7 @@ processing = [
 
 [dependencies]
 anyhow = { workspace = true }
-axum = { version = "0.6.15", features = [
+axum = { version = "0.6.20", features = [
     "headers",
     "macros",
     "matched-path",

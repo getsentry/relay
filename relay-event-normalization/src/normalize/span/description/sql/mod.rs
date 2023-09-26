@@ -275,6 +275,26 @@ mod tests {
     );
 
     scrub_sql_test!(
+        declare_cursor,
+        "DECLARE curs2 CURSOR FOR SELECT * FROM t1",
+        "DECLARE %s CURSOR FOR SELECT * FROM t1"
+    );
+
+    scrub_sql_test!(
+        declare_cursor_advanced,
+        r#"DECLARE c123456 NO SCROLL CURSOR FOR SELECT "t".* FROM "t" WHERE "t".x = 1 AND y = %s"#,
+        "DECLARE %s NO SCROLL CURSOR FOR SELECT * FROM t WHERE x = %s AND y = %s"
+    );
+
+    scrub_sql_test!(
+        fetch_cursor,
+        "FETCH LAST FROM curs3 INTO x",
+        "FETCH LAST IN %s INTO %s"
+    );
+
+    scrub_sql_test!(close_cursor, "CLOSE curs1", "CLOSE %s");
+
+    scrub_sql_test!(
         savepoint_quoted_backtick,
         "SAVEPOINT `backtick_quoted_identifier`",
         "SAVEPOINT %s"
@@ -443,13 +463,13 @@ mod tests {
     scrub_sql_test!(
         collapse_partial_column_lists,
         r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table1 WHERE %s"#,
-        "SELECT .., count(*) AS c, .. FROM table1 WHERE %s"
+        "SELECT .., count(*), .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
         collapse_partial_column_lists_2,
         r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"#,
-        "SELECT DISTINCT .., COALESCE(foo, %s) AS id FROM x"
+        "SELECT DISTINCT .., COALESCE(foo, %s) FROM x"
     );
 
     scrub_sql_test!(
@@ -610,6 +630,12 @@ mod tests {
             ELSE 30
         END"#,
         "UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
+    );
+
+    scrub_sql_test!(
+        unique_alias,
+        "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
+        "SELECT pg_advisory_unlock(%s, %s)"
     );
 
     scrub_sql_test!(

@@ -126,7 +126,7 @@ impl Default for LogConfig {
     }
 }
 
-/// Controls interal reporting to Sentry.
+/// Controls internal reporting to Sentry.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SentryConfig {
@@ -165,10 +165,10 @@ impl Default for SentryConfig {
 }
 
 /// Captures an envelope from the native crash reporter using the main Sentry SDK.
-#[cfg(feature = "relay-crash")]
+#[cfg(feature = "crash-handler")]
 fn capture_native_envelope(data: &[u8]) {
     if let Some(client) = sentry::Hub::main().client() {
-        match sentry::Envelope::from_slice(data) {
+        match sentry::Envelope::from_bytes_raw(data.to_owned()) {
             Ok(envelope) => client.send_envelope(envelope),
             Err(error) => {
                 let error = &error as &dyn std::error::Error;
@@ -270,13 +270,15 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
 
     // Initialize native crash reporting after the Rust SDK, so that `capture_native_envelope` has
     // access to an initialized Hub to capture crashes from the previous run.
-    #[cfg(feature = "relay-crash")]
+    #[cfg(feature = "crash-handler")]
     {
         if let Some(dsn) = sentry.enabled_dsn().map(|d| d.to_string()) {
             if let Some(db) = sentry._crash_db.as_deref() {
+                crate::info!("initializing crash handler in {}", db.display());
                 relay_crash::CrashHandler::new(dsn.as_str(), db)
                     .transport(capture_native_envelope)
                     .release(Some(RELEASE))
+                    .environment(sentry.environment.as_deref())
                     .install();
             }
         }

@@ -42,8 +42,9 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
-use relay_sampling::evaluation::MatchedRuleIds;
-use relay_sampling::DynamicSamplingContext;
+use relay_sampling::config::{RuleType, SamplingMode};
+use relay_sampling::evaluation::{Evaluation, MatchedRuleIds, SamplingEvaluator};
+use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use serde_json::Value as SerdeValue;
@@ -54,8 +55,8 @@ use {
     crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
-    relay_event_normalization::{StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::ProfileContext,
+    relay_event_normalization::{span, StoreConfig, StoreProcessor},
+    relay_event_schema::protocol::{ProfileContext, Span},
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
@@ -277,9 +278,7 @@ struct ProcessEnvelopeState {
 
     /// The result of a dynamic sampling operation on this envelope.
     ///
-    /// This defaults to [`SamplingResult::Keep`] and is determined based on dynamic sampling rules
-    /// in the project configuration. In the drop case, this contains a list of rules that applied
-    /// on the envelope.
+    /// The event will be kept if there's either no match, or there's a match and it was sampled.
     sampling_result: SamplingResult,
 
     /// Metrics extracted from items in the envelope.
@@ -1129,29 +1128,16 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let mut found_profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
                 match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
                     Ok((profile_id, payload)) => {
                         if payload.len() <= self.inner.config.max_profile_size() {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                    contexts.add(ProfileContext {
-                                        profile_id: Annotated::new(profile_id),
-                                    });
-                                }
-                            }
+                            found_profile_id = Some(profile_id);
                             item.set_payload(ContentType::Json, payload);
                             ItemAction::Keep
                         } else {
-                            if let Some(event) = state.event.value_mut() {
-                                if event.ty.value() == Some(&EventType::Transaction) {
-                                    if let Some(ref mut contexts) = event.contexts.value_mut() {
-                                        contexts.remove::<ProfileContext>();
-                                    }
-                                }
-                            }
                             ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                                 relay_profiling::discard_reason(
                                     relay_profiling::ProfileError::ExceedSizeLimit,
@@ -1160,13 +1146,6 @@ impl EnvelopeProcessorService {
                         }
                     }
                     Err(err) => {
-                        if let Some(event) = state.event.value_mut() {
-                            if event.ty.value() == Some(&EventType::Transaction) {
-                                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                                contexts.remove::<ProfileContext>();
-                            }
-                        }
-
                         match err {
                             relay_profiling::ProfileError::InvalidJson(_) => {
                                 relay_log::warn!(error = &err as &dyn Error, "invalid profile");
@@ -1181,6 +1160,20 @@ impl EnvelopeProcessorService {
             }
             _ => ItemAction::Keep,
         });
+        if let Some(event) = state.event.value_mut() {
+            if event.ty.value() == Some(&EventType::Transaction) {
+                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                // If we found a profile, add its ID to the profile context on the transaction.
+                if let Some(profile_id) = found_profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                // If not, we delete the profile context.
+                } else {
+                    contexts.remove::<ProfileContext>();
+                }
+            }
+        }
     }
 
     /// Remove replays if the feature flag is not enabled.
@@ -1363,7 +1356,7 @@ impl EnvelopeProcessorService {
             event_metrics_extracted: false,
             metrics: Metrics::default(),
             sample_rates: None,
-            sampling_result: SamplingResult::Keep,
+            sampling_result: SamplingResult::Pending,
             extracted_metrics: Default::default(),
             project_state,
             sampling_project_state,
@@ -2237,10 +2230,31 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
+    fn is_span_allowed(&self, span: &Span) -> bool {
+        let Some(op) = span.op.value() else {
+            return false;
+        };
+        let Some(description) = span.description.value() else {
+            return false;
+        };
+        let system: &str = span
+            .data
+            .value()
+            .and_then(|v| v.get("span.system"))
+            .and_then(|system| system.as_str())
+            .unwrap_or_default();
+        op.starts_with("db")
+            && !(op.contains("active_record")
+                || op.contains("activerecord")
+                || op.contains("clickhouse")
+                || op.contains("mongodb")
+                || op.contains("redis"))
+            && !(op == "db.sql.query" && !(description.contains(r#""$"#) || system == "mongodb"))
+    }
+
+    #[cfg(feature = "processing")]
     fn extract_spans(&self, state: &mut ProcessEnvelopeState) {
         // For now, drop any spans submitted by the SDK.
-
-        use relay_event_schema::protocol::Span;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Span => ItemAction::DropSilently,
             _ => ItemAction::Keep,
@@ -2259,12 +2273,6 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        // Extract transaction as a span.
-        let Some(event) = state.event.value() else {
-            return;
-        };
-        let transaction_span: Span = event.into();
-
         let mut add_span = |span: Annotated<Span>| {
             let span = match span.to_json() {
                 Ok(span) => span,
@@ -2278,23 +2286,51 @@ impl EnvelopeProcessorService {
             state.managed_envelope.envelope_mut().add_item(item);
         };
 
+        let Some(event) = state.event.value() else {
+            return;
+        };
+
+        // Extract transaction as a span.
+        let mut transaction_span: Span = event.into();
+
+        let all_modules_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionAllModules);
+
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
             for span in child_spans {
-                // HACK: clone the span to set the segment_id. This should happen
-                // as part of normalization once standalone spans reach wider adoption.
-                let mut span = span.clone();
-                let Some(inner_span) = span.value_mut() else {
+                let Some(inner_span) = span.value() else {
                     continue;
                 };
-                inner_span.segment_id = transaction_span.segment_id.clone();
-                inner_span.is_segment = Annotated::new(false);
-                add_span(span);
+                // HACK: filter spans based on module until we figure out grouping.
+                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
+                    continue;
+                }
+                // HACK: clone the span to set the segment_id. This should happen
+                // as part of normalization once standalone spans reach wider adoption.
+                let mut new_span = inner_span.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
+                new_span.is_segment = Annotated::new(false);
+                add_span(Annotated::new(new_span));
             }
         }
 
-        // Add transaction span as an envelope item.
-        add_span(transaction_span.into());
+        if all_modules_enabled {
+            // Extract tags to add to this span as well
+            let shared_tags = span::tag_extraction::extract_shared_tags(event);
+            let data = transaction_span
+                .data
+                .value_mut()
+                .get_or_insert_with(Default::default);
+            data.extend(
+                shared_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+            );
+            add_span(transaction_span.into());
+        }
     }
 
     /// Computes the sampling decision on the incoming event
@@ -2303,15 +2339,22 @@ impl EnvelopeProcessorService {
         // - Tagging whether an incoming error has a sampled trace connected to it.
         // - Computing the actual sampling decision on an incoming transaction.
         match state.event_type().unwrap_or_default() {
-            EventType::Default | EventType::Error => {
-                self.tag_error_with_sampling_decision(state);
-            }
+            EventType::Default | EventType::Error => self.tag_error_with_sampling_decision(state),
             EventType::Transaction => {
                 if let Some(ErrorBoundary::Ok(config)) =
                     &state.project_state.config.transaction_metrics
                 {
                     if config.is_enabled() {
-                        self.compute_sampling_decision(state);
+                        state.sampling_result = Self::compute_sampling_decision(
+                            self.inner.config.processing_enabled(),
+                            state.project_state.config.dynamic_sampling.as_ref(),
+                            state.event.value(),
+                            state
+                                .sampling_project_state
+                                .as_ref()
+                                .and_then(|state| state.config.dynamic_sampling.as_ref()),
+                            state.envelope().dsc(),
+                        );
                     }
                 }
             }
@@ -2321,14 +2364,68 @@ impl EnvelopeProcessorService {
     }
 
     /// Computes the sampling decision on the incoming transaction.
-    fn compute_sampling_decision(&self, state: &mut ProcessEnvelopeState) {
-        state.sampling_result = utils::get_sampling_result(
-            self.inner.config.processing_enabled(),
-            Some(&state.project_state),
-            state.sampling_project_state.as_deref(),
-            state.envelope().dsc(),
-            state.event.value(),
-        );
+    fn compute_sampling_decision(
+        processing_enabled: bool,
+        sampling_config: Option<&SamplingConfig>,
+        event: Option<&Event>,
+        root_sampling_config: Option<&SamplingConfig>,
+        dsc: Option<&DynamicSamplingContext>,
+    ) -> SamplingResult {
+        if (sampling_config.is_none() || event.is_none())
+            && (root_sampling_config.is_none() || dsc.is_none())
+        {
+            return SamplingResult::NoMatch;
+        }
+
+        if sampling_config.map_or(false, |config| config.unsupported())
+            || root_sampling_config.map_or(false, |config| config.unsupported())
+        {
+            if processing_enabled {
+                relay_log::error!("found unsupported rules even as processing relay");
+            } else {
+                return SamplingResult::NoMatch;
+            }
+        }
+
+        let adjustment_rate = match sampling_config
+            .or(root_sampling_config)
+            .map(|config| config.mode)
+        {
+            Some(SamplingMode::Received) => None,
+            Some(SamplingMode::Total) => dsc.and_then(|dsc| dsc.sample_rate),
+            Some(SamplingMode::Unsupported) => {
+                if processing_enabled {
+                    relay_log::error!("found unsupported sampling mode even as processing Relay");
+                }
+                return SamplingResult::NoMatch;
+            }
+            None => {
+                relay_log::error!("cannot sample without at least one sampling config");
+                return SamplingResult::NoMatch;
+            }
+        };
+
+        let mut evaluator =
+            SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
+
+        if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
+            if let Some(seed) = event.id.value().map(|id| id.0) {
+                let rules = sampling_state.filter_rules(RuleType::Transaction);
+                evaluator = match evaluator.match_rules(seed, event, rules) {
+                    Evaluation::Continue(evaluator) => evaluator,
+                    Evaluation::Matched(sampling_match) => {
+                        return SamplingResult::Match(sampling_match);
+                    }
+                }
+            };
+        }
+
+        if let (Some(dsc), Some(sampling_state)) = (dsc, root_sampling_config) {
+            let rules = sampling_state.filter_rules(RuleType::Trace);
+            return evaluator.match_rules(dsc.trace_id, dsc, rules).into();
+        }
+
+        SamplingResult::NoMatch
     }
 
     /// Runs dynamic sampling on an incoming error and tags it in case of successful sampling
@@ -2341,11 +2438,18 @@ impl EnvelopeProcessorService {
             return;
         }
 
-        let sampled = utils::is_trace_fully_sampled(
-            self.inner.config.processing_enabled(),
-            state.sampling_project_state.as_deref(),
+        let (Some(config), Some(dsc)) = (
+            state
+                .sampling_project_state
+                .as_deref()
+                .and_then(|state| state.config.dynamic_sampling.as_ref()),
             state.envelope().dsc(),
-        );
+        ) else {
+            return;
+        };
+
+        let sampled =
+            utils::is_trace_fully_sampled(self.inner.config.processing_enabled(), config, dsc);
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;
@@ -2368,19 +2472,19 @@ impl EnvelopeProcessorService {
 
     /// Apply the dynamic sampling decision from `compute_sampling_decision`.
     fn sample_envelope(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
-        match std::mem::take(&mut state.sampling_result) {
+        if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
-            SamplingResult::Drop(rule_ids)
-                if state.event_type() == Some(EventType::Transaction) =>
-            {
+            if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
+                let matched_rules = sampling_match.into_matched_rules();
+
                 state
                     .managed_envelope
-                    .reject(Outcome::FilteredSampling(rule_ids.clone()));
+                    .reject(Outcome::FilteredSampling(matched_rules.clone()));
 
-                Err(ProcessingError::Sampled(rule_ids))
+                return Err(ProcessingError::Sampled(matched_rules));
             }
-            _ => Ok(()),
         }
+        Ok(())
     }
 
     fn light_normalize_event(
@@ -2852,8 +2956,10 @@ mod tests {
     use relay_pii::DataScrubbingConfig;
     use relay_sampling::condition::RuleCondition;
     use relay_sampling::config::{
-        RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
+        DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule,
+        SamplingValue, TimeRange,
     };
+    use relay_sampling::evaluation::SamplingMatch;
     use relay_test::mock_service;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
@@ -2864,6 +2970,7 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
+
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
 
@@ -2927,6 +3034,16 @@ mod tests {
                 clock_drift_processor: ClockDriftProcessor::new(None, received),
                 extracted_metrics: vec![],
             }
+        }
+    }
+
+    fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
+        Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(event_type),
+            transaction: Annotated::new(transaction.to_string()),
+            release: Annotated::new(LenientString(release.to_string())),
+            ..Event::default()
         }
     }
 
@@ -3060,7 +3177,7 @@ mod tests {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 sample_rates: None,
-                sampling_result: SamplingResult::Keep,
+                sampling_result: SamplingResult::Pending,
                 extracted_metrics: Default::default(),
                 project_state: Arc::new(project_state),
                 sampling_project_state: None,
@@ -3079,32 +3196,21 @@ mod tests {
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+        assert!(state.sampling_result.should_keep());
 
         // Current version is 1, so it won't run DS if it's outdated
         let mut state = get_state(Some(0));
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Keep));
+        assert!(state.sampling_result.should_keep());
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(1));
         service.run_dynamic_sampling(&mut state);
-        assert!(matches!(state.sampling_result, SamplingResult::Drop(_)));
+        assert!(state.sampling_result.should_drop());
     }
 
-    #[tokio::test]
-    async fn test_it_keeps_or_drops_transactions() {
-        relay_test::setup();
-
-        let (outcome_aggregator, test_store) = services();
-
-        // an empty json still produces a valid config
-        let json_config = serde_json::json!({});
-
-        let config = Config::from_json_value(json_config).unwrap();
-
-        let service = create_test_processor(config);
-
+    #[test]
+    fn test_it_keeps_or_drops_transactions() {
         let event = Event {
             id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Transaction),
@@ -3112,40 +3218,31 @@ mod tests {
             ..Event::default()
         };
 
-        for (sample_rate, expected_result) in [
-            (0.0, SamplingResult::Drop(MatchedRuleIds(vec![RuleId(1)]))),
-            (1.0, SamplingResult::Keep),
-        ] {
-            let project_state = state_with_rule_and_condition(
-                Some(sample_rate),
-                RuleType::Transaction,
-                RuleCondition::all(),
-            );
-
-            let mut state = ProcessEnvelopeState {
-                event: Annotated::from(event.clone()),
-                event_metrics_extracted: false,
-                metrics: Default::default(),
-                sample_rates: None,
-                sampling_result: SamplingResult::Keep,
-                extracted_metrics: Default::default(),
-                project_state: Arc::new(project_state),
-                sampling_project_state: None,
-                project_id: ProjectId::new(42),
-                managed_envelope: ManagedEnvelope::new(
-                    new_envelope(false, "foo"),
-                    TestSemaphore::new(42).try_acquire().unwrap(),
-                    outcome_aggregator.clone(),
-                    test_store.clone(),
-                ),
-                has_profile: false,
+        for (sample_rate, should_keep) in [(0.0, false), (1.0, true)] {
+            let sampling_config = SamplingConfig {
+                rules: vec![],
+                rules_v2: vec![SamplingRule {
+                    condition: RuleCondition::all(),
+                    sampling_value: SamplingValue::SampleRate { value: sample_rate },
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: Default::default(),
+                    decaying_fn: DecayingFunction::Constant,
+                }],
+                mode: SamplingMode::Received,
             };
 
             // TODO: This does not test if the sampling decision is actually applied. This should be
             // refactored to send a proper Envelope in and call process_state to cover the full
             // pipeline.
-            service.compute_sampling_decision(&mut state);
-            assert_eq!(state.sampling_result, expected_result);
+            let res = EnvelopeProcessorService::compute_sampling_decision(
+                false,
+                Some(&sampling_config),
+                Some(&event),
+                None,
+                None,
+            );
+            assert_eq!(res.should_keep(), should_keep);
         }
     }
 
@@ -3999,5 +4096,144 @@ mod tests {
             hardcoded_value, derived_value,
             "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
         );
+    }
+
+    // Helper to extract the sampling match from SamplingResult if thats the variant.
+    fn get_sampling_match(sampling_result: SamplingResult) -> SamplingMatch {
+        if let SamplingResult::Match(sampling_match) = sampling_result {
+            sampling_match
+        } else {
+            panic!()
+        }
+    }
+
+    /// Happy path test for compute_sampling_decision.
+    #[test]
+    fn test_compute_sampling_decision_matching() {
+        let event = mocked_event(EventType::Transaction, "foo", "bar");
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Transaction,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule],
+            mode: SamplingMode::Received,
+        };
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_match());
+    }
+
+    #[test]
+    fn test_matching_with_unsupported_rule() {
+        let event = mocked_event(EventType::Transaction, "foo", "bar");
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Transaction,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let unsupported_rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Unsupported,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule, unsupported_rule],
+            mode: SamplingMode::Received,
+        };
+
+        // Unsupported rule should result in no match if processing is not enabled.
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_no_match());
+
+        // Match if processing is enabled.
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            true,
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_match());
+    }
+
+    #[test]
+    fn test_client_sample_rate() {
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 0.2 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let mut sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule],
+            mode: SamplingMode::Received,
+        };
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            None,
+            None,
+            Some(&sampling_config),
+            Some(&dsc),
+        );
+
+        assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
+
+        sampling_config.mode = SamplingMode::Total;
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            None,
+            None,
+            Some(&sampling_config),
+            Some(&dsc),
+        );
+
+        assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
     }
 }

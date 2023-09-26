@@ -54,7 +54,7 @@ impl EqCondition {
 
     fn matches<T>(&self, instance: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         match (instance.get_value(self.name.as_str()), &self.value) {
             (None, Value::Null) => true,
@@ -86,7 +86,7 @@ macro_rules! impl_cmp_condition {
         impl $struct_name {
             fn matches<T>(&self, instance: &T) -> bool
             where
-                T: Getter
+                T: Getter + ?Sized,
             {
                 let Some(value) = instance.get_value(self.name.as_str()) else {
                     return false;
@@ -133,7 +133,7 @@ pub struct GlobCondition {
 impl GlobCondition {
     fn matches<T>(&self, instance: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         match instance.get_value(self.name.as_str()) {
             Some(Val::String(s)) => self.value.is_match(s),
@@ -158,7 +158,7 @@ impl OrCondition {
 
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         self.inner.iter().any(|cond| cond.matches(value))
     }
@@ -179,7 +179,7 @@ impl AndCondition {
     }
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         self.inner.iter().all(|cond| cond.matches(value))
     }
@@ -201,7 +201,7 @@ impl NotCondition {
 
     fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         !self.inner.matches(value)
     }
@@ -263,7 +263,7 @@ impl RuleCondition {
     /// Returns `true` if the rule matches the given value instance.
     pub fn matches<T>(&self, value: &T) -> bool
     where
-        T: Getter,
+        T: Getter + ?Sized,
     {
         match self {
             RuleCondition::Eq(condition) => condition.matches(value),
@@ -282,7 +282,34 @@ impl RuleCondition {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use relay_base_schema::project::ProjectKey;
+    use uuid::Uuid;
+
+    use crate::dsc::TraceUserContext;
+    use crate::tests::{and, eq, glob, not, or};
+    use crate::DynamicSamplingContext;
+
     use super::*;
+
+    fn dsc_dummy() -> DynamicSamplingContext {
+        DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: TraceUserContext {
+                user_segment: "vip".to_owned(),
+                user_id: "user-id".to_owned(),
+            },
+            replay_id: Some(Uuid::new_v4()),
+            environment: Some("debug".to_string()),
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: None,
+            other: BTreeMap::new(),
+        }
+    }
 
     #[test]
     fn deserialize() {
@@ -410,5 +437,264 @@ mod tests {
 
         let rule: RuleCondition = serde_json::from_str(bad_json).unwrap();
         assert!(matches!(rule, RuleCondition::Unsupported));
+    }
+
+    #[test]
+    /// test matching for various rules
+    fn test_matches() {
+        let conditions = [
+            (
+                "simple",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                    eq("trace.transaction", &["transaction1"], true),
+                ]),
+            ),
+            (
+                "glob releases",
+                and(vec![
+                    glob("trace.release", &["1.*"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "glob transaction",
+                and(vec![glob("trace.transaction", &["trans*"])]),
+            ),
+            (
+                "multiple releases",
+                and(vec![
+                    glob("trace.release", &["2.1.1", "1.1.*"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "multiple user segments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["paid", "vip", "free"], true),
+                ]),
+            ),
+            (
+                "multiple transactions",
+                and(vec![glob("trace.transaction", &["t22", "trans*", "t33"])]),
+            ),
+            (
+                "case insensitive user segments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["ViP", "FrEe"], true),
+                ]),
+            ),
+            (
+                "multiple user environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq(
+                        "trace.environment",
+                        &["integration", "debug", "production"],
+                        true,
+                    ),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "case insensitive environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["DeBuG", "PrOd"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "all environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "undefined environments",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            ("match no conditions", RuleCondition::all()),
+        ];
+
+        let dsc = dsc_dummy();
+
+        for (rule_test_name, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc), "{failure_name}");
+        }
+    }
+
+    #[test]
+    fn test_or_combinator() {
+        let conditions = [
+            (
+                "both",
+                true,
+                or(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "first",
+                true,
+                or(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            (
+                "second",
+                true,
+                or(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "none",
+                false,
+                or(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            ("empty", false, or(vec![])),
+        ];
+
+        let dsc = dsc_dummy();
+
+        for (rule_test_name, expected, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+        }
+    }
+
+    #[test]
+    fn test_and_combinator() {
+        let conditions = [
+            (
+                "both",
+                true,
+                and(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "first",
+                false,
+                and(vec![
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            (
+                "second",
+                false,
+                and(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["vip"], true),
+                ]),
+            ),
+            (
+                "none",
+                false,
+                and(vec![
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user.segment", &["all"], true),
+                ]),
+            ),
+            ("empty", true, RuleCondition::all()),
+        ];
+
+        let dsc = dsc_dummy();
+
+        for (rule_test_name, expected, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+        }
+    }
+
+    #[test]
+    fn test_not_combinator() {
+        let conditions = [
+            (
+                "not true",
+                false,
+                not(eq("trace.environment", &["debug"], true)),
+            ),
+            (
+                "not false",
+                true,
+                not(eq("trace.environment", &["prod"], true)),
+            ),
+        ];
+
+        let dsc = dsc_dummy();
+
+        for (rule_test_name, expected, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(condition.matches(&dsc) == *expected, "{failure_name}");
+        }
+    }
+
+    #[test]
+    /// test various rules that do not match
+    fn test_does_not_match() {
+        let conditions = [
+            (
+                "release",
+                and(vec![
+                    glob("trace.release", &["1.1.2"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user", &["vip"], true),
+                ]),
+            ),
+            (
+                "user segment",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["debug"], true),
+                    eq("trace.user", &["all"], true),
+                ]),
+            ),
+            (
+                "environment",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    eq("trace.environment", &["prod"], true),
+                    eq("trace.user", &["vip"], true),
+                ]),
+            ),
+            (
+                "transaction",
+                and(vec![
+                    glob("trace.release", &["1.1.1"]),
+                    glob("trace.transaction", &["t22"]),
+                    eq("trace.user", &["vip"], true),
+                ]),
+            ),
+        ];
+
+        let dsc = dsc_dummy();
+
+        for (rule_test_name, condition) in conditions.iter() {
+            let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
+            assert!(!condition.matches(&dsc), "{failure_name}");
+        }
     }
 }
