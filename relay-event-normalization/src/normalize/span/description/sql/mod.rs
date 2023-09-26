@@ -602,6 +602,13 @@ mod tests {
         "DELETE FROM some_table WHERE id IN (%s)"
     );
 
+    scrub_sql_test_with_dialect!(
+        active_record_comment,
+        "mysql",
+        "/*some comment:in `myfunction'*/ SELECT * FROM `foo`",
+        "SELECT * FROM foo"
+    );
+
     scrub_sql_test!(
         bytesa,
         r#"SELECT "t"."x", "t"."arr"::bytea, "t"."c" WHERE "t"."id" IN (%s, %s)"#,
@@ -636,6 +643,25 @@ mod tests {
         unique_alias,
         "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
         "SELECT pg_advisory_unlock(%s, %s)"
+    );
+
+    scrub_sql_test!(
+        postgis,
+        "SELECT ST_Distance(location, 'SRID=1234;POINT(-0.5 50)', %s)",
+        "SELECT ST_Distance(location, %s, %s)"
+    );
+
+    scrub_sql_test_with_dialect!(
+        double_quoted_literal_mysql,
+        "mysql",
+        r#"SELECT "X foobar Y" LIKE concat(%s, x, %s)"#,
+        "SELECT %s LIKE concat(%s, x, %s)"
+    );
+
+    scrub_sql_test!(
+        funky_placeholders,
+        "INSERT INTO a VALUES (%s, N%s, {ts %s})",
+        "INSERT INTO a VALUES (%s)"
     );
 
     scrub_sql_test!(
