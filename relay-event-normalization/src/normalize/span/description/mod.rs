@@ -31,13 +31,11 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
-            ("db", _) => sql::scrub_queries(
-                span.data
-                    .value()
-                    .and_then(|d| d.get("system"))
-                    .and_then(|v| v.as_str()),
-                description,
-            ),
+            ("db", _) => {
+                let db_system = span.data.value().and_then(|d| d.get("system"));
+                let db_system = db_system.and_then(|v| v.as_str());
+                db_system.and_then(|db_system| sql::scrub_queries(db_system, description))
+            }
             ("resource", _) => scrub_resource_identifiers(description),
             _ => None,
         });
@@ -426,6 +424,13 @@ mod tests {
         span_description_scrub_nothing_in_resource,
         "https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js",
         "resource.css",
+        ""
+    );
+
+    span_description_test!(
+        span_description_scrub_nothing_without_db_system,
+        "SELECT * FROM a LIMIT %s",
+        "db.sql",
         ""
     );
 }

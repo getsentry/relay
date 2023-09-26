@@ -277,9 +277,11 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                     })
                 })
         } else if span_op.starts_with("db") {
-            span.description
-                .value()
-                .and_then(|query| sql_tables_from_query(system, query))
+            system.and_then(|system| {
+                span.description
+                    .value()
+                    .and_then(|query| sql_tables_from_query(system, query))
+            })
         } else {
             None
         };
@@ -364,7 +366,7 @@ static SQL_TABLE_EXTRACTOR_REGEX: Lazy<Regex> = Lazy::new(|| {
 /// HACK: When there is a single table, add comma separation so that the
 /// backend can understand the difference between tables and their subsets
 /// for example: table `,users,` and table `,users_config,` should be considered different
-fn sql_tables_from_query(db_system: Option<&str>, query: &str) -> Option<String> {
+fn sql_tables_from_query(db_system: &str, query: &str) -> Option<String> {
     match parse_query(db_system, query) {
         Ok(ast) => {
             let mut visitor = SqlTableNameVisitor {
@@ -595,23 +597,20 @@ mod tests {
     #[test]
     fn extract_table_select() {
         let query = r#"SELECT * FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            ",b,"
-        );
+        assert_eq!(sql_tables_from_query("postgresql", query).unwrap(), ",b,");
     }
 
     #[test]
     fn extract_table_select_nested() {
         let query = r#"SELECT * FROM (SELECT * FROM "a.b") s WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
+        assert_eq!(sql_tables_from_query("postgres", query).unwrap(), ",b,");
     }
 
     #[test]
     fn extract_table_multiple() {
         let query = r#"SELECT * FROM a JOIN t.c ON c_id = c.id JOIN b ON b_id = b.id"#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_query("postgresql", query).unwrap(),
             ",a,b,c,"
         );
     }
@@ -620,10 +619,7 @@ mod tests {
     fn extract_table_multiple_mysql() {
         let query =
             r#"SELECT * FROM a JOIN `t.c` ON /* hello */ c_id = c.id JOIN b ON b_id = b.id"#;
-        assert_eq!(
-            sql_tables_from_query(Some("mysql"), query).unwrap(),
-            ",a,b,c,"
-        );
+        assert_eq!(sql_tables_from_query("mysql", query).unwrap(), ",a,b,c,");
     }
 
     #[test]
@@ -652,7 +648,7 @@ WHERE (
 LIMIT 1
             "#;
         assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
+            sql_tables_from_query("postgresql", query).unwrap(),
             ",sentry_environmentrelease,sentry_grouprelease,sentry_release_project,"
         );
     }
@@ -660,25 +656,19 @@ LIMIT 1
     #[test]
     fn extract_table_delete() {
         let query = r#"DELETE FROM "a.b" WHERE "x" = 1"#;
-        assert_eq!(sql_tables_from_query(None, query).unwrap(), ",b,");
+        assert_eq!(sql_tables_from_query("sqlite", query).unwrap(), ",b,");
     }
 
     #[test]
     fn extract_table_insert() {
         let query = r#"INSERT INTO "a" ("x", "y") VALUES (%s, %s)"#;
-        assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            ",a,"
-        );
+        assert_eq!(sql_tables_from_query("postgresql", query).unwrap(), ",a,");
     }
 
     #[test]
     fn extract_table_update() {
         let query = r#"UPDATE "a" SET "x" = %s, "y" = %s WHERE "z" = %s"#;
-        assert_eq!(
-            sql_tables_from_query(Some("postgresql"), query).unwrap(),
-            ",a,"
-        );
+        assert_eq!(sql_tables_from_query("postgresql", query).unwrap(), ",a,");
     }
 
     #[test]

@@ -6,26 +6,30 @@ use sqlparser::ast::{
     Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
     TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
-use sqlparser::dialect::{Dialect, GenericDialect};
+use sqlparser::dialect::Dialect;
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error<'a> {
+    #[error("failed to parse")]
+    Parser(#[from] sqlparser::parser::ParserError),
+    #[error("invalid dialect {0}")]
+    InvalidDialect(&'a str),
+}
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
-pub fn parse_query(
-    db_system: Option<&str>,
-    query: &str,
-) -> Result<Vec<Statement>, sqlparser::parser::ParserError> {
+pub fn parse_query<'a>(db_system: &'a str, query: &str) -> Result<Vec<Statement>, Error<'a>> {
     // See https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem
     //     https://docs.rs/sqlparser/latest/sqlparser/dialect/fn.dialect_from_str.html
-    let dialect = db_system
-        .and_then(sqlparser::dialect::dialect_from_str)
-        .unwrap_or_else(|| Box::new(GenericDialect {}));
+    let dialect =
+        sqlparser::dialect::dialect_from_str(db_system).ok_or(Error::InvalidDialect(db_system))?;
     let dialect = DialectWithParameters(dialect);
 
-    sqlparser::parser::Parser::parse_sql(&dialect, query)
+    sqlparser::parser::Parser::parse_sql(&dialect, query).map_err(Error::Parser)
 }
 
 /// Tries to parse a series of SQL queries into an AST and normalize it.
-pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result<String, ()> {
+pub fn normalize_parsed_queries(db_system: &str, string: &str) -> Result<String, ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
     parsed.visit(&mut NormalizeVisitor);
 
