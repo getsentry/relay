@@ -5,11 +5,13 @@ use std::ops::Sub;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::processor::ProcessValue;
 use crate::protocol::{
     AsPair, Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
     Timestamp,
 };
-use crate::types::Annotated;
+use relay_jsonschema_derive::JsonSchema;
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 use thiserror::Error;
 
 /// The NEL parsing errors.

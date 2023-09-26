@@ -6,7 +6,7 @@ use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
 use relay_config::Config;
-use relay_general::protocol::EventId;
+use relay_event_schema::protocol::EventId;
 use serde_json::Value;
 
 use crate::endpoints::common::{self, BadStoreRequest};
