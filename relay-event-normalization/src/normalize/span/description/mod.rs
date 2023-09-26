@@ -32,7 +32,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
             ("db", _) => {
-                let db_system = span.data.value().and_then(|d| d.get("system"));
+                let db_system = span.data.value().and_then(|d| d.get("db.system"));
                 let db_system = db_system.and_then(|v| v.as_str());
                 db_system.and_then(|db_system| sql::scrub_queries(db_system, description))
             }

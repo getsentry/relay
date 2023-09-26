@@ -183,12 +183,12 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
 pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
     let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
 
-    let system = span
+    let db_system = span
         .data
         .value()
         .and_then(|v| v.get("db.system"))
         .and_then(|system| system.as_str());
-    if let Some(sys) = system {
+    if let Some(sys) = db_system {
         span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
     }
 
@@ -277,7 +277,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                     })
                 })
         } else if span_op.starts_with("db") {
-            system.and_then(|system| {
+            db_system.and_then(|system| {
                 span.description
                     .value()
                     .and_then(|query| sql_tables_from_query(system, query))
