@@ -43,7 +43,7 @@ use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{MatchedRuleIds, RuleMatchingState, SamplingEvaluator};
+use relay_sampling::evaluation::{Evaluation, MatchedRuleIds, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -2412,8 +2412,8 @@ impl EnvelopeProcessorService {
             if let Some(seed) = event.id.value().map(|id| id.0) {
                 let rules = sampling_state.filter_rules(RuleType::Transaction);
                 evaluator = match evaluator.match_rules(seed, event, rules) {
-                    RuleMatchingState::Evaluator(evaluator) => evaluator,
-                    RuleMatchingState::SamplingMatch(sampling_match) => {
+                    Evaluation::Continue(evaluator) => evaluator,
+                    Evaluation::Matched(sampling_match) => {
                         return SamplingResult::Match(sampling_match);
                     }
                 }
@@ -2475,7 +2475,7 @@ impl EnvelopeProcessorService {
         if let SamplingResult::Match(sampling_match) = std::mem::take(&mut state.sampling_result) {
             // We assume that sampling is only supposed to work on transactions.
             if state.event_type() == Some(EventType::Transaction) && sampling_match.should_drop() {
-                let matched_rules = sampling_match.take_matched_rules();
+                let matched_rules = sampling_match.into_matched_rules();
 
                 state
                     .managed_envelope
@@ -2970,7 +2970,7 @@ mod tests {
         CommonTags, TransactionMeasurementTags, TransactionMetric,
     };
     use crate::metrics_extraction::IntoMetric;
-    use crate::tests::mocked_event;
+
     use crate::testutils::{new_envelope, state_with_rule_and_condition};
     use crate::utils::Semaphore as TestSemaphore;
 
@@ -3034,6 +3034,16 @@ mod tests {
                 clock_drift_processor: ClockDriftProcessor::new(None, received),
                 extracted_metrics: vec![],
             }
+        }
+    }
+
+    fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
+        Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(event_type),
+            transaction: Annotated::new(transaction.to_string()),
+            release: Annotated::new(LenientString(release.to_string())),
+            ..Event::default()
         }
     }
 

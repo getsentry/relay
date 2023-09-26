@@ -2,7 +2,7 @@
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{RuleMatchingState, SamplingEvaluator, SamplingMatch};
+use relay_sampling::evaluation::{Evaluation, SamplingEvaluator, SamplingMatch};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::{Envelope, ItemType};
@@ -20,25 +20,25 @@ pub enum SamplingResult {
 }
 
 impl SamplingResult {
-    /// Returns true if the event matched on any rules.
+    /// Returns `true` if the event matched on any rules.
     #[cfg(test)]
     pub fn is_no_match(&self) -> bool {
         matches!(self, &Self::NoMatch)
     }
 
-    /// Returns true if the event did not match on any rules.
+    /// Returns `true` if the event did not match on any rules.
     #[cfg(test)]
     pub fn is_match(&self) -> bool {
         matches!(self, &Self::Match(_))
     }
 
-    /// Returns true if the event should be dropped.
+    /// Returns `true` if the event should be dropped.
     #[cfg(test)]
     pub fn should_drop(&self) -> bool {
         !self.should_keep()
     }
 
-    /// Returns true if the event should be kept.
+    /// Returns `true` if the event should be kept.
     pub fn should_keep(&self) -> bool {
         match self {
             SamplingResult::Match(sampling_match) => sampling_match.should_keep(),
@@ -49,11 +49,11 @@ impl SamplingResult {
     }
 }
 
-impl From<RuleMatchingState> for SamplingResult {
-    fn from(value: RuleMatchingState) -> Self {
+impl From<Evaluation> for SamplingResult {
+    fn from(value: Evaluation) -> Self {
         match value {
-            RuleMatchingState::SamplingMatch(sampling_match) => Self::Match(sampling_match),
-            RuleMatchingState::Evaluator(_) => Self::NoMatch,
+            Evaluation::Matched(sampling_match) => Self::Match(sampling_match),
+            Evaluation::Continue(_) => Self::NoMatch,
         }
     }
 }
@@ -92,8 +92,10 @@ pub fn is_trace_fully_sampled(
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
-    let sampling_result: SamplingResult = evaluator.match_rules(dsc.trace_id, dsc, rules).into();
-    Some(sampling_result.should_keep())
+    match evaluator.match_rules(dsc.trace_id, dsc, rules) {
+        Evaluation::Continue(_) => Some(true),
+        Evaluation::Matched(m) => Some(m.should_keep()),
+    }
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.
@@ -113,13 +115,23 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
+    use relay_event_schema::protocol::{Event, EventId, LenientString};
+    use relay_protocol::Annotated;
     use relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
     use uuid::Uuid;
 
-    use crate::tests::mocked_event;
+    fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
+        Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(event_type),
+            transaction: Annotated::new(transaction.to_string()),
+            release: Annotated::new(LenientString(release.to_string())),
+            ..Event::default()
+        }
+    }
 
     use super::*;
 

@@ -27,17 +27,25 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
 ///
 /// Enforces a pattern to avoid matching on more rules if a match has already been found.
 #[derive(Debug)]
-pub enum RuleMatchingState {
-    /// No match has been found.
-    Evaluator(SamplingEvaluator),
-    /// Rule(s) have been matched.
-    SamplingMatch(SamplingMatch),
+pub enum Evaluation {
+    /// Matching has not completed and more rules can be evaluated.
+    ///
+    /// This can happen either if no active rules match the provided data, or if the matched rules
+    /// are factors that require a final sampling value. In this case, the returned evaluator stores
+    /// the state of the matched rules as well as the accumulated sampling factor and can be used to
+    /// evaluate more rules.
+    ///
+    /// If evaluation returns `Continue` and there are no more rules to match, this should be
+    /// considered as "no match".
+    Continue(SamplingEvaluator),
+    /// One or more rules have matched.
+    Matched(SamplingMatch),
 }
 
-impl RuleMatchingState {
+impl Evaluation {
     /// Returns true if a rule has matched.
     pub fn is_match(&self) -> bool {
-        matches!(self, &Self::SamplingMatch(_))
+        matches!(self, &Self::Matched(_))
     }
 
     /// Returns true if no rule have matched.
@@ -73,7 +81,7 @@ impl SamplingEvaluator {
     }
 
     /// Attemps to find a match for sampling rules.
-    pub fn match_rules<'a, I, G>(mut self, seed: Uuid, instance: &G, rules: I) -> RuleMatchingState
+    pub fn match_rules<'a, I, G>(mut self, seed: Uuid, instance: &G, rules: I) -> Evaluation
     where
         G: Getter,
         I: Iterator<Item = &'a SamplingRule>,
@@ -94,7 +102,7 @@ impl SamplingEvaluator {
                 SamplingValue::SampleRate { value } => {
                     let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
-                    return RuleMatchingState::SamplingMatch(SamplingMatch::new(
+                    return Evaluation::Matched(SamplingMatch::new(
                         self.adjusted_sample_rate(sample_rate),
                         seed,
                         self.rule_ids,
@@ -102,7 +110,7 @@ impl SamplingEvaluator {
                 }
             }
         }
-        RuleMatchingState::Evaluator(self)
+        Evaluation::Continue(self)
     }
 
     /// Tries to negate the client side sampling if the evaluator has been provided
@@ -194,7 +202,7 @@ impl SamplingMatch {
     ///
     /// Takes ownership, useful if you don't need the [`SamplingMatch`] anymore
     /// and you want to avoid allocations.
-    pub fn take_matched_rules(self) -> MatchedRuleIds {
+    pub fn into_matched_rules(self) -> MatchedRuleIds {
         self.matched_rules
     }
 
@@ -268,8 +276,8 @@ mod tests {
             instance,
             rules.iter(),
         ) {
-            RuleMatchingState::SamplingMatch(sampling_match) => sampling_match,
-            RuleMatchingState::Evaluator(_) => panic!("no match found"),
+            Evaluation::Matched(sampling_match) => sampling_match,
+            Evaluation::Continue(_) => panic!("no match found"),
         }
     }
 
@@ -347,7 +355,7 @@ mod tests {
             .adjust_client_sample_rate(Some(0.2))
             .match_rules(Uuid::default(), &dsc, rules.iter());
 
-        let RuleMatchingState::SamplingMatch(sampling_match) = res else {
+        let Evaluation::Matched(sampling_match) = res else {
             panic!();
         };
 
