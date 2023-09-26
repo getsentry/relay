@@ -8,7 +8,12 @@ use sqlparser::ast::{
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
-const MAX_DEPTH: usize = 64;
+/// Keeps track of the maximum depth of an SQL expression that the [`NormalizeVisitor`] encounters.
+///
+/// This is used to prevent the serialization of the AST from crashing.
+/// Note that the expression depth does not fully cover the depth of complex SQL statements,
+/// because not everything in SQL is an expression.
+const MAX_EXPRESSION_DEPTH: usize = 64;
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
@@ -31,11 +36,11 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
     let mut visitor = NormalizeVisitor::new();
     parsed.visit(&mut visitor);
-    if visitor.max_depth > MAX_DEPTH {
+    if visitor.max_expr_depth > MAX_EXPRESSION_DEPTH {
         // Temporarily collect error cases to see if we were too strict.
         relay_log::error!(
             query = string,
-            depth = visitor.max_depth,
+            depth = visitor.max_expr_depth,
             "SQL query too deep"
         );
         return Err(());
@@ -57,16 +62,16 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
 /// Used for span description normalization.
 struct NormalizeVisitor {
     /// The current depth of an expression.
-    current_depth: usize,
-    /// The largest depth encountered during traversal.
-    max_depth: usize,
+    current_expr_depth: usize,
+    /// The largest depth of any expression encountered during traversal.
+    max_expr_depth: usize,
 }
 
 impl NormalizeVisitor {
     pub fn new() -> Self {
         Self {
-            current_depth: 0,
-            max_depth: 0,
+            current_expr_depth: 0,
+            max_expr_depth: 0,
         }
     }
 
@@ -154,9 +159,7 @@ impl NormalizeVisitor {
         match table_factor {
             // Recurse into subqueries.
             TableFactor::Derived { subquery, .. } => {
-                self.current_depth += 1;
                 self.transform_query(subquery);
-                self.record_depth();
             }
             // Strip quotes from identifiers in table names.
             TableFactor::Table { name, .. } => {
@@ -166,14 +169,6 @@ impl NormalizeVisitor {
             }
             _ => {}
         }
-    }
-
-    /// Subtracts from depth and records maximum found depth.
-    ///
-    /// Use when leaving an expression.
-    fn record_depth(&mut self) {
-        self.max_depth = self.max_depth.max(self.current_depth);
-        self.current_depth = self.current_depth.saturating_sub(1);
     }
 
     fn simplify_compound_identifier(parts: &mut Vec<Ident>) {
@@ -193,7 +188,7 @@ impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
-        self.current_depth += 1;
+        self.current_expr_depth += 1;
         match expr {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
@@ -243,7 +238,8 @@ impl VisitorMut for NormalizeVisitor {
         if let Expr::CompoundIdentifier(parts) = expr {
             Self::simplify_compound_identifier(parts);
         }
-        self.record_depth();
+        self.max_expr_depth = self.max_expr_depth.max(self.current_expr_depth);
+        self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
         ControlFlow::Continue(())
     }
 
@@ -395,25 +391,7 @@ mod tests {
         let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
         let mut visitor = NormalizeVisitor::new();
         parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_depth, 8);
-    }
-
-    #[test]
-    fn depth_nested_from() {
-        let query = "SELECT * FROM (SELECT 1)";
-        let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
-        let mut visitor = NormalizeVisitor::new();
-        parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_depth, 1);
-    }
-
-    #[test]
-    fn depth_nested_from_2() {
-        let query = "SELECT * FROM (SELECT * FROM (SELECT 1))";
-        let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
-        let mut visitor = NormalizeVisitor::new();
-        parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_depth, 2);
+        assert_eq!(visitor.max_expr_depth, 8);
     }
 
     #[test]
@@ -422,7 +400,7 @@ mod tests {
         let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
         let mut visitor = NormalizeVisitor::new();
         parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_depth, 2);
+        assert_eq!(visitor.max_expr_depth, 2);
     }
 
     #[test]
@@ -431,7 +409,7 @@ mod tests {
         let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
         let mut visitor = NormalizeVisitor::new();
         parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_depth, 3);
+        assert_eq!(visitor.max_expr_depth, 3);
     }
 
     #[test]
