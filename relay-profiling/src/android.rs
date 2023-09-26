@@ -1,7 +1,7 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use android_trace_log::chrono::{DateTime, Utc};
-use android_trace_log::{AndroidTraceLog, Clock, Time, Vm};
+use android_trace_log::{AndroidTraceLog, Clock, Vm};
 use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
@@ -125,26 +125,6 @@ impl AndroidProfile {
     fn has_transaction_metadata(&self) -> bool {
         !self.metadata.transaction_name.is_empty() && self.metadata.duration_ns > 0
     }
-
-    /// Removes an event with a duration of 0
-    fn remove_events_with_no_duration(&mut self) {
-        let android_trace = &mut self.profile;
-        let events = &mut android_trace.events;
-        let clock = android_trace.clock;
-        let start_time = android_trace.start_time;
-        let mut timestamps_per_thread_id: HashMap<u16, HashSet<u64>> = HashMap::new();
-
-        for event in events.iter() {
-            let event_time = get_timestamp(clock, start_time, event.time);
-            timestamps_per_thread_id
-                .entry(event.thread_id)
-                .or_default()
-                .insert(event_time);
-        }
-
-        timestamps_per_thread_id.retain(|_, timestamps| timestamps.len() > 1);
-        events.retain(|event| timestamps_per_thread_id.contains_key(&event.thread_id));
-    }
 }
 
 fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
@@ -179,7 +159,6 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
 
     if !profile.sampled_profile.is_empty() {
         profile.parse()?;
-        profile.remove_events_with_no_duration();
     }
 
     if profile.profile.events.is_empty() {
@@ -224,42 +203,6 @@ pub fn parse_android_profile(
     profile.metadata.transaction_tags = transaction_tags;
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
-}
-
-fn get_timestamp(clock: Clock, start_time: DateTime<Utc>, event_time: Time) -> u64 {
-    match (clock, event_time) {
-        (Clock::Global, Time::Global(time)) => {
-            let time_ns = time.as_nanos() as u64;
-            let start_time_ns = start_time.timestamp_nanos() as u64;
-            if time_ns >= start_time_ns {
-                time_ns - start_time_ns
-            } else {
-                0
-            }
-        }
-        (
-            Clock::Cpu,
-            Time::Monotonic {
-                cpu: Some(cpu),
-                wall: None,
-            },
-        ) => cpu.as_nanos() as u64,
-        (
-            Clock::Wall,
-            Time::Monotonic {
-                cpu: None,
-                wall: Some(wall),
-            },
-        ) => wall.as_nanos() as u64,
-        (
-            Clock::Dual,
-            Time::Monotonic {
-                cpu: Some(_),
-                wall: Some(wall),
-            },
-        ) => wall.as_nanos() as u64,
-        _ => unimplemented!(),
-    }
 }
 
 #[cfg(test)]
