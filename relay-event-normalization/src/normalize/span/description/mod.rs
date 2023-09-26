@@ -34,7 +34,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
             ("db", _) => sql::scrub_queries(
                 span.data
                     .value()
-                    .and_then(|d| d.get("system"))
+                    .and_then(|d| d.get("db.system"))
                     .and_then(|v| v.as_str()),
                 description,
             ),
@@ -217,7 +217,6 @@ fn apply_span_rename_rules(span: &mut Span, rules: &Vec<SpanDescriptionRule>) ->
 
 #[cfg(test)]
 mod tests {
-
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -428,4 +427,30 @@ mod tests {
         "resource.css",
         ""
     );
+
+    #[test]
+    fn informed_sql_parser() {
+        let json = r#"
+            {
+                "description": "SELECT \"not an identifier\"",
+                "span_id": "bd2eb23da2beb459",
+                "start_timestamp": 1597976393.4619668,
+                "timestamp": 1597976393.4718769,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "op": "db",
+                "data": {"db.system": "mysql"}
+            }
+        "#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+        let span = span.value_mut().as_mut().unwrap();
+        scrub_span_description(span, &vec![]);
+        let scrubbed = span
+            .data
+            .value()
+            .and_then(|d| d.get("description.scrubbed"))
+            .and_then(|v| v.value())
+            .and_then(|v| v.as_str());
+        assert_eq!(scrubbed, Some("SELECT %s"));
+    }
 }
