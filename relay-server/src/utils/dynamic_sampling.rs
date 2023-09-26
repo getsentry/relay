@@ -92,10 +92,8 @@ pub fn is_trace_fully_sampled(
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
-    match evaluator.match_rules(dsc.trace_id, dsc, rules) {
-        Evaluation::Continue(_) => Some(true),
-        Evaluation::Matched(m) => Some(m.should_keep()),
-    }
+    let evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules);
+    Some(SamplingResult::from(evaluation).should_keep())
 }
 
 /// Returns the project key defined in the `trace` header of the envelope.
