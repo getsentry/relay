@@ -27,10 +27,12 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         # Capture `SAVEPOINT` savepoints.
         ((?-x)(?P<pre>SAVEPOINT )(?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
         # Capture single-quoted strings, including the remaining substring if `\'` is found.
-        ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
+        ((?-x)(?P<single_quoted_strs>N?'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
         (   (?P<placeholder> (?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
+        # Capture ODBC escape sequence.
+        ((?-x)(?P<odbc_escape_sequence>\{(?:ts?|d)\s+'.+'\})) |
         ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P<bool>(\b(?:true|false)\b)))
@@ -200,6 +202,19 @@ mod tests {
         unparameterized_ins_uppercase,
         "SELECT count() FROM table1 WHERE id IN (100, 101, 102)",
         "SELECT count() FROM table1 WHERE id IN (%s)"
+    );
+
+    scrub_sql_test!(
+        unparameterized_ins_nvarchar,
+        "INSERT INTO a VALUES (123, N'foo', 'bar')",
+        "INSERT INTO a (..) VALUES (%s)"
+    );
+
+    scrub_sql_test!(
+        unparameterized_ins_odbc_escape_sequence,
+        // See https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/date-time-and-timestamp-escape-sequences
+        "INSERT INTO a VALUES (123, {ts '2023-12-31 23:59:59.123'}, 'foo', N'bar')",
+        "INSERT INTO a VALUES (%s)"
     );
 
     scrub_sql_test!(
