@@ -323,10 +323,7 @@ impl RelayCacheService {
         }
 
         relay_log::debug!("relay {relay_id} public key requested");
-        self.channels
-            .entry(relay_id)
-            .or_insert_with(BroadcastChannel::new)
-            .attach(sender);
+        self.channels.entry(relay_id).or_default().attach(sender);
 
         if !self.backoff.started() {
             self.schedule_fetch();

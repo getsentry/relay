@@ -218,7 +218,7 @@ fn normalize_os_context(os: &mut OsContext) {
     }
 }
 
-fn parse_raw_response_data(response: &mut ResponseContext) -> Option<(&'static str, Value)> {
+fn parse_raw_response_data(response: &ResponseContext) -> Option<(&'static str, Value)> {
     let raw = response.data.as_str()?;
 
     serde_json::from_str(raw)
