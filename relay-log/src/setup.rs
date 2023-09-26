@@ -126,7 +126,7 @@ impl Default for LogConfig {
     }
 }
 
-/// Controls interal reporting to Sentry.
+/// Controls internal reporting to Sentry.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SentryConfig {
