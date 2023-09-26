@@ -332,9 +332,10 @@ impl TransactionExtractor<'_> {
                     .insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
             TransactionCPRTags {
-                decision: match self.sampling_result {
-                    SamplingResult::Keep => "keep".to_owned(),
-                    SamplingResult::Drop(_) => "drop".to_owned(),
+                decision: if self.sampling_result.should_keep() {
+                    "keep".to_owned()
+                } else {
+                    "drop".to_owned()
                 },
                 universal_tags,
             }
@@ -495,7 +496,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -693,7 +694,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -796,7 +797,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -880,7 +881,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -947,7 +948,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1036,7 +1037,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1075,7 +1076,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1143,7 +1144,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1177,7 +1178,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1213,7 +1214,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("root_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1476,7 +1477,7 @@ mod tests {
             config: &config,
             generic_tags: &[],
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
@@ -1605,7 +1606,7 @@ mod tests {
             config: &config,
             generic_tags: &generic_tags,
             transaction_from_dsc: Some("test_transaction"),
-            sampling_result: &SamplingResult::Keep,
+            sampling_result: &SamplingResult::Pending,
             has_profile: false,
         };
 
