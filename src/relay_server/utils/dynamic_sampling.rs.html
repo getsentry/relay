@@ -318,150 +318,64 @@
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
 <a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
-</span><span class="kw">use </span>chrono::{DateTime, Utc};
+</span><span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
-<span class="kw">use </span>relay_event_schema::protocol::Event;
-<span class="kw">use </span>relay_sampling::evaluation::{MatchedRuleIds, SamplingMatch};
-<span class="kw">use </span>relay_sampling::DynamicSamplingContext;
+<span class="kw">use </span>relay_sampling::config::{RuleType, SamplingMode};
+<span class="kw">use </span>relay_sampling::evaluation::{Evaluation, SamplingEvaluator, SamplingMatch};
+<span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, ItemType};
 
-<span class="doccomment">/// The result of a sampling operation.
-</span><span class="attr">#[derive(Debug, Default, Clone, PartialEq, Eq)]
+<span class="doccomment">/// Represents the specification for sampling an incoming event.
+</span><span class="attr">#[derive(Default, Clone, Debug, PartialEq)]
 </span><span class="kw">pub enum </span>SamplingResult {
-    <span class="doccomment">/// Keep the event.
-    ///
-    /// Relay either applied sampling rules and decided to keep the event, or was unable to parse
-    /// the rules.
+    <span class="doccomment">/// The event matched a sampling condition.
+    </span>Match(SamplingMatch),
+    <span class="doccomment">/// The event did not match a sampling condition.
+    </span>NoMatch,
+    <span class="doccomment">/// The event has yet to be run a dynamic sampling decision.
     </span><span class="attr">#[default]
-    </span>Keep,
-
-    <span class="doccomment">/// Drop the event, due to a list of rules with provided identifiers.
-    </span>Drop(MatchedRuleIds),
+    </span>Pending,
 }
 
 <span class="kw">impl </span>SamplingResult {
-    <span class="kw">fn </span>determine_from_sampling_match(sampling_match: <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span>sampling_match {
-            <span class="prelude-val">Some</span>(SamplingMatch {
-                sample_rate,
-                matched_rule_ids,
-                seed,
-            }) =&gt; {
-                <span class="kw">let </span>random_number = relay_sampling::evaluation::pseudo_random_from_uuid(seed);
-                <span class="macro">relay_log::trace!</span>(
-                    sample_rate,
-                    random_number,
-                    <span class="string">&quot;applying dynamic sampling to matching event&quot;
-                </span>);
+    <span class="doccomment">/// Returns `true` if the event matched on any rules.
+    </span><span class="attr">#[cfg(test)]
+    </span><span class="kw">pub fn </span>is_no_match(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="kw-2">&amp;</span><span class="self">Self</span>::NoMatch)
+    }
 
-                <span class="kw">if </span>random_number &gt;= sample_rate {
-                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;dropping event that matched the configuration&quot;</span>);
-                    SamplingResult::Drop(matched_rule_ids)
-                } <span class="kw">else </span>{
-                    <span class="macro">relay_log::trace!</span>(<span class="string">&quot;keeping event that matched the configuration&quot;</span>);
-                    SamplingResult::Keep
-                }
-            }
-            <span class="prelude-val">None </span>=&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">&quot;keeping event that didn&#39;t match the configuration&quot;</span>);
-                SamplingResult::Keep
-            }
+    <span class="doccomment">/// Returns `true` if the event did not match on any rules.
+    </span><span class="attr">#[cfg(test)]
+    </span><span class="kw">pub fn </span>is_match(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="kw-2">&amp;</span><span class="self">Self</span>::Match(<span class="kw">_</span>))
+    }
+
+    <span class="doccomment">/// Returns `true` if the event should be dropped.
+    </span><span class="attr">#[cfg(test)]
+    </span><span class="kw">pub fn </span>should_drop(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.should_keep()
+    }
+
+    <span class="doccomment">/// Returns `true` if the event should be kept.
+    </span><span class="kw">pub fn </span>should_keep(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            SamplingResult::Match(sampling_match) =&gt; sampling_match.should_keep(),
+            <span class="comment">// If no rules matched on an event, we want to keep it.
+            </span>SamplingResult::NoMatch =&gt; <span class="bool-val">true</span>,
+            SamplingResult::Pending =&gt; <span class="bool-val">true</span>,
         }
     }
 }
 
-<span class="doccomment">/// Gets the sampling match result by creating the merged configuration and matching it against
-/// the sampling configuration.
-</span><span class="kw">fn </span>get_sampling_match_result(
-    processing_enabled: bool,
-    project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
-    root_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
-    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
-    event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
-    now: DateTime&lt;Utc&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt; {
-    <span class="comment">// We want to extract the SamplingConfig from each project state.
-    </span><span class="kw">let </span>sampling_config = project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
-    <span class="kw">let </span>root_sampling_config =
-        root_project_state.and_then(|state| state.config.dynamic_sampling.as_ref());
-
-    relay_sampling::evaluation::merge_configs_and_match(
-        processing_enabled,
-        sampling_config,
-        root_sampling_config,
-        dsc,
-        event,
-        now,
-    )
-}
-
-<span class="doccomment">/// Runs dynamic sampling on an incoming event/dsc and returns whether or not the event should be
-/// kept or dropped.
-</span><span class="kw">pub fn </span>get_sampling_result(
-    processing_enabled: bool,
-    project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
-    root_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
-    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
-    event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
-) -&gt; SamplingResult {
-    <span class="kw">let </span>sampling_result = get_sampling_match_result(
-        processing_enabled,
-        project_state,
-        root_project_state,
-        dsc,
-        event,
-        <span class="comment">// For consistency reasons we take a snapshot in time and use that time across all code that
-        // requires it.
-        </span>Utc::now(),
-    );
-    SamplingResult::determine_from_sampling_match(sampling_result)
+<span class="kw">impl </span>From&lt;Evaluation&gt; <span class="kw">for </span>SamplingResult {
+    <span class="kw">fn </span>from(value: Evaluation) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>value {
+            Evaluation::Matched(sampling_match) =&gt; <span class="self">Self</span>::Match(sampling_match),
+            Evaluation::Continue(<span class="kw">_</span>) =&gt; <span class="self">Self</span>::NoMatch,
+        }
+    }
 }
 
 <span class="doccomment">/// Runs dynamic sampling if the dsc and root project state are not None and returns whether the
@@ -469,12 +383,9 @@
 /// sampling.
 </span><span class="kw">pub fn </span>is_trace_fully_sampled(
     processing_enabled: bool,
-    root_project_state: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ProjectState&gt;,
-    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
+    root_project_config: <span class="kw-2">&amp;</span>SamplingConfig,
+    dsc: <span class="kw-2">&amp;</span>DynamicSamplingContext,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
-    <span class="kw">let </span>dsc = dsc<span class="question-mark">?</span>;
-    <span class="kw">let </span>root_project_state = root_project_state<span class="question-mark">?</span>;
-
     <span class="comment">// If the sampled field is not set, we prefer to not tag the error since we have no clue on
     // whether the head of the trace was kept or dropped on the client side.
     // In addition, if the head of the trace was dropped on the client we will immediately mark
@@ -483,20 +394,26 @@
         <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="bool-val">false</span>);
     }
 
-    <span class="kw">let </span>sampling_result = get_sampling_result(
-        processing_enabled,
-        <span class="prelude-val">None</span>,
-        <span class="prelude-val">Some</span>(root_project_state),
-        <span class="prelude-val">Some</span>(dsc),
-        <span class="prelude-val">None</span>,
-    );
+    <span class="kw">if </span>root_project_config.unsupported() {
+        <span class="kw">if </span>processing_enabled {
+            <span class="macro">relay_log::error!</span>(<span class="string">&quot;found unsupported rules even as processing relay&quot;</span>);
+        } <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="bool-val">true</span>);
+        }
+    }
 
-    <span class="kw">let </span>sampled = <span class="kw">match </span>sampling_result {
-        SamplingResult::Keep =&gt; <span class="bool-val">true</span>,
-        SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
+    <span class="kw">let </span>adjustment_rate = <span class="kw">match </span>root_project_config.mode {
+        SamplingMode::Total =&gt; dsc.sample_rate,
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
 
-    <span class="prelude-val">Some</span>(sampled)
+    <span class="comment">// TODO(tor): pass correct now timestamp
+    </span><span class="kw">let </span>evaluator = SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
+
+    <span class="kw">let </span>rules = root_project_config.filter_rules(RuleType::Trace);
+
+    <span class="kw">let </span>evaluation = evaluator.match_rules(dsc.trace_id, dsc, rules);
+    <span class="prelude-val">Some</span>(SamplingResult::from(evaluation).should_keep())
 }
 
 <span class="doccomment">/// Returns the project key defined in the `trace` header of the envelope.
@@ -516,25 +433,13 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_base_schema::events::EventType;
-    <span class="kw">use </span>relay_event_schema::protocol::{EventId, LenientString};
+    <span class="kw">use </span>relay_event_schema::protocol::{Event, EventId, LenientString};
     <span class="kw">use </span>relay_protocol::Annotated;
     <span class="kw">use </span>relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
     <span class="kw">use </span>relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
-    <span class="kw">use </span>similar_asserts::assert_eq;
     <span class="kw">use </span>uuid::Uuid;
-
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::testutils::project_state_with_config;
-
-    <span class="kw">fn </span>eq(name: <span class="kw-2">&amp;</span>str, value: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], ignore_case: bool) -&gt; RuleCondition {
-        RuleCondition::Eq(EqCondition {
-            name: name.to_owned(),
-            value: value.iter().map(|s| s.to_string()).collect(),
-            options: EqCondOptions { ignore_case },
-        })
-    }
 
     <span class="kw">fn </span>mocked_event(event_type: EventType, transaction: <span class="kw-2">&amp;</span>str, release: <span class="kw-2">&amp;</span>str) -&gt; Event {
         Event {
@@ -544,6 +449,16 @@
             release: Annotated::new(LenientString(release.to_string())),
             ..Event::default()
         }
+    }
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">fn </span>eq(name: <span class="kw-2">&amp;</span>str, value: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], ignore_case: bool) -&gt; RuleCondition {
+        RuleCondition::Eq(EqCondition {
+            name: name.to_owned(),
+            value: value.iter().map(|s| s.to_string()).collect(),
+            options: EqCondOptions { ignore_case },
+        })
     }
 
     <span class="kw">fn </span>mocked_simple_dynamic_sampling_context(
@@ -580,130 +495,131 @@
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that an event is kept when there is a match and we have 100% sample rate.
-    </span><span class="kw">fn </span>test_get_sampling_result_return_keep_with_match_and_100_sample_rate() {
-        <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">1.0</span>)],
-            mode: SamplingMode::Received,
-        });
-        <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
+    </span><span class="kw">fn </span>test_match_rules_return_keep_with_match_and_100_sample_rate() {
+        <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
+        <span class="kw">let </span>rules = <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">1.0</span>)];
+        <span class="kw">let </span>seed = Uuid::default();
 
-        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
-        <span class="macro">assert_eq!</span>(result, SamplingResult::Keep)
+        <span class="kw">let </span>result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(seed, <span class="kw-2">&amp;</span>event, rules.iter())
+            .into();
+
+        <span class="macro">assert!</span>(result.is_match());
+        <span class="macro">assert!</span>(result.should_keep());
     }
-
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that an event is dropped when there is a match and we have 0% sample rate.
-    </span><span class="kw">fn </span>test_get_sampling_result_return_drop_with_match_and_0_sample_rate() {
-        <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.0</span>)],
-            mode: SamplingMode::Received,
-        });
-        <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
+    </span><span class="kw">fn </span>test_match_rules_return_drop_with_match_and_0_sample_rate() {
+        <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
+        <span class="kw">let </span>rules = <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.0</span>)];
+        <span class="kw">let </span>seed = Uuid::default();
 
-        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
-        <span class="macro">assert_eq!</span>(
-            result,
-            SamplingResult::Drop(MatchedRuleIds(<span class="macro">vec!</span>[RuleId(<span class="number">1</span>)]))
-        )
+        <span class="kw">let </span>result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(seed, <span class="kw-2">&amp;</span>event, rules.iter())
+            .into();
+
+        <span class="macro">assert!</span>(result.is_match());
+        <span class="macro">assert!</span>(result.should_drop());
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that an event is kept when there is no match.
-    </span><span class="kw">fn </span>test_get_sampling_result_return_keep_with_no_match() {
-        <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[SamplingRule {
-                condition: eq(<span class="string">&quot;event.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;foo&quot;</span>], <span class="bool-val">true</span>),
-                sampling_value: SamplingValue::SampleRate { value: <span class="number">0.5 </span>},
-                ty: RuleType::Transaction,
-                id: RuleId(<span class="number">3</span>),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            }],
-            mode: SamplingMode::Received,
-        });
+    </span><span class="kw">fn </span>test_match_rules_return_keep_with_no_match() {
+        <span class="kw">let </span>rules = <span class="macro">vec!</span>[SamplingRule {
+            condition: eq(<span class="string">&quot;event.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;foo&quot;</span>], <span class="bool-val">true</span>),
+            sampling_value: SamplingValue::SampleRate { value: <span class="number">0.5 </span>},
+            ty: RuleType::Transaction,
+            id: RuleId(<span class="number">3</span>),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }];
+
         <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
+        <span class="kw">let </span>seed = Uuid::default();
 
-        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
-        <span class="macro">assert_eq!</span>(result, SamplingResult::Keep)
-    }
+        <span class="kw">let </span>result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(seed, <span class="kw-2">&amp;</span>event, rules.iter())
+            .into();
 
-    <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests that an event is kept when there are unsupported rules with no processing and vice versa.
-    </span><span class="kw">fn </span>test_get_sampling_result_return_keep_with_unsupported_rule() {
-        <span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[
-                mocked_sampling_rule(<span class="number">1</span>, RuleType::Unsupported, <span class="number">0.0</span>),
-                mocked_sampling_rule(<span class="number">2</span>, RuleType::Transaction, <span class="number">0.0</span>),
-            ],
-            mode: SamplingMode::Received,
-        });
-        <span class="kw">let </span>event = mocked_event(EventType::Transaction, <span class="string">&quot;transaction&quot;</span>, <span class="string">&quot;2.0&quot;</span>);
-
-        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">false</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
-        <span class="macro">assert_eq!</span>(result, SamplingResult::Keep);
-
-        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event));
-        <span class="macro">assert_eq!</span>(
-            result,
-            SamplingResult::Drop(MatchedRuleIds(<span class="macro">vec!</span>[RuleId(<span class="number">2</span>)]))
-        )
+        <span class="macro">assert!</span>(result.is_no_match());
+        <span class="macro">assert!</span>(result.should_keep());
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that an event is kept when there is a trace match and we have 100% sample rate.
-    </span><span class="kw">fn </span>test_get_sampling_result_with_traces_rules_return_keep_when_match() {
-        <span class="kw">let </span>root_project_state = project_state_with_config(SamplingConfig {
-            rules: <span class="macro">vec!</span>[],
-            rules_v2: <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">1.0</span>)],
-            mode: SamplingMode::Received,
-        });
+    </span><span class="kw">fn </span>test_match_rules_with_traces_rules_return_keep_when_match() {
+        <span class="kw">let </span>rules = <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">1.0</span>)];
         <span class="kw">let </span>dsc = mocked_simple_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;3.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
-        <span class="kw">let </span>result = get_sampling_result(<span class="bool-val">true</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>root_project_state), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(result, SamplingResult::Keep)
+        <span class="kw">let </span>result: SamplingResult = SamplingEvaluator::new(Utc::now())
+            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter())
+            .into();
+
+        <span class="macro">assert!</span>(result.is_match());
+        <span class="macro">assert!</span>(result.should_keep());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_is_trace_fully_sampled_return_true_with_unsupported_rules() {
+        <span class="kw">let </span>config = SamplingConfig {
+            rules: <span class="macro">vec!</span>[],
+            rules_v2: <span class="macro">vec!</span>[
+                mocked_sampling_rule(<span class="number">1</span>, RuleType::Unsupported, <span class="number">1.0</span>),
+                mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">0.0</span>),
+            ],
+            mode: SamplingMode::Received,
+        };
+
+        <span class="kw">let </span>dsc = mocked_simple_dynamic_sampling_context(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
+
+        <span class="comment">// Return true if any unsupported rules.
+        </span><span class="macro">assert_eq!</span>(is_trace_fully_sampled(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>dsc), <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
+
+        <span class="comment">// If processing is enabled, we simply log an error and otherwise proceed as usual.
+        </span><span class="macro">assert_eq!</span>(is_trace_fully_sampled(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>dsc), <span class="prelude-val">Some</span>(<span class="bool-val">false</span>));
     }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Tests that a trace is marked as fully sampled correctly when dsc and project state are set.
-    </span><span class="kw">fn </span>test_is_trace_fully_sampled_with_valid_dsc_and_project_state() {
+    </span><span class="kw">fn </span>test_is_trace_fully_sampled_with_valid_dsc_and_sampling_config() {
         <span class="comment">// We test with `sampled = true` and 100% rule.
-        </span><span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
+
+        </span><span class="kw">let </span>config = SamplingConfig {
             rules: <span class="macro">vec!</span>[],
             rules_v2: <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">1.0</span>)],
             mode: SamplingMode::Received,
-        });
+        };
+
         <span class="kw">let </span>dsc =
             mocked_simple_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;3.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
 
-        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc)).unwrap();
+        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>dsc).unwrap();
         <span class="macro">assert!</span>(result);
 
         <span class="comment">// We test with `sampled = true` and 0% rule.
-        </span><span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
+        </span><span class="kw">let </span>config = SamplingConfig {
             rules: <span class="macro">vec!</span>[],
             rules_v2: <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">0.0</span>)],
             mode: SamplingMode::Received,
-        });
+        };
+
         <span class="kw">let </span>dsc =
             mocked_simple_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;3.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="bool-val">true</span>));
 
-        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc)).unwrap();
+        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>dsc).unwrap();
         <span class="macro">assert!</span>(!result);
 
         <span class="comment">// We test with `sampled = false` and 100% rule.
-        </span><span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
+        </span><span class="kw">let </span>config = SamplingConfig {
             rules: <span class="macro">vec!</span>[],
             rules_v2: <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">1.0</span>)],
             mode: SamplingMode::Received,
-        });
+        };
+
         <span class="kw">let </span>dsc =
             mocked_simple_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;3.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="bool-val">false</span>));
 
-        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc)).unwrap();
+        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>dsc).unwrap();
         <span class="macro">assert!</span>(!result);
     }
 
@@ -711,19 +627,15 @@
     </span><span class="doccomment">/// Tests that a trace is not marked as fully sampled or not if inputs are invalid.
     </span><span class="kw">fn </span>test_is_trace_fully_sampled_with_invalid_inputs() {
         <span class="comment">// We test with missing `sampled`.
-        </span><span class="kw">let </span>project_state = project_state_with_config(SamplingConfig {
+        </span><span class="kw">let </span>config = SamplingConfig {
             rules: <span class="macro">vec!</span>[],
             rules_v2: <span class="macro">vec!</span>[mocked_sampling_rule(<span class="number">1</span>, RuleType::Trace, <span class="number">1.0</span>)],
             mode: SamplingMode::Received,
-        });
+        };
         <span class="kw">let </span>dsc = mocked_simple_dynamic_sampling_context(<span class="prelude-val">Some</span>(<span class="number">1.0</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;3.0&quot;</span>), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
 
-        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">true</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>project_state), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>dsc));
+        <span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>dsc);
         <span class="macro">assert!</span>(result.is_none());
-
-        <span class="comment">// We test with missing dsc and project config.
-        </span><span class="kw">let </span>result = is_trace_fully_sampled(<span class="bool-val">true</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-        <span class="macro">assert!</span>(result.is_none())
     }
 }
 </code></pre></div></section></main></body></html>

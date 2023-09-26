@@ -1644,6 +1644,7 @@
 <a href="#1644" id="1644">1644</a>
 <a href="#1645" id="1645">1645</a>
 <a href="#1646" id="1646">1646</a>
+<a href="#1647" id="1647">1647</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -1978,9 +1979,10 @@
                     </span>.insert(CommonTag::Transaction, transaction_from_dsc.to_string());
             }
             TransactionCPRTags {
-                decision: <span class="kw">match </span><span class="self">self</span>.sampling_result {
-                    SamplingResult::Keep =&gt; <span class="string">&quot;keep&quot;</span>.to_owned(),
-                    SamplingResult::Drop(<span class="kw">_</span>) =&gt; <span class="string">&quot;drop&quot;</span>.to_owned(),
+                decision: <span class="kw">if </span><span class="self">self</span>.sampling_result.should_keep() {
+                    <span class="string">&quot;keep&quot;</span>.to_owned()
+                } <span class="kw">else </span>{
+                    <span class="string">&quot;drop&quot;</span>.to_owned()
                 },
                 universal_tags,
             }
@@ -2141,7 +2143,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2339,7 +2341,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2442,7 +2444,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2526,7 +2528,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2593,7 +2595,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2682,7 +2684,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2721,7 +2723,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2789,7 +2791,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2823,7 +2825,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -2859,7 +2861,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;root_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3122,7 +3124,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>[],
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3251,7 +3253,7 @@
             config: <span class="kw-2">&amp;</span>config,
             generic_tags: <span class="kw-2">&amp;</span>generic_tags,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">&quot;test_transaction&quot;</span>),
-            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Keep,
+            sampling_result: <span class="kw-2">&amp;</span>SamplingResult::Pending,
             has_profile: <span class="bool-val">false</span>,
         };
 

@@ -495,6 +495,70 @@
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
 <a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::fmt;
@@ -504,227 +568,214 @@
 <span class="kw">use </span>rand::distributions::Uniform;
 <span class="kw">use </span>rand::Rng;
 <span class="kw">use </span>rand_pcg::Pcg32;
-<span class="kw">use </span>relay_base_schema::events::EventType;
-<span class="kw">use </span>relay_event_schema::protocol::Event;
+<span class="kw">use </span>relay_protocol::Getter;
 <span class="kw">use </span>serde::Serialize;
 <span class="kw">use </span>uuid::Uuid;
 
-<span class="kw">use </span><span class="kw">crate</span>::config::{
-    DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
-    TimeRange,
-};
-<span class="kw">use </span><span class="kw">crate</span>::dsc::DynamicSamplingContext;
+<span class="kw">use </span><span class="kw">crate</span>::config::{RuleId, SamplingRule, SamplingValue};
 
 <span class="doccomment">/// Generates a pseudo random number by seeding the generator with the given id.
 ///
 /// The return is deterministic, always generates the same number from the same id.
-</span><span class="kw">pub fn </span>pseudo_random_from_uuid(id: Uuid) -&gt; f64 {
+</span><span class="kw">fn </span>pseudo_random_from_uuid(id: Uuid) -&gt; f64 {
     <span class="kw">let </span>big_seed = id.as_u128();
     <span class="kw">let </span><span class="kw-2">mut </span>generator = Pcg32::new((big_seed &gt;&gt; <span class="number">64</span>) <span class="kw">as </span>u64, big_seed <span class="kw">as </span>u64);
     <span class="kw">let </span>dist = Uniform::new(<span class="number">0f64</span>, <span class="number">1f64</span>);
     generator.sample(dist)
 }
 
-<span class="doccomment">/// Returns an iterator of references that chains together and merges rules.
+<span class="doccomment">/// State of the [`SamplingEvaluator`]&#39;s rule matching.
 ///
-/// The chaining logic will take all the non-trace rules from the project and all the trace/unsupported
-/// rules from the root project and concatenate them.
-</span><span class="kw">pub fn </span>merge_rules_from_configs&lt;<span class="lifetime">&#39;a</span>&gt;(
-    sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingConfig&gt;,
-    root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingConfig&gt;,
-) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingRule&gt; {
-    <span class="kw">let </span>transaction_rules = sampling_config
-        .into_iter()
-        .flat_map(|config| config.rules_v2.iter())
-        .filter(|<span class="kw-2">&amp;</span>rule| rule.ty == RuleType::Transaction);
-
-    <span class="kw">let </span>trace_rules = root_sampling_config
-        .into_iter()
-        .flat_map(|config| config.rules_v2.iter())
-        .filter(|<span class="kw-2">&amp;</span>rule| rule.ty == RuleType::Trace);
-
-    transaction_rules.chain(trace_rules)
+/// Enforces a pattern to avoid matching on more rules if a match has already been found.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>Evaluation {
+    <span class="doccomment">/// Matching has not completed and more rules can be evaluated.
+    ///
+    /// This can happen either if no active rules match the provided data, or if the matched rules
+    /// are factors that require a final sampling value. In this case, the returned evaluator stores
+    /// the state of the matched rules as well as the accumulated sampling factor and can be used to
+    /// evaluate more rules.
+    ///
+    /// If evaluation returns `Continue` and there are no more rules to match, this should be
+    /// considered as &quot;no match&quot;.
+    </span>Continue(SamplingEvaluator),
+    <span class="doccomment">/// One or more rules have matched.
+    </span>Matched(SamplingMatch),
 }
 
-<span class="doccomment">/// Checks whether unsupported rules result in a direct keep of the event or depending on the
-/// type of Relay an ignore of unsupported rules.
-</span><span class="kw">fn </span>check_unsupported_rules(
-    processing_enabled: bool,
-    sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
-    root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ()&gt; {
-    <span class="comment">// When we have unsupported rules disable sampling for non processing relays.
-    </span><span class="kw">if </span>sampling_config.map_or(<span class="bool-val">false</span>, |config| config.unsupported())
-        || root_sampling_config.map_or(<span class="bool-val">false</span>, |config| config.unsupported())
-    {
-        <span class="kw">if </span>!processing_enabled {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(());
-        } <span class="kw">else </span>{
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;found unsupported rules even as processing relay&quot;</span>);
+<span class="kw">impl </span>Evaluation {
+    <span class="doccomment">/// Returns true if a rule has matched.
+    </span><span class="kw">pub fn </span>is_match(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="kw-2">&amp;</span><span class="self">Self</span>::Matched(<span class="kw">_</span>))
+    }
+
+    <span class="doccomment">/// Returns true if no rule have matched.
+    </span><span class="kw">pub fn </span>is_no_match(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.is_match()
+    }
+}
+
+<span class="doccomment">/// State machine for dynamic sampling.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>SamplingEvaluator {
+    now: DateTime&lt;Utc&gt;,
+    rule_ids: Vec&lt;RuleId&gt;,
+    factor: f64,
+    client_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
+}
+
+<span class="kw">impl </span>SamplingEvaluator {
+    <span class="doccomment">/// Constructor for [`SamplingEvaluator`].
+    </span><span class="kw">pub fn </span>new(now: DateTime&lt;Utc&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            now,
+            rule_ids: <span class="macro">vec!</span>[],
+            factor: <span class="number">1.0</span>,
+            client_sample_rate: <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="prelude-val">Ok</span>(())
+    <span class="doccomment">/// Sets a new client sample rate value.
+    </span><span class="kw">pub fn </span>adjust_client_sample_rate(<span class="kw-2">mut </span><span class="self">self</span>, client_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.client_sample_rate = client_sample_rate;
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Attemps to find a match for sampling rules.
+    </span><span class="kw">pub fn </span>match_rules&lt;<span class="lifetime">&#39;a</span>, I, G&gt;(<span class="kw-2">mut </span><span class="self">self</span>, seed: Uuid, instance: <span class="kw-2">&amp;</span>G, rules: I) -&gt; Evaluation
+    <span class="kw">where
+        </span>G: Getter,
+        I: Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingRule&gt;,
+    {
+        <span class="kw">for </span>rule <span class="kw">in </span>rules {
+            <span class="kw">if </span>!rule.condition.matches(instance) {
+                <span class="kw">continue</span>;
+            };
+
+            <span class="kw">let </span><span class="prelude-val">Some</span>(sampling_value) = rule.sample_rate(<span class="self">self</span>.now) <span class="kw">else </span>{
+                <span class="kw">continue</span>;
+            };
+
+            <span class="self">self</span>.rule_ids.push(rule.id);
+
+            <span class="kw">match </span>sampling_value {
+                SamplingValue::Factor { value } =&gt; <span class="self">self</span>.factor <span class="kw-2">*</span>= value,
+                SamplingValue::SampleRate { value } =&gt; {
+                    <span class="kw">let </span>sample_rate = (value * <span class="self">self</span>.factor).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>);
+
+                    <span class="kw">return </span>Evaluation::Matched(SamplingMatch::new(
+                        <span class="self">self</span>.adjusted_sample_rate(sample_rate),
+                        seed,
+                        <span class="self">self</span>.rule_ids,
+                    ));
+                }
+            }
+        }
+        Evaluation::Continue(<span class="self">self</span>)
+    }
+
+    <span class="doccomment">/// Tries to negate the client side sampling if the evaluator has been provided
+    /// with a client sample rate.
+    </span><span class="kw">fn </span>adjusted_sample_rate(<span class="kw-2">&amp;</span><span class="self">self</span>, rule_sample_rate: f64) -&gt; f64 {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(client_sample_rate) = <span class="self">self</span>.client_sample_rate <span class="kw">else </span>{
+            <span class="kw">return </span>rule_sample_rate;
+        };
+
+        <span class="kw">if </span>client_sample_rate &lt;= <span class="number">0.0 </span>{
+            <span class="comment">// client_sample_rate is 0, which is bogus because the SDK should&#39;ve dropped the
+            // envelope. In that case let&#39;s pretend the sample rate was not sent, because clearly
+            // the sampling decision across the trace is still 1. The most likely explanation is
+            // that the SDK is reporting its own sample rate setting instead of the one from the
+            // continued trace.
+            //
+            // since we write back the client_sample_rate into the event&#39;s trace context, it should
+            // be possible to find those values + sdk versions via snuba
+            </span><span class="macro">relay_log::warn!</span>(<span class="string">&quot;client sample rate is &lt;= 0&quot;</span>);
+            rule_sample_rate
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>);
+            <span class="kw">if </span>adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;adjusted sample rate ended up being nan/inf&quot;</span>);
+                <span class="macro">debug_assert!</span>(<span class="bool-val">false</span>);
+                rule_sample_rate
+            } <span class="kw">else </span>{
+                adjusted_sample_rate
+            }
+        }
+    }
 }
 
-<span class="doccomment">/// Gets the sampling match result by creating the merged configuration and matching it against
-/// the sampling configuration.
-</span><span class="kw">pub fn </span>merge_configs_and_match(
-    processing_enabled: bool,
-    sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
-    root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
-    dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
-    event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
-    now: DateTime&lt;Utc&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt; {
-    <span class="comment">// We check if there are unsupported rules in any of the two configurations.
-    </span>check_unsupported_rules(processing_enabled, sampling_config, root_sampling_config).ok()<span class="question-mark">?</span>;
+<span class="kw">fn </span>sampling_match(sample_rate: f64, seed: Uuid) -&gt; bool {
+    <span class="kw">let </span>random_number = pseudo_random_from_uuid(seed);
+    <span class="macro">relay_log::trace!</span>(
+        sample_rate,
+        random_number,
+        <span class="string">&quot;applying dynamic sampling to matching event&quot;
+    </span>);
 
-    <span class="comment">// We perform the rule matching with the multi-matching logic on the merged rules.
-    </span><span class="kw">let </span>rules = merge_rules_from_configs(sampling_config, root_sampling_config);
-    <span class="kw">let </span><span class="kw-2">mut </span>match_result = SamplingMatch::match_against_rules(rules, event, dsc, now)<span class="question-mark">?</span>;
-
-    <span class="comment">// If we have a match, we will try to derive the sample rate based on the sampling mode.
-    //
-    // Keep in mind that the sample rate received here has already been derived by the matching
-    // logic, based on multiple matches and decaying functions.
-    //
-    // The determination of the sampling mode occurs with the following priority:
-    // 1. Non-root project sampling mode
-    // 2. Root project sampling mode
-    </span><span class="kw">let </span><span class="prelude-val">Some</span>(primary_config) = sampling_config.or(root_sampling_config) <span class="kw">else </span>{
-        <span class="macro">relay_log::error!</span>(<span class="string">&quot;cannot sample without at least one sampling config&quot;</span>);
-        <span class="kw">return </span><span class="prelude-val">None</span>;
-    };
-    <span class="kw">let </span>sample_rate = <span class="kw">match </span>primary_config.mode {
-        SamplingMode::Received =&gt; match_result.sample_rate,
-        SamplingMode::Total =&gt; <span class="kw">match </span>dsc {
-            <span class="prelude-val">Some</span>(dsc) =&gt; dsc.adjusted_sample_rate(match_result.sample_rate),
-            <span class="prelude-val">None </span>=&gt; match_result.sample_rate,
-        },
-        SamplingMode::Unsupported =&gt; {
-            <span class="kw">if </span>processing_enabled {
-                <span class="macro">relay_log::error!</span>(<span class="string">&quot;found unsupported sampling mode even as processing Relay&quot;</span>);
-            }
-
-            <span class="kw">return </span><span class="prelude-val">None</span>;
-        }
-    };
-    match_result.set_sample_rate(sample_rate);
-
-    <span class="comment">// Only if we arrive at this stage, it means that we have found a match and we want to prepare
-    // the data for making the sampling decision.
-    </span><span class="prelude-val">Some</span>(match_result)
+    <span class="kw">if </span>random_number &gt;= sample_rate {
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;dropping event that matched the configuration&quot;</span>);
+        <span class="bool-val">false
+    </span>} <span class="kw">else </span>{
+        <span class="macro">relay_log::trace!</span>(<span class="string">&quot;keeping event that matched the configuration&quot;</span>);
+        <span class="bool-val">true
+    </span>}
 }
 
 <span class="doccomment">/// Represents the specification for sampling an incoming event.
-</span><span class="attr">#[derive(Clone, Debug, PartialEq, Serialize)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq)]
 </span><span class="kw">pub struct </span>SamplingMatch {
     <span class="doccomment">/// The sample rate to use for the incoming event.
-    </span><span class="kw">pub </span>sample_rate: f64,
-
+    </span>sample_rate: f64,
     <span class="doccomment">/// The seed to feed to the random number generator which allows the same number to be
     /// generated given the same seed.
     ///
     /// This is especially important for trace sampling, even though we can have inconsistent
     /// traces due to multi-matching.
-    </span><span class="kw">pub </span>seed: Uuid,
-
+    </span>seed: Uuid,
     <span class="doccomment">/// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-    </span><span class="kw">pub </span>matched_rule_ids: MatchedRuleIds,
+    </span>matched_rules: MatchedRuleIds,
+    <span class="doccomment">/// Whether this sampling match results in the item getting sampled.
+    /// It&#39;s essentially a cache, as the value can be deterministically derived from
+    /// the sample rate and the seed.
+    </span>should_keep: bool,
 }
 
 <span class="kw">impl </span>SamplingMatch {
-    <span class="doccomment">/// Setter for `sample_rate`.
-    </span><span class="kw">pub fn </span>set_sample_rate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, new_sample_rate: f64) {
-        <span class="self">self</span>.sample_rate = new_sample_rate;
+    <span class="kw">fn </span>new(sample_rate: f64, seed: Uuid, matched_rules: Vec&lt;RuleId&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>matched_rules = MatchedRuleIds(matched_rules);
+        <span class="kw">let </span>should_keep = sampling_match(sample_rate, seed);
+
+        <span class="self">Self </span>{
+            sample_rate,
+            seed,
+            matched_rules,
+            should_keep,
+        }
     }
 
-    <span class="doccomment">/// Matches an event and/or dynamic sampling context against the rules of the sampling configuration.
+    <span class="doccomment">/// Returns the sample rate.
+    </span><span class="kw">pub fn </span>sample_rate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f64 {
+        <span class="self">self</span>.sample_rate
+    }
+
+    <span class="doccomment">/// Returns the matched rules for the sampling match.
     ///
-    /// The multi-matching algorithm used iterates by collecting and multiplying factor rules until
-    /// it finds a sample rate rule. Once a sample rate rule is found, the final sample rate is
-    /// computed by multiplying it with the previously accumulated factors.
-    ///
-    /// The default accumulated factors equal to 1 because it is the identity of the multiplication
-    /// operation, thus in case no factor rules are matched, the final result will just be the
-    /// sample rate of the matching rule.
-    ///
-    /// In case no sample rate rule is matched, we are going to return a None, signaling that no
-    /// match has been found.
-    </span><span class="kw">pub fn </span>match_against_rules&lt;<span class="lifetime">&#39;a</span>, I&gt;(
-        rules: I,
-        event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
-        dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>DynamicSamplingContext&gt;,
-        now: DateTime&lt;Utc&gt;,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;SamplingMatch&gt;
-    <span class="kw">where
-        </span>I: Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingRule&gt;,
-    {
-        <span class="kw">let </span><span class="kw-2">mut </span>matched_rule_ids = <span class="macro">vec!</span>[];
-        <span class="comment">// Even though this seed is changed based on whether we match event or trace rules, we will
-        // still incur in inconsistent trace sampling because of multi-matching of rules across event
-        // and trace rules.
-        //
-        // An example of inconsistent trace sampling could be:
-        // /hello -&gt; /world -&gt; /transaction belong to trace_id = abc
-        // * /hello has uniform rule with 0.2 sample rate which will match all the transactions of the trace
-        // * each project has a single transaction rule with different factors (2, 3, 4)
-        //
-        // 1. /hello is matched with a transaction rule with a factor of 2 and uses as seed abc -&gt; 0.2 * 2 = 0.4 sample rate
-        // 2. /world is matched with a transaction rule with a factor of 3 and uses as seed abc -&gt; 0.2 * 3 = 0.6 sample rate
-        // 3. /transaction is matched with a transaction rule with a factor of 4 and uses as seed abc -&gt; 0.2 * 4 = 0.8 sample rate
-        //
-        // We can see that we have 3 different samples rates but given the same seed, the random number generated will be the same.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>seed = event.and_then(|e| e.id.value()).map(|id| id.<span class="number">0</span>);
-        <span class="kw">let </span><span class="kw-2">mut </span>accumulated_factors = <span class="number">1.0</span>;
+    /// Takes ownership, useful if you don&#39;t need the [`SamplingMatch`] anymore
+    /// and you want to avoid allocations.
+    </span><span class="kw">pub fn </span>into_matched_rules(<span class="self">self</span>) -&gt; MatchedRuleIds {
+        <span class="self">self</span>.matched_rules
+    }
 
-        <span class="kw">for </span>rule <span class="kw">in </span>rules {
-            <span class="kw">let </span>matches = <span class="kw">match </span>rule.ty {
-                RuleType::Trace =&gt; <span class="kw">match </span>dsc {
-                    <span class="prelude-val">Some</span>(dsc) =&gt; rule.condition.matches(dsc),
-                    <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-                },
-                RuleType::Transaction =&gt; event.map_or(<span class="bool-val">false</span>, |event| <span class="kw">match </span>event.ty.<span class="number">0 </span>{
-                    <span class="prelude-val">Some</span>(EventType::Transaction) =&gt; rule.condition.matches(event),
-                    <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-                }),
-                <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-            };
+    <span class="doccomment">/// Returns true if event should be kept.
+    </span><span class="kw">pub fn </span>should_keep(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.should_keep
+    }
 
-            <span class="kw">if </span>matches {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(evaluator) = SamplingValueEvaluator::create(rule, now) {
-                    matched_rule_ids.push(rule.id);
-
-                    <span class="kw">if </span>rule.ty == RuleType::Trace {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = dsc {
-                            seed = <span class="prelude-val">Some</span>(dsc.trace_id);
-                        }
-                    }
-
-                    <span class="kw">let </span>value = evaluator.evaluate(now);
-                    <span class="kw">match </span>rule.sampling_value {
-                        SamplingValue::Factor { .. } =&gt; accumulated_factors <span class="kw-2">*</span>= value,
-                        SamplingValue::SampleRate { .. } =&gt; {
-                            <span class="kw">return </span><span class="prelude-val">Some</span>(SamplingMatch {
-                                sample_rate: (value * accumulated_factors).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>),
-                                seed: <span class="kw">match </span>seed {
-                                    <span class="prelude-val">Some</span>(seed) =&gt; seed,
-                                    <span class="comment">// In case we are not able to generate a seed, we will return a no
-                                    // match.
-                                    </span><span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
-                                },
-                                matched_rule_ids: MatchedRuleIds(matched_rule_ids),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        <span class="comment">// In case no match is available, we won&#39;t return any specification.
-        </span><span class="prelude-val">None
-    </span>}
+    <span class="doccomment">/// Returns true if event should be dropped.
+    </span><span class="kw">pub fn </span>should_drop(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.should_keep()
+    }
 }
 
 <span class="doccomment">/// Represents a list of rule ids which is used for outcomes.
@@ -762,86 +813,257 @@
         <span class="prelude-val">Ok</span>(())
     }
 }
-
-<span class="doccomment">/// A struct representing the evaluation context of a sample rate.
-</span><span class="attr">#[derive(Debug, Clone, Copy)]
-</span><span class="kw">enum </span>SamplingValueEvaluator {
-    Linear {
-        start: DateTime&lt;Utc&gt;,
-        end: DateTime&lt;Utc&gt;,
-        initial_value: f64,
-        decayed_value: f64,
-    },
-    Constant {
-        initial_value: f64,
-    },
-}
-
-<span class="kw">impl </span>SamplingValueEvaluator {
-    <span class="doccomment">/// Returns a [`SamplingValueEvaluator`] if the rule is active at the given time.
-    </span><span class="kw">fn </span>create(rule: <span class="kw-2">&amp;</span>SamplingRule, now: DateTime&lt;Utc&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>sampling_base_value = rule.sampling_value.value();
-
-        <span class="kw">match </span>rule.decaying_fn {
-            DecayingFunction::Linear { decayed_value } =&gt; {
-                <span class="kw">if let </span>TimeRange {
-                    start: <span class="prelude-val">Some</span>(start),
-                    end: <span class="prelude-val">Some</span>(end),
-                } = rule.time_range
-                {
-                    <span class="comment">// As in the TimeRange::contains method we use a right non-inclusive time bound.
-                    </span><span class="kw">if </span>sampling_base_value &gt; decayed_value &amp;&amp; start &lt;= now &amp;&amp; now &lt; end {
-                        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="self">Self</span>::Linear {
-                            start,
-                            end,
-                            initial_value: sampling_base_value,
-                            decayed_value,
-                        });
-                    }
-                }
-            }
-            DecayingFunction::Constant =&gt; {
-                <span class="kw">if </span>rule.time_range.contains(now) {
-                    <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="self">Self</span>::Constant {
-                        initial_value: sampling_base_value,
-                    });
-                }
-            }
-        }
-
-        <span class="prelude-val">None
-    </span>}
-
-    <span class="doccomment">/// Evaluates the value of the sampling strategy given a the current time.
-    </span><span class="kw">fn </span>evaluate(<span class="kw-2">&amp;</span><span class="self">self</span>, now: DateTime&lt;Utc&gt;) -&gt; f64 {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Linear {
-                start,
-                end,
-                initial_value,
-                decayed_value,
-            } =&gt; {
-                <span class="kw">let </span>now_timestamp = now.timestamp() <span class="kw">as </span>f64;
-                <span class="kw">let </span>start_timestamp = start.timestamp() <span class="kw">as </span>f64;
-                <span class="kw">let </span>end_timestamp = end.timestamp() <span class="kw">as </span>f64;
-                <span class="kw">let </span>progress_ratio = ((now_timestamp - start_timestamp)
-                    / (end_timestamp - start_timestamp))
-                    .clamp(<span class="number">0.0</span>, <span class="number">1.0</span>);
-
-                <span class="comment">// This interval will always be &lt; 0.
-                </span><span class="kw">let </span>interval = decayed_value - initial_value;
-                initial_value + (interval * progress_ratio)
-            }
-            <span class="self">Self</span>::Constant { initial_value } =&gt; <span class="kw-2">*</span>initial_value,
-        }
-    }
-}
-
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::str::FromStr;
+
+    <span class="kw">use </span>chrono::{TimeZone, Utc};
+    <span class="kw">use </span>similar_asserts::assert_eq;
+    <span class="kw">use </span>uuid::Uuid;
+
     <span class="kw">use </span><span class="kw">crate</span>::condition::RuleCondition;
+    <span class="kw">use </span><span class="kw">crate</span>::config::{RuleId, RuleType, SamplingRule, SamplingValue, TimeRange};
+    <span class="kw">use </span><span class="kw">crate</span>::dsc::TraceUserContext;
+    <span class="kw">use </span><span class="kw">crate</span>::evaluation::MatchedRuleIds;
+    <span class="kw">use </span><span class="kw">crate</span>::tests::{and, eq, glob};
+    <span class="kw">use </span><span class="kw">crate</span>::DynamicSamplingContext;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="doccomment">/// Helper to extract the sampling match after evaluating rules.
+    </span><span class="kw">fn </span>get_sampling_match(rules: <span class="kw-2">&amp;</span>[SamplingRule], instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>Getter) -&gt; SamplingMatch {
+        <span class="kw">match </span>SamplingEvaluator::new(Utc::now()).match_rules(
+            Uuid::default(),
+            instance,
+            rules.iter(),
+        ) {
+            Evaluation::Matched(sampling_match) =&gt; sampling_match,
+            Evaluation::Continue(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;no match found&quot;</span>),
+        }
+    }
+
+    <span class="doccomment">/// Helper to check if certain rules are matched on.
+    </span><span class="kw">fn </span>matches_rule_ids(rule_ids: <span class="kw-2">&amp;</span>[u32], rules: <span class="kw-2">&amp;</span>[SamplingRule], instance: <span class="kw-2">&amp;</span><span class="kw">impl </span>Getter) -&gt; bool {
+        <span class="kw">let </span>matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(<span class="kw-2">*</span>num)).collect());
+        <span class="kw">let </span>sampling_match = get_sampling_match(rules, instance);
+        matched_rule_ids == sampling_match.matched_rules
+    }
+
+    <span class="doccomment">/// Helper function to create a dsc with the provided getter-values set.
+    </span><span class="kw">fn </span>mocked_dsc_with_getter_values(
+        paths_and_values: Vec&lt;(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)&gt;,
+    ) -&gt; DynamicSamplingContext {
+        <span class="kw">let </span><span class="kw-2">mut </span>dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: <span class="string">&quot;12345678123456781234567812345678&quot;</span>.parse().unwrap(),
+            release: <span class="prelude-val">None</span>,
+            environment: <span class="prelude-val">None</span>,
+            transaction: <span class="prelude-val">None</span>,
+            sample_rate: <span class="prelude-val">None</span>,
+            user: TraceUserContext::default(),
+            replay_id: <span class="prelude-val">None</span>,
+            sampled: <span class="prelude-val">None</span>,
+            other: Default::default(),
+        };
+
+        <span class="kw">for </span>(path, value) <span class="kw">in </span>paths_and_values {
+            <span class="kw">match </span>path {
+                <span class="string">&quot;trace.release&quot; </span>=&gt; dsc.release = <span class="prelude-val">Some</span>(value.to_owned()),
+                <span class="string">&quot;trace.environment&quot; </span>=&gt; dsc.environment = <span class="prelude-val">Some</span>(value.to_owned()),
+                <span class="string">&quot;trace.user.id&quot; </span>=&gt; dsc.user.user_id = value.to_owned(),
+                <span class="string">&quot;trace.user.segment&quot; </span>=&gt; dsc.user.user_segment = value.to_owned(),
+                <span class="string">&quot;trace.transaction&quot; </span>=&gt; dsc.transaction = <span class="prelude-val">Some</span>(value.to_owned()),
+                <span class="string">&quot;trace.replay_id&quot; </span>=&gt; dsc.replay_id = <span class="prelude-val">Some</span>(Uuid::from_str(value).unwrap()),
+                <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;invalid path&quot;</span>),
+            }
+        }
+
+        dsc
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_adjust_sample_rate() {
+        <span class="comment">// return the same as input if no client sample rate set in the sampling evaluator.
+        </span><span class="kw">let </span>eval = SamplingEvaluator::new(Utc::now());
+        <span class="macro">assert_eq!</span>(eval.adjusted_sample_rate(<span class="number">0.2</span>), <span class="number">0.2</span>);
+
+        <span class="kw">let </span>eval = eval.adjust_client_sample_rate(<span class="prelude-val">Some</span>(<span class="number">0.5</span>));
+        <span class="macro">assert_eq!</span>(eval.adjusted_sample_rate(<span class="number">0.2</span>), <span class="number">0.4</span>);
+
+        <span class="comment">// tests that it doesn&#39;t exceed 1.0.
+        </span><span class="kw">let </span>eval = eval.adjust_client_sample_rate(<span class="prelude-val">Some</span>(<span class="number">0.005</span>));
+        <span class="macro">assert_eq!</span>(eval.adjusted_sample_rate(<span class="number">0.2</span>), <span class="number">1.0</span>);
+
+        <span class="comment">// tests that it doesn&#39;t go below 0.0.
+        </span><span class="kw">let </span>eval = eval.adjust_client_sample_rate(<span class="prelude-val">Some</span>(<span class="number">0.005</span>));
+        <span class="macro">assert_eq!</span>(eval.adjusted_sample_rate(-<span class="number">0.2</span>), <span class="number">0.0</span>);
+    }
+
+    <span class="doccomment">/// Checks that server side sampling can correctly negate any client side sampling if configured to.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_adjust_by_client_sample_rate() {
+        <span class="kw">let </span>rules = simple_sampling_rules(<span class="macro">vec!</span>[
+            (RuleCondition::all(), SamplingValue::Factor { value: <span class="number">0.5 </span>}),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: <span class="number">0.25 </span>},
+            ),
+        ]);
+
+        <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
+
+        <span class="kw">let </span>res = SamplingEvaluator::new(Utc::now())
+            .adjust_client_sample_rate(<span class="prelude-val">Some</span>(<span class="number">0.2</span>))
+            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter());
+
+        <span class="kw">let </span>Evaluation::Matched(sampling_match) = res <span class="kw">else </span>{
+            <span class="macro">panic!</span>();
+        };
+
+        <span class="comment">// ((0.5 * 0.25) / 0.2) == 0.625
+        </span><span class="macro">assert_eq!</span>(sampling_match.sample_rate(), <span class="number">0.625</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_sample_rate_compounding() {
+        <span class="kw">let </span>rules = simple_sampling_rules(<span class="macro">vec!</span>[
+            (RuleCondition::all(), SamplingValue::Factor { value: <span class="number">0.8 </span>}),
+            (RuleCondition::all(), SamplingValue::Factor { value: <span class="number">0.5 </span>}),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: <span class="number">0.25 </span>},
+            ),
+        ]);
+        <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
+
+        <span class="comment">// 0.8 * 0.5 * 0.25 == 0.1
+        </span><span class="macro">assert_eq!</span>(get_sampling_match(<span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).sample_rate(), <span class="number">0.1</span>);
+    }
+
+    <span class="doccomment">/// Helper function to quickly construct many rules with their condition and value, and a unique id,
+    /// so the caller can easily check which rules are matching.
+    </span><span class="kw">fn </span>simple_sampling_rules(vals: Vec&lt;(RuleCondition, SamplingValue)&gt;) -&gt; Vec&lt;SamplingRule&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>vec = <span class="macro">vec!</span>[];
+
+        <span class="kw">for </span>(i, val) <span class="kw">in </span>vals.into_iter().enumerate() {
+            <span class="kw">let </span>(condition, sampling_value) = val;
+            vec.push(SamplingRule {
+                condition,
+                sampling_value,
+                ty: RuleType::Trace,
+                id: RuleId(i <span class="kw">as </span>u32),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            });
+        }
+        vec
+    }
+
+    <span class="doccomment">/// Checks that rules don&#39;t match if the time is outside the time range.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_expired_rules() {
+        <span class="kw">let </span>rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+            ty: RuleType::Trace,
+            id: RuleId(<span class="number">0</span>),
+            time_range: TimeRange {
+                start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+                end: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">12</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+            },
+            decaying_fn: Default::default(),
+        };
+
+        <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
+
+        <span class="comment">// Baseline test.
+        </span><span class="kw">let </span>within_timerange = Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="macro">assert!</span>(SamplingEvaluator::new(within_timerange)
+            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
+            .is_match());
+
+        <span class="kw">let </span>before_timerange = Utc.with_ymd_and_hms(<span class="number">1969</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="macro">assert!</span>(SamplingEvaluator::new(before_timerange)
+            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
+            .is_no_match());
+
+        <span class="kw">let </span>after_timerange = Utc.with_ymd_and_hms(<span class="number">1971</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="macro">assert!</span>(SamplingEvaluator::new(after_timerange)
+            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule].iter())
+            .is_no_match());
+    }
+
+    <span class="doccomment">/// Checks that `SamplingValueEvaluator` correctly matches the right rules.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_condition_matching() {
+        <span class="kw">let </span>rules = simple_sampling_rules(<span class="macro">vec!</span>[
+            (
+                and(<span class="macro">vec!</span>[glob(<span class="string">&quot;trace.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;*healthcheck*&quot;</span>])]),
+                SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+            ),
+            (
+                and(<span class="macro">vec!</span>[glob(<span class="string">&quot;trace.environment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;*dev*&quot;</span>])]),
+                SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+            ),
+            (
+                and(<span class="macro">vec!</span>[eq(<span class="string">&quot;trace.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;raboof&quot;</span>], <span class="bool-val">true</span>)]),
+                SamplingValue::Factor { value: <span class="number">1.0 </span>},
+            ),
+            (
+                and(<span class="macro">vec!</span>[
+                    glob(<span class="string">&quot;trace.release&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;1.1.1&quot;</span>]),
+                    eq(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;vip&quot;</span>], <span class="bool-val">true</span>),
+                ]),
+                SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+            ),
+            (
+                and(<span class="macro">vec!</span>[
+                    eq(<span class="string">&quot;trace.release&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;1.1.1&quot;</span>], <span class="bool-val">true</span>),
+                    eq(<span class="string">&quot;trace.environment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;prod&quot;</span>], <span class="bool-val">true</span>),
+                ]),
+                SamplingValue::Factor { value: <span class="number">1.0 </span>},
+            ),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+            ),
+        ]);
+
+        <span class="comment">// early return of first rule
+        </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;foohealthcheckbar&quot;</span>)]);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">0</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
+
+        <span class="comment">// early return of second rule
+        </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;dev&quot;</span>)]);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">1</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
+
+        <span class="comment">// factor match third rule and early return sixth rule
+        </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;raboof&quot;</span>)]);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
+
+        <span class="comment">// factor match third rule and early return fourth rule
+        </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[
+            (<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;raboof&quot;</span>),
+            (<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>),
+            (<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
+        ]);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">3</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
+
+        <span class="comment">// factor match third, fifth rule and early return sixth rule
+        </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[
+            (<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;raboof&quot;</span>),
+            (<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>),
+            (<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>),
+        ]);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
+
+        <span class="comment">// factor match fifth and early return sixth rule
+        </span><span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[
+            (<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>),
+            (<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>),
+        ]);
+        <span class="macro">assert!</span>(matches_rule_ids(<span class="kw-2">&amp;</span>[<span class="number">4</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc));
+    }
 
     <span class="attr">#[test]
     </span><span class="doccomment">/// Test that the we get the same sampling decision from the same trace id
@@ -888,108 +1110,14 @@
         <span class="macro">assert!</span>(MatchedRuleIds::parse(<span class="string">&quot;a,b&quot;</span>).is_err());
     }
 
-    <span class="macro">macro_rules! </span>assert_rule_ids_eq {
-        (<span class="macro-nonterminal">$exc</span>:expr, <span class="macro-nonterminal">$res</span>:expr) =&gt; {
-            <span class="kw">if </span>(<span class="macro-nonterminal">$exc</span>.len() != <span class="macro-nonterminal">$res</span>.len()) {
-                <span class="macro">panic!</span>(<span class="string">&quot;The rule ids don&#39;t match.&quot;</span>)
-            }
-
-            <span class="kw">for </span>(index, rule) <span class="kw">in </span><span class="macro-nonterminal">$res</span>.iter().enumerate() {
-                <span class="macro">assert_eq!</span>(rule.id.<span class="number">0</span>, <span class="macro-nonterminal">$exc</span>[index])
-            }
-        };
-    }
-
-    <span class="kw">fn </span>mocked_sampling_rule(id: u32, ty: RuleType, sample_rate: f64) -&gt; SamplingRule {
-        SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value: SamplingValue::SampleRate { value: sample_rate },
-            ty,
-            id: RuleId(id),
-            time_range: Default::default(),
-            decaying_fn: Default::default(),
-        }
-    }
-
-    <span class="kw">fn </span>merge_root_and_non_root_configs_with(
-        rules: Vec&lt;SamplingRule&gt;,
-        root_rules: Vec&lt;SamplingRule&gt;,
-    ) -&gt; Vec&lt;SamplingRule&gt; {
-        <span class="kw">crate</span>::evaluation::merge_rules_from_configs(
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>SamplingConfig {
-                rules: <span class="macro">vec!</span>[],
-                rules_v2: rules,
-                mode: SamplingMode::Received,
-            }),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>SamplingConfig {
-                rules: <span class="macro">vec!</span>[],
-                rules_v2: root_rules,
-                mode: SamplingMode::Received,
-            }),
-        )
-        .cloned()
-        .collect()
-    }
-
     <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests the merged config of the two configs with rules.
-    </span><span class="kw">fn </span>test_get_merged_config_with_rules_in_both_project_config_and_root_project_config() {
-        <span class="macro">assert_rule_ids_eq!</span>(
-            [<span class="number">1</span>, <span class="number">7</span>],
-            merge_root_and_non_root_configs_with(
-                <span class="macro">vec!</span>[
-                    mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.1</span>),
-                    mocked_sampling_rule(<span class="number">3</span>, RuleType::Trace, <span class="number">0.3</span>),
-                    mocked_sampling_rule(<span class="number">4</span>, RuleType::Unsupported, <span class="number">0.1</span>),
-                ],
-                <span class="macro">vec!</span>[
-                    mocked_sampling_rule(<span class="number">5</span>, RuleType::Transaction, <span class="number">0.4</span>),
-                    mocked_sampling_rule(<span class="number">7</span>, RuleType::Trace, <span class="number">0.6</span>),
-                    mocked_sampling_rule(<span class="number">8</span>, RuleType::Unsupported, <span class="number">0.1</span>),
-                ],
-            )
-        );
-    }
+    </span><span class="doccomment">/// Tests that no match is done when there are no matching rules.
+    </span><span class="kw">fn </span>test_get_sampling_match_result_with_no_match() {
+        <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
 
-    <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests the merged config of the two configs without rules.
-    </span><span class="kw">fn </span>test_get_merged_config_with_no_rules_in_both_project_config_and_root_project_config() {
-        <span class="macro">assert!</span>(merge_root_and_non_root_configs_with(<span class="macro">vec!</span>[], <span class="macro">vec!</span>[]).is_empty());
-    }
+        <span class="kw">let </span>res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [].iter());
 
-    <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests the merged config of the project config with rules and the root project config
-    /// without rules.
-    </span><span class="kw">fn </span>test_get_merged_config_with_rules_in_project_config_and_no_rules_in_root_project_config() {
-        <span class="macro">assert_rule_ids_eq!</span>(
-            [<span class="number">1</span>],
-            merge_root_and_non_root_configs_with(
-                <span class="macro">vec!</span>[
-                    mocked_sampling_rule(<span class="number">1</span>, RuleType::Transaction, <span class="number">0.1</span>),
-                    mocked_sampling_rule(<span class="number">3</span>, RuleType::Trace, <span class="number">0.3</span>),
-                    mocked_sampling_rule(<span class="number">4</span>, RuleType::Unsupported, <span class="number">0.1</span>),
-                ],
-                <span class="macro">vec!</span>[],
-            )
-        );
-    }
-
-    <span class="attr">#[test]
-    </span><span class="doccomment">/// Tests the merged config of the project config without rules and the root project config
-    /// with rules.
-    </span><span class="kw">fn </span>test_get_merged_config_with_no_rules_in_project_config_and_with_rules_in_root_project_config(
-    ) {
-        <span class="macro">assert_rule_ids_eq!</span>(
-            [<span class="number">6</span>],
-            merge_root_and_non_root_configs_with(
-                <span class="macro">vec!</span>[],
-                <span class="macro">vec!</span>[
-                    mocked_sampling_rule(<span class="number">4</span>, RuleType::Transaction, <span class="number">0.4</span>),
-                    mocked_sampling_rule(<span class="number">6</span>, RuleType::Trace, <span class="number">0.6</span>),
-                    mocked_sampling_rule(<span class="number">7</span>, RuleType::Unsupported, <span class="number">0.1</span>),
-                ]
-            )
-        );
+        <span class="macro">assert!</span>(res.is_no_match());
     }
 }
 </code></pre></div></section></main></body></html>
