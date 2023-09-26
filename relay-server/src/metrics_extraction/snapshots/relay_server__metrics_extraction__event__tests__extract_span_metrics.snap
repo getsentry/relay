@@ -1,475 +1,17 @@
 ---
-source: relay-server/src/metrics_extraction/spans/mod.rs
+source: relay-server/src/metrics_extraction/event.rs
 expression: metrics
 ---
 [
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.category": "ui.react",
-            "span.op": "ui.react.render",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.category": "ui.react",
-            "span.op": "ui.react.render",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "http",
-            "span.description": "GET http://domain.tld",
-            "span.domain": "domain.tld",
-            "span.group": "d9dc18637d441612",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "http",
-            "span.description": "GET http://domain.tld",
-            "span.domain": "domain.tld",
-            "span.group": "d9dc18637d441612",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://domain.tld",
-            "span.domain": "domain.tld",
-            "span.group": "25faf23529f71d3e",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://domain.tld",
-            "span.domain": "domain.tld",
-            "span.group": "25faf23529f71d3e",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "PUT",
-            "span.category": "http",
-            "span.description": "PUT http://domain.tld",
-            "span.domain": "domain.tld",
-            "span.group": "488f09b46e5978be",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "PUT",
-            "span.category": "http",
-            "span.description": "PUT http://domain.tld",
-            "span.domain": "domain.tld",
-            "span.group": "488f09b46e5978be",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "http",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "http",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "http",
-            "span.op": "http.client",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://127.0.0.1:1234",
-            "span.group": "464fe695f9cf639c",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://127.0.0.1:1234",
-            "span.group": "464fe695f9cf639c",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://targetdomain.tld:1234",
-            "span.domain": "targetdomain.tld:1234",
-            "span.group": "72ab88b506cb04b2",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://targetdomain.tld:1234",
-            "span.domain": "targetdomain.tld:1234",
-            "span.group": "72ab88b506cb04b2",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://targetdomain:1234",
-            "span.domain": "targetdomain:1234",
-            "span.group": "c8e531abe96ff360",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://targetdomain:1234",
-            "span.domain": "targetdomain:1234",
-            "span.group": "c8e531abe96ff360",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "POST",
-            "span.category": "http",
-            "span.description": "POST http://*.domain.tld:1234",
-            "span.domain": "*.domain.tld:1234",
-            "span.group": "86818d1c74ecfc66",
-            "span.module": "http",
-            "span.op": "http.client",
-            "span.status": "ok",
-            "span.status_code": "200",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -487,12 +29,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -509,12 +54,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -531,12 +79,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -552,12 +103,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -573,12 +127,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -593,18 +150,23 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
-            "span.domain": "from_date",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
+            "span.group": "e4ea457c8e7e4109",
             "span.module": "db",
             "span.op": "db.sql.query",
             "span.status": "ok",
@@ -614,18 +176,23 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
             "span.action": "INSERT",
             "span.category": "db",
-            "span.domain": "from_date",
+            "span.description": "INSERT INTO from_date (..) VALUES (%s)",
+            "span.domain": ",from_date,",
+            "span.group": "e4ea457c8e7e4109",
             "span.module": "db",
             "span.op": "db.sql.query",
             "span.status": "ok",
@@ -634,12 +201,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -654,12 +224,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -673,12 +246,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -696,12 +272,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -718,19 +297,22 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT col FROM table WHERE col = %s",
-            "span.domain": "table",
+            "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.module": "db",
             "span.op": "db",
@@ -741,19 +323,22 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
             "span.action": "SELECT",
             "span.category": "db",
             "span.description": "SELECT col FROM table WHERE col = %s",
-            "span.domain": "table",
+            "span.domain": ",table,",
             "span.group": "e0f7e81a59b030ba",
             "span.module": "db",
             "span.op": "db",
@@ -763,12 +348,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -784,12 +372,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -804,12 +395,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -825,12 +419,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -845,12 +442,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -867,12 +467,15 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
@@ -888,201 +491,49 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
-            "span.category": "cache",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "cache",
-            "span.op": "cache.get_item",
+            "span.action": "DELETE",
+            "span.category": "db",
+            "span.domain": "table",
+            "span.module": "db",
+            "span.op": "db.sql.query",
             "span.status": "ok",
+            "span.system": "mydatabase",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
     },
-    Metric {
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "d:spans/exclusive_time_light@millisecond",
         value: Distribution(
-            2000.0,
+            [
+                2000.0,
+            ],
         ),
-        timestamp: UnixTimestamp(1597976302),
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
-            "span.category": "cache",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "cache",
-            "span.op": "cache.get_item",
-            "span.status": "ok",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
+            "span.action": "DELETE",
             "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
+            "span.domain": "table",
             "span.module": "db",
-            "span.op": "db.redis",
+            "span.op": "db.sql.query",
             "span.status": "ok",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "db",
-            "span.op": "db.redis",
-            "span.status": "ok",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "db",
-            "span.op": "db.redis",
-            "span.status": "ok",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "GET",
-            "span.category": "db",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "db",
-            "span.op": "db.redis",
-            "span.status": "ok",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
-            "span.module": "db",
-            "span.op": "db.redis",
-            "span.status": "ok",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.action": "SET",
-            "span.category": "db",
-            "span.description": "SET *",
-            "span.group": "46b2cac4b418f556",
-            "span.module": "db",
-            "span.op": "db.redis",
-            "span.status": "ok",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.category": "resource",
-            "span.description": "http://domain/static/myscript-*.js",
-            "span.group": "022f81fdf31228bf",
-            "span.op": "resource.script",
-            "span.status": "ok",
-            "transaction": "gEt /api/:version/users/",
-            "transaction.method": "POST",
-            "transaction.op": "myop",
-        },
-    },
-    Metric {
-        name: "d:spans/exclusive_time_light@millisecond",
-        value: Distribution(
-            2000.0,
-        ),
-        timestamp: UnixTimestamp(1597976302),
-        tags: {
-            "environment": "fake_environment",
-            "http.status_code": "500",
-            "span.category": "resource",
-            "span.description": "http://domain/static/myscript-*.js",
-            "span.group": "022f81fdf31228bf",
-            "span.op": "resource.script",
-            "span.status": "ok",
+            "span.system": "mydatabase",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },

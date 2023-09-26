@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Configuration for the Relay CLI and server"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.8.0"
+version = "23.9.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -14,7 +14,7 @@ default = []
 processing = []
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 human-size = "0.4.1"
 num_cpus = "1.13.0"
 relay-auth = { path = "../relay-auth" }
@@ -23,8 +23,9 @@ relay-kafka = { path = "../relay-kafka" }
 relay-log = { path = "../relay-log", features = ["init"] }
 relay-metrics = { path = "../relay-metrics" }
 relay-redis = { path = "../relay-redis" }
-serde = { version = "1.0.114", features = ["derive"] }
-serde_json = "1.0.55"
-serde_yaml = "0.9.17"
-thiserror = "1.0.38"
-url = "2.1.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }

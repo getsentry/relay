@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.8.30
 
 - Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
+- Add a `DataCategory` for monitor seats (crons). ([#2480](https://github.com/getsentry/relay/pull/2480))
+- Expose global config normalization function. ([#2498](https://github.com/getsentry/relay/pull/2498))
 
 ## 0.8.29
 

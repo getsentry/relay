@@ -16,8 +16,8 @@
 )]
 #![warn(missing_docs)]
 
-use relay_common::Uuid;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Maximum length of monitor slugs.
 const SLUG_LENGTH: usize = 50;
@@ -125,10 +125,11 @@ pub struct CheckInContexts {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CheckIn {
     /// Unique identifier of this check-in.
-    #[serde(serialize_with = "uuid_simple")]
+    #[serde(default, serialize_with = "uuid_simple")]
     pub check_in_id: Uuid,
 
     /// Identifier of the monitor for this check-in.
+    #[serde(default)]
     pub monitor_slug: String,
 
     /// Status of this check-in. Defaults to `"unknown"`.

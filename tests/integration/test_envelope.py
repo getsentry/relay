@@ -200,7 +200,6 @@ def test_normalize_measurement_interface(
         "inp": {"unit": "millisecond", "value": 100.14},
         "fp": {"unit": "millisecond", "value": None},
         "lcp": {"unit": "millisecond", "value": 420.69},
-        "missing_value": None,
     }
 
 

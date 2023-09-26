@@ -4,15 +4,16 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "High-level StatsD metric client for internal measurements"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.8.0"
+version = "23.9.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [dependencies]
 cadence = "0.29.0"
+crossbeam-channel = "0.5.6"
 parking_lot = "0.12.1"
-rand = "0.8.5"
+rand = { workspace = true }
 relay-log = { path = "../relay-log" }
 
 [features]

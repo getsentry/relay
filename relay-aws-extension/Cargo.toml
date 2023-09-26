@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "AWS extension implementation for Sentry's AWS Lambda layer"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.8.0"
+version = "23.9.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
@@ -13,6 +13,6 @@ publish = false
 relay-log = { path = "../relay-log" }
 relay-system = { path = "../relay-system" }
 reqwest = { version = "0.11.1", features = ["json"] }
-serde = { version = "1.0.114", features = ["derive"] }
-serde_json = "1.0.55"
-tokio = { version = "1.28.0" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }

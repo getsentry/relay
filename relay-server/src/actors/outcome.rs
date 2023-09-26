@@ -16,14 +16,15 @@ use std::{fmt, mem};
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
-use relay_common::{DataCategory, ProjectId, UnixTimestamp};
+use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
+use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_filter::FilterStatKey;
-use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
-use relay_quotas::{ReasonCode, Scoping};
-use relay_sampling::MatchedRuleIds;
+use relay_quotas::{DataCategory, ReasonCode, Scoping};
+use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};

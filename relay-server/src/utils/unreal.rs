@@ -1,11 +1,11 @@
 use chrono::{TimeZone, Utc};
 use relay_config::Config;
-use relay_general::protocol::{
+use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
     GpuContext, LenientString, Level, LogEntry, Message, OsContext, TagEntry, Tags, Timestamp,
     User, UserReport, Values,
 };
-use relay_general::types::{self, Annotated, Array, Object, Value};
+use relay_protocol::{Annotated, Array, Object, Value};
 use symbolic_unreal::{
     Unreal4Context, Unreal4Crash, Unreal4Error, Unreal4ErrorKind, Unreal4FileType, Unreal4LogEntry,
 };
@@ -253,7 +253,7 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
         ..ClientSdkInfo::default()
     });
 
-    if let Ok(Some(Value::Object(props))) = types::to_value(&runtime_props) {
+    if let Ok(Some(Value::Object(props))) = relay_protocol::to_value(&runtime_props) {
         let unreal_context =
             contexts.get_or_insert_with("unreal", || Context::Other(Object::new()));
 

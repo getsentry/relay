@@ -2,10 +2,10 @@
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
-use relay_common::EventType;
-use relay_general::protocol::Event;
+use relay_common::glob3::GlobPatterns;
+use relay_event_schema::protocol::{Event, EventType};
 
-use crate::{FilterStatKey, GlobPatterns, IgnoreTransactionsFilterConfig};
+use crate::{FilterStatKey, IgnoreTransactionsFilterConfig};
 
 fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
     if event.ty.value() != Some(&EventType::Transaction) {
@@ -36,9 +36,9 @@ pub fn should_filter(
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::Annotated;
+
     use super::*;
-    use relay_general::protocol::Event;
-    use relay_general::types::Annotated;
 
     fn _get_patterns() -> GlobPatterns {
         let patterns_raw = vec!["*healthcheck*".into(), "*/health".into()];

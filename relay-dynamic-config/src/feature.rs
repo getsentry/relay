@@ -19,9 +19,12 @@ pub enum Feature {
     /// Enables metric extraction from spans.
     #[serde(rename = "projects:span-metrics-extraction")]
     SpanMetricsExtraction,
-    /// Extract spans from transactions and convert them to standalone spans.
-    #[serde(rename = "projects:extract-standalone-spans")]
-    ExtractStandaloneSpans,
+    /// Allow ingestion of metrics in the "custom" namespace.
+    #[serde(rename = "organizations:custom-metrics")]
+    CustomMetrics,
+    /// Enable extracting spans for all modules.
+    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
+    SpanMetricsExtractionAllModules,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
@@ -32,6 +35,9 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:profiling")]
     Deprecated3,
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[serde(rename = "projects:extract-standalone-spans")]
+    Deprecated4,
     /// Forward compatibility.
     #[serde(other)]
     Unknown,

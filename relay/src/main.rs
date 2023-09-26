@@ -33,28 +33,36 @@
 //!  - `relay`: Main entry point and command line interface.
 //!  - [`relay-auth`]: Authentication and crypto.
 //!  - [`relay-aws-extension`]: AWS extension implementation for Sentry's AWS Lambda layer.
+//!  - [`relay-base-schema`]: Basic types for Relay's API schema used across multiple services.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.
 //!  - [`relay-common`]: Common utilities and crate re-exports.
 //!  - [`relay-config`]: Static configuration for the CLI and server.
 //!  - [`relay-crash`]: Crash reporting for the Relay server.
-//!  - [`relay-monitors`]: Monitors protocol and processing for Sentry.
 //!  - [`relay-dynamic-config`]: Dynamic configuration passed from Sentry.
+//!  - [`relay-event-derive`]: Derive for visitor traits on the Event schema.
+//!  - [`relay-event-normalization`]: Event normalization and processing.
+//!  - [`relay-event-schema`]: Event schema (Error, Transaction, Security) and types for event processing.
 //!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
 //!  - [`relay-filter`]: Inbound data filters.
-//!  - [`relay-general`]: Event protocol, normalization and data scrubbing.
+//!  - [`relay-jsonschema-derive`]: Derive for JSON schema on Relay protocol types.
 //!  - [`relay-kafka`]: Kafka-related functionality.
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-metrics`]: Metrics protocol and processing.
+//!  - [`relay-monitors`]: Monitors protocol and processing for Sentry.
+//!  - [`relay-pii`]: Scrubbing of personally identifiable information (PII) from events
 //!  - [`relay-profiling`]: Profiling protocol and processing.
+//!  - [`relay-protocol`]: Types and traits for building JSON-based protocols and schemas.
+//!  - [`relay-protocol-derive`]: Derives for Relay's protocol traits.
 //!  - [`relay-quotas`]: Sentry quotas and rate limiting.
 //!  - [`relay-redis`]: Pooled Redis and Redis cluster abstraction.
 //!  - [`relay-replays`]: Session replay protocol and processing.
 //!  - [`relay-sampling`]: Dynamic sampling functionality.
-//!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-server`]: Endpoints and services.
+//!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-system`]: Foundational system components for Relay's services.
 //!  - [`relay-test`]: Helpers for testing the web server and services.
+//!  - [`relay-ua`]: User agent parser with built-in rules.
 //!
 //! # Tools
 //!
@@ -69,28 +77,36 @@
 //! [relay documentation]: https://docs.sentry.io/product/relay/
 //! [`relay-auth`]: ../relay_auth/index.html
 //! [`relay-aws-extension`]: ../relay_aws_extension/index.html
+//! [`relay-base-schema`]: ../relay_base_schema/index.html
 //! [`relay-cabi`]: ../relay_cabi/index.html
 //! [`relay-common`]: ../relay_common/index.html
 //! [`relay-config`]: ../relay_config/index.html
 //! [`relay-crash`]: ../relay_crash/index.html
-//! [`relay-monitors`]: ../relay_monitors/index.html
 //! [`relay-dynamic-config`]: ../relay_dynamic_config/index.html
+//! [`relay-event-derive`]: ../relay_event_derive/index.html
+//! [`relay-event-normalization`]: ../relay_event_normalization/index.html
+//! [`relay-event-schema`]: ../relay_event_schema/index.html
 //! [`relay-ffi`]: ../relay_ffi/index.html
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html
-//! [`relay-general`]: ../relay_general/index.html
+//! [`relay-jsonschema-derive`]: ../relay_jsonschema_derive/index.html
 //! [`relay-kafka`]: ../relay_kafka/index.html
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-metrics`]: ../relay_metrics/index.html
+//! [`relay-monitors`]: ../relay_monitors/index.html
+//! [`relay-pii`]: ../relay_pii/index.html
 //! [`relay-profiling`]: ../relay_profiling/index.html
+//! [`relay-protocol`]: ../relay_protocol/index.html
+//! [`relay-protocol-derive`]: ../relay_protocol_derive/index.html
 //! [`relay-quotas`]: ../relay_quotas/index.html
 //! [`relay-redis`]: ../relay_redis/index.html
 //! [`relay-replays`]: ../relay_replays/index.html
 //! [`relay-sampling`]: ../relay_sampling/index.html
-//! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-server`]: ../relay_server/index.html
+//! [`relay-statsd`]: ../relay_statsd/index.html
 //! [`relay-system`]: ../relay_system/index.html
 //! [`relay-test`]: ../relay_test/index.html
+//! [`relay-ua`]: ../relay_ua/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
 //! [`generate-schema`]: ../generate_schema/index.html
 //! [`process-event`]: ../process_event/index.html

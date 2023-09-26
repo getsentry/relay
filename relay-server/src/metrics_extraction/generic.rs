@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 
-use relay_common::{DataCategory, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{MetricExtractionConfig, TagMapping, TagSource, TagSpec};
-use relay_metrics::{Metric, MetricResourceIdentifier, MetricType, MetricValue};
-use relay_sampling::FieldValueProvider;
+use relay_metrics::{Bucket, BucketValue, MetricResourceIdentifier, MetricType};
+use relay_protocol::{Getter, Val};
+use relay_quotas::DataCategory;
 
 /// Item from which metrics can be extracted.
-pub trait Extractable: FieldValueProvider {
+pub trait Extractable: Getter {
     /// Data category for the metric spec to match on.
     fn category(&self) -> DataCategory;
 
@@ -14,12 +15,12 @@ pub trait Extractable: FieldValueProvider {
     fn timestamp(&self) -> Option<UnixTimestamp>;
 }
 
-/// Extract metrics from any type that implements both [`Extractable`] and [`FieldValueProvider`].
+/// Extract metrics from any type that implements both [`Extractable`] and [`Getter`].
 ///
 /// The instance must have a valid timestamp; if the timestamp is missing or invalid, no metrics are
 /// extracted. Timestamp and clock drift correction should occur before metrics extraction to ensure
 /// valid timestamps.
-pub fn extract_metrics<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Metric>
+pub fn extract_metrics<T>(instance: &T, config: &MetricExtractionConfig) -> Vec<Bucket>
 where
     T: Extractable,
 {
@@ -27,7 +28,7 @@ where
 
     let Some(timestamp) = instance.timestamp() else {
         relay_log::error!("invalid event timestamp for metric extraction");
-        return metrics
+        return metrics;
     };
 
     for metric_spec in &config.metrics {
@@ -44,7 +45,7 @@ where
         // Parse the MRI so that we can obtain the type, but subsequently re-serialize it into the
         // generated metric to ensure the MRI is normalized.
         let Ok(mri) = MetricResourceIdentifier::parse(&metric_spec.mri) else {
-            relay_log::error!(mri=metric_spec.mri, "invalid MRI for metric extraction");
+            relay_log::error!(mri = metric_spec.mri, "invalid MRI for metric extraction");
             continue;
         };
 
@@ -52,8 +53,9 @@ where
             continue;
         };
 
-        metrics.push(Metric {
+        metrics.push(Bucket {
             name: mri.to_string(),
+            width: 0,
             value,
             timestamp,
             tags: extract_tags(instance, &metric_spec.tags),
@@ -66,9 +68,9 @@ where
     metrics
 }
 
-pub fn tmp_apply_tags<T>(metrics: &mut [Metric], instance: &T, mappings: &[TagMapping])
+pub fn tmp_apply_tags<T>(metrics: &mut [Bucket], instance: &T, mappings: &[TagMapping])
 where
-    T: FieldValueProvider,
+    T: Getter,
 {
     for mapping in mappings {
         let mut lazy_tags = None;
@@ -89,7 +91,7 @@ where
 
 fn extract_tags<T>(instance: &T, tags: &[TagSpec]) -> BTreeMap<String, String>
 where
-    T: FieldValueProvider,
+    T: Getter,
 {
     let mut map = BTreeMap::new();
 
@@ -102,7 +104,10 @@ where
 
         let value_opt = match tag_spec.source() {
             TagSource::Literal(value) => Some(value.to_owned()),
-            TagSource::Field(field) => instance.get_value(field).as_str().map(str::to_owned),
+            TagSource::Field(field) => match instance.get_value(field) {
+                Some(Val::String(s)) => Some(s.to_owned()),
+                _ => None,
+            },
             TagSource::Unknown => None,
         };
 
@@ -118,25 +123,27 @@ where
 }
 
 fn read_metric_value(
-    instance: &impl FieldValueProvider,
+    instance: &impl Getter,
     field: Option<&str>,
     ty: MetricType,
-) -> Option<MetricValue> {
+) -> Option<BucketValue> {
     Some(match ty {
-        MetricType::Counter => MetricValue::Counter(match field {
-            Some(field) => instance.get_value(field).as_f64()?,
+        MetricType::Counter => BucketValue::counter(match field {
+            Some(field) => instance.get_value(field)?.as_f64()?,
             None => 1.0,
         }),
-        MetricType::Distribution => MetricValue::Distribution(instance.get_value(field?).as_f64()?),
-        MetricType::Set => MetricValue::set_from_str(instance.get_value(field?).as_str()?),
-        MetricType::Gauge => MetricValue::Gauge(instance.get_value(field?).as_f64()?),
+        MetricType::Distribution => {
+            BucketValue::distribution(instance.get_value(field?)?.as_f64()?)
+        }
+        MetricType::Set => BucketValue::set_from_str(instance.get_value(field?)?.as_str()?),
+        MetricType::Gauge => BucketValue::gauge(instance.get_value(field?)?.as_f64()?),
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::Event;
-    use relay_general::types::FromValue;
+    use relay_event_schema::protocol::Event;
+    use relay_protocol::FromValue;
     use serde_json::json;
 
     use super::*;
@@ -161,18 +168,19 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {},
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -197,18 +205,21 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "d:transactions/duration@none",
                 value: Distribution(
-                    2000.0,
+                    [
+                        2000.0,
+                    ],
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {},
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -235,18 +246,21 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "s:transactions/users@none",
                 value: Set(
-                    943162418,
+                    {
+                        943162418,
+                    },
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {},
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -285,14 +299,15 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {
                     "fast": "no",
                     "id": "4711",
@@ -300,7 +315,7 @@ mod tests {
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -338,20 +353,21 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {
                     "fast": "yes",
                 },
             },
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -393,19 +409,20 @@ mod tests {
         let config = serde_json::from_value(config_json).unwrap();
 
         let metrics = extract_metrics(event.value().unwrap(), &config);
-        insta::assert_debug_snapshot!(metrics, @r#"
+        insta::assert_debug_snapshot!(metrics, @r###"
         [
-            Metric {
+            Bucket {
+                timestamp: UnixTimestamp(1597976302),
+                width: 0,
                 name: "c:transactions/counter@none",
                 value: Counter(
                     1.0,
                 ),
-                timestamp: UnixTimestamp(1597976302),
                 tags: {
                     "fast": "yes",
                 },
             },
         ]
-        "#);
+        "###);
     }
 }

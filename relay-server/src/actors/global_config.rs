@@ -13,9 +13,10 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use relay_config::Config;
+use relay_config::RelayMode;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -65,7 +66,7 @@ impl UpstreamQuery for GetGlobalConfig {
     }
 
     fn path(&self) -> std::borrow::Cow<'static, str> {
-        Cow::Borrowed("/api/0/relays/projectconfigs/?version=4")
+        Cow::Borrowed("/api/0/relays/projectconfigs/?version=3")
     }
 
     fn retry() -> bool {
@@ -85,6 +86,11 @@ impl UpstreamQuery for GetGlobalConfig {
 pub struct Get;
 
 /// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
+///
+/// The global config service must be up and running, else the subscription
+/// fails. Subscribers should use the initial value when they get the watch
+/// rather than only waiting for the watch to update, in case a global config
+///  is only updated once, such as is the case with the static config file.
 pub struct Subscribe;
 
 /// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].
@@ -141,13 +147,16 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
+    /// Disables the upstream fetch loop.
+    shutdown: bool,
 }
 
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
-        let (global_config_watch, _) = watch::channel(Arc::default());
         let (internal_tx, internal_rx) = mpsc::channel(1);
+        let (global_config_watch, _) = watch::channel(Arc::default());
+
         Self {
             config,
             global_config_watch,
@@ -155,6 +164,7 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
+            shutdown: false,
         }
     }
 
@@ -172,7 +182,7 @@ impl GlobalConfigService {
 
     /// Schedules the next global config request.
     fn schedule_fetch(&mut self) {
-        if self.fetch_handle.is_idle() {
+        if !self.shutdown && self.fetch_handle.is_idle() {
             self.fetch_handle
                 .set(self.config.global_config_fetch_interval());
         }
@@ -182,7 +192,8 @@ impl GlobalConfigService {
     ///
     /// We check if we have credentials before sending,
     /// otherwise we would log an [`UpstreamRequestError::NoCredentials`] error.
-    fn update_global_config(&mut self) {
+    fn request_global_config(&mut self) {
+        // Disable upstream requests timer until we receive result of query.
         self.fetch_handle.reset();
 
         let upstream_relay = self.upstream.clone();
@@ -234,7 +245,13 @@ impl GlobalConfigService {
             ),
         }
 
+        // Enable upstream requests timer for global configs.
         self.schedule_fetch();
+    }
+
+    fn handle_shutdown(&mut self) {
+        self.shutdown = true;
+        self.fetch_handle.reset();
     }
 }
 
@@ -243,31 +260,137 @@ impl Service for GlobalConfigService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            relay_log::info!("global config service starting");
+            let mut shutdown_handle = Controller::shutdown_handle();
 
-            if self.config.has_credentials() {
-                // NOTE(iker): if this first request fails it's possible the default
-                // global config is forwarded. This is not ideal, but we accept it
-                // for now.
-                self.update_global_config();
+            relay_log::info!("global config service starting");
+            if self.config.relay_mode() == RelayMode::Managed {
+                relay_log::info!("serving global configs fetched from upstream");
+                self.request_global_config();
             } else {
-                // NOTE(iker): not making a request results in the sleep handler
-                // not being reset, so no new requests are made.
-                relay_log::info!("fetching global configs disabled: no credentials configured");
-            }
+                match GlobalConfig::load(self.config.path()) {
+                    Ok(Some(from_file)) => {
+                        relay_log::info!("serving static global config loaded from file");
+                        self.global_config_watch.send(Arc::new(from_file)).ok();
+                    }
+                    Ok(None) => {
+                        relay_log::info!(
+                                "serving default global configs due to lacking static global config file"
+                            );
+                    }
+                    Err(e) => {
+                        relay_log::error!("failed to load global config from file: {}", e);
+                        relay_log::info!(
+                                "serving default global configs due to failure to load global config from file"
+                            );
+                    }
+                }
+            };
 
             loop {
                 tokio::select! {
                     biased;
 
-                    () = &mut self.fetch_handle => self.update_global_config(),
+                    () = &mut self.fetch_handle => self.request_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
+                    _ = shutdown_handle.notified() => self.handle_shutdown(),
 
                     else => break,
                 }
             }
             relay_log::info!("global config service stopped");
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use relay_config::{Config, RelayMode};
+    use relay_system::{Controller, Service, ShutdownMode};
+    use relay_test::mock_service;
+
+    use crate::actors::global_config::{Get, GlobalConfigService};
+
+    /// Tests that the service can still handle requests after sending a
+    /// shutdown signal.
+    #[tokio::test]
+    async fn shutdown_service() {
+        relay_test::setup();
+        tokio::time::pause();
+
+        let (upstream, _) = mock_service("upstream", 0, |state, _| {
+            *state += 1;
+
+            if *state > 1 {
+                panic!("should not receive requests after shutdown");
+            }
+        });
+
+        Controller::start(Duration::from_secs(1));
+        let mut config = Config::default();
+        config.regenerate_credentials(false).unwrap();
+        let fetch_interval = config.global_config_fetch_interval();
+
+        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+
+        assert!(service.send(Get).await.is_ok());
+
+        Controller::shutdown(ShutdownMode::Immediate);
+        tokio::time::sleep(fetch_interval * 2).await;
+
+        assert!(service.send(Get).await.is_ok());
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn managed_relay_makes_upstream_request() {
+        relay_test::setup();
+        tokio::time::pause();
+
+        let (upstream, handle) = mock_service("upstream", (), |(), _| {
+            panic!();
+        });
+
+        let mut config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "mode":  RelayMode::Managed
+            }
+        }))
+        .unwrap();
+        config.regenerate_credentials(false).unwrap();
+
+        let fetch_interval = config.global_config_fetch_interval();
+        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+        service.send(Get).await.unwrap();
+
+        tokio::time::sleep(fetch_interval * 2).await;
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn proxy_relay_does_not_make_upstream_request() {
+        relay_test::setup();
+        tokio::time::pause();
+
+        let (upstream, _) = mock_service("upstream", (), |(), _| {
+            panic!("upstream should not be called outside of managed mode");
+        });
+
+        let config = Config::from_json_value(serde_json::json!({
+            "relay": {
+                "mode":  RelayMode::Proxy
+            }
+        }))
+        .unwrap();
+
+        let fetch_interval = config.global_config_fetch_interval();
+
+        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+        service.send(Get).await.unwrap();
+
+        tokio::time::sleep(fetch_interval * 2).await;
     }
 }

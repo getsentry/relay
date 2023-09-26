@@ -4,11 +4,11 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Utilities for error handling in FFI bindings"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "23.8.0"
+version = "23.9.1"
 edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
 [dependencies]
-anyhow = "1.0.66"
+anyhow = { workspace = true }
 relay-ffi-macros = { path = "../relay-ffi-macros" }

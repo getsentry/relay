@@ -2,11 +2,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
@@ -471,26 +471,59 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    /// Applies cached rate limits to the given metrics or metrics buckets.
+    /// Removes metrics that should not be ingested.
     ///
-    /// This only applies the rate limits currently stored on the project.
-    fn rate_limit_metrics<T: MetricsContainer>(
+    ///  - Removes metrics from unsupported or disabled use cases.
+    ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
+    fn rate_limit_metrics(
         &self,
-        metrics: Vec<T>,
+        mut metrics: Vec<Bucket>,
         outcome_aggregator: Addr<TrackOutcome>,
-    ) -> Vec<T> {
-        match (&self.state, self.scoping()) {
-            (Some(state), Some(scoping)) => {
-                match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
-                    Ok(mut limiter) => {
-                        limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
-                        limiter.into_metrics()
-                    }
-                    Err(metrics) => metrics,
-                }
-            }
-            _ => metrics,
+    ) -> Vec<Bucket> {
+        self.filter_metrics(&mut metrics);
+        if metrics.is_empty() {
+            return metrics;
         }
+
+        let (Some(state), Some(scoping)) = (&self.state, self.scoping()) else {
+            return metrics;
+        };
+
+        match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
+            Ok(mut limiter) => {
+                limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
+                limiter.into_metrics()
+            }
+            Err(metrics) => metrics,
+        }
+    }
+
+    /// Remove metric buckets that are not allowed to be ingested.
+    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
+        let Some(state) = &self.state else {
+            return;
+        };
+
+        metrics.retain(|metric| {
+            let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
+                relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
+                return false;
+            };
+
+            let verdict = match mri.namespace {
+                MetricNamespace::Sessions => true,
+                MetricNamespace::Transactions => true,
+                MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
+                MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
+                MetricNamespace::Unsupported => false,
+            };
+
+            if !verdict {
+                relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
+            }
+
+            verdict
+        });
     }
 
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
@@ -507,23 +540,8 @@ impl Project {
             if !buckets.is_empty() {
                 aggregator.send(MergeBuckets::new(self.project_key, buckets));
             }
-        }
-    }
-
-    /// Inserts given [metrics](Metric) into the metrics aggregator.
-    ///
-    /// The metrics will be keyed underneath this project key.
-    pub fn insert_metrics(
-        &mut self,
-        aggregator: Addr<Aggregator>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metrics: Vec<Metric>,
-    ) {
-        if self.metrics_allowed() {
-            let metrics = self.rate_limit_metrics(metrics, outcome_aggregator);
-            if !metrics.is_empty() {
-                aggregator.send(InsertMetrics::new(self.project_key, metrics));
-            }
+        } else {
+            relay_log::debug!("dropping metric buckets, project disabled");
         }
     }
 
@@ -804,7 +822,7 @@ impl Project {
         &mut self,
         services: Services,
         partition_key: Option<u64>,
-        buckets: Vec<Bucket>,
+        mut buckets: Vec<Bucket>,
     ) {
         let Services {
             aggregator,
@@ -828,7 +846,10 @@ impl Project {
         };
 
         let Some(scoping) = self.scoping() else {
-            relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
+            relay_log::trace!(
+                "there is no scoping: merging back {} buckets",
+                buckets.len()
+            );
             aggregator.send(MergeBuckets::new(self.project_key, buckets));
             return;
         };
@@ -837,6 +858,10 @@ impl Project {
         if project_state.check_disabled(config.as_ref()).is_err() {
             return;
         }
+
+        // Re-run feature flag checks since the project might not have been loaded when the buckets
+        // were initially ingested, or feature flags have changed in the meanwhile.
+        self.filter_metrics(&mut buckets);
 
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
@@ -877,12 +902,12 @@ impl Project {
 mod tests {
     use std::sync::Arc;
 
-    use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
-    use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use relay_common::time::UnixTimestamp;
+    use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
 
-    use super::{Config, Project, ProjectState, StateChannel};
+    use super::*;
 
     #[test]
     fn get_state_expired() {
@@ -982,10 +1007,11 @@ mod tests {
         project
     }
 
-    fn create_transaction_metric() -> Metric {
-        Metric {
+    fn create_transaction_metric() -> Bucket {
+        Bucket {
             name: "d:transactions/foo".to_string(),
-            value: MetricValue::Counter(1.0),
+            width: 0,
+            value: BucketValue::counter(1.0),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }

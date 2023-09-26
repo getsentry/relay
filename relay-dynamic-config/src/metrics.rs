@@ -2,9 +2,9 @@
 
 use std::collections::BTreeSet;
 
-use relay_common::DataCategory;
-use relay_general::store::LazyGlob;
-use relay_sampling::RuleCondition;
+use relay_base_schema::data_category::DataCategory;
+use relay_common::glob2::LazyGlob;
+use relay_sampling::condition::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 use crate::project::ProjectConfig;
@@ -79,7 +79,7 @@ pub struct CustomMeasurementConfig {
 /// Maximum supported version of metrics extraction from transactions.
 ///
 /// The version is an integer scalar, incremented by one on each new version.
-const TRANSACTION_EXTRACT_VERSION: u16 = 1;
+const TRANSACTION_EXTRACT_VERSION: u16 = 2;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -213,9 +213,8 @@ pub struct MetricSpec {
     /// A path to the field to extract the metric from.
     ///
     /// This value contains a fully qualified expression pointing at the data field in the payload
-    /// to extract the metric from. It follows the
-    /// [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax that is also used for
-    /// dynamic sampling.
+    /// to extract the metric from. It follows the `Getter` syntax that is also used for dynamic
+    /// sampling.
     ///
     /// How the value is treated depends on the metric type:
     ///
@@ -290,8 +289,7 @@ pub struct TagSpec {
 
     /// Path to a field containing the tag's value.
     ///
-    /// It follows the [`FieldValueProvider`](relay_sampling::FieldValueProvider) syntax to read
-    /// data from the payload.
+    /// It follows the `Getter` syntax to read data from the payload.
     ///
     /// Mutually exclusive with `value`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

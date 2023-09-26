@@ -1,6 +1,9 @@
-use relay_common::DataCategory;
-use relay_general::store::LazyGlob;
-use relay_sampling::{EqCondition, RuleCondition};
+use relay_base_schema::data_category::DataCategory;
+use relay_common::glob2::LazyGlob;
+use relay_common::glob3::GlobPatterns;
+use relay_sampling::condition::{
+    AndCondition, EqCondition, GlobCondition, NotCondition, OrCondition, RuleCondition,
+};
 use serde_json::Value;
 
 use crate::feature::Feature;
@@ -25,12 +28,66 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
+    // Add conditions to filter spans if a specific module is enabled.
+    // By default, this will extract all spans.
+    let span_op_field_name = "span.op";
+    let span_op_conditions = if project_config
+        .features
+        .has(Feature::SpanMetricsExtractionAllModules)
+    {
+        None
+    } else {
+        Some(RuleCondition::And(AndCondition {
+            inner: vec![
+                RuleCondition::Glob(GlobCondition {
+                    name: span_op_field_name.into(),
+                    value: GlobPatterns::new(vec!["db*".into()]),
+                }),
+                RuleCondition::Not(NotCondition {
+                    inner: Box::new(RuleCondition::Glob(GlobCondition {
+                        name: span_op_field_name.into(),
+                        value: GlobPatterns::new(vec![
+                            "*active*record*".into(),
+                            "*clickhouse*".into(),
+                            "*mongodb*".into(),
+                            "*redis*".into(),
+                        ]),
+                    })),
+                }),
+                RuleCondition::Not(NotCondition {
+                    inner: Box::new(RuleCondition::And(AndCondition {
+                        inner: vec![
+                            RuleCondition::Eq(EqCondition {
+                                name: span_op_field_name.into(),
+                                value: Value::String("db.sql.query".into()),
+                                options: Default::default(),
+                            }),
+                            RuleCondition::Or(OrCondition {
+                                inner: vec![
+                                    RuleCondition::Eq(EqCondition {
+                                        name: "span.system".into(),
+                                        value: Value::String("mongodb".into()),
+                                        options: Default::default(),
+                                    }),
+                                    RuleCondition::Glob(GlobCondition {
+                                        name: "span.description".into(),
+                                        value: GlobPatterns::new(vec![r#"*"$*"#.into()]),
+                                    }),
+                                ],
+                            }),
+                        ],
+                    })),
+                }),
+            ],
+        }))
+    };
+
     config.metrics.extend([
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: None,
+            condition: span_op_conditions.clone(),
             tags: vec![TagSpec {
                 key: "transaction".into(),
                 field: Some("span.data.transaction".into()),
@@ -42,7 +99,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: None,
+            condition: span_op_conditions,
             tags: Default::default(),
         },
     ]);

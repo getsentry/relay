@@ -51,20 +51,6 @@
 //!            }
 //!        ],
 //!        "maxCustomMeasurements": 1
-//!     },
-//!     "metricsConditionalTagging": {
-//!        {
-//!            "condition": {
-//!                "op": "gt",
-//!                "name": "event.duration",
-//!                "value": 1200
-//!            },
-//!            "targetMetrics": [
-//!                "s:transactions/user@none"
-//!            ],
-//!            "targetTag": "satisfaction",
-//!            "tagValue": "frustrated"
-//!        }
 //!     }
 //! }
 //!
