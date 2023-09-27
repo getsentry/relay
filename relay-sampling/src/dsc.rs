@@ -10,9 +10,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
-use relay_event_schema::protocol::{Event, TraceContext};
 use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -65,49 +63,6 @@ pub struct DynamicSamplingContext {
     /// Additional arbitrary fields for forwards compatibility.
     #[serde(flatten, default)]
     pub other: BTreeMap<String, Value>,
-}
-
-impl DynamicSamplingContext {
-    /// Computes a dynamic sampling context from a transaction event.
-    ///
-    /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
-    /// trace ID in its trace context. All optional fields in the dynamic sampling context are
-    /// populated with the corresponding attributes from the event payload if they are available.
-    ///
-    /// Since sampling information is not available in the event payload, the `sample_rate` field
-    /// cannot be set when computing the dynamic sampling context from a transaction event.
-    pub fn from_transaction(public_key: ProjectKey, event: &Event) -> Option<Self> {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            return None;
-        }
-
-        let Some(trace) = event.context::<TraceContext>() else {
-            return None;
-        };
-        let trace_id = trace.trace_id.value()?.0.parse().ok()?;
-        let user = event.user.value();
-
-        Some(Self {
-            trace_id,
-            public_key,
-            release: event.release.as_str().map(str::to_owned),
-            environment: event.environment.value().cloned(),
-            transaction: event.transaction.value().cloned(),
-            replay_id: None,
-            sample_rate: None,
-            user: TraceUserContext {
-                user_segment: user
-                    .and_then(|u| u.segment.value().cloned())
-                    .unwrap_or_default(),
-                user_id: user
-                    .and_then(|u| u.id.as_str())
-                    .unwrap_or_default()
-                    .to_owned(),
-            },
-            sampled: None,
-            other: Default::default(),
-        })
-    }
 }
 
 impl Getter for DynamicSamplingContext {
