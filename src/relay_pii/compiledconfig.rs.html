@@ -335,7 +335,7 @@
 
 <span class="kw">impl </span>PartialOrd <span class="kw">for </span>RuleRef {
     <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Ordering&gt; {
-        <span class="self">self</span>.id.partial_cmp(<span class="kw-2">&amp;</span>other.id)
+        <span class="prelude-val">Some</span>(<span class="self">self</span>.id.cmp(<span class="kw-2">&amp;</span>other.id))
     }
 }
 

@@ -414,7 +414,7 @@
 ///
 /// Returns `Ok(())`, if the Replay is valid and can be normalized. Otherwise, returns
 /// `Err(ReplayError::InvalidPayload)` describing the missing or invalid data.
-</span><span class="kw">pub fn </span>validate(replay: <span class="kw-2">&amp;mut </span>Replay) -&gt; <span class="prelude-ty">Result</span>&lt;(), ReplayError&gt; {
+</span><span class="kw">pub fn </span>validate(replay: <span class="kw-2">&amp;</span>Replay) -&gt; <span class="prelude-ty">Result</span>&lt;(), ReplayError&gt; {
     replay
         .replay_id
         .value()

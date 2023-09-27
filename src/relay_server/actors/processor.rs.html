@@ -5329,9 +5329,9 @@
                     }
                 } <span class="kw">else </span>{
                     <span class="comment">// We found a second profile, drop it.
-                    </span><span class="kw">return </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                    </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                         relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-                    )));
+                    )))
                 }
             }
             <span class="kw">_ </span>=&gt; ItemAction::Keep,

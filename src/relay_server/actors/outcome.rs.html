@@ -1756,7 +1756,7 @@
         // Here we create a fake EventId, when we don&#39;t have the real one, so that we can
         // create a kafka message key that spreads the events nicely over all the
         // kafka consumer groups.
-        </span><span class="kw">let </span>key = message.event_id.unwrap_or_else(EventId::new).<span class="number">0</span>;
+        </span><span class="kw">let </span>key = message.event_id.unwrap_or_default().<span class="number">0</span>;
 
         <span class="comment">// Dispatch to the correct topic and cluster based on the kind of outcome.
         </span><span class="kw">let </span>topic = <span class="kw">if </span>message.is_billing() {

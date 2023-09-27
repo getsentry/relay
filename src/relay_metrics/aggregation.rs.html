@@ -2641,7 +2641,7 @@
 <span class="kw">impl </span>PartialOrd <span class="kw">for </span>QueuedBucket {
     <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
         <span class="comment">// Comparing order is reversed to convert the max heap into a min heap
-        </span>other.flush_at.partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.flush_at)
+        </span><span class="prelude-val">Some</span>(other.flush_at.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.flush_at))
     }
 }
 

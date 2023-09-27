@@ -362,7 +362,7 @@
 }
 
 <span class="kw">fn </span>verify_value_nonempty&lt;T&gt;(
-    value: <span class="kw-2">&amp;mut </span>T,
+    value: <span class="kw-2">&amp;</span>T,
     meta: <span class="kw-2">&amp;mut </span>Meta,
     state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
 ) -&gt; ProcessingResult
@@ -378,7 +378,7 @@
 }
 
 <span class="kw">fn </span>verify_value_nonempty_string&lt;T&gt;(
-    value: <span class="kw-2">&amp;mut </span>T,
+    value: <span class="kw-2">&amp;</span>T,
     meta: <span class="kw-2">&amp;mut </span>Meta,
     state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
 ) -&gt; ProcessingResult
@@ -394,7 +394,7 @@
 }
 
 <span class="kw">fn </span>verify_value_characters(
-    value: <span class="kw-2">&amp;mut </span>str,
+    value: <span class="kw-2">&amp;</span>str,
     meta: <span class="kw-2">&amp;mut </span>Meta,
     state: <span class="kw-2">&amp;</span>ProcessingState&lt;<span class="lifetime">&#39;_</span>&gt;,
 ) -&gt; ProcessingResult {
