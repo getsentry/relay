@@ -7,6 +7,7 @@ use relay_config::{Config, RelayMode};
 use relay_metrics::{self, Aggregator, FlushBuckets, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
+use relay_sampling::config::RuleId;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 use tokio::sync::mpsc;
@@ -201,6 +202,7 @@ pub struct SpoolHealth;
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
+    UpdateReservoir(UpdateCount),
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
     GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
@@ -217,6 +219,19 @@ pub enum ProjectCache {
 }
 
 impl Interface for ProjectCache {}
+
+pub struct UpdateCount {
+    pub project_key: ProjectKey,
+    pub rule_id: RuleId,
+}
+
+impl FromMessage<UpdateCount> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: UpdateCount, _: ()) -> Self {
+        Self::UpdateReservoir(message)
+    }
+}
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
@@ -557,6 +572,30 @@ impl ProjectCacheBroker {
                 Project::new(project_key, config)
             })
     }
+    fn remove_outdated_biased_rules(&mut self, state: Arc<ProjectState>) {
+        let project_key = state.public_keys[0].public_key;
+        let project = self.projects.get_mut(&project_key);
+        if let (Some(sampling_config), Some(project)) = (&state.config.dynamic_sampling, project) {
+            let rules: Vec<RuleId> = sampling_config
+                .rules_v2
+                .clone()
+                .into_iter()
+                .map(|x| x.id)
+                .collect();
+
+            let counter_map = project.bias_counter();
+
+            let keys_to_remove: Vec<_> = counter_map
+                .keys()
+                .filter(|&k| !rules.contains(k))
+                .cloned()
+                .collect();
+
+            for key in keys_to_remove {
+                counter_map.remove(&key);
+            }
+        }
+    }
 
     /// Updates the [`Project`] with received [`ProjectState`].
     ///
@@ -575,6 +614,8 @@ impl ProjectCacheBroker {
             state.clone(),
             no_cache,
         );
+
+        self.remove_outdated_biased_rules(state.clone());
 
         if !state.invalid() {
             self.dequeue(project_key);
@@ -688,6 +729,7 @@ impl ProjectCacheBroker {
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
                 sampling_project_state: None,
+                counters: BTreeMap::default(),
             };
 
             if let Some(sampling_state) = sampling_state {

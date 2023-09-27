@@ -81,6 +81,10 @@ impl SamplingRule {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
+    pub fn is_reservoir(&self) -> bool {
+        todo!()
+    }
+
     /// Returns the sample rate if the rule is active.
     pub fn sample_rate(&self, now: DateTime<Utc>) -> Option<SamplingValue> {
         if !self.time_range.contains(now) {

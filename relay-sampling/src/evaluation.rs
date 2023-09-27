@@ -99,10 +99,13 @@ impl SamplingEvaluator {
 
             match sampling_value {
                 SamplingValue::Factor { value } => self.factor *= value,
+                SamplingValue::SampleRate { .. } if rule.is_reservoir() => {
+                    return Evaluation::Matched(SamplingMatch::new_reservoir(rule.id));
+                }
                 SamplingValue::SampleRate { value } => {
                     let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
-                    return Evaluation::Matched(SamplingMatch::new(
+                    return Evaluation::Matched(SamplingMatch::new_standard(
                         self.adjusted_sample_rate(sample_rate),
                         seed,
                         self.rule_ids,
@@ -163,29 +166,34 @@ fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SamplingMatch {
-    /// The sample rate to use for the incoming event.
-    sample_rate: f64,
-    /// The seed to feed to the random number generator which allows the same number to be
-    /// generated given the same seed.
-    ///
-    /// This is especially important for trace sampling, even though we can have inconsistent
-    /// traces due to multi-matching.
-    seed: Uuid,
-    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-    matched_rules: MatchedRuleIds,
-    /// Whether this sampling match results in the item getting sampled.
-    /// It's essentially a cache, as the value can be deterministically derived from
-    /// the sample rate and the seed.
-    should_keep: bool,
+pub enum SamplingMatch {
+    Reservoir {
+        rule: RuleId,
+    },
+    Standard {
+        /// The sample rate to use for the incoming event.
+        sample_rate: f64,
+        /// The seed to feed to the random number generator which allows the same number to be
+        /// generated given the same seed.
+        ///
+        /// This is especially important for trace sampling, even though we can have inconsistent
+        /// traces due to multi-matching.
+        seed: Uuid,
+        /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
+        matched_rules: MatchedRuleIds,
+        /// Whether this sampling match results in the item getting sampled.
+        /// It's essentially a cache, as the value can be deterministically derived from
+        /// the sample rate and the seed.
+        should_keep: bool,
+    },
 }
 
 impl SamplingMatch {
-    fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
+    fn new_standard(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
         let should_keep = sampling_match(sample_rate, seed);
 
-        Self {
+        Self::Standard {
             sample_rate,
             seed,
             matched_rules,
@@ -193,9 +201,16 @@ impl SamplingMatch {
         }
     }
 
+    fn new_reservoir(rule: RuleId) -> Self {
+        Self::Reservoir { rule }
+    }
+
     /// Returns the sample rate.
     pub fn sample_rate(&self) -> f64 {
-        self.sample_rate
+        match self {
+            SamplingMatch::Reservoir { .. } => 1.0,
+            SamplingMatch::Standard { sample_rate, .. } => *sample_rate,
+        }
     }
 
     /// Returns the matched rules for the sampling match.
@@ -203,12 +218,18 @@ impl SamplingMatch {
     /// Takes ownership, useful if you don't need the [`SamplingMatch`] anymore
     /// and you want to avoid allocations.
     pub fn into_matched_rules(self) -> MatchedRuleIds {
-        self.matched_rules
+        match self {
+            SamplingMatch::Reservoir { rule } => MatchedRuleIds(vec![rule]),
+            SamplingMatch::Standard { matched_rules, .. } => matched_rules,
+        }
     }
 
     /// Returns true if event should be kept.
     pub fn should_keep(&self) -> bool {
-        self.should_keep
+        match self {
+            SamplingMatch::Reservoir { .. } => true,
+            SamplingMatch::Standard { should_keep, .. } => *should_keep,
+        }
     }
 
     /// Returns true if event should be dropped.
@@ -285,7 +306,7 @@ mod tests {
     fn matches_rule_ids(rule_ids: &[u32], rules: &[SamplingRule], instance: &impl Getter) -> bool {
         let matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(*num)).collect());
         let sampling_match = get_sampling_match(rules, instance);
-        matched_rule_ids == sampling_match.matched_rules
+        matched_rule_ids == sampling_match.into_matched_rules()
     }
 
     /// Helper function to create a dsc with the provided getter-values set.
