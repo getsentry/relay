@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::num::ParseIntError;
+use std::ops::ControlFlow;
 
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
@@ -21,37 +22,6 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
     let dist = Uniform::new(0f64, 1f64);
     generator.sample(dist)
-}
-
-/// State of the [`SamplingEvaluator`]'s rule matching.
-///
-/// Enforces a pattern to avoid matching on more rules if a match has already been found.
-#[derive(Debug)]
-pub enum Evaluation {
-    /// Matching has not completed and more rules can be evaluated.
-    ///
-    /// This can happen either if no active rules match the provided data, or if the matched rules
-    /// are factors that require a final sampling value. In this case, the returned evaluator stores
-    /// the state of the matched rules as well as the accumulated sampling factor and can be used to
-    /// evaluate more rules.
-    ///
-    /// If evaluation returns `Continue` and there are no more rules to match, this should be
-    /// considered as "no match".
-    Continue(SamplingEvaluator),
-    /// One or more rules have matched.
-    Matched(SamplingMatch),
-}
-
-impl Evaluation {
-    /// Returns true if a rule has matched.
-    pub fn is_match(&self) -> bool {
-        matches!(self, &Self::Matched(_))
-    }
-
-    /// Returns true if no rule have matched.
-    pub fn is_no_match(&self) -> bool {
-        !self.is_match()
-    }
 }
 
 /// State machine for dynamic sampling.
@@ -80,8 +50,23 @@ impl SamplingEvaluator {
         self
     }
 
-    /// Attemps to find a match for sampling rules.
-    pub fn match_rules<'a, I, G>(mut self, seed: Uuid, instance: &G, rules: I) -> Evaluation
+    /// Attempts to find a match for sampling rules using `ControlFlow`.
+    ///
+    /// This function returns a `ControlFlow` to provide control over the matching process.
+    ///
+    /// - `ControlFlow::Continue`: Indicates that matching is incomplete, and more rules can be evaluated.
+    ///    - This state occurs either if no active rules match the provided data, or if the matched rules
+    ///      are factors requiring a final sampling value.
+    ///    - The returned evaluator contains the state of the matched rules and the accumulated sampling factor.
+    ///    - If this value is returned and there are no more rules to evaluate, it should be interpreted as "no match."
+    ///
+    /// - `ControlFlow::Break`: Indicates that one or more rules have successfully matched.
+    pub fn match_rules<'a, I, G>(
+        mut self,
+        seed: Uuid,
+        instance: &G,
+        rules: I,
+    ) -> ControlFlow<SamplingMatch, Self>
     where
         G: Getter,
         I: Iterator<Item = &'a SamplingRule>,
@@ -102,7 +87,7 @@ impl SamplingEvaluator {
                 SamplingValue::SampleRate { value } => {
                     let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
-                    return Evaluation::Matched(SamplingMatch::new(
+                    return ControlFlow::Break(SamplingMatch::new(
                         self.adjusted_sample_rate(sample_rate),
                         seed,
                         self.rule_ids,
@@ -110,7 +95,7 @@ impl SamplingEvaluator {
                 }
             }
         }
-        Evaluation::Continue(self)
+        ControlFlow::Continue(self)
     }
 
     /// Tries to negate the client side sampling if the evaluator has been provided
@@ -252,6 +237,7 @@ impl fmt::Display for MatchedRuleIds {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -275,9 +261,13 @@ mod tests {
             instance,
             rules.iter(),
         ) {
-            Evaluation::Matched(sampling_match) => sampling_match,
-            Evaluation::Continue(_) => panic!("no match found"),
+            ControlFlow::Break(sampling_match) => sampling_match,
+            ControlFlow::Continue(_) => panic!("no match found"),
         }
+    }
+
+    fn evaluation_is_match(res: ControlFlow<SamplingMatch, SamplingEvaluator>) -> bool {
+        matches!(res, ControlFlow::Break(_))
     }
 
     /// Helper to check if certain rules are matched on.
@@ -354,7 +344,7 @@ mod tests {
             .adjust_client_sample_rate(Some(0.2))
             .match_rules(Uuid::default(), &dsc, rules.iter());
 
-        let Evaluation::Matched(sampling_match) = res else {
+        let ControlFlow::Break(sampling_match) = res else {
             panic!();
         };
 
@@ -416,19 +406,29 @@ mod tests {
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(within_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
-            .is_match());
+        let res = SamplingEvaluator::new(within_timerange).match_rules(
+            Uuid::default(),
+            &dsc,
+            [rule.clone()].iter(),
+        );
+
+        assert!(evaluation_is_match(res));
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(before_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
-            .is_no_match());
+        let res = SamplingEvaluator::new(before_timerange).match_rules(
+            Uuid::default(),
+            &dsc,
+            [rule.clone()].iter(),
+        );
+        assert!(!evaluation_is_match(res));
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(after_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule].iter())
-            .is_no_match());
+        let res = SamplingEvaluator::new(after_timerange).match_rules(
+            Uuid::default(),
+            &dsc,
+            [rule].iter(),
+        );
+        assert!(!evaluation_is_match(res));
     }
 
     /// Checks that `SamplingValueEvaluator` correctly matches the right rules.
@@ -551,6 +551,6 @@ mod tests {
 
         let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
 
-        assert!(res.is_no_match());
+        assert!(!evaluation_is_match(res));
     }
 }

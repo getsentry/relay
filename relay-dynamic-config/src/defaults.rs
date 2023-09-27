@@ -7,7 +7,7 @@ use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use crate::project::ProjectConfig;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &["*active*record*", "*clickhouse*", "*mongodb*", "*redis*"];
+const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
