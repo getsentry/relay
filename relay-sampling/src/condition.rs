@@ -161,7 +161,7 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
-    /// TODO(ja): Doc
+    /// Creates a condition that matches one or more glob patterns.
     pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self {
             name: field.into(),
