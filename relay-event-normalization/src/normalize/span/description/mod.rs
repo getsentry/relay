@@ -50,6 +50,14 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                 }
             }
             ("resource", _) => scrub_resource_identifiers(description),
+            ("ui", "load") => {
+                // `ui.load` spans contain component names like `ListAppViewController`, so
+                // they _should_ be low-cardinality.
+                // At the moment the metrics from this module
+                // are still filtered by the `SpanMetricsExtractionAllModules` feature, so it should
+                // be low-risk to start adding the description.
+                Some(description.to_owned())
+            }
             _ => None,
         });
 
@@ -448,6 +456,13 @@ mod tests {
         "https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js",
         "resource.css",
         ""
+    );
+
+    span_description_test!(
+        span_description_scrub_ui_load,
+        "ListAppViewController",
+        "ui.load",
+        "ListAppViewController"
     );
 
     #[test]
