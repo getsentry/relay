@@ -1,17 +1,22 @@
 //! Evaluation of dynamic sampling rules.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::num::ParseIntError;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
+use relay_base_schema::project::ProjectKey;
 use relay_protocol::Getter;
+use relay_redis::{RedisError, RedisPool};
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::config::{RuleId, SamplingRule, SamplingValue};
+use crate::SamplingConfig;
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -54,6 +59,127 @@ impl Evaluation {
     }
 }
 
+pub struct BiasRedisKey(String);
+
+impl BiasRedisKey {
+    pub fn new(project_key: &ProjectKey, rule_id: RuleId) -> Self {
+        Self(format!("bias:{}:{}", project_key, rule_id))
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+/// Increments the count, it will be initialized automatically if it doesn't exist.
+///
+/// INCR docs: [`https://redis.io/commands/incr/`]
+#[cfg(feature = "processing")]
+fn increment_bias_rule_count(
+    redis: &RedisPool,
+    project_key: ProjectKey,
+    rule_id: RuleId,
+) -> Result<i64, RedisError> {
+    let key = BiasRedisKey::new(&project_key, rule_id);
+    let mut command = relay_redis::redis::cmd("INCR");
+    command.arg(key.as_str());
+    let new_count: i64 = command.query(&mut redis.client()?.connection()?).unwrap();
+    Ok(new_count)
+}
+
+#[derive(Debug)]
+pub struct ReservoirStuff {
+    #[cfg(feature = "processing")]
+    redis: Option<RedisPool>,
+    project_key: ProjectKey,
+    map: Mutex<BTreeMap<RuleId, i64>>,
+}
+
+impl ReservoirStuff {
+    #[cfg(feature = "processing")]
+    pub fn new(redis: Option<RedisPool>, project_key: ProjectKey) -> Self {
+        Self {
+            redis,
+            project_key,
+            map: Mutex::default(),
+        }
+    }
+
+    #[cfg(not(feature = "processing"))]
+    pub fn new(project_key: ProjectKey) -> Self {
+        Self {
+            project_key,
+            map: Mutex::default(),
+        }
+    }
+
+    pub fn evaluate_rule(&self, rule: RuleId, limit: i64) -> bool {
+        let Ok(mut map_guard) = self.map.try_lock() else {
+            return false;
+        };
+
+        if Self::limit_exceeded(&mut map_guard, rule, limit).unwrap_or(true) {
+            return false;
+        }
+
+        if let Some(val) = map_guard.get_mut(&rule) {
+            *val += 1;
+        }
+
+        true
+    }
+
+    fn limit_exceeded(
+        guard: &mut MutexGuard<BTreeMap<RuleId, i64>>,
+        rule: RuleId,
+        limit: i64,
+    ) -> Option<bool> {
+        guard.get(&rule).map(|val| *val > limit)
+    }
+
+    // if a rule is no longer in the sampling config, we can assume it's deleted and no longer needed.
+    pub fn delete_expired_rules(&self, config: &SamplingConfig) {
+        let reservoir_rules: BTreeSet<RuleId> = config
+            .rules_v2
+            .iter()
+            .filter_map(|rule| rule.is_reservoir().then_some(rule.id))
+            .collect();
+
+        self.map
+            .try_lock()
+            .unwrap()
+            .retain(|key, _| reservoir_rules.contains(key));
+    }
+
+    // if limit isn't reached yet, we wanna increment.
+    // when incrementing, if processing is enabled, we increment redis and insert back the value
+    // otherwise we just increment directly
+    #[cfg(feature = "processing")]
+    pub fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
+        match self.redis.as_ref() {
+            Some(redis_pool) => {
+                let new_value =
+                    increment_bias_rule_count(redis_pool, self.project_key, rule).ok()?;
+
+                if let Some(val) = map_guard.get_mut(&rule) {
+                    *val = new_value;
+                }
+            }
+            None => {
+                if let Some(val) = map_guard.get_mut(&rule) {
+                    *val += 1;
+                }
+            }
+        };
+    }
+    #[cfg(not(feature = "processing"))]
+    pub fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
+        if let Some(val) = map_guard.get_mut(&rule) {
+            *val += 1;
+        }
+    }
+}
+
 /// State machine for dynamic sampling.
 #[derive(Debug)]
 pub struct SamplingEvaluator {
@@ -61,16 +187,18 @@ pub struct SamplingEvaluator {
     rule_ids: Vec<RuleId>,
     factor: f64,
     client_sample_rate: Option<f64>,
+    reservoir: Arc<ReservoirStuff>,
 }
 
 impl SamplingEvaluator {
     /// Constructor for [`SamplingEvaluator`].
-    pub fn new(now: DateTime<Utc>) -> Self {
+    pub fn new(now: DateTime<Utc>, reservoir: Arc<ReservoirStuff>) -> Self {
         Self {
             now,
             rule_ids: vec![],
             factor: 1.0,
             client_sample_rate: None,
+            reservoir,
         }
     }
 
@@ -91,7 +219,7 @@ impl SamplingEvaluator {
                 continue;
             };
 
-            let Some(sampling_value) = rule.sample_rate(self.now) else {
+            let Some(sampling_value) = rule.sample_rate(self.now, self.reservoir.clone()) else {
                 continue;
             };
 
@@ -111,6 +239,7 @@ impl SamplingEvaluator {
                         self.rule_ids,
                     ));
                 }
+                SamplingValue::Reservoir { limit } => todo!(),
             }
         }
         Evaluation::Continue(self)
@@ -290,9 +419,16 @@ mod tests {
 
     use super::*;
 
+    fn dummy_reservoir() -> Arc<ReservoirStuff> {
+        let project_key = "12345678123456781234567812345678"
+            .parse::<ProjectKey>()
+            .unwrap();
+        ReservoirStuff::new(project_key).into()
+    }
+
     /// Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
-        match SamplingEvaluator::new(Utc::now()).match_rules(
+        match SamplingEvaluator::new(Utc::now(), dummy_reservoir()).match_rules(
             Uuid::default(),
             instance,
             rules.iter(),
@@ -344,7 +480,7 @@ mod tests {
     #[test]
     fn test_adjust_sample_rate() {
         // return the same as input if no client sample rate set in the sampling evaluator.
-        let eval = SamplingEvaluator::new(Utc::now());
+        let eval = SamplingEvaluator::new(Utc::now(), dummy_reservoir());
         assert_eq!(eval.adjusted_sample_rate(0.2), 0.2);
 
         let eval = eval.adjust_client_sample_rate(Some(0.5));
@@ -372,7 +508,7 @@ mod tests {
 
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
-        let res = SamplingEvaluator::new(Utc::now())
+        let res = SamplingEvaluator::new(Utc::now(), dummy_reservoir())
             .adjust_client_sample_rate(Some(0.2))
             .match_rules(Uuid::default(), &dsc, rules.iter());
 
@@ -438,17 +574,17 @@ mod tests {
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(within_timerange)
+        assert!(SamplingEvaluator::new(within_timerange, dummy_reservoir())
             .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
             .is_match());
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(before_timerange)
+        assert!(SamplingEvaluator::new(before_timerange, dummy_reservoir())
             .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
             .is_no_match());
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(after_timerange)
+        assert!(SamplingEvaluator::new(after_timerange, dummy_reservoir())
             .match_rules(Uuid::default(), &dsc, [rule].iter())
             .is_no_match());
     }
@@ -575,7 +711,11 @@ mod tests {
     fn test_get_sampling_match_result_with_no_match() {
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
-        let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
+        let res = SamplingEvaluator::new(Utc::now(), dummy_reservoir()).match_rules(
+            Uuid::default(),
+            &dsc,
+            [].iter(),
+        );
 
         assert!(res.is_no_match());
     }

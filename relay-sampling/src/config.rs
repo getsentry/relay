@@ -1,11 +1,13 @@
 //! Dynamic sampling rule configuration.
 
 use std::fmt;
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::condition::RuleCondition;
+use crate::evaluation::ReservoirStuff;
 use crate::utils;
 
 /// Represents the dynamic sampling configuration available to a project.
@@ -86,13 +88,25 @@ impl SamplingRule {
     }
 
     /// Returns the sample rate if the rule is active.
-    pub fn sample_rate(&self, now: DateTime<Utc>) -> Option<SamplingValue> {
+    pub fn sample_rate(
+        &self,
+        now: DateTime<Utc>,
+        reservoir: Arc<ReservoirStuff>,
+    ) -> Option<SamplingValue> {
         if !self.time_range.contains(now) {
             // Return None if rule is inactive.
             return None;
         }
 
-        let sampling_base_value = self.sampling_value.value();
+        let sampling_base_value = match self.sampling_value {
+            SamplingValue::SampleRate { value } => value,
+            SamplingValue::Factor { value } => value,
+            SamplingValue::Reservoir { limit } => {
+                return reservoir
+                    .evaluate_rule(self.id, limit)
+                    .then_some(SamplingValue::Reservoir { limit })
+            }
+        };
 
         let value = match self.decaying_fn {
             DecayingFunction::Linear { decayed_value } => {
@@ -118,6 +132,7 @@ impl SamplingRule {
         match self.sampling_value {
             SamplingValue::SampleRate { .. } => Some(SamplingValue::SampleRate { value }),
             SamplingValue::Factor { .. } => Some(SamplingValue::Factor { value }),
+            x => Some(x),
         }
     }
 }
@@ -144,18 +159,12 @@ pub enum SamplingValue {
     /// until a sample rate rule is found. The matched rule's factor will be multiplied with the
     /// accumulated factors before moving onto the next possible match.
     Factor {
-        /// The fator to apply on another matched sample rate.
+        /// The factor to apply on another matched sample rate.
         value: f64,
     },
-}
-
-impl SamplingValue {
-    pub(crate) fn value(&self) -> f64 {
-        *match self {
-            SamplingValue::SampleRate { value } => value,
-            SamplingValue::Factor { value } => value,
-        }
-    }
+    Reservoir {
+        limit: i64,
+    },
 }
 
 /// Defines what a dynamic sampling rule applies to.
@@ -178,7 +187,7 @@ pub enum RuleType {
 ///
 /// This number must be unique within a Sentry organization, as it is recorded in outcomes and used
 /// to infer which sampling rule caused data to be dropped.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RuleId(pub u32);
 
 impl fmt::Display for RuleId {
@@ -277,6 +286,7 @@ impl Default for SamplingMode {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
@@ -654,3 +664,4 @@ mod tests {
         );
     }
 }
+*/

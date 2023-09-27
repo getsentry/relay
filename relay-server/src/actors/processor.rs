@@ -42,8 +42,8 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
-use relay_sampling::config::{RuleId, RuleType, SamplingMode};
-use relay_sampling::evaluation::{Evaluation, MatchedRuleIds, SamplingEvaluator};
+use relay_sampling::config::{RuleType, SamplingMode};
+use relay_sampling::evaluation::{Evaluation, MatchedRuleIds, ReservoirStuff, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -306,6 +306,9 @@ struct ProcessEnvelopeState {
 
     /// Whether there is a profiling item in the envelope.
     has_profile: bool,
+
+    /// Reservoir stuff
+    reservoir: Arc<ReservoirStuff>,
 }
 
 impl ProcessEnvelopeState {
@@ -424,7 +427,7 @@ pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
-    pub counters: BTreeMap<RuleId, u32>,
+    pub reservoir: Arc<ReservoirStuff>,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -1319,7 +1322,7 @@ impl EnvelopeProcessorService {
             envelope: mut managed_envelope,
             project_state,
             sampling_project_state,
-            ..
+            reservoir,
         } = message;
 
         let envelope = managed_envelope.envelope_mut();
@@ -1365,6 +1368,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             has_profile: false,
+            reservoir,
         })
     }
 
@@ -2347,8 +2351,9 @@ impl EnvelopeProcessorService {
                     &state.project_state.config.transaction_metrics
                 {
                     if config.is_enabled() {
-                        let res = Self::compute_sampling_decision(
+                        state.sampling_result = Self::compute_sampling_decision(
                             self.inner.config.processing_enabled(),
+                            state.reservoir.clone(),
                             state.project_state.config.dynamic_sampling.as_ref(),
                             state.event.value(),
                             state
@@ -2367,6 +2372,7 @@ impl EnvelopeProcessorService {
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(
         processing_enabled: bool,
+        reservoir: Arc<ReservoirStuff>,
         sampling_config: Option<&SamplingConfig>,
         event: Option<&Event>,
         root_sampling_config: Option<&SamplingConfig>,
@@ -2406,8 +2412,8 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let mut evaluator =
-            SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
+        let mut evaluator = SamplingEvaluator::new(Utc::now(), reservoir)
+            .adjust_client_sample_rate(adjustment_rate);
 
         if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
             if let Some(seed) = event.id.value().map(|id| id.0) {
@@ -2449,8 +2455,12 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        let sampled =
-            utils::is_trace_fully_sampled(self.inner.config.processing_enabled(), config, dsc);
+        let sampled = utils::is_trace_fully_sampled(
+            self.inner.config.processing_enabled(),
+            state.reservoir.clone(),
+            config,
+            dsc,
+        );
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;

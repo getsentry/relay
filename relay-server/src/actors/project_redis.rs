@@ -3,38 +3,10 @@ use std::sync::Arc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_redis::{RedisError, RedisPool};
-use relay_sampling::config::RuleId;
 use relay_statsd::metric;
 
 use crate::actors::project::ProjectState;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
-
-pub struct BiasRedisKey(String);
-
-impl BiasRedisKey {
-    pub fn new(project_key: &ProjectKey, rule_id: RuleId) -> Self {
-        Self(format!("bias:{}:{}", project_key, rule_id))
-    }
-
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-/// Increments the count, it will be initialized automatically if it doesn't exist.
-///
-/// INCR docs: [`https://redis.io/commands/incr/`]
-pub fn increment_bias_rule_count(
-    redis: RedisPool,
-    project_key: ProjectKey,
-    rule_id: RuleId,
-) -> anyhow::Result<i64> {
-    let key = BiasRedisKey::new(&project_key, rule_id);
-    let mut command = relay_redis::redis::cmd("INCR");
-    command.arg(key.as_str());
-    let new_count: i64 = command.query(&mut redis.client()?.connection()?)?;
-    Ok(new_count)
-}
 
 #[derive(Debug, Clone)]
 pub struct RedisProjectSource {

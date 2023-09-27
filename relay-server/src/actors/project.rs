@@ -8,6 +8,7 @@ use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_sampling::evaluation::ReservoirStuff;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
@@ -393,6 +394,7 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
+    reservoir: Arc<ReservoirStuff>,
 }
 
 impl Project {
@@ -408,6 +410,7 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            reservoir: Arc::new(ReservoirStuff::new(key)),
         }
     }
 
@@ -419,6 +422,10 @@ impl Project {
             // Projects without state go back to the original state of allowing metrics.
             true
         }
+    }
+
+    pub fn reservoir(&self) -> Arc<ReservoirStuff> {
+        self.reservoir.clone()
     }
 
     pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
