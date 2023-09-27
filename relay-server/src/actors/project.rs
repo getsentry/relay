@@ -440,16 +440,9 @@ impl Project {
             return;
         };
 
-        let reservoir_rules: BTreeSet<RuleId> = config
-            .rules_v2
-            .iter()
-            .filter_map(|rule| rule.is_reservoir().then_some(rule.id))
-            .collect();
-
-        self.reservoir_counters
-            .try_lock()
-            .unwrap()
-            .retain(|key, _| reservoir_rules.contains(key));
+        if let Ok(mut guard) = self.reservoir_counters.try_lock() {
+            guard.retain(|key, _| config.rules_v2.iter().any(|rule| rule.id == *key));
+        }
     }
 
     pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {

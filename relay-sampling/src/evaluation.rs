@@ -11,6 +11,7 @@ use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
 use relay_protocol::Getter;
+#[cfg(feature = "redis")]
 use relay_redis::{RedisError, RedisPool};
 use serde::Serialize;
 use uuid::Uuid;
