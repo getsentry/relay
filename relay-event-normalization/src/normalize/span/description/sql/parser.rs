@@ -190,10 +190,8 @@ impl VisitorMut for NormalizeVisitor {
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
         self.current_expr_depth += 1;
         match expr {
-            // Casts are omitted for simplification.
-            Expr::Cast { expr: inner, .. } => {
-                *expr = inner.clone(); // clone is unfortunate here.
-            }
+            // Simple values like numbers and strings are replaced by a placeholder:
+            Expr::Value(x) => *x = Self::placeholder(),
             // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
             // `"table"."col"` is replaced by `col`.
@@ -233,15 +231,14 @@ impl VisitorMut for NormalizeVisitor {
     }
 
     fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
-        match expr {
-            Expr::CompoundIdentifier(parts) => {
-                Self::simplify_compound_identifier(parts);
-            }
-            // Simple values like numbers and strings are replaced by a placeholder:
-            // TODO: split pre_visit and post_visit more rigorously.
-            Expr::Value(x) => *x = Self::placeholder(),
-            _ => (),
+        // Casts are omitted for simplification. Because we replace the entire expression,
+        // the replacement has to occur *after* visiting its children.
+        if let Expr::Cast { expr: inner, .. } = expr {
+            let mut swapped = Expr::Value(Value::Null);
+            std::mem::swap(&mut swapped, inner);
+            *expr = swapped;
         }
+
         self.max_expr_depth = self.max_expr_depth.max(self.current_expr_depth);
         self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
         ControlFlow::Continue(())

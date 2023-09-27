@@ -668,9 +668,8 @@ mod tests {
 
     scrub_sql_test!(
         jsonb,
-        r#"SELECT FROM "a" WHERE "a"."b" = $1 AND (obj->'id' <@ '[123]'::jsonb) AND "a"."b" != $2"#,
-        // TODO: do not scrub obj ID
-        "SELECT FROM a WHERE b = %s AND (obj -> %s <@ %s) AND b <> %s"
+        r#"SELECT * FROM "a" WHERE "a"."b" = $1 AND (obj->'id' <@ '[123]'::jsonb) AND "a"."b" != $2"#,
+        "SELECT * FROM a WHERE b = %s AND (obj -> %s <@ %s) AND b <> %s"
     );
 
     scrub_sql_test!(
