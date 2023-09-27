@@ -1471,6 +1471,34 @@
 <a href="#1471" id="1471">1471</a>
 <a href="#1472" id="1472">1472</a>
 <a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -1483,6 +1511,7 @@
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
@@ -2314,16 +2343,6 @@
     }
 }
 
-<span class="doccomment">/// The position for enqueueing an upstream request.
-</span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-</span><span class="kw">enum </span>EnqueuePosition {
-    <span class="doccomment">/// The default position for FIFO to be dequeued last.
-    </span>Back,
-
-    <span class="doccomment">/// Places an element at the front to be dequeued next.
-    </span>Front,
-}
-
 <span class="doccomment">/// An upstream request enqueued in the [`UpstreamQueue`].
 ///
 /// This is the primary type with which requests are passed around the service.
@@ -2354,69 +2373,103 @@
 /// is synchronous and managed by the [`UpstreamBroker`].
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>UpstreamQueue {
-    high: VecDeque&lt;Entry&gt;,
-    low: VecDeque&lt;Entry&gt;,
+    <span class="doccomment">/// High priority queue.
+    </span>high: VecDeque&lt;Entry&gt;,
+    <span class="doccomment">/// Low priority queue.
+    </span>low: VecDeque&lt;Entry&gt;,
+    <span class="doccomment">/// High priority retry queue.
+    </span>retry_high: VecDeque&lt;Entry&gt;,
+    <span class="doccomment">/// Low priority retry queue.
+    </span>retry_low: VecDeque&lt;Entry&gt;,
+    <span class="doccomment">/// Retries should not be dequeued before this instant.
+    ///
+    /// This retry increments by the constant `retry_after` instead of backoff,
+    /// since it only kicks in for a short period of time before Relay gets into
+    /// network outage mode (see [`IsNetworkOutage`]).
+    </span>next_retry: Instant,
+    <span class="doccomment">/// Time to wait before retrying another request from the retry queue.
+    </span>retry_interval: Duration,
 }
 
 <span class="kw">impl </span>UpstreamQueue {
     <span class="doccomment">/// Creates an empty upstream queue.
-    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(retry_interval: Duration) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             high: VecDeque::new(),
             low: VecDeque::new(),
+            retry_high: VecDeque::new(),
+            retry_low: VecDeque::new(),
+            next_retry: Instant::now(),
+            retry_interval,
         }
     }
 
     <span class="doccomment">/// Returns the number of entries in the queue.
     </span><span class="kw">pub fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.high.len() + <span class="self">self</span>.low.len()
-    }
-
-    <span class="doccomment">/// Puts an entry into the queue at the given position.
-    </span><span class="kw">fn </span>put(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry: Entry, position: EnqueuePosition) {
-        <span class="kw">let </span>priority = entry.request.priority();
-
-        <span class="comment">// We can ignore send errors here. Once the channel closes, we drop all incoming requests
-        // here. The receiving end of the request will be notified of the drop if they are waiting
-        // for it.
-        </span><span class="kw">let </span>queue = <span class="kw">match </span>priority {
-            RequestPriority::High =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.high,
-            RequestPriority::Low =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.low,
-        };
-
-        <span class="kw">match </span>position {
-            EnqueuePosition::Front =&gt; queue.push_front(entry),
-            EnqueuePosition::Back =&gt; queue.push_back(entry),
-        }
-
-        <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
-            priority = priority.name(),
-        );
+        <span class="self">self</span>.high.len() + <span class="self">self</span>.low.len() + <span class="self">self</span>.retry_high.len() + <span class="self">self</span>.retry_low.len()
     }
 
     <span class="doccomment">/// Places an entry at the back of the queue.
     ///
-    /// Since entries are dequeued in FIFO order, this entry will be dequeued last within its
-    /// priority class.
+    /// Since entries are dequeued in FIFO order, this entry will be dequeued
+    /// last within its priority class; see
+    /// [`dequeue`][`UpstreamQueue::dequeue`] for more details.
     </span><span class="kw">pub fn </span>enqueue(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry: Entry) {
-        <span class="self">self</span>.put(entry, EnqueuePosition::Back)
+        <span class="kw">let </span>priority = entry.request.priority();
+        <span class="kw">match </span>priority {
+            RequestPriority::High =&gt; <span class="self">self</span>.high.push_back(entry),
+            RequestPriority::Low =&gt; <span class="self">self</span>.low.push_back(entry),
+        }
+        <span class="macro">relay_statsd::metric!</span>(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
+            priority = priority.name(),
+            attempt = <span class="string">&quot;first&quot;
+        </span>);
     }
 
-    <span class="doccomment">/// Place an entry at the front of the queue.
+    <span class="doccomment">/// Places an entry in the retry queue.
     ///
-    /// This entry will be dequeued next within its priority class, unless another call to
-    /// `enqueue_immediate` follows.
-    </span><span class="kw">pub fn </span>enqueue_immediate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry: Entry) {
-        <span class="self">self</span>.put(entry, EnqueuePosition::Front)
+    /// Entries are dequeued by (1) high/low priority and (2) FIFO order.
+    ///
+    /// It also schedules the next retry time, based on the retry back off. The
+    /// retry queue is not dequeued until the next retry has elapsed.
+    </span><span class="kw">pub fn </span>retry(<span class="kw-2">&amp;mut </span><span class="self">self</span>, entry: Entry) {
+        <span class="kw">let </span>priority = entry.request.priority();
+        <span class="kw">match </span>priority {
+            RequestPriority::High =&gt; <span class="self">self</span>.retry_high.push_back(entry),
+            RequestPriority::Low =&gt; <span class="self">self</span>.retry_low.push_back(entry),
+        };
+
+        <span class="self">self</span>.next_retry = Instant::now() + <span class="self">self</span>.retry_interval;
+
+        <span class="macro">relay_statsd::metric!</span>(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = <span class="self">self</span>.len() <span class="kw">as </span>u64,
+            priority = priority.name(),
+            attempt = <span class="string">&quot;retry&quot;
+        </span>);
     }
 
-    <span class="doccomment">/// Removes the head of the queue with highest priority.
+    <span class="doccomment">/// Dequeues the entry with highest priority.
     ///
-    /// This always returns entries with [high](RequestPriority::High) first before dequeueing
-    /// entries with low priority.
+    /// Highest priority entry is determined by (1) request priority and (2)
+    /// retries first.
     </span><span class="kw">pub fn </span>dequeue(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Entry&gt; {
-        <span class="self">self</span>.high.pop_front().or_else(|| <span class="self">self</span>.low.pop_front())
+        <span class="kw">let </span>should_retry = <span class="self">self</span>.next_retry &lt;= Instant::now();
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(entry)) = should_retry.then(|| <span class="self">self</span>.retry_high.pop_front()) {
+            <span class="prelude-val">Some</span>(entry)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(entry) = <span class="self">self</span>.high.pop_front() {
+            <span class="prelude-val">Some</span>(entry)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(entry)) = should_retry.then(|| <span class="self">self</span>.retry_low.pop_front()) {
+            <span class="prelude-val">Some</span>(entry)
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.low.pop_front()
+        }
+    }
+
+    <span class="doccomment">/// Starts retrying queued requests.
+    </span><span class="kw">pub fn </span>trigger_retries(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.next_retry = Instant::now();
     }
 }
 
@@ -2867,14 +2920,17 @@
 
         <span class="kw">match </span>status {
             RequestOutcome::Dropped =&gt; <span class="self">self</span>.conn.notify_error(<span class="kw-2">&amp;</span><span class="self">self</span>.action_tx),
-            RequestOutcome::Received =&gt; <span class="self">self</span>.conn.reset_error(),
+            RequestOutcome::Received =&gt; {
+                <span class="self">self</span>.conn.reset_error();
+                <span class="self">self</span>.queue.trigger_retries();
+            }
         }
     }
 
     <span class="doccomment">/// Handler of the internal action channel.
     </span><span class="kw">fn </span>handle_action(<span class="kw-2">&amp;mut </span><span class="self">self</span>, action: Action) {
         <span class="kw">match </span>action {
-            Action::Retry(request) =&gt; <span class="self">self</span>.queue.enqueue_immediate(request),
+            Action::Retry(request) =&gt; <span class="self">self</span>.queue.retry(request),
             Action::Complete(status) =&gt; <span class="self">self</span>.complete(status),
             Action::Connected =&gt; <span class="self">self</span>.conn.reset_error(),
             Action::UpdateAuth(state) =&gt; <span class="self">self</span>.auth_state = state,
@@ -2922,7 +2978,7 @@
         // and authentication state.
         </span><span class="kw">let </span><span class="kw-2">mut </span>broker = UpstreamBroker {
             client: client.clone(),
-            queue: UpstreamQueue::new(),
+            queue: UpstreamQueue::new(config.http_retry_delay()),
             auth_state: AuthState::init(<span class="kw-2">&amp;</span>config),
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),

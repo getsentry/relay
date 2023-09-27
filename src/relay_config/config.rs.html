@@ -2064,6 +2064,24 @@
 <a href="#2064" id="2064">2064</a>
 <a href="#2065" id="2065">2065</a>
 <a href="#2066" id="2066">2066</a>
+<a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
+<a href="#2072" id="2072">2072</a>
+<a href="#2073" id="2073">2073</a>
+<a href="#2074" id="2074">2074</a>
+<a href="#2075" id="2075">2075</a>
+<a href="#2076" id="2076">2076</a>
+<a href="#2077" id="2077">2077</a>
+<a href="#2078" id="2078">2078</a>
+<a href="#2079" id="2079">2079</a>
+<a href="#2080" id="2080">2080</a>
+<a href="#2081" id="2081">2081</a>
+<a href="#2082" id="2082">2082</a>
+<a href="#2083" id="2083">2083</a>
+<a href="#2084" id="2084">2084</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2772,6 +2790,10 @@
     /// During a network outage relay will try to reconnect and will buffer all upstream messages
     /// until it manages to reconnect.
     </span>outage_grace_period: u64,
+    <span class="doccomment">/// The time Relay waits before retrying an upstream request, in seconds.
+    ///
+    /// This time is only used before going into a network outage mode.
+    </span>retry_delay: u64,
     <span class="doccomment">/// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -2798,10 +2820,16 @@
             </span>host_header: <span class="prelude-val">None</span>,
             auth_interval: <span class="prelude-val">Some</span>(<span class="number">600</span>), <span class="comment">// 10 minutes
             </span>outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
+            retry_delay: default_retry_delay(),
             encoding: HttpEncoding::Gzip,
         }
     }
 }
+
+<span class="doccomment">/// Default for unavailable upstream retry period, 1s.
+</span><span class="kw">fn </span>default_retry_delay() -&gt; u64 {
+    <span class="number">1
+</span>}
 
 <span class="doccomment">/// Default for max memory size, 500 MB.
 </span><span class="kw">fn </span>spool_envelopes_max_memory_size() -&gt; ByteSize {
@@ -3662,6 +3690,14 @@
     /// it has encountered a network outage.
     </span><span class="kw">pub fn </span>http_outage_grace_period(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.http.outage_grace_period)
+    }
+
+    <span class="doccomment">/// Time Relay waits before retrying an upstream request.
+    ///
+    /// Before going into a network outage, Relay may fail to make upstream
+    /// requests. This is the time Relay waits before retrying the same request.
+    </span><span class="kw">pub fn </span>http_retry_delay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_secs(<span class="self">self</span>.values.http.retry_delay)
     }
 
     <span class="doccomment">/// Content encoding of upstream requests.

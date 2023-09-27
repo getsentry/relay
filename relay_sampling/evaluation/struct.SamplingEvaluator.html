@@ -7,7 +7,7 @@
     instance: <a class="primitive" href="https://doc.rust-lang.org/1.72.1/std/primitive.reference.html">&amp;G</a>,
     rules: I
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.72.1/core/ops/control_flow/enum.ControlFlow.html" title="enum core::ops::control_flow::ControlFlow">ControlFlow</a>&lt;<a class="struct" href="struct.SamplingMatch.html" title="struct relay_sampling::evaluation::SamplingMatch">SamplingMatch</a>, Self&gt;<span class="where fmt-newline">where
-    G: Getter,
+    G: <a class="trait" href="../../relay_protocol/traits/trait.Getter.html" title="trait relay_protocol::traits::Getter">Getter</a>,
     I: <a class="trait" href="https://doc.rust-lang.org/1.72.1/core/iter/traits/iterator/trait.Iterator.html" title="trait core::iter::traits::iterator::Iterator">Iterator</a>&lt;Item = &amp;'a <a class="struct" href="../config/struct.SamplingRule.html" title="struct relay_sampling::config::SamplingRule">SamplingRule</a>&gt;,</span></h4></section></summary><div class="docblock"><p>Attempts to find a match for sampling rules using <code>ControlFlow</code>.</p>
 <p>This function returns a <code>ControlFlow</code> to provide control over the matching process.</p>
 <ul>
