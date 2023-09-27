@@ -644,6 +644,21 @@
 <a href="#644" id="644">644</a>
 <a href="#645" id="645">645</a>
 <a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -673,10 +688,12 @@
         # Capture `SAVEPOINT` savepoints.
         ((?-x)(?P&lt;pre&gt;SAVEPOINT )(?P&lt;savepoint&gt;(?:(?:&quot;[^&quot;]+&quot;)|(?:&#39;[^&#39;]+&#39;)|(?:`[^`]+`)|(?:[a-z]\w+)))) |
         # Capture single-quoted strings, including the remaining substring if `\&#39;` is found.
-        ((?-x)(?P&lt;single_quoted_strs&gt;&#39;(?:\\&#39;|[^&#39;])*(?:&#39;|$)(::\w+(\[\]?)?)?)) |
+        ((?-x)(?P&lt;single_quoted_strs&gt;N?&#39;(?:\\&#39;|[^&#39;])*(?:&#39;|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
         (   (?P&lt;placeholder&gt; (?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
+        # Capture ODBC escape sequence.
+        ((?-x)(?P&lt;odbc_escape_sequence&gt;\{(?:ts?|d)\s+&#39;.+&#39;\})) |
         ((?-x)(?P&lt;number&gt;(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P&lt;bool&gt;(\b(?:true|false)\b)))
@@ -846,6 +863,19 @@
         unparameterized_ins_uppercase,
         <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (100, 101, 102)&quot;</span>,
         <span class="string">&quot;SELECT count() FROM table1 WHERE id IN (%s)&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        unparameterized_ins_nvarchar,
+        <span class="string">&quot;INSERT INTO a VALUES (123, N&#39;foo&#39;, &#39;bar&#39;)&quot;</span>,
+        <span class="string">&quot;INSERT INTO a (..) VALUES (%s)&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        unparameterized_ins_odbc_escape_sequence,
+        <span class="comment">// See https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/date-time-and-timestamp-escape-sequences
+        </span><span class="string">&quot;INSERT INTO a VALUES (123, {ts &#39;2023-12-31 23:59:59.123&#39;}, &#39;foo&#39;, N&#39;bar&#39;)&quot;</span>,
+        <span class="string">&quot;INSERT INTO a VALUES (%s)&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
