@@ -10,6 +10,7 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use itertools::Itertools;
 use relay_auth::{RegisterChallenge, RegisterRequest, RegisterResponse, Registration};
@@ -841,16 +842,6 @@ impl SharedClient {
     }
 }
 
-/// The position for enqueueing an upstream request.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-enum EnqueuePosition {
-    /// The default position for FIFO to be dequeued last.
-    Back,
-
-    /// Places an element at the front to be dequeued next.
-    Front,
-}
-
 /// An upstream request enqueued in the [`UpstreamQueue`].
 ///
 /// This is the primary type with which requests are passed around the service.
@@ -881,69 +872,103 @@ impl Entry {
 /// is synchronous and managed by the [`UpstreamBroker`].
 #[derive(Debug)]
 struct UpstreamQueue {
+    /// High priority queue.
     high: VecDeque<Entry>,
+    /// Low priority queue.
     low: VecDeque<Entry>,
+    /// High priority retry queue.
+    retry_high: VecDeque<Entry>,
+    /// Low priority retry queue.
+    retry_low: VecDeque<Entry>,
+    /// Retries should not be dequeued before this instant.
+    ///
+    /// This retry increments by the constant `retry_after` instead of backoff,
+    /// since it only kicks in for a short period of time before Relay gets into
+    /// network outage mode (see [`IsNetworkOutage`]).
+    next_retry: Instant,
+    /// Time to wait before retrying another request from the retry queue.
+    retry_interval: Duration,
 }
 
 impl UpstreamQueue {
     /// Creates an empty upstream queue.
-    pub fn new() -> Self {
+    pub fn new(retry_interval: Duration) -> Self {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
+            retry_high: VecDeque::new(),
+            retry_low: VecDeque::new(),
+            next_retry: Instant::now(),
+            retry_interval,
         }
     }
 
     /// Returns the number of entries in the queue.
     pub fn len(&self) -> usize {
-        self.high.len() + self.low.len()
-    }
-
-    /// Puts an entry into the queue at the given position.
-    fn put(&mut self, entry: Entry, position: EnqueuePosition) {
-        let priority = entry.request.priority();
-
-        // We can ignore send errors here. Once the channel closes, we drop all incoming requests
-        // here. The receiving end of the request will be notified of the drop if they are waiting
-        // for it.
-        let queue = match priority {
-            RequestPriority::High => &mut self.high,
-            RequestPriority::Low => &mut self.low,
-        };
-
-        match position {
-            EnqueuePosition::Front => queue.push_front(entry),
-            EnqueuePosition::Back => queue.push_back(entry),
-        }
-
-        relay_statsd::metric!(
-            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
-            priority = priority.name(),
-        );
+        self.high.len() + self.low.len() + self.retry_high.len() + self.retry_low.len()
     }
 
     /// Places an entry at the back of the queue.
     ///
-    /// Since entries are dequeued in FIFO order, this entry will be dequeued last within its
-    /// priority class.
+    /// Since entries are dequeued in FIFO order, this entry will be dequeued
+    /// last within its priority class; see
+    /// [`dequeue`][`UpstreamQueue::dequeue`] for more details.
     pub fn enqueue(&mut self, entry: Entry) {
-        self.put(entry, EnqueuePosition::Back)
+        let priority = entry.request.priority();
+        match priority {
+            RequestPriority::High => self.high.push_back(entry),
+            RequestPriority::Low => self.low.push_back(entry),
+        }
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            priority = priority.name(),
+            attempt = "first"
+        );
     }
 
-    /// Place an entry at the front of the queue.
+    /// Places an entry in the retry queue.
     ///
-    /// This entry will be dequeued next within its priority class, unless another call to
-    /// `enqueue_immediate` follows.
-    pub fn enqueue_immediate(&mut self, entry: Entry) {
-        self.put(entry, EnqueuePosition::Front)
+    /// Entries are dequeued by (1) high/low priority and (2) FIFO order.
+    ///
+    /// It also schedules the next retry time, based on the retry back off. The
+    /// retry queue is not dequeued until the next retry has elapsed.
+    pub fn retry(&mut self, entry: Entry) {
+        let priority = entry.request.priority();
+        match priority {
+            RequestPriority::High => self.retry_high.push_back(entry),
+            RequestPriority::Low => self.retry_low.push_back(entry),
+        };
+
+        self.next_retry = Instant::now() + self.retry_interval;
+
+        relay_statsd::metric!(
+            histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
+            priority = priority.name(),
+            attempt = "retry"
+        );
     }
 
-    /// Removes the head of the queue with highest priority.
+    /// Dequeues the entry with highest priority.
     ///
-    /// This always returns entries with [high](RequestPriority::High) first before dequeueing
-    /// entries with low priority.
+    /// Highest priority entry is determined by (1) request priority and (2)
+    /// retries first.
     pub fn dequeue(&mut self) -> Option<Entry> {
-        self.high.pop_front().or_else(|| self.low.pop_front())
+        let should_retry = self.next_retry <= Instant::now();
+
+        if let Some(Some(entry)) = should_retry.then(|| self.retry_high.pop_front()) {
+            Some(entry)
+        } else if let Some(entry) = self.high.pop_front() {
+            Some(entry)
+        } else if let Some(Some(entry)) = should_retry.then(|| self.retry_low.pop_front()) {
+            Some(entry)
+        } else {
+            self.low.pop_front()
+        }
+    }
+
+    /// Starts retrying queued requests.
+    pub fn trigger_retries(&mut self) {
+        self.next_retry = Instant::now();
     }
 }
 
@@ -1394,14 +1419,17 @@ impl UpstreamBroker {
 
         match status {
             RequestOutcome::Dropped => self.conn.notify_error(&self.action_tx),
-            RequestOutcome::Received => self.conn.reset_error(),
+            RequestOutcome::Received => {
+                self.conn.reset_error();
+                self.queue.trigger_retries();
+            }
         }
     }
 
     /// Handler of the internal action channel.
     fn handle_action(&mut self, action: Action) {
         match action {
-            Action::Retry(request) => self.queue.enqueue_immediate(request),
+            Action::Retry(request) => self.queue.retry(request),
             Action::Complete(status) => self.complete(status),
             Action::Connected => self.conn.reset_error(),
             Action::UpdateAuth(state) => self.auth_state = state,
@@ -1449,7 +1477,7 @@ impl Service for UpstreamRelayService {
         // and authentication state.
         let mut broker = UpstreamBroker {
             client: client.clone(),
-            queue: UpstreamQueue::new(),
+            queue: UpstreamQueue::new(config.http_retry_delay()),
             auth_state: AuthState::init(&config),
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
