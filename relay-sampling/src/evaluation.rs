@@ -250,7 +250,6 @@ mod tests {
     use crate::config::{RuleId, RuleType, SamplingRule, SamplingValue, TimeRange};
     use crate::dsc::TraceUserContext;
     use crate::evaluation::MatchedRuleIds;
-    use crate::tests::{and, eq, glob};
     use crate::DynamicSamplingContext;
 
     use super::*;
@@ -437,29 +436,25 @@ mod tests {
     fn test_condition_matching() {
         let rules = simple_sampling_rules(vec![
             (
-                and(vec![glob("trace.transaction", &["*healthcheck*"])]),
+                RuleCondition::glob("trace.transaction", "*healthcheck*"),
                 SamplingValue::SampleRate { value: 1.0 },
             ),
             (
-                and(vec![glob("trace.environment", &["*dev*"])]),
+                RuleCondition::glob("trace.environment", "*dev*"),
                 SamplingValue::SampleRate { value: 1.0 },
             ),
             (
-                and(vec![eq("trace.transaction", &["raboof"], true)]),
+                RuleCondition::eq_ignore_case("trace.transaction", "raboof"),
                 SamplingValue::Factor { value: 1.0 },
             ),
             (
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
                 SamplingValue::SampleRate { value: 1.0 },
             ),
             (
-                and(vec![
-                    eq("trace.release", &["1.1.1"], true),
-                    eq("trace.environment", &["prod"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "prod"),
                 SamplingValue::Factor { value: 1.0 },
             ),
             (

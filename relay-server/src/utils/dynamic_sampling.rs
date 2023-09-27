@@ -117,7 +117,7 @@ mod tests {
     use relay_base_schema::events::EventType;
     use relay_event_schema::protocol::{Event, EventId, LenientString};
     use relay_protocol::Annotated;
-    use relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
+    use relay_sampling::condition::RuleCondition;
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -134,14 +134,6 @@ mod tests {
     }
 
     use super::*;
-
-    fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
-        RuleCondition::Eq(EqCondition {
-            name: name.to_owned(),
-            value: value.iter().map(|s| s.to_string()).collect(),
-            options: EqCondOptions { ignore_case },
-        })
-    }
 
     fn mocked_simple_dynamic_sampling_context(
         sample_rate: Option<f64>,
@@ -208,7 +200,7 @@ mod tests {
     /// Tests that an event is kept when there is no match.
     fn test_match_rules_return_keep_with_no_match() {
         let rules = vec![SamplingRule {
-            condition: eq("event.transaction", &["foo"], true),
+            condition: RuleCondition::eq_ignore_case("event.transaction", "foo"),
             sampling_value: SamplingValue::SampleRate { value: 0.5 },
             ty: RuleType::Transaction,
             id: RuleId(3),
