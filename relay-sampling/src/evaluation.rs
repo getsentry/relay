@@ -112,19 +112,25 @@ pub struct SamplingEvaluator {
     rule_ids: Vec<RuleId>,
     factor: f64,
     client_sample_rate: Option<f64>,
-    reservoir: Arc<ReservoirStuff>,
+    reservoir: Option<Arc<ReservoirStuff>>,
 }
 
 impl SamplingEvaluator {
     /// Constructor for [`SamplingEvaluator`].
-    pub fn new(now: DateTime<Utc>, reservoir: Arc<ReservoirStuff>) -> Self {
+    pub fn new(now: DateTime<Utc>) -> Self {
         Self {
             now,
             rule_ids: vec![],
             factor: 1.0,
             client_sample_rate: None,
-            reservoir,
+            reservoir: None,
         }
+    }
+
+    /// Sets a new client sample rate value.
+    pub fn set_reservoir(mut self, reservoir: Option<Arc<ReservoirStuff>>) -> Self {
+        self.reservoir = reservoir;
+        self
     }
 
     /// Sets a new client sample rate value.
@@ -346,19 +352,9 @@ mod tests {
 
     use super::*;
 
-    fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        ReservoirStuff::new(
-            0,
-            ReservoirCounters::default(),
-            #[cfg(feature = "redis")]
-            None,
-        )
-        .into()
-    }
-
     /// Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
-        match SamplingEvaluator::new(Utc::now(), dummy_reservoir()).match_rules(
+        match SamplingEvaluator::new(Utc::now()).match_rules(
             Uuid::default(),
             instance,
             rules.iter(),
@@ -414,7 +410,7 @@ mod tests {
     #[test]
     fn test_adjust_sample_rate() {
         // return the same as input if no client sample rate set in the sampling evaluator.
-        let eval = SamplingEvaluator::new(Utc::now(), dummy_reservoir());
+        let eval = SamplingEvaluator::new(Utc::now());
         assert_eq!(eval.adjusted_sample_rate(0.2), 0.2);
 
         let eval = eval.adjust_client_sample_rate(Some(0.5));
@@ -442,7 +438,7 @@ mod tests {
 
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
-        let res = SamplingEvaluator::new(Utc::now(), dummy_reservoir())
+        let res = SamplingEvaluator::new(Utc::now())
             .adjust_client_sample_rate(Some(0.2))
             .match_rules(Uuid::default(), &dsc, rules.iter());
 
@@ -508,7 +504,7 @@ mod tests {
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(within_timerange, dummy_reservoir()).match_rules(
+        let res = SamplingEvaluator::new(within_timerange).match_rules(
             Uuid::default(),
             &dsc,
             [rule.clone()].iter(),
@@ -517,7 +513,7 @@ mod tests {
         assert!(evaluation_is_match(res));
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(before_timerange, dummy_reservoir()).match_rules(
+        let res = SamplingEvaluator::new(before_timerange).match_rules(
             Uuid::default(),
             &dsc,
             [rule.clone()].iter(),
@@ -525,7 +521,7 @@ mod tests {
         assert!(!evaluation_is_match(res));
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(after_timerange, dummy_reservoir()).match_rules(
+        let res = SamplingEvaluator::new(after_timerange).match_rules(
             Uuid::default(),
             &dsc,
             [rule].iter(),
@@ -651,11 +647,7 @@ mod tests {
     fn test_get_sampling_match_result_with_no_match() {
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
-        let res = SamplingEvaluator::new(Utc::now(), dummy_reservoir()).match_rules(
-            Uuid::default(),
-            &dsc,
-            [].iter(),
-        );
+        let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
 
         assert!(!evaluation_is_match(res));
     }

@@ -1,6 +1,5 @@
 //! Functionality for calculating if a trace should be processed or dropped.
 use std::ops::ControlFlow;
-use std::sync::Arc;
 
 use chrono::Utc;
 use relay_base_schema::events::EventType;
@@ -8,7 +7,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_event_schema::protocol::{Event, TraceContext};
 use relay_sampling::config::{RuleType, SamplingConfig, SamplingMode};
 use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
-use relay_sampling::evaluation::{ReservoirStuff, SamplingEvaluator, SamplingMatch};
+use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 
 use crate::envelope::{Envelope, ItemType};
 
@@ -68,7 +67,6 @@ impl From<ControlFlow<SamplingMatch, SamplingEvaluator>> for SamplingResult {
 /// sampling.
 pub fn is_trace_fully_sampled(
     processing_enabled: bool,
-    reservoir: Arc<ReservoirStuff>,
     root_project_config: &SamplingConfig,
     dsc: &DynamicSamplingContext,
 ) -> Option<bool> {
@@ -94,8 +92,7 @@ pub fn is_trace_fully_sampled(
     };
 
     // TODO(tor): pass correct now timestamp
-    let evaluator =
-        SamplingEvaluator::new(Utc::now(), reservoir).adjust_client_sample_rate(adjustment_rate);
+    let evaluator = SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
 
     let rules = root_project_config.filter_rules(RuleType::Trace);
 
@@ -167,18 +164,7 @@ mod tests {
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
-    use relay_sampling::evaluation::ReservoirCounters;
     use uuid::Uuid;
-
-    fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        ReservoirStuff::new(
-            0,
-            ReservoirCounters::default(),
-            #[cfg(feature = "processing")]
-            None,
-        )
-        .into()
-    }
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {
@@ -231,7 +217,7 @@ mod tests {
         let rules = vec![mocked_sampling_rule(1, RuleType::Transaction, 1.0)];
         let seed = Uuid::default();
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), dummy_reservoir())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(seed, &event, rules.iter())
             .into();
 
@@ -245,7 +231,7 @@ mod tests {
         let rules = vec![mocked_sampling_rule(1, RuleType::Transaction, 0.0)];
         let seed = Uuid::default();
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), dummy_reservoir())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(seed, &event, rules.iter())
             .into();
 
@@ -268,7 +254,7 @@ mod tests {
         let event = mocked_event(EventType::Transaction, "bar", "2.0");
         let seed = Uuid::default();
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), dummy_reservoir())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(seed, &event, rules.iter())
             .into();
 
@@ -282,7 +268,7 @@ mod tests {
         let rules = vec![mocked_sampling_rule(1, RuleType::Trace, 1.0)];
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result: SamplingResult = SamplingEvaluator::new(Utc::now(), dummy_reservoir())
+        let result: SamplingResult = SamplingEvaluator::new(Utc::now())
             .match_rules(Uuid::default(), &dsc, rules.iter())
             .into();
 
@@ -304,16 +290,10 @@ mod tests {
         let dsc = mocked_simple_dynamic_sampling_context(None, None, None, None, Some(true));
 
         // Return true if any unsupported rules.
-        assert_eq!(
-            is_trace_fully_sampled(false, dummy_reservoir(), &config, &dsc),
-            Some(true)
-        );
+        assert_eq!(is_trace_fully_sampled(false, &config, &dsc), Some(true));
 
         // If processing is enabled, we simply log an error and otherwise proceed as usual.
-        assert_eq!(
-            is_trace_fully_sampled(true, dummy_reservoir(), &config, &dsc),
-            Some(false)
-        );
+        assert_eq!(is_trace_fully_sampled(true, &config, &dsc), Some(false));
     }
 
     #[test]
@@ -330,7 +310,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(false, dummy_reservoir(), &config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(result);
 
         // We test with `sampled = true` and 0% rule.
@@ -343,7 +323,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(true));
 
-        let result = is_trace_fully_sampled(false, dummy_reservoir(), &config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(!result);
 
         // We test with `sampled = false` and 100% rule.
@@ -356,7 +336,7 @@ mod tests {
         let dsc =
             mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, Some(false));
 
-        let result = is_trace_fully_sampled(false, dummy_reservoir(), &config, &dsc).unwrap();
+        let result = is_trace_fully_sampled(false, &config, &dsc).unwrap();
         assert!(!result);
     }
 
@@ -371,7 +351,7 @@ mod tests {
         };
         let dsc = mocked_simple_dynamic_sampling_context(Some(1.0), Some("3.0"), None, None, None);
 
-        let result = is_trace_fully_sampled(false, dummy_reservoir(), &config, &dsc);
+        let result = is_trace_fully_sampled(false, &config, &dsc);
         assert!(result.is_none());
     }
 }

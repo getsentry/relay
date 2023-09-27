@@ -2376,6 +2376,7 @@ impl EnvelopeProcessorService {
                     }
                 }
             }
+
             _ => {}
         }
     }
@@ -2423,8 +2424,9 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let mut evaluator = SamplingEvaluator::new(Utc::now(), reservoir)
-            .adjust_client_sample_rate(adjustment_rate);
+        let mut evaluator = SamplingEvaluator::new(Utc::now())
+            .adjust_client_sample_rate(adjustment_rate)
+            .set_reservoir(Some(reservoir));
 
         if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
             if let Some(seed) = event.id.value().map(|id| id.0) {
@@ -2466,12 +2468,8 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        let sampled = utils::is_trace_fully_sampled(
-            self.inner.config.processing_enabled(),
-            state.reservoir.clone(),
-            config,
-            dsc,
-        );
+        let sampled =
+            utils::is_trace_fully_sampled(self.inner.config.processing_enabled(), config, dsc);
 
         let (Some(event), Some(sampled)) = (state.event.value_mut(), sampled) else {
             return;

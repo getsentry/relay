@@ -92,7 +92,7 @@ impl SamplingRule {
     pub fn sample_rate(
         &self,
         now: DateTime<Utc>,
-        reservoir: Arc<ReservoirStuff>,
+        reservoir: Option<Arc<ReservoirStuff>>,
     ) -> Option<SamplingValue> {
         if !self.time_range.contains(now) {
             // Return None if rule is inactive.
@@ -103,9 +103,11 @@ impl SamplingRule {
             SamplingValue::SampleRate { value } => value,
             SamplingValue::Factor { value } => value,
             SamplingValue::Reservoir { limit } => {
-                return reservoir
-                    .evaluate_rule(self.id, limit)
-                    .then_some(SamplingValue::Reservoir { limit });
+                return reservoir.and_then(|reservoir| {
+                    reservoir
+                        .evaluate_rule(self.id, limit)
+                        .then_some(SamplingValue::Reservoir { limit })
+                });
             }
         };
 
@@ -297,19 +299,7 @@ impl Default for SamplingMode {
 mod tests {
     use chrono::TimeZone;
 
-    use crate::evaluation::ReservoirCounters;
-
     use super::*;
-
-    fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        ReservoirStuff::new(
-            0,
-            ReservoirCounters::default(),
-            #[cfg(feature = "redis")]
-            None,
-        )
-        .into()
-    }
 
     #[test]
     fn config_deserialize() {
@@ -547,19 +537,19 @@ mod tests {
 
         // At the start of the time range, sample rate is equal to the rule's initial sampling value.
         assert_eq!(
-            rule.sample_rate(start, dummy_reservoir()).unwrap(),
+            rule.sample_rate(start, None).unwrap(),
             SamplingValue::SampleRate { value: 1.0 }
         );
 
         // Halfway in the time range, the value is exactly between 1.0 and 0.5.
         assert_eq!(
-            rule.sample_rate(halfway, dummy_reservoir()).unwrap(),
+            rule.sample_rate(halfway, None).unwrap(),
             SamplingValue::SampleRate { value: 0.75 }
         );
 
         // Approaches 0.5 at the end.
         assert_eq!(
-            rule.sample_rate(end, dummy_reservoir()).unwrap(),
+            rule.sample_rate(end, None).unwrap(),
             SamplingValue::SampleRate {
                 // It won't go to exactly 0.5 because the time range is end-exclusive.
                 value: 0.5000028935185186
@@ -573,9 +563,7 @@ mod tests {
             rule
         };
 
-        assert!(rule_without_start
-            .sample_rate(halfway, dummy_reservoir())
-            .is_none());
+        assert!(rule_without_start.sample_rate(halfway, None).is_none());
 
         let rule_without_end = {
             let mut rule = rule.clone();
@@ -583,9 +571,7 @@ mod tests {
             rule
         };
 
-        assert!(rule_without_end
-            .sample_rate(halfway, dummy_reservoir())
-            .is_none());
+        assert!(rule_without_end.sample_rate(halfway, None).is_none());
     }
 
     /// If the decayingfunction is set to `Constant` then it shouldn't adjust the sample rate.
@@ -607,10 +593,7 @@ mod tests {
 
         let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
 
-        assert_eq!(
-            rule.sample_rate(halfway, dummy_reservoir()),
-            Some(sampling_value)
-        );
+        assert_eq!(rule.sample_rate(halfway, None), Some(sampling_value));
     }
 
     /// Validates the `sample_rate` method for different time range configurations.
@@ -636,53 +619,47 @@ mod tests {
             time_range,
             decaying_fn: DecayingFunction::Constant,
         };
-        assert!(rule
-            .sample_rate(before_time_range, dummy_reservoir())
-            .is_none());
-        assert!(rule
-            .sample_rate(during_time_range, dummy_reservoir())
-            .is_some());
-        assert!(rule
-            .sample_rate(after_time_range, dummy_reservoir())
-            .is_none());
+        assert!(rule.sample_rate(before_time_range, None).is_none());
+        assert!(rule.sample_rate(during_time_range, None).is_some());
+        assert!(rule.sample_rate(after_time_range, None).is_none());
 
         // [start..]
         let mut rule_without_end = rule.clone();
         rule_without_end.time_range.end = None;
         assert!(rule_without_end
-            .sample_rate(before_time_range, dummy_reservoir())
+            .sample_rate(before_time_range, None)
             .is_none());
         assert!(rule_without_end
-            .sample_rate(during_time_range, dummy_reservoir())
+            .sample_rate(during_time_range, None)
             .is_some());
         assert!(rule_without_end
-            .sample_rate(after_time_range, dummy_reservoir())
+            .sample_rate(after_time_range, None)
             .is_some());
 
         // [..end]
         let mut rule_without_start = rule.clone();
         rule_without_start.time_range.start = None;
         assert!(rule_without_start
-            .sample_rate(before_time_range, dummy_reservoir())
+            .sample_rate(before_time_range, None)
             .is_some());
         assert!(rule_without_start
-            .sample_rate(during_time_range, dummy_reservoir())
+            .sample_rate(during_time_range, None)
             .is_some());
         assert!(rule_without_start
-            .sample_rate(after_time_range, dummy_reservoir())
+            .sample_rate(after_time_range, None)
             .is_none());
 
         // [..]
         let mut rule_without_range = rule.clone();
         rule_without_range.time_range = TimeRange::default();
         assert!(rule_without_range
-            .sample_rate(before_time_range, dummy_reservoir())
+            .sample_rate(before_time_range, None)
             .is_some());
         assert!(rule_without_range
-            .sample_rate(during_time_range, dummy_reservoir())
+            .sample_rate(during_time_range, None)
             .is_some());
         assert!(rule_without_range
-            .sample_rate(after_time_range, dummy_reservoir())
+            .sample_rate(after_time_range, None)
             .is_some());
     }
 
@@ -702,13 +679,13 @@ mod tests {
         };
 
         matches!(
-            rule.sample_rate(Utc::now(), dummy_reservoir()).unwrap(),
+            rule.sample_rate(Utc::now(), None).unwrap(),
             SamplingValue::SampleRate { .. }
         );
 
         rule.sampling_value = SamplingValue::Factor { value: 0.42 };
         matches!(
-            rule.sample_rate(Utc::now(), dummy_reservoir()).unwrap(),
+            rule.sample_rate(Utc::now(), None).unwrap(),
             SamplingValue::Factor { .. }
         );
     }
