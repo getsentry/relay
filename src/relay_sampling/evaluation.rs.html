@@ -554,11 +554,6 @@
 <a href="#554" id="554">554</a>
 <a href="#555" id="555">555</a>
 <a href="#556" id="556">556</a>
-<a href="#557" id="557">557</a>
-<a href="#558" id="558">558</a>
-<a href="#559" id="559">559</a>
-<a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::fmt;
@@ -811,7 +806,6 @@
     <span class="kw">use </span><span class="kw">crate</span>::config::{RuleId, RuleType, SamplingRule, SamplingValue, TimeRange};
     <span class="kw">use </span><span class="kw">crate</span>::dsc::TraceUserContext;
     <span class="kw">use </span><span class="kw">crate</span>::evaluation::MatchedRuleIds;
-    <span class="kw">use </span><span class="kw">crate</span>::tests::{and, eq, glob};
     <span class="kw">use </span><span class="kw">crate</span>::DynamicSamplingContext;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -998,29 +992,25 @@
     </span><span class="kw">fn </span>test_condition_matching() {
         <span class="kw">let </span>rules = simple_sampling_rules(<span class="macro">vec!</span>[
             (
-                and(<span class="macro">vec!</span>[glob(<span class="string">&quot;trace.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;*healthcheck*&quot;</span>])]),
+                RuleCondition::glob(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;*healthcheck*&quot;</span>),
                 SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
             ),
             (
-                and(<span class="macro">vec!</span>[glob(<span class="string">&quot;trace.environment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;*dev*&quot;</span>])]),
+                RuleCondition::glob(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;*dev*&quot;</span>),
                 SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
             ),
             (
-                and(<span class="macro">vec!</span>[eq(<span class="string">&quot;trace.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;raboof&quot;</span>], <span class="bool-val">true</span>)]),
+                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.transaction&quot;</span>, <span class="string">&quot;raboof&quot;</span>),
                 SamplingValue::Factor { value: <span class="number">1.0 </span>},
             ),
             (
-                and(<span class="macro">vec!</span>[
-                    glob(<span class="string">&quot;trace.release&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;1.1.1&quot;</span>]),
-                    eq(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;vip&quot;</span>], <span class="bool-val">true</span>),
-                ]),
+                RuleCondition::glob(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.user.segment&quot;</span>, <span class="string">&quot;vip&quot;</span>),
                 SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
             ),
             (
-                and(<span class="macro">vec!</span>[
-                    eq(<span class="string">&quot;trace.release&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;1.1.1&quot;</span>], <span class="bool-val">true</span>),
-                    eq(<span class="string">&quot;trace.environment&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;prod&quot;</span>], <span class="bool-val">true</span>),
-                ]),
+                RuleCondition::eq_ignore_case(<span class="string">&quot;trace.release&quot;</span>, <span class="string">&quot;1.1.1&quot;</span>)
+                    &amp; RuleCondition::eq_ignore_case(<span class="string">&quot;trace.environment&quot;</span>, <span class="string">&quot;prod&quot;</span>),
                 SamplingValue::Factor { value: <span class="number">1.0 </span>},
             ),
             (

@@ -312,14 +312,6 @@
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
 <a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 
@@ -439,7 +431,7 @@
     <span class="kw">use </span>relay_base_schema::events::EventType;
     <span class="kw">use </span>relay_event_schema::protocol::{Event, EventId, LenientString};
     <span class="kw">use </span>relay_protocol::Annotated;
-    <span class="kw">use </span>relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
+    <span class="kw">use </span>relay_sampling::condition::RuleCondition;
     <span class="kw">use </span>relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -456,14 +448,6 @@
     }
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-
-    <span class="kw">fn </span>eq(name: <span class="kw-2">&amp;</span>str, value: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], ignore_case: bool) -&gt; RuleCondition {
-        RuleCondition::Eq(EqCondition {
-            name: name.to_owned(),
-            value: value.iter().map(|s| s.to_string()).collect(),
-            options: EqCondOptions { ignore_case },
-        })
-    }
 
     <span class="kw">fn </span>mocked_simple_dynamic_sampling_context(
         sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
@@ -530,7 +514,7 @@
     </span><span class="doccomment">/// Tests that an event is kept when there is no match.
     </span><span class="kw">fn </span>test_match_rules_return_keep_with_no_match() {
         <span class="kw">let </span>rules = <span class="macro">vec!</span>[SamplingRule {
-            condition: eq(<span class="string">&quot;event.transaction&quot;</span>, <span class="kw-2">&amp;</span>[<span class="string">&quot;foo&quot;</span>], <span class="bool-val">true</span>),
+            condition: RuleCondition::eq_ignore_case(<span class="string">&quot;event.transaction&quot;</span>, <span class="string">&quot;foo&quot;</span>),
             sampling_value: SamplingValue::SampleRate { value: <span class="number">0.5 </span>},
             ty: RuleType::Transaction,
             id: RuleId(<span class="number">3</span>),
