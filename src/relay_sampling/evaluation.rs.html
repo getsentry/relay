@@ -563,6 +563,7 @@
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::num::ParseIntError;
+<span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>rand::distributions::Uniform;
@@ -582,37 +583,6 @@
     <span class="kw">let </span><span class="kw-2">mut </span>generator = Pcg32::new((big_seed &gt;&gt; <span class="number">64</span>) <span class="kw">as </span>u64, big_seed <span class="kw">as </span>u64);
     <span class="kw">let </span>dist = Uniform::new(<span class="number">0f64</span>, <span class="number">1f64</span>);
     generator.sample(dist)
-}
-
-<span class="doccomment">/// State of the [`SamplingEvaluator`]&#39;s rule matching.
-///
-/// Enforces a pattern to avoid matching on more rules if a match has already been found.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>Evaluation {
-    <span class="doccomment">/// Matching has not completed and more rules can be evaluated.
-    ///
-    /// This can happen either if no active rules match the provided data, or if the matched rules
-    /// are factors that require a final sampling value. In this case, the returned evaluator stores
-    /// the state of the matched rules as well as the accumulated sampling factor and can be used to
-    /// evaluate more rules.
-    ///
-    /// If evaluation returns `Continue` and there are no more rules to match, this should be
-    /// considered as &quot;no match&quot;.
-    </span>Continue(SamplingEvaluator),
-    <span class="doccomment">/// One or more rules have matched.
-    </span>Matched(SamplingMatch),
-}
-
-<span class="kw">impl </span>Evaluation {
-    <span class="doccomment">/// Returns true if a rule has matched.
-    </span><span class="kw">pub fn </span>is_match(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="kw-2">&amp;</span><span class="self">Self</span>::Matched(<span class="kw">_</span>))
-    }
-
-    <span class="doccomment">/// Returns true if no rule have matched.
-    </span><span class="kw">pub fn </span>is_no_match(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.is_match()
-    }
 }
 
 <span class="doccomment">/// State machine for dynamic sampling.
@@ -641,8 +611,23 @@
         <span class="self">self
     </span>}
 
-    <span class="doccomment">/// Attemps to find a match for sampling rules.
-    </span><span class="kw">pub fn </span>match_rules&lt;<span class="lifetime">&#39;a</span>, I, G&gt;(<span class="kw-2">mut </span><span class="self">self</span>, seed: Uuid, instance: <span class="kw-2">&amp;</span>G, rules: I) -&gt; Evaluation
+    <span class="doccomment">/// Attempts to find a match for sampling rules using `ControlFlow`.
+    ///
+    /// This function returns a `ControlFlow` to provide control over the matching process.
+    ///
+    /// - `ControlFlow::Continue`: Indicates that matching is incomplete, and more rules can be evaluated.
+    ///    - This state occurs either if no active rules match the provided data, or if the matched rules
+    ///      are factors requiring a final sampling value.
+    ///    - The returned evaluator contains the state of the matched rules and the accumulated sampling factor.
+    ///    - If this value is returned and there are no more rules to evaluate, it should be interpreted as &quot;no match.&quot;
+    ///
+    /// - `ControlFlow::Break`: Indicates that one or more rules have successfully matched.
+    </span><span class="kw">pub fn </span>match_rules&lt;<span class="lifetime">&#39;a</span>, I, G&gt;(
+        <span class="kw-2">mut </span><span class="self">self</span>,
+        seed: Uuid,
+        instance: <span class="kw-2">&amp;</span>G,
+        rules: I,
+    ) -&gt; ControlFlow&lt;SamplingMatch, <span class="self">Self</span>&gt;
     <span class="kw">where
         </span>G: Getter,
         I: Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SamplingRule&gt;,
@@ -663,7 +648,7 @@
                 SamplingValue::SampleRate { value } =&gt; {
                     <span class="kw">let </span>sample_rate = (value * <span class="self">self</span>.factor).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>);
 
-                    <span class="kw">return </span>Evaluation::Matched(SamplingMatch::new(
+                    <span class="kw">return </span>ControlFlow::Break(SamplingMatch::new(
                         <span class="self">self</span>.adjusted_sample_rate(sample_rate),
                         seed,
                         <span class="self">self</span>.rule_ids,
@@ -671,7 +656,7 @@
                 }
             }
         }
-        Evaluation::Continue(<span class="self">self</span>)
+        ControlFlow::Continue(<span class="self">self</span>)
     }
 
     <span class="doccomment">/// Tries to negate the client side sampling if the evaluator has been provided
@@ -813,6 +798,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 }
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::str::FromStr;
@@ -837,9 +823,13 @@
             instance,
             rules.iter(),
         ) {
-            Evaluation::Matched(sampling_match) =&gt; sampling_match,
-            Evaluation::Continue(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;no match found&quot;</span>),
+            ControlFlow::Break(sampling_match) =&gt; sampling_match,
+            ControlFlow::Continue(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;no match found&quot;</span>),
         }
+    }
+
+    <span class="kw">fn </span>evaluation_is_match(res: ControlFlow&lt;SamplingMatch, SamplingEvaluator&gt;) -&gt; bool {
+        <span class="macro">matches!</span>(res, ControlFlow::Break(<span class="kw">_</span>))
     }
 
     <span class="doccomment">/// Helper to check if certain rules are matched on.
@@ -916,7 +906,7 @@
             .adjust_client_sample_rate(<span class="prelude-val">Some</span>(<span class="number">0.2</span>))
             .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, rules.iter());
 
-        <span class="kw">let </span>Evaluation::Matched(sampling_match) = res <span class="kw">else </span>{
+        <span class="kw">let </span>ControlFlow::Break(sampling_match) = res <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
 
@@ -978,19 +968,29 @@
 
         <span class="comment">// Baseline test.
         </span><span class="kw">let </span>within_timerange = Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
-        <span class="macro">assert!</span>(SamplingEvaluator::new(within_timerange)
-            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
-            .is_match());
+        <span class="kw">let </span>res = SamplingEvaluator::new(within_timerange).match_rules(
+            Uuid::default(),
+            <span class="kw-2">&amp;</span>dsc,
+            [rule.clone()].iter(),
+        );
+
+        <span class="macro">assert!</span>(evaluation_is_match(res));
 
         <span class="kw">let </span>before_timerange = Utc.with_ymd_and_hms(<span class="number">1969</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
-        <span class="macro">assert!</span>(SamplingEvaluator::new(before_timerange)
-            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
-            .is_no_match());
+        <span class="kw">let </span>res = SamplingEvaluator::new(before_timerange).match_rules(
+            Uuid::default(),
+            <span class="kw-2">&amp;</span>dsc,
+            [rule.clone()].iter(),
+        );
+        <span class="macro">assert!</span>(!evaluation_is_match(res));
 
         <span class="kw">let </span>after_timerange = Utc.with_ymd_and_hms(<span class="number">1971</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
-        <span class="macro">assert!</span>(SamplingEvaluator::new(after_timerange)
-            .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule].iter())
-            .is_no_match());
+        <span class="kw">let </span>res = SamplingEvaluator::new(after_timerange).match_rules(
+            Uuid::default(),
+            <span class="kw-2">&amp;</span>dsc,
+            [rule].iter(),
+        );
+        <span class="macro">assert!</span>(!evaluation_is_match(res));
     }
 
     <span class="doccomment">/// Checks that `SamplingValueEvaluator` correctly matches the right rules.
@@ -1117,7 +1117,7 @@
 
         <span class="kw">let </span>res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [].iter());
 
-        <span class="macro">assert!</span>(res.is_no_match());
+        <span class="macro">assert!</span>(!evaluation_is_match(res));
     }
 }
 </code></pre></div></section></main></body></html>

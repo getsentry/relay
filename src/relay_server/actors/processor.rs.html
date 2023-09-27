@@ -4237,12 +4237,14 @@
 <a href="#4237" id="4237">4237</a>
 <a href="#4238" id="4238">4238</a>
 <a href="#4239" id="4239">4239</a>
+<a href="#4240" id="4240">4240</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net;
 <span class="kw">use </span>std::net::IpAddr <span class="kw">as </span>NetIPAddr;
+<span class="kw">use </span>std::ops::ControlFlow;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
@@ -4282,7 +4284,7 @@
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
 <span class="kw">use </span>relay_sampling::config::{RuleType, SamplingMode};
-<span class="kw">use </span>relay_sampling::evaluation::{Evaluation, MatchedRuleIds, SamplingEvaluator};
+<span class="kw">use </span>relay_sampling::evaluation::{MatchedRuleIds, SamplingEvaluator};
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -6651,8 +6653,8 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(seed) = event.id.value().map(|id| id.<span class="number">0</span>) {
                 <span class="kw">let </span>rules = sampling_state.filter_rules(RuleType::Transaction);
                 evaluator = <span class="kw">match </span>evaluator.match_rules(seed, event, rules) {
-                    Evaluation::Continue(evaluator) =&gt; evaluator,
-                    Evaluation::Matched(sampling_match) =&gt; {
+                    ControlFlow::Continue(evaluator) =&gt; evaluator,
+                    ControlFlow::Break(sampling_match) =&gt; {
                         <span class="kw">return </span>SamplingResult::Match(sampling_match);
                     }
                 }

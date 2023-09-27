@@ -318,11 +318,15 @@
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
 <a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Functionality for calculating if a trace should be processed or dropped.
-</span><span class="kw">use </span>chrono::Utc;
+</span><span class="kw">use </span>std::ops::ControlFlow;
+
+<span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_sampling::config::{RuleType, SamplingMode};
-<span class="kw">use </span>relay_sampling::evaluation::{Evaluation, SamplingEvaluator, SamplingMatch};
+<span class="kw">use </span>relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, ItemType};
@@ -369,11 +373,11 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;Evaluation&gt; <span class="kw">for </span>SamplingResult {
-    <span class="kw">fn </span>from(value: Evaluation) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>From&lt;ControlFlow&lt;SamplingMatch, SamplingEvaluator&gt;&gt; <span class="kw">for </span>SamplingResult {
+    <span class="kw">fn </span>from(value: ControlFlow&lt;SamplingMatch, SamplingEvaluator&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>value {
-            Evaluation::Matched(sampling_match) =&gt; <span class="self">Self</span>::Match(sampling_match),
-            Evaluation::Continue(<span class="kw">_</span>) =&gt; <span class="self">Self</span>::NoMatch,
+            ControlFlow::Break(sampling_match) =&gt; <span class="self">Self</span>::Match(sampling_match),
+            ControlFlow::Continue(<span class="kw">_</span>) =&gt; <span class="self">Self</span>::NoMatch,
         }
     }
 }
