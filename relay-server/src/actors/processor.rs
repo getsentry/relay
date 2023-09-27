@@ -4,6 +4,7 @@ use std::error::Error;
 use std::io::Write;
 use std::net;
 use std::net::IpAddr as NetIPAddr;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -43,7 +44,7 @@ use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{Evaluation, MatchedRuleIds, ReservoirStuff, SamplingEvaluator};
+use relay_sampling::evaluation::{MatchedRuleIds, ReservoirStuff, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -1094,9 +1095,9 @@ impl EnvelopeProcessorService {
                     }
                 } else {
                     // We found a second profile, drop it.
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                         relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-                    )));
+                    )))
                 }
             }
             _ => ItemAction::Keep,
@@ -1995,7 +1996,7 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
+        if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
             state.envelope_mut().set_dsc(dsc);
             state.sampling_project_state = Some(state.project_state.clone());
         }
@@ -2250,12 +2251,8 @@ impl EnvelopeProcessorService {
             .and_then(|system| system.as_str())
             .unwrap_or_default();
         op.starts_with("db")
-            && !(op.contains("active_record")
-                || op.contains("activerecord")
-                || op.contains("clickhouse")
-                || op.contains("mongodb")
-                || op.contains("redis"))
-            && !(op == "db.sql.query" && !(description.contains(r#""$"#) || system == "mongodb"))
+            && !(op.contains("clickhouse") || op.contains("mongodb") || op.contains("redis"))
+            && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
     }
 
     #[cfg(feature = "processing")]
@@ -2419,8 +2416,8 @@ impl EnvelopeProcessorService {
             if let Some(seed) = event.id.value().map(|id| id.0) {
                 let rules = sampling_state.filter_rules(RuleType::Transaction);
                 evaluator = match evaluator.match_rules(seed, event, rules) {
-                    Evaluation::Continue(evaluator) => evaluator,
-                    Evaluation::Matched(sampling_match) => {
+                    ControlFlow::Continue(evaluator) => evaluator,
+                    ControlFlow::Break(sampling_match) => {
                         return SamplingResult::Match(sampling_match);
                     }
                 }

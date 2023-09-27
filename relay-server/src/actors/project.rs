@@ -410,7 +410,7 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
-            reservoir: Arc::new(ReservoirStuff::new(key)),
+            reservoir: Arc::new(ReservoirStuff::new(0)),
         }
     }
 

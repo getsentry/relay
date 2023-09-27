@@ -19,7 +19,6 @@ rand = { workspace = true }
 rand_pcg = "0.3.1"
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
-relay-event-schema = { path = "../relay-event-schema" }
 relay-log = { path = "../relay-log" }
 relay-protocol = { path = "../relay-protocol" }
 relay-redis = { path = "../relay-redis", optional = true }

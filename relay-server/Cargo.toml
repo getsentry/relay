@@ -13,10 +13,10 @@ publish = false
 [features]
 default = []
 dashboard = [
-  "axum/ws",
-  "dep:rust-embed",
-  "dep:mime_guess",
-  "relay-log/dashboard",
+    "axum/ws",
+    "dep:rust-embed",
+    "dep:mime_guess",
+    "relay-log/dashboard",
 ]
 processing = [
     "dep:minidump",
