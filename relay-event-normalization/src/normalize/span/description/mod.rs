@@ -488,7 +488,7 @@ mod tests {
         scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
         let scrubbed = get_value!(span.data["description.scrubbed"]);
 
-        // Do not scrub active record.
+        // When db.system is missing, no scrubbed description (i.e. no group) is set.
         assert!(scrubbed.is_none());
     }
 
