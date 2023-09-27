@@ -2245,7 +2245,7 @@ impl EnvelopeProcessorService {
             .unwrap_or_default();
         op.starts_with("db")
             && !(op.contains("clickhouse") || op.contains("mongodb") || op.contains("redis"))
-            && !(op == "db.sql.query" && !(description.contains(r#""$"#) || system == "mongodb"))
+            && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
     }
 
     #[cfg(feature = "processing")]

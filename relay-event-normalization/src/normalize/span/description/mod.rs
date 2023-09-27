@@ -24,12 +24,11 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         return;
     };
 
-    let db_system: &str = span
+    let db_system = span
         .data
         .value()
-        .and_then(|v| v.get("span.system"))
-        .and_then(|system| system.as_str())
-        .unwrap_or_default();
+        .and_then(|v| v.get("db.system"))
+        .and_then(|system| system.as_str());
 
     let scrubbed = span
         .op
@@ -47,13 +46,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                 {
                     None
                 } else {
-                    sql::scrub_queries(
-                        span.data
-                            .value()
-                            .and_then(|d| d.get("db.system"))
-                            .and_then(|v| v.as_str()),
-                        description,
-                    )
+                    sql::scrub_queries(db_system, description)
                 }
             }
             ("resource", _) => scrub_resource_identifiers(description),
@@ -75,13 +68,13 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.
-fn is_sql_mongodb(sub_op: &str, description: &str, db_system: &str) -> bool {
-    sub_op == "sql.query" && (description.contains("\"$") || db_system == "mongodb")
+fn is_sql_mongodb(sub_op: &str, description: &str, db_system: Option<&str>) -> bool {
+    sub_op == "sql.query" && (description.contains("\"$") || db_system == Some("mongodb"))
 }
 
 /// We are unable to parse active record when we do not know which database is being used.
-fn is_legacy_activerecord(sub_op: &str, db_system: &str) -> bool {
-    db_system.is_empty() && (sub_op.contains("active_record") || sub_op.contains("activerecord"))
+fn is_legacy_activerecord(sub_op: &str, db_system: Option<&str>) -> bool {
+    db_system.is_none() && (sub_op.contains("active_record") || sub_op.contains("activerecord"))
 }
 
 fn scrub_http(string: &str) -> Option<String> {
@@ -245,6 +238,7 @@ fn apply_span_rename_rules(span: &mut Span, rules: &Vec<SpanDescriptionRule>) ->
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::get_value;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -480,5 +474,40 @@ mod tests {
             .and_then(|v| v.value())
             .and_then(|v| v.as_str());
         assert_eq!(scrubbed, Some("SELECT %s"));
+    }
+
+    #[test]
+    fn active_record() {
+        let json = r#"{
+            "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
+            "op": "db.sql.activerecord"
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]);
+
+        // Do not scrub active record.
+        assert!(scrubbed.is_none());
+    }
+
+    #[test]
+    fn active_record_with_db_system() {
+        let json = r#"{
+            "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
+            "op": "db.sql.activerecord",
+            "data": {
+                "db.system": "mysql"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+
+        // Can be scrubbed with db system.
+        assert_eq!(scrubbed.as_str(), Some("SELECT a FROM b"));
     }
 }
