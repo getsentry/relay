@@ -969,7 +969,7 @@ impl UpstreamQueue {
     }
 
     /// Resets the retry, if started.
-    pub fn retry_backoff_reset(&mut self) {
+    pub fn reset_retry_backoff(&mut self) {
         let now = Instant::now();
         if self.next_retry > now {
             self.next_retry = now;
@@ -1426,7 +1426,7 @@ impl UpstreamBroker {
             RequestOutcome::Dropped => self.conn.notify_error(&self.action_tx),
             RequestOutcome::Received => {
                 self.conn.reset_error();
-                self.queue.retry_backoff_reset();
+                self.queue.reset_retry_backoff();
             }
         }
     }
