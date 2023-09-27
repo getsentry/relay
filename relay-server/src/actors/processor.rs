@@ -539,6 +539,7 @@ pub struct EnvelopeProcessorService {
 
 struct InnerProcessor {
     config: Arc<Config>,
+    #[cfg(feature = "processing")]
     redis_pool: Option<Arc<RedisPool>>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,

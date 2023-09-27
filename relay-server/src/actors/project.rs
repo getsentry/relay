@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,7 +8,6 @@ use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
-use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};

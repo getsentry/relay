@@ -12,7 +12,7 @@ use rand::Rng;
 use rand_pcg::Pcg32;
 use relay_protocol::Getter;
 #[cfg(feature = "redis")]
-use relay_redis::{RedisError, RedisPool};
+use relay_redis::RedisPool;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -36,12 +36,11 @@ fn increment_bias_rule_count(
     redis: Arc<RedisPool>,
     org_id: u64,
     rule_id: RuleId,
-) -> Result<i64, RedisError> {
+) -> anyhow::Result<i64> {
     let key = format!("bias:{}:{}", org_id, rule_id);
     let mut command = relay_redis::redis::cmd("INCR");
     command.arg(key.as_str());
-    let new_count: i64 = command.query(&mut redis.client()?.connection()?).unwrap();
-    Ok(new_count)
+    Ok(command.query(&mut redis.client()?.connection()?)?)
 }
 
 /// The amount of transactions sampled of a given rule id.
@@ -79,6 +78,7 @@ impl ReservoirStuff {
 
         let incremented_value = self.increment(&mut map_guard, rule);
 
+        // If the incremented value is less than the limit, we still want to sample.
         incremented_value < limit
     }
 
@@ -86,22 +86,21 @@ impl ReservoirStuff {
     // when incrementing, if processing is enabled, we increment redis and insert back the value
     // otherwise we just increment directly
     fn increment(&self, map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) -> i64 {
-        let mut increment_value: i64 = 1;
+        let val = map_guard.entry(rule).or_insert(0);
+
+        let mut new_val: i64 = *val + 1;
 
         #[cfg(feature = "redis")]
         {
             if let Some(pool) = self.redis_pool.as_ref() {
-                if let Ok(new_val_from_redis) =
-                    increment_bias_rule_count(pool.clone(), self.org_id, rule)
-                {
-                    increment_value = new_val_from_redis;
+                match increment_bias_rule_count(pool.clone(), self.org_id, rule) {
+                    Ok(redis_val) => new_val = redis_val,
+                    Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
                 }
             }
         }
 
-        let val = map_guard.entry(rule).or_insert(0);
-        *val += increment_value;
-
+        *val = new_val;
         *val
     }
 }

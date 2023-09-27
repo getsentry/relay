@@ -133,7 +133,9 @@ impl SamplingRule {
         match self.sampling_value {
             SamplingValue::SampleRate { .. } => Some(SamplingValue::SampleRate { value }),
             SamplingValue::Factor { .. } => Some(SamplingValue::Factor { value }),
-            _ => unreachable!(),
+            // This should be impossible.
+            // Todo(tor): refactor so we don't run into this invalid state.
+            _ => None,
         }
     }
 }

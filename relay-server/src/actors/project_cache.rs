@@ -201,7 +201,6 @@ pub struct SpoolHealth;
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
-    //UpdateReservoir(UpdateCount),
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
     GetCached(GetCachedProjectState, Sender<Option<Arc<ProjectState>>>),
@@ -218,21 +217,6 @@ pub enum ProjectCache {
 }
 
 impl Interface for ProjectCache {}
-
-/*
-pub struct UpdateCount {
-    pub project_key: ProjectKey,
-    pub rule_id: RuleId,
-}
-
-impl FromMessage<UpdateCount> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: UpdateCount, _: ()) -> Self {
-        Self::UpdateReservoir(message)
-    }
-}
-*/
 
 impl FromMessage<UpdateBufferIndex> for ProjectCache {
     type Response = relay_system::NoResponse;
