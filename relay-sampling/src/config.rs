@@ -302,7 +302,13 @@ mod tests {
     use super::*;
 
     fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        ReservoirStuff::new(0, ReservoirCounters::default(), None).into()
+        ReservoirStuff::new(
+            0,
+            ReservoirCounters::default(),
+            #[cfg(feature = "redis")]
+            None,
+        )
+        .into()
     }
 
     #[test]

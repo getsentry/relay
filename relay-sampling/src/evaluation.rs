@@ -51,7 +51,7 @@ pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 pub struct ReservoirStuff {
     #[cfg(feature = "redis")]
     redis_pool: Option<Arc<RedisPool>>,
-    org_id: u64,
+    _org_id: u64,
     map: ReservoirCounters,
 }
 
@@ -63,7 +63,7 @@ impl ReservoirStuff {
         #[cfg(feature = "redis")] redis_pool: Option<Arc<RedisPool>>,
     ) -> Self {
         Self {
-            org_id,
+            _org_id: org_id,
             map,
             #[cfg(feature = "redis")]
             redis_pool,
@@ -78,7 +78,6 @@ impl ReservoirStuff {
 
         let incremented_value = self.increment(&mut map_guard, rule);
 
-        // If the incremented value is less than the limit, we still want to sample.
         incremented_value < limit
     }
 
@@ -88,12 +87,13 @@ impl ReservoirStuff {
     fn increment(&self, map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) -> i64 {
         let val = map_guard.entry(rule).or_insert(0);
 
+        #[cfg_attr(not(feature = "redis"), allow(unused_mut))]
         let mut new_val: i64 = *val + 1;
 
         #[cfg(feature = "redis")]
         {
             if let Some(pool) = self.redis_pool.as_ref() {
-                match increment_bias_rule_count(pool.clone(), self.org_id, rule) {
+                match increment_bias_rule_count(pool.clone(), self._org_id, rule) {
                     Ok(redis_val) => new_val = redis_val,
                     Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
                 }
@@ -347,7 +347,13 @@ mod tests {
     use super::*;
 
     fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        ReservoirStuff::new(0, ReservoirCounters::default(), None).into()
+        ReservoirStuff::new(
+            0,
+            ReservoirCounters::default(),
+            #[cfg(feature = "redis")]
+            None,
+        )
+        .into()
     }
 
     /// Helper to extract the sampling match after evaluating rules.

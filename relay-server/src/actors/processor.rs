@@ -3060,7 +3060,13 @@ mod tests {
     }
 
     fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        ReservoirStuff::new(0, ReservoirCounters::default(), None).into()
+        ReservoirStuff::new(
+            0,
+            ReservoirCounters::default(),
+            #[cfg(feature = "processing")]
+            None,
+        )
+        .into()
     }
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
