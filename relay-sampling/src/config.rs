@@ -103,7 +103,7 @@ impl SamplingRule {
             SamplingValue::Factor { value } => value,
             SamplingValue::Reservoir { limit } => {
                 return reservoir
-                    .evaluate_rule(self.id, limit)
+                    .evaluate_rule(None, self.id, limit)
                     .then_some(SamplingValue::Reservoir { limit })
             }
         };

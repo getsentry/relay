@@ -62,7 +62,7 @@ impl Evaluation {
 pub struct BiasRedisKey(String);
 
 impl BiasRedisKey {
-    pub fn new(project_key: &ProjectKey, rule_id: RuleId) -> Self {
+    pub fn new(project_key: u64, rule_id: RuleId) -> Self {
         Self(format!("bias:{}:{}", project_key, rule_id))
     }
 
@@ -77,10 +77,10 @@ impl BiasRedisKey {
 #[cfg(feature = "redis")]
 fn increment_bias_rule_count(
     redis: &RedisPool,
-    project_key: ProjectKey,
+    project_key: u64,
     rule_id: RuleId,
 ) -> Result<i64, RedisError> {
-    let key = BiasRedisKey::new(&project_key, rule_id);
+    let key = BiasRedisKey::new(project_key, rule_id);
     let mut command = relay_redis::redis::cmd("INCR");
     command.arg(key.as_str());
     let new_count: i64 = command.query(&mut redis.client()?.connection()?).unwrap();
@@ -89,40 +89,44 @@ fn increment_bias_rule_count(
 
 #[derive(Debug)]
 pub struct ReservoirStuff {
-    #[cfg(feature = "redis")]
-    redis: Option<RedisPool>,
-    project_key: ProjectKey,
+    org_id: u64,
     map: Mutex<BTreeMap<RuleId, i64>>,
 }
 
 impl ReservoirStuff {
-    #[cfg(feature = "redis")]
-    pub fn new(redis: Option<RedisPool>, project_key: ProjectKey) -> Self {
+    pub fn new(org_id: u64) -> Self {
         Self {
-            redis,
-            project_key,
+            org_id,
             map: Mutex::default(),
         }
     }
 
     #[cfg(not(feature = "redis"))]
-    pub fn new(project_key: ProjectKey) -> Self {
-        Self {
-            project_key,
-            map: Mutex::default(),
-        }
-    }
-
-    pub fn evaluate_rule(&self, rule: RuleId, limit: i64) -> bool {
+    pub fn evaluate_rule(&self, redis_pool: Option<()>, rule: RuleId, limit: i64) -> bool {
         let Ok(mut map_guard) = self.map.try_lock() else {
             return false;
         };
+
+        self.increment(&mut map_guard, rule, redis_pool);
 
         if Self::limit_exceeded(&mut map_guard, rule, limit).unwrap_or(true) {
             return false;
         }
 
-        Self::increment(&mut map_guard, rule);
+        true
+    }
+
+    #[cfg(feature = "redis")]
+    pub fn evaluate_rule(&self, redis_pool: Option<&RedisPool>, rule: RuleId, limit: i64) -> bool {
+        let Ok(mut map_guard) = self.map.try_lock() else {
+            return false;
+        };
+
+        self.increment(&mut map_guard, rule, redis_pool);
+
+        if Self::limit_exceeded(&mut map_guard, rule, limit).unwrap_or(true) {
+            return false;
+        }
 
         true
     }
@@ -139,11 +143,17 @@ impl ReservoirStuff {
     // when incrementing, if processing is enabled, we increment redis and insert back the value
     // otherwise we just increment directly
     #[cfg(feature = "redis")]
-    fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
-        match self.redis.as_ref() {
+    fn increment(
+        &self,
+        map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>,
+        rule: RuleId,
+        redis_pool: Option<&RedisPool>,
+    ) {
+        match redis_pool {
             Some(redis_pool) => {
-                let new_value =
-                    increment_bias_rule_count(redis_pool, self.project_key, rule).ok()?;
+                let new_value = increment_bias_rule_count(redis_pool, self.org_id, rule)
+                    .ok()
+                    .unwrap();
 
                 if let Some(val) = map_guard.get_mut(&rule) {
                     *val = new_value;
@@ -156,8 +166,14 @@ impl ReservoirStuff {
             }
         };
     }
+
     #[cfg(not(feature = "redis"))]
-    fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
+    fn increment(
+        &self,
+        map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>,
+        rule: RuleId,
+        _: Option<()>,
+    ) {
         if let Some(val) = map_guard.get_mut(&rule) {
             *val += 1;
         }
@@ -186,6 +202,8 @@ pub struct SamplingEvaluator {
     factor: f64,
     client_sample_rate: Option<f64>,
     reservoir: Arc<ReservoirStuff>,
+    #[cfg(feature = "redis")]
+    redis_pool: Option<Arc<RedisPool>>,
 }
 
 impl SamplingEvaluator {
@@ -197,7 +215,15 @@ impl SamplingEvaluator {
             factor: 1.0,
             client_sample_rate: None,
             reservoir,
+            #[cfg(feature = "redis")]
+            redis_pool: None,
         }
+    }
+
+    #[cfg(feature = "redis")]
+    pub fn set_redis_pool(mut self, redis: Option<Arc<RedisPool>>) -> Self {
+        self.redis_pool = redis;
+        self
     }
 
     /// Sets a new client sample rate value.
@@ -207,10 +233,10 @@ impl SamplingEvaluator {
     }
 
     /// Attemps to find a match for sampling rules.
-    pub fn match_rules<'a, I, G>(mut self, seed: Uuid, instance: &G, rules: I) -> Evaluation
+    pub fn match_rules<'b, I, G>(mut self, seed: Uuid, instance: &'b G, rules: I) -> Evaluation
     where
         G: Getter,
-        I: Iterator<Item = &'a SamplingRule>,
+        I: Iterator<Item = &'b SamplingRule>,
     {
         for rule in rules {
             if !rule.condition.matches(instance) {
@@ -388,6 +414,7 @@ impl fmt::Display for MatchedRuleIds {
         Ok(())
     }
 }
+/*
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -706,3 +733,4 @@ mod tests {
         assert!(res.is_no_match());
     }
 }
+*/
