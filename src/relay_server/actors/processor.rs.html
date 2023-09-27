@@ -4234,10 +4234,6 @@
 <a href="#4234" id="4234">4234</a>
 <a href="#4235" id="4235">4235</a>
 <a href="#4236" id="4236">4236</a>
-<a href="#4237" id="4237">4237</a>
-<a href="#4238" id="4238">4238</a>
-<a href="#4239" id="4239">4239</a>
-<a href="#4240" id="4240">4240</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6485,12 +6481,8 @@
             .and_then(|system| system.as_str())
             .unwrap_or_default();
         op.starts_with(<span class="string">&quot;db&quot;</span>)
-            &amp;&amp; !(op.contains(<span class="string">&quot;active_record&quot;</span>)
-                || op.contains(<span class="string">&quot;activerecord&quot;</span>)
-                || op.contains(<span class="string">&quot;clickhouse&quot;</span>)
-                || op.contains(<span class="string">&quot;mongodb&quot;</span>)
-                || op.contains(<span class="string">&quot;redis&quot;</span>))
-            &amp;&amp; !(op == <span class="string">&quot;db.sql.query&quot; </span>&amp;&amp; !(description.contains(<span class="string">r#&quot;&quot;$&quot;#</span>) || system == <span class="string">&quot;mongodb&quot;</span>))
+            &amp;&amp; !(op.contains(<span class="string">&quot;clickhouse&quot;</span>) || op.contains(<span class="string">&quot;mongodb&quot;</span>) || op.contains(<span class="string">&quot;redis&quot;</span>))
+            &amp;&amp; !(op == <span class="string">&quot;db.sql.query&quot; </span>&amp;&amp; (description.contains(<span class="string">r#&quot;&quot;$&quot;#</span>) || system == <span class="string">&quot;mongodb&quot;</span>))
     }
 
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]

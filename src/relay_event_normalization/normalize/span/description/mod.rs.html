@@ -454,6 +454,63 @@
 <a href="#454" id="454">454</a>
 <a href="#455" id="455">455</a>
 <a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>sql;
 <span class="kw">pub use </span>sql::parse_query;
@@ -480,6 +537,12 @@
         <span class="kw">return</span>;
     };
 
+    <span class="kw">let </span>db_system = span
+        .data
+        .value()
+        .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
+        .and_then(|system| system.as_str());
+
     <span class="kw">let </span>scrubbed = span
         .op
         .as_str()
@@ -487,13 +550,18 @@
         .and_then(|(op, sub)| <span class="kw">match </span>(op, sub) {
             (<span class="string">&quot;http&quot;</span>, <span class="kw">_</span>) =&gt; scrub_http(description),
             (<span class="string">&quot;cache&quot;</span>, <span class="kw">_</span>) | (<span class="string">&quot;db&quot;</span>, <span class="string">&quot;redis&quot;</span>) =&gt; scrub_redis_keys(description),
-            (<span class="string">&quot;db&quot;</span>, <span class="kw">_</span>) =&gt; sql::scrub_queries(
-                span.data
-                    .value()
-                    .and_then(|d| d.get(<span class="string">&quot;db.system&quot;</span>))
-                    .and_then(|v| v.as_str()),
-                description,
-            ),
+            (<span class="string">&quot;db&quot;</span>, sub) =&gt; {
+                <span class="kw">if </span>sub.contains(<span class="string">&quot;clickhouse&quot;</span>)
+                    || sub.contains(<span class="string">&quot;mongodb&quot;</span>)
+                    || sub.contains(<span class="string">&quot;redis&quot;</span>)
+                    || is_legacy_activerecord(sub, db_system)
+                    || is_sql_mongodb(sub, description, db_system)
+                {
+                    <span class="prelude-val">None
+                </span>} <span class="kw">else </span>{
+                    sql::scrub_queries(db_system, description)
+                }
+            }
             (<span class="string">&quot;resource&quot;</span>, <span class="kw">_</span>) =&gt; scrub_resource_identifiers(description),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         });
@@ -511,6 +579,16 @@
 
     apply_span_rename_rules(span, rules).ok(); <span class="comment">// Only fails on InvalidTransaction
 </span>}
+
+<span class="doccomment">/// A span declares `op: db.sql.query`, but contains mongodb.
+</span><span class="kw">fn </span>is_sql_mongodb(sub_op: <span class="kw-2">&amp;</span>str, description: <span class="kw-2">&amp;</span>str, db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
+    sub_op == <span class="string">&quot;sql.query&quot; </span>&amp;&amp; (description.contains(<span class="string">&quot;\&quot;$&quot;</span>) || db_system == <span class="prelude-val">Some</span>(<span class="string">&quot;mongodb&quot;</span>))
+}
+
+<span class="doccomment">/// We are unable to parse active record when we do not know which database is being used.
+</span><span class="kw">fn </span>is_legacy_activerecord(sub_op: <span class="kw-2">&amp;</span>str, db_system: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; bool {
+    db_system.is_none() &amp;&amp; (sub_op.contains(<span class="string">&quot;active_record&quot;</span>) || sub_op.contains(<span class="string">&quot;activerecord&quot;</span>))
+}
 
 <span class="kw">fn </span>scrub_http(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>(method, url) = string.split_once(<span class="string">&#39; &#39;</span>)<span class="question-mark">?</span>;
@@ -673,6 +751,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>relay_protocol::get_value;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -908,6 +987,41 @@
             .and_then(|v| v.value())
             .and_then(|v| v.as_str());
         <span class="macro">assert_eq!</span>(scrubbed, <span class="prelude-val">Some</span>(<span class="string">&quot;SELECT %s&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>active_record() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+            &quot;description&quot;: &quot;/*some comment `my_function&#39;*/ SELECT `a` FROM `b`&quot;,
+            &quot;op&quot;: &quot;db.sql.activerecord&quot;
+        }&quot;#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[]);
+        <span class="kw">let </span>scrubbed = <span class="macro">get_value!</span>(span.data[<span class="string">&quot;description.scrubbed&quot;</span>]);
+
+        <span class="comment">// When db.system is missing, no scrubbed description (i.e. no group) is set.
+        </span><span class="macro">assert!</span>(scrubbed.is_none());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>active_record_with_db_system() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+            &quot;description&quot;: &quot;/*some comment `my_function&#39;*/ SELECT `a` FROM `b`&quot;,
+            &quot;op&quot;: &quot;db.sql.activerecord&quot;,
+            &quot;data&quot;: {
+                &quot;db.system&quot;: &quot;mysql&quot;
+            }
+        }&quot;#</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>span = Annotated::&lt;Span&gt;::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), <span class="kw-2">&amp;</span><span class="macro">vec!</span>[]);
+        <span class="kw">let </span>scrubbed = <span class="macro">get_value!</span>(span.data[<span class="string">&quot;description.scrubbed&quot;</span>]!);
+
+        <span class="comment">// Can be scrubbed with db system.
+        </span><span class="macro">assert_eq!</span>(scrubbed.as_str(), <span class="prelude-val">Some</span>(<span class="string">&quot;SELECT a FROM b&quot;</span>));
     }
 }
 </code></pre></div></section></main></body></html>
