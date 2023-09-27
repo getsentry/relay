@@ -117,7 +117,7 @@ fn track_transaction_name_stats(event: &Event) {
 }
 
 /// These are the tags that are added to extracted low cardinality metrics.
-fn extract_coarse_transaction_tags(event: &Event) -> CommonTags {
+fn extract_light_transaction_tags(event: &Event) -> CommonTags {
     let mut tags = BTreeMap::new();
     if let Some(transaction_name) = get_transaction_name(event) {
         tags.insert(CommonTag::Transaction, transaction_name);
@@ -257,7 +257,7 @@ impl TransactionExtractor<'_> {
 
         track_transaction_name_stats(event);
         let tags = extract_universal_tags(event, self.config);
-        let coarse_tags = extract_coarse_transaction_tags(event);
+        let light_tags = extract_light_transaction_tags(event);
 
         // Measurements
         if let Some(measurements) = event.measurements.value() {
@@ -337,12 +337,12 @@ impl TransactionExtractor<'_> {
 
         // Lower cardinality duration
         metrics.project_metrics.push(
-            TransactionMetric::DurationCoarse {
+            TransactionMetric::DurationLight {
                 unit: DurationUnit::MilliSecond,
                 value: relay_common::time::chrono_to_positive_millis(end - start),
                 tags: TransactionDurationTags {
                     has_profile: self.has_profile,
-                    universal_tags: coarse_tags.clone(),
+                    universal_tags: light_tags.clone(),
                 },
             }
             .into_metric(timestamp),

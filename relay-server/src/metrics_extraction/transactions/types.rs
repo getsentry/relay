@@ -24,7 +24,7 @@ pub enum TransactionMetric {
         tags: TransactionDurationTags,
     },
     /// A distribution metric for the transaction duration with limited tags.
-    DurationCoarse {
+    DurationLight {
         unit: DurationUnit,
         value: DistributionType,
         tags: TransactionDurationTags,
@@ -68,8 +68,8 @@ impl IntoMetric for TransactionMetric {
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
-            TransactionMetric::DurationCoarse { unit, value, tags } => (
-                Cow::Borrowed("duration_coarse"),
+            TransactionMetric::DurationLight { unit, value, tags } => (
+                Cow::Borrowed("duration_light"),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
