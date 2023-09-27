@@ -1090,9 +1090,9 @@ impl EnvelopeProcessorService {
                     }
                 } else {
                     // We found a second profile, drop it.
-                    return ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                         relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-                    )));
+                    )))
                 }
             }
             _ => ItemAction::Keep,

@@ -162,7 +162,7 @@ impl Eq for RuleRef {}
 
 impl PartialOrd for RuleRef {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.id.partial_cmp(&other.id)
+        Some(self.id.cmp(&other.id))
     }
 }
 
