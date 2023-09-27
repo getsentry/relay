@@ -167,13 +167,11 @@ mod tests {
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
+    use relay_sampling::evaluation::ReservoirCounters;
     use uuid::Uuid;
 
     fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        let project_key = "12345678123456781234567812345678"
-            .parse::<ProjectKey>()
-            .unwrap();
-        ReservoirStuff::new(0).into()
+        ReservoirStuff::new(0, ReservoirCounters::default(), None).into()
     }
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {

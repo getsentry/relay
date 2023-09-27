@@ -1,6 +1,6 @@
 //! Evaluation of dynamic sampling rules.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::num::ParseIntError;
 use std::ops::ControlFlow;
@@ -16,7 +16,6 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::config::{RuleId, SamplingRule, SamplingValue};
-use crate::SamplingConfig;
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -28,138 +27,81 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     generator.sample(dist)
 }
 
-pub struct BiasRedisKey(String);
-
-impl BiasRedisKey {
-    pub fn new(project_key: u64, rule_id: RuleId) -> Self {
-        Self(format!("bias:{}:{}", project_key, rule_id))
-    }
-
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
 /// Increments the count, it will be initialized automatically if it doesn't exist.
 ///
 /// INCR docs: [`https://redis.io/commands/incr/`]
 #[cfg(feature = "redis")]
 fn increment_bias_rule_count(
-    redis: &RedisPool,
-    project_key: u64,
+    redis: Arc<RedisPool>,
+    org_id: u64,
     rule_id: RuleId,
 ) -> Result<i64, RedisError> {
-    let key = BiasRedisKey::new(project_key, rule_id);
+    let key = format!("bias:{}:{}", org_id, rule_id);
     let mut command = relay_redis::redis::cmd("INCR");
     command.arg(key.as_str());
     let new_count: i64 = command.query(&mut redis.client()?.connection()?).unwrap();
     Ok(new_count)
 }
 
+/// The amount of transactions sampled of a given rule id.
+pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
+
+/// Reservoir utility.
 #[derive(Debug)]
 pub struct ReservoirStuff {
+    #[cfg(feature = "redis")]
+    redis_pool: Option<Arc<RedisPool>>,
     org_id: u64,
-    map: Mutex<BTreeMap<RuleId, i64>>,
+    map: ReservoirCounters,
 }
 
 impl ReservoirStuff {
-    pub fn new(org_id: u64) -> Self {
+    /// Creates a new whatever ill call this struct.
+    pub fn new(
+        org_id: u64,
+        map: ReservoirCounters,
+        #[cfg(feature = "redis")] redis_pool: Option<Arc<RedisPool>>,
+    ) -> Self {
         Self {
             org_id,
-            map: Mutex::default(),
+            map,
+            #[cfg(feature = "redis")]
+            redis_pool,
         }
     }
 
-    #[cfg(not(feature = "redis"))]
-    pub fn evaluate_rule(&self, redis_pool: Option<()>, rule: RuleId, limit: i64) -> bool {
+    /// Evaluates a reservoir rule, returning true if it should be sampled.
+    pub fn evaluate_rule(&self, rule: RuleId, limit: i64) -> bool {
         let Ok(mut map_guard) = self.map.try_lock() else {
             return false;
         };
 
-        self.increment(&mut map_guard, rule, redis_pool);
+        let incremented_value = self.increment(&mut map_guard, rule);
 
-        if Self::limit_exceeded(&mut map_guard, rule, limit).unwrap_or(true) {
-            return false;
-        }
-
-        true
-    }
-
-    #[cfg(feature = "redis")]
-    pub fn evaluate_rule(&self, redis_pool: Option<&RedisPool>, rule: RuleId, limit: i64) -> bool {
-        let Ok(mut map_guard) = self.map.try_lock() else {
-            return false;
-        };
-
-        self.increment(&mut map_guard, rule, redis_pool);
-
-        if Self::limit_exceeded(&mut map_guard, rule, limit).unwrap_or(true) {
-            return false;
-        }
-
-        true
-    }
-
-    fn limit_exceeded(
-        guard: &mut MutexGuard<BTreeMap<RuleId, i64>>,
-        rule: RuleId,
-        limit: i64,
-    ) -> Option<bool> {
-        guard.get(&rule).map(|val| *val > limit)
+        incremented_value < limit
     }
 
     // if limit isn't reached yet, we wanna increment.
     // when incrementing, if processing is enabled, we increment redis and insert back the value
     // otherwise we just increment directly
-    #[cfg(feature = "redis")]
-    fn increment(
-        &self,
-        map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>,
-        rule: RuleId,
-        redis_pool: Option<&RedisPool>,
-    ) {
-        match redis_pool {
-            Some(redis_pool) => {
-                let new_value = increment_bias_rule_count(redis_pool, self.org_id, rule)
-                    .ok()
-                    .unwrap();
+    fn increment(&self, map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) -> i64 {
+        let mut increment_value: i64 = 1;
 
-                if let Some(val) = map_guard.get_mut(&rule) {
-                    *val = new_value;
+        #[cfg(feature = "redis")]
+        {
+            if let Some(pool) = self.redis_pool.as_ref() {
+                if let Ok(new_val_from_redis) =
+                    increment_bias_rule_count(pool.clone(), self.org_id, rule)
+                {
+                    increment_value = new_val_from_redis;
                 }
             }
-            None => {
-                if let Some(val) = map_guard.get_mut(&rule) {
-                    *val += 1;
-                }
-            }
-        };
-    }
-
-    #[cfg(not(feature = "redis"))]
-    fn increment(
-        &self,
-        map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>,
-        rule: RuleId,
-        _: Option<()>,
-    ) {
-        if let Some(val) = map_guard.get_mut(&rule) {
-            *val += 1;
         }
-    }
 
-    // if a rule is no longer in the sampling config, we can assume it's deleted and no longer needed.
-    pub fn delete_expired_rules(&self, config: &SamplingConfig) {
-        let reservoir_rules: BTreeSet<RuleId> = config
-            .rules_v2
-            .iter()
-            .filter_map(|rule| rule.is_reservoir().then_some(rule.id))
-            .collect();
+        let val = map_guard.entry(rule).or_insert(0);
+        *val += increment_value;
 
-        self.map
-            .try_lock()
-            .unwrap()
-            .retain(|key, _| reservoir_rules.contains(key));
+        *val
     }
 }
 
@@ -171,8 +113,6 @@ pub struct SamplingEvaluator {
     factor: f64,
     client_sample_rate: Option<f64>,
     reservoir: Arc<ReservoirStuff>,
-    #[cfg(feature = "redis")]
-    redis_pool: Option<Arc<RedisPool>>,
 }
 
 impl SamplingEvaluator {
@@ -184,15 +124,7 @@ impl SamplingEvaluator {
             factor: 1.0,
             client_sample_rate: None,
             reservoir,
-            #[cfg(feature = "redis")]
-            redis_pool: None,
         }
-    }
-
-    #[cfg(feature = "redis")]
-    pub fn set_redis_pool(mut self, redis: Option<Arc<RedisPool>>) -> Self {
-        self.redis_pool = redis;
-        self
     }
 
     /// Sets a new client sample rate value.
@@ -398,7 +330,6 @@ impl fmt::Display for MatchedRuleIds {
         Ok(())
     }
 }
-/*
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -416,10 +347,7 @@ mod tests {
     use super::*;
 
     fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        let project_key = "12345678123456781234567812345678"
-            .parse::<ProjectKey>()
-            .unwrap();
-        ReservoirStuff::new(project_key).into()
+        ReservoirStuff::new(0, ReservoirCounters::default(), None).into()
     }
 
     /// Helper to extract the sampling match after evaluating rules.
@@ -574,7 +502,7 @@ mod tests {
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(within_timerange).match_rules(
+        let res = SamplingEvaluator::new(within_timerange, dummy_reservoir()).match_rules(
             Uuid::default(),
             &dsc,
             [rule.clone()].iter(),
@@ -583,7 +511,7 @@ mod tests {
         assert!(evaluation_is_match(res));
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(before_timerange).match_rules(
+        let res = SamplingEvaluator::new(before_timerange, dummy_reservoir()).match_rules(
             Uuid::default(),
             &dsc,
             [rule.clone()].iter(),
@@ -591,7 +519,7 @@ mod tests {
         assert!(!evaluation_is_match(res));
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(after_timerange).match_rules(
+        let res = SamplingEvaluator::new(after_timerange, dummy_reservoir()).match_rules(
             Uuid::default(),
             &dsc,
             [rule].iter(),
@@ -726,4 +654,3 @@ mod tests {
         assert!(!evaluation_is_match(res));
     }
 }
-*/

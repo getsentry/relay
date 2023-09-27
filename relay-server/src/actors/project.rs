@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,7 +9,8 @@ use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
-use relay_sampling::evaluation::ReservoirStuff;
+use relay_sampling::config::RuleId;
+use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
@@ -394,7 +396,7 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
-    reservoir: Arc<ReservoirStuff>,
+    reservoir_counters: ReservoirCounters,
 }
 
 impl Project {
@@ -410,7 +412,7 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
-            reservoir: Arc::new(ReservoirStuff::new(0)),
+            reservoir_counters: Arc::default(),
         }
     }
 
@@ -424,8 +426,30 @@ impl Project {
         }
     }
 
-    pub fn reservoir(&self) -> Arc<ReservoirStuff> {
-        self.reservoir.clone()
+    pub fn reservoir_counters(&self) -> ReservoirCounters {
+        self.reservoir_counters.clone()
+    }
+
+    /// if a rule is no longer in the sampling config, we can assume it's deleted and no longer needed.
+    pub fn delete_expired_rules(&self) {
+        let Some(config) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.config.dynamic_sampling.as_ref())
+        else {
+            return;
+        };
+
+        let reservoir_rules: BTreeSet<RuleId> = config
+            .rules_v2
+            .iter()
+            .filter_map(|rule| rule.is_reservoir().then_some(rule.id))
+            .collect();
+
+        self.reservoir_counters
+            .try_lock()
+            .unwrap()
+            .retain(|key, _| reservoir_rules.contains(key));
     }
 
     pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {

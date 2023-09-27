@@ -592,14 +592,8 @@ impl ProjectCacheBroker {
             no_cache,
         );
 
-        if let Some(dynamic_sampling_config) = state.config.dynamic_sampling.as_ref() {
-            if let Some(reservoir) = self
-                .projects
-                .get(&project_key)
-                .map(|project| project.reservoir())
-            {
-                reservoir.delete_expired_rules(dynamic_sampling_config);
-            }
+        if let Some(project) = self.projects.get(&project_key) {
+            project.delete_expired_rules();
         };
 
         if !state.invalid() {
@@ -706,7 +700,7 @@ impl ProjectCacheBroker {
             ..
         }) = project.check_envelope(managed_envelope, self.services.outcome_aggregator.clone())
         {
-            let reservoir = project.reservoir();
+            let reservoir_counters = project.reservoir_counters();
 
             let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
@@ -716,7 +710,7 @@ impl ProjectCacheBroker {
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
                 sampling_project_state: None,
-                reservoir,
+                reservoir_counters,
             };
 
             if let Some(sampling_state) = sampling_state {

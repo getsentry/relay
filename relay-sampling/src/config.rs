@@ -4,6 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
+
 use serde::{Deserialize, Serialize};
 
 use crate::condition::RuleCondition;
@@ -83,8 +84,9 @@ impl SamplingRule {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
+    /// Returns `true` if rule is a reservoir rule.
     pub fn is_reservoir(&self) -> bool {
-        todo!()
+        matches!(&self.sampling_value, &SamplingValue::Reservoir { .. })
     }
 
     /// Returns the sample rate if the rule is active.
@@ -103,8 +105,8 @@ impl SamplingRule {
             SamplingValue::Factor { value } => value,
             SamplingValue::Reservoir { limit } => {
                 return reservoir
-                    .evaluate_rule(None, self.id, limit)
-                    .then_some(SamplingValue::Reservoir { limit })
+                    .evaluate_rule(self.id, limit)
+                    .then_some(SamplingValue::Reservoir { limit });
             }
         };
 
@@ -162,7 +164,11 @@ pub enum SamplingValue {
         /// The factor to apply on another matched sample rate.
         value: f64,
     },
+    /// A reservoir limit.
+    ///
+    /// Rule will match if less than `limit` rules have been sampled.
     Reservoir {
+        /// The limit of how many transactions with this rule will be sampled.
         limit: i64,
     },
 }

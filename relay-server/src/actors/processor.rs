@@ -44,7 +44,9 @@ use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{MatchedRuleIds, ReservoirStuff, SamplingEvaluator};
+use relay_sampling::evaluation::{
+    MatchedRuleIds, ReservoirCounters, ReservoirStuff, SamplingEvaluator,
+};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -428,7 +430,7 @@ pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
-    pub reservoir: Arc<ReservoirStuff>,
+    pub reservoir_counters: ReservoirCounters,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -537,6 +539,7 @@ pub struct EnvelopeProcessorService {
 
 struct InnerProcessor {
     config: Arc<Config>,
+    redis_pool: Option<Arc<RedisPool>>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
@@ -569,6 +572,8 @@ impl EnvelopeProcessorService {
         });
 
         let inner = InnerProcessor {
+            #[cfg(feature = "processing")]
+            redis_pool: _redis.clone().map(Arc::new),
             #[cfg(feature = "processing")]
             rate_limiter: _redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
@@ -1323,7 +1328,7 @@ impl EnvelopeProcessorService {
             envelope: mut managed_envelope,
             project_state,
             sampling_project_state,
-            reservoir,
+            reservoir_counters,
         } = message;
 
         let envelope = managed_envelope.envelope_mut();
@@ -1356,6 +1361,14 @@ impl EnvelopeProcessorService {
         //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
+
+        let reservoir = ReservoirStuff::new(
+            managed_envelope.scoping().organization_id,
+            reservoir_counters,
+            #[cfg(feature = "processing")]
+            self.inner.redis_pool.clone(),
+        )
+        .into();
 
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
