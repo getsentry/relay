@@ -130,9 +130,9 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
     let mut string = Cow::from(string.trim());
 
     for (regex, replacement) in [
-        (&NORMALIZER_REGEX, "$pre%s"),
         (&COMMENTS, "\n"),
         (&INLINE_COMMENTS, ""),
+        (&NORMALIZER_REGEX, "$pre%s"),
         (&WHITESPACE, " "),
         (&PARENS, "$pre$post"),
         (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
@@ -147,8 +147,8 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
     }
 
     let result = match string {
-        Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
+        Cow::Owned(scrubbed) => Some(scrubbed.trim().to_owned()),
+        Cow::Borrowed(s) if mark_as_scrubbed => Some(s.trim().to_owned()),
         Cow::Borrowed(_) => None,
     };
     (result, Mode::Regex)
@@ -636,6 +636,19 @@ mod tests {
         unique_alias,
         "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
         "SELECT pg_advisory_unlock(%s, %s)"
+    );
+
+    scrub_sql_test!(
+        activerecord,
+        "/*some comment `my_function'*/ SELECT 1",
+        "SELECT %s"
+    );
+
+    scrub_sql_test!(
+        // Active record comments can be parsed even if the statement is truncated.
+        activerecord_truncated,
+        "/*some comment `my_function'*/ SELECT * FROM foo WHERE ...",
+        "SELECT * FROM foo WHERE ..."
     );
 
     scrub_sql_test!(
