@@ -262,8 +262,8 @@ mod tests {
             instance,
             rules.iter(),
         ) {
+            ControlFlow::Break(sampling_match) => sampling_match,
             ControlFlow::Continue(_) => panic!("no match found"),
-            ControlFlow::Break(m) => m,
         }
     }
 

@@ -54,8 +54,8 @@ impl SamplingResult {
 impl From<ControlFlow<SamplingMatch, SamplingEvaluator>> for SamplingResult {
     fn from(value: ControlFlow<SamplingMatch, SamplingEvaluator>) -> Self {
         match value {
+            ControlFlow::Break(sampling_match) => Self::Match(sampling_match),
             ControlFlow::Continue(_) => Self::NoMatch,
-            ControlFlow::Break(m) => Self::Match(m),
         }
     }
 }
