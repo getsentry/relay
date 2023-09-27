@@ -1990,7 +1990,7 @@ impl EnvelopeProcessorService {
             return;
         };
 
-        if let Some(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
+        if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
             state.envelope_mut().set_dsc(dsc);
             state.sampling_project_state = Some(state.project_state.clone());
         }
