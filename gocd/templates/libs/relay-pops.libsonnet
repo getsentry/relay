@@ -49,6 +49,7 @@ local us_pops_stage() =
   } {
     [STAGE_NAME]+: {
       jobs+: deploy_pop_jobs([
+        'us',
         'us-pop-1',
         'us-pop-2',
         'us-pop-3',

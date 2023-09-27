@@ -455,7 +455,7 @@ impl Eq for QueuedBucket {}
 impl PartialOrd for QueuedBucket {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         // Comparing order is reversed to convert the max heap into a min heap
-        other.flush_at.partial_cmp(&self.flush_at)
+        Some(other.flush_at.cmp(&self.flush_at))
     }
 }
 

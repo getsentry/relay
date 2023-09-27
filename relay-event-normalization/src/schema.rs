@@ -69,7 +69,7 @@ fn value_trim_whitespace(value: &mut String, _meta: &mut Meta, state: &Processin
 }
 
 fn verify_value_nonempty<T>(
-    value: &mut T,
+    value: &T,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ProcessingResult
@@ -85,7 +85,7 @@ where
 }
 
 fn verify_value_nonempty_string<T>(
-    value: &mut T,
+    value: &T,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ProcessingResult
@@ -101,7 +101,7 @@ where
 }
 
 fn verify_value_characters(
-    value: &mut str,
+    value: &str,
     meta: &mut Meta,
     state: &ProcessingState<'_>,
 ) -> ProcessingResult {

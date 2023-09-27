@@ -13,10 +13,10 @@ publish = false
 [features]
 default = []
 dashboard = [
-  "axum/ws",
-  "dep:rust-embed",
-  "dep:mime_guess",
-  "relay-log/dashboard",
+    "axum/ws",
+    "dep:rust-embed",
+    "dep:mime_guess",
+    "relay-log/dashboard",
 ]
 processing = [
     "dep:minidump",
@@ -32,7 +32,7 @@ processing = [
 
 [dependencies]
 anyhow = { workspace = true }
-axum = { version = "0.6.15", features = [
+axum = { version = "0.6.20", features = [
     "headers",
     "macros",
     "matched-path",
