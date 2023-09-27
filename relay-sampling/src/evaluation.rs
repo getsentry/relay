@@ -74,7 +74,7 @@ impl BiasRedisKey {
 /// Increments the count, it will be initialized automatically if it doesn't exist.
 ///
 /// INCR docs: [`https://redis.io/commands/incr/`]
-#[cfg(feature = "processing")]
+#[cfg(feature = "redis")]
 fn increment_bias_rule_count(
     redis: &RedisPool,
     project_key: ProjectKey,
@@ -89,14 +89,14 @@ fn increment_bias_rule_count(
 
 #[derive(Debug)]
 pub struct ReservoirStuff {
-    #[cfg(feature = "processing")]
+    #[cfg(feature = "redis")]
     redis: Option<RedisPool>,
     project_key: ProjectKey,
     map: Mutex<BTreeMap<RuleId, i64>>,
 }
 
 impl ReservoirStuff {
-    #[cfg(feature = "processing")]
+    #[cfg(feature = "redis")]
     pub fn new(redis: Option<RedisPool>, project_key: ProjectKey) -> Self {
         Self {
             redis,
@@ -105,7 +105,7 @@ impl ReservoirStuff {
         }
     }
 
-    #[cfg(not(feature = "processing"))]
+    #[cfg(not(feature = "redis"))]
     pub fn new(project_key: ProjectKey) -> Self {
         Self {
             project_key,
@@ -122,9 +122,7 @@ impl ReservoirStuff {
             return false;
         }
 
-        if let Some(val) = map_guard.get_mut(&rule) {
-            *val += 1;
-        }
+        Self::increment(&mut map_guard, rule);
 
         true
     }
@@ -137,25 +135,11 @@ impl ReservoirStuff {
         guard.get(&rule).map(|val| *val > limit)
     }
 
-    // if a rule is no longer in the sampling config, we can assume it's deleted and no longer needed.
-    pub fn delete_expired_rules(&self, config: &SamplingConfig) {
-        let reservoir_rules: BTreeSet<RuleId> = config
-            .rules_v2
-            .iter()
-            .filter_map(|rule| rule.is_reservoir().then_some(rule.id))
-            .collect();
-
-        self.map
-            .try_lock()
-            .unwrap()
-            .retain(|key, _| reservoir_rules.contains(key));
-    }
-
     // if limit isn't reached yet, we wanna increment.
     // when incrementing, if processing is enabled, we increment redis and insert back the value
     // otherwise we just increment directly
-    #[cfg(feature = "processing")]
-    pub fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
+    #[cfg(feature = "redis")]
+    fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
         match self.redis.as_ref() {
             Some(redis_pool) => {
                 let new_value =
@@ -172,11 +156,25 @@ impl ReservoirStuff {
             }
         };
     }
-    #[cfg(not(feature = "processing"))]
-    pub fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
+    #[cfg(not(feature = "redis"))]
+    fn increment(map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) {
         if let Some(val) = map_guard.get_mut(&rule) {
             *val += 1;
         }
+    }
+
+    // if a rule is no longer in the sampling config, we can assume it's deleted and no longer needed.
+    pub fn delete_expired_rules(&self, config: &SamplingConfig) {
+        let reservoir_rules: BTreeSet<RuleId> = config
+            .rules_v2
+            .iter()
+            .filter_map(|rule| rule.is_reservoir().then_some(rule.id))
+            .collect();
+
+        self.map
+            .try_lock()
+            .unwrap()
+            .retain(|key, _| reservoir_rules.contains(key));
     }
 }
 
@@ -227,19 +225,18 @@ impl SamplingEvaluator {
 
             match sampling_value {
                 SamplingValue::Factor { value } => self.factor *= value,
-                SamplingValue::SampleRate { .. } if rule.is_reservoir() => {
-                    return Evaluation::Matched(SamplingMatch::new_reservoir(rule.id));
-                }
                 SamplingValue::SampleRate { value } => {
                     let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
-                    return Evaluation::Matched(SamplingMatch::new_standard(
+                    return Evaluation::Matched(SamplingMatch::new(
                         self.adjusted_sample_rate(sample_rate),
                         seed,
                         self.rule_ids,
                     ));
                 }
-                SamplingValue::Reservoir { limit } => todo!(),
+                SamplingValue::Reservoir { .. } => {
+                    return Evaluation::Matched(SamplingMatch::new(1.0, seed, vec![rule.id]));
+                }
             }
         }
         Evaluation::Continue(self)
@@ -277,6 +274,12 @@ impl SamplingEvaluator {
 }
 
 fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
+    if sample_rate == 0.0 {
+        return false;
+    } else if sample_rate == 1.0 {
+        return true;
+    }
+
     let random_number = pseudo_random_from_uuid(seed);
     relay_log::trace!(
         sample_rate,
@@ -295,34 +298,30 @@ fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
 
 /// Represents the specification for sampling an incoming event.
 #[derive(Clone, Debug, PartialEq)]
-pub enum SamplingMatch {
-    Reservoir {
-        rule: RuleId,
-    },
-    Standard {
-        /// The sample rate to use for the incoming event.
-        sample_rate: f64,
-        /// The seed to feed to the random number generator which allows the same number to be
-        /// generated given the same seed.
-        ///
-        /// This is especially important for trace sampling, even though we can have inconsistent
-        /// traces due to multi-matching.
-        seed: Uuid,
-        /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
-        matched_rules: MatchedRuleIds,
-        /// Whether this sampling match results in the item getting sampled.
-        /// It's essentially a cache, as the value can be deterministically derived from
-        /// the sample rate and the seed.
-        should_keep: bool,
-    },
+pub struct SamplingMatch {
+    /// The sample rate to use for the incoming event.
+    sample_rate: f64,
+    /// The seed to feed to the random number generator which allows the same number to be
+    /// generated given the same seed.
+    ///
+    /// This is especially important for trace sampling, even though we can have inconsistent
+    /// traces due to multi-matching.
+    seed: Uuid,
+    /// The list of rule ids that have matched the incoming event and/or dynamic sampling context.
+    matched_rules: MatchedRuleIds,
+    /// Whether this sampling match results in the item getting sampled.
+    /// It's essentially a cache, as the value can be deterministically derived from
+    /// the sample rate and the seed.
+    should_keep: bool,
 }
 
 impl SamplingMatch {
-    fn new_standard(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
+    fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
+
         let should_keep = sampling_match(sample_rate, seed);
 
-        Self::Standard {
+        Self {
             sample_rate,
             seed,
             matched_rules,
@@ -330,16 +329,9 @@ impl SamplingMatch {
         }
     }
 
-    fn new_reservoir(rule: RuleId) -> Self {
-        Self::Reservoir { rule }
-    }
-
     /// Returns the sample rate.
     pub fn sample_rate(&self) -> f64 {
-        match self {
-            SamplingMatch::Reservoir { .. } => 1.0,
-            SamplingMatch::Standard { sample_rate, .. } => *sample_rate,
-        }
+        self.sample_rate
     }
 
     /// Returns the matched rules for the sampling match.
@@ -347,18 +339,12 @@ impl SamplingMatch {
     /// Takes ownership, useful if you don't need the [`SamplingMatch`] anymore
     /// and you want to avoid allocations.
     pub fn into_matched_rules(self) -> MatchedRuleIds {
-        match self {
-            SamplingMatch::Reservoir { rule } => MatchedRuleIds(vec![rule]),
-            SamplingMatch::Standard { matched_rules, .. } => matched_rules,
-        }
+        self.matched_rules
     }
 
     /// Returns true if event should be kept.
     pub fn should_keep(&self) -> bool {
-        match self {
-            SamplingMatch::Reservoir { .. } => true,
-            SamplingMatch::Standard { should_keep, .. } => *should_keep,
-        }
+        self.should_keep
     }
 
     /// Returns true if event should be dropped.

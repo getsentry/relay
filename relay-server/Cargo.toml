@@ -28,6 +28,7 @@ processing = [
     "relay-kafka/producer",
     "relay-quotas/redis",
     "relay-redis/impl",
+    "relay-sampling/redis",
 ]
 
 [dependencies]
