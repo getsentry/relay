@@ -887,19 +887,19 @@ struct UpstreamQueue {
     /// network outage mode (see [`IsNetworkOutage`]).
     next_retry: Instant,
     /// Time to wait before retrying another request from the retry queue.
-    retry_after: Duration,
+    retry_interval: Duration,
 }
 
 impl UpstreamQueue {
     /// Creates an empty upstream queue.
-    pub fn new(retry_after: Duration) -> Self {
+    pub fn new(retry_interval: Duration) -> Self {
         Self {
             high: VecDeque::new(),
             low: VecDeque::new(),
             retry_high: VecDeque::new(),
             retry_low: VecDeque::new(),
             next_retry: Instant::now(),
-            retry_after,
+            retry_interval,
         }
     }
 
@@ -940,13 +940,14 @@ impl UpstreamQueue {
             RequestPriority::High => self.retry_high.push_back(entry),
             RequestPriority::Low => self.retry_low.push_back(entry),
         };
+
+        self.next_retry = Instant::now() + self.retry_interval;
+
         relay_statsd::metric!(
             histogram(RelayHistograms::UpstreamMessageQueueSize) = self.len() as u64,
             priority = priority.name(),
             attempt = "retry"
         );
-
-        self.next_retry = Instant::now() + self.retry_after
     }
 
     /// Dequeues the entry with highest priority.
@@ -954,26 +955,22 @@ impl UpstreamQueue {
     /// Highest priority entry is determined by (1) request priority and (2)
     /// retries first.
     pub fn dequeue(&mut self) -> Option<Entry> {
-        let now = Instant::now();
+        let should_retry = self.next_retry <= Instant::now();
 
-        if !self.retry_high.is_empty() && self.next_retry <= now {
-            return self.retry_high.pop_front();
+        if let Some(Some(entry)) = should_retry.then(|| self.retry_high.pop_front()) {
+            Some(entry)
+        } else if let Some(entry) = self.high.pop_front() {
+            Some(entry)
+        } else if let Some(Some(entry)) = should_retry.then(|| self.retry_low.pop_front()) {
+            Some(entry)
+        } else {
+            self.low.pop_front()
         }
-        if !self.high.is_empty() {
-            return self.high.pop_front();
-        }
-        if !self.retry_low.is_empty() && self.next_retry <= now {
-            return self.retry_low.pop_front();
-        }
-        self.low.pop_front()
     }
 
-    /// Resets the retry, if started.
-    pub fn reset_retry_backoff(&mut self) {
-        let now = Instant::now();
-        if self.next_retry > now {
-            self.next_retry = now;
-        }
+    /// Starts retrying queued requests.
+    pub fn trigger_retries(&mut self) {
+        self.next_retry = Instant::now();
     }
 }
 
@@ -1426,7 +1423,7 @@ impl UpstreamBroker {
             RequestOutcome::Dropped => self.conn.notify_error(&self.action_tx),
             RequestOutcome::Received => {
                 self.conn.reset_error();
-                self.queue.reset_retry_backoff();
+                self.queue.trigger_retries();
             }
         }
     }
@@ -1482,7 +1479,7 @@ impl Service for UpstreamRelayService {
         // and authentication state.
         let mut broker = UpstreamBroker {
             client: client.clone(),
-            queue: UpstreamQueue::new(config.http_unavailable_upstream_period()),
+            queue: UpstreamQueue::new(config.http_retry_delay()),
             auth_state: AuthState::init(&config),
             conn: ConnectionMonitor::new(client),
             permits: config.max_concurrent_requests(),
