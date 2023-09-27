@@ -238,7 +238,6 @@ impl fmt::Display for MatchedRuleIds {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -266,6 +265,10 @@ mod tests {
             ControlFlow::Continue(_) => panic!("no match found"),
             ControlFlow::Break(m) => m,
         }
+    }
+
+    fn evaluation_is_match(res: ControlFlow<SamplingMatch, SamplingEvaluator>) -> bool {
+        matches!(res, ControlFlow::Break(_))
     }
 
     /// Helper to check if certain rules are matched on.
@@ -404,19 +407,29 @@ mod tests {
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(within_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
-            .is_match());
+        let res = SamplingEvaluator::new(within_timerange).match_rules(
+            Uuid::default(),
+            &dsc,
+            [rule.clone()].iter(),
+        );
+
+        assert!(evaluation_is_match(res));
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(before_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
-            .is_no_match());
+        let res = SamplingEvaluator::new(before_timerange).match_rules(
+            Uuid::default(),
+            &dsc,
+            [rule.clone()].iter(),
+        );
+        assert!(!evaluation_is_match(res));
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        assert!(SamplingEvaluator::new(after_timerange)
-            .match_rules(Uuid::default(), &dsc, [rule].iter())
-            .is_no_match());
+        let res = SamplingEvaluator::new(after_timerange).match_rules(
+            Uuid::default(),
+            &dsc,
+            [rule].iter(),
+        );
+        assert!(!evaluation_is_match(res));
     }
 
     /// Checks that `SamplingValueEvaluator` correctly matches the right rules.
@@ -543,7 +556,6 @@ mod tests {
 
         let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
 
-        assert!(res.is_no_match());
+        assert!(!evaluation_is_match(res));
     }
 }
-*/
