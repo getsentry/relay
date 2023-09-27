@@ -1,8 +1,10 @@
 //! Functionality for calculating if a trace should be processed or dropped.
+use std::ops::ControlFlow;
+
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{Evaluation, SamplingEvaluator, SamplingMatch};
+use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::{Envelope, ItemType};
@@ -49,11 +51,11 @@ impl SamplingResult {
     }
 }
 
-impl From<Evaluation> for SamplingResult {
-    fn from(value: Evaluation) -> Self {
+impl From<ControlFlow<SamplingMatch, SamplingEvaluator>> for SamplingResult {
+    fn from(value: ControlFlow<SamplingMatch, SamplingEvaluator>) -> Self {
         match value {
-            Evaluation::Matched(sampling_match) => Self::Match(sampling_match),
-            Evaluation::Continue(_) => Self::NoMatch,
+            ControlFlow::Break(sampling_match) => Self::Match(sampling_match),
+            ControlFlow::Continue(_) => Self::NoMatch,
         }
     }
 }
