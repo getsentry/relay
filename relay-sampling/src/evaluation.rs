@@ -260,7 +260,6 @@ pub struct SamplingMatch {
 impl SamplingMatch {
     fn new(sample_rate: f64, seed: Uuid, matched_rules: Vec<RuleId>) -> Self {
         let matched_rules = MatchedRuleIds(matched_rules);
-
         let should_keep = sampling_match(sample_rate, seed);
 
         Self {
@@ -330,6 +329,7 @@ impl fmt::Display for MatchedRuleIds {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

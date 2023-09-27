@@ -2963,3 +2963,1317 @@ impl Service for EnvelopeProcessorService {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+    use std::str::FromStr;
+
+    use chrono::{DateTime, TimeZone, Utc};
+    use relay_base_schema::metrics::{DurationUnit, MetricUnit};
+    use relay_common::glob2::LazyGlob;
+    use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
+    use relay_event_schema::protocol::{EventId, TransactionSource};
+    use relay_pii::DataScrubbingConfig;
+    use relay_sampling::condition::RuleCondition;
+    use relay_sampling::config::{
+        DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule,
+        SamplingValue, TimeRange,
+    };
+    use relay_sampling::evaluation::SamplingMatch;
+    use relay_test::mock_service;
+    use similar_asserts::assert_eq;
+    use uuid::Uuid;
+
+    use crate::actors::test_store::TestStore;
+    use crate::extractors::RequestMeta;
+    use crate::metrics_extraction::transactions::types::{
+        CommonTags, TransactionMeasurementTags, TransactionMetric,
+    };
+    use crate::metrics_extraction::IntoMetric;
+
+    use crate::testutils::{new_envelope, state_with_rule_and_condition};
+    use crate::utils::Semaphore as TestSemaphore;
+
+    use super::*;
+
+    struct TestProcessSessionArguments<'a> {
+        item: Item,
+        received: DateTime<Utc>,
+        client: Option<&'a str>,
+        client_addr: Option<net::IpAddr>,
+        metrics_config: SessionMetricsConfig,
+        clock_drift_processor: ClockDriftProcessor,
+        extracted_metrics: Vec<Bucket>,
+    }
+
+    impl<'a> TestProcessSessionArguments<'a> {
+        fn run_session_producer(&mut self) -> bool {
+            let proc = create_test_processor(Default::default());
+            proc.process_session(
+                &mut self.item,
+                self.received,
+                self.client,
+                self.client_addr,
+                self.metrics_config,
+                &self.clock_drift_processor,
+                &mut self.extracted_metrics,
+            )
+        }
+
+        fn default() -> Self {
+            let mut item = Item::new(ItemType::Event);
+
+            let session = r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#;
+
+            item.set_payload(ContentType::Json, session);
+            let received = DateTime::from_str("2021-04-26T08:00:00+0100").unwrap();
+
+            Self {
+                item,
+                received,
+                client: None,
+                client_addr: None,
+                metrics_config: serde_json::from_str(
+                    "
+        {
+            \"version\": 0,
+            \"drop\": true
+        }",
+                )
+                .unwrap(),
+                clock_drift_processor: ClockDriftProcessor::new(None, received),
+                extracted_metrics: vec![],
+            }
+        }
+    }
+
+    fn dummy_reservoir() -> Arc<ReservoirStuff> {
+        ReservoirStuff::new(0, ReservoirCounters::default(), None).into()
+    }
+
+    fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
+        Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(event_type),
+            transaction: Annotated::new(transaction.to_string()),
+            release: Annotated::new(LenientString(release.to_string())),
+            ..Event::default()
+        }
+    }
+
+    /// Checks that the default test-arguments leads to the item being kept, which helps ensure the
+    /// other tests are valid.
+    #[tokio::test]
+    async fn test_process_session_keep_item() {
+        let mut args = TestProcessSessionArguments::default();
+        assert!(args.run_session_producer());
+    }
+
+    #[tokio::test]
+    async fn test_process_session_invalid_json() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item
+            .set_payload(ContentType::Json, "this isnt valid json");
+        assert!(!args.run_session_producer());
+    }
+
+    #[tokio::test]
+    async fn test_process_session_sequence_overflow() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item.set_payload(
+            ContentType::Json,
+            r#"{
+            "init": false,
+            "started": "2021-04-26T08:00:00+0100",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "seq": 18446744073709551615,
+            "attrs": {
+                "release": "1.0.0"
+            },
+            "did": "user123",
+            "status": "this is not a valid status!",
+            "duration": 123.4
+        }"#,
+        );
+        assert!(!args.run_session_producer());
+    }
+
+    #[tokio::test]
+    async fn test_process_session_invalid_timestamp() {
+        let mut args = TestProcessSessionArguments::default();
+        args.received = DateTime::from_str("2021-05-26T08:00:00+0100").unwrap();
+        assert!(!args.run_session_producer());
+    }
+
+    #[tokio::test]
+    async fn test_process_session_metrics_extracted() {
+        let mut args = TestProcessSessionArguments::default();
+        args.item.set_metrics_extracted(true);
+        assert!(!args.run_session_producer());
+    }
+
+    fn create_breadcrumbs_item(breadcrumbs: &[(Option<DateTime<Utc>>, &str)]) -> Item {
+        let mut data = Vec::new();
+
+        for (date, message) in breadcrumbs {
+            let mut breadcrumb = BTreeMap::new();
+            breadcrumb.insert("message", (*message).to_string());
+            if let Some(date) = date {
+                breadcrumb.insert("timestamp", date.to_rfc3339());
+            }
+
+            rmp_serde::encode::write(&mut data, &breadcrumb).expect("write msgpack");
+        }
+
+        let mut item = Item::new(ItemType::Attachment);
+        item.set_payload(ContentType::MsgPack, data);
+        item
+    }
+
+    fn breadcrumbs_from_event(event: &Annotated<Event>) -> &Vec<Annotated<Breadcrumb>> {
+        event
+            .value()
+            .unwrap()
+            .breadcrumbs
+            .value()
+            .unwrap()
+            .values
+            .value()
+            .unwrap()
+    }
+
+    fn services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+        (outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn test_dsc_respects_metrics_extracted() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let service: EnvelopeProcessorService = create_test_processor(config);
+
+        // Gets a ProcessEnvelopeState, either with or without the metrics_exracted flag toggled.
+        let get_state = |version: Option<u16>| {
+            let event = Event {
+                id: Annotated::new(EventId::new()),
+                ty: Annotated::new(EventType::Transaction),
+                transaction: Annotated::new("testing".to_owned()),
+                ..Event::default()
+            };
+
+            let mut project_state = state_with_rule_and_condition(
+                Some(0.0),
+                RuleType::Transaction,
+                RuleCondition::all(),
+            );
+
+            if let Some(version) = version {
+                project_state.config.transaction_metrics =
+                    ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
+                        version,
+                        ..Default::default()
+                    })
+                    .into();
+            }
+
+            ProcessEnvelopeState {
+                event: Annotated::from(event),
+                metrics: Default::default(),
+                sample_rates: None,
+                sampling_result: SamplingResult::Pending,
+                extracted_metrics: Default::default(),
+                project_state: Arc::new(project_state),
+                sampling_project_state: None,
+                project_id: ProjectId::new(42),
+                managed_envelope: ManagedEnvelope::new(
+                    new_envelope(false, "foo"),
+                    TestSemaphore::new(42).try_acquire().unwrap(),
+                    outcome_aggregator.clone(),
+                    test_store.clone(),
+                ),
+                has_profile: false,
+                event_metrics_extracted: false,
+                reservoir: dummy_reservoir(),
+            }
+        };
+
+        // None represents no TransactionMetricsConfig, DS will not be run
+        let mut state = get_state(None);
+        service.run_dynamic_sampling(&mut state);
+        assert!(state.sampling_result.should_keep());
+
+        // Current version is 1, so it won't run DS if it's outdated
+        let mut state = get_state(Some(0));
+        service.run_dynamic_sampling(&mut state);
+        assert!(state.sampling_result.should_keep());
+
+        // Dynamic sampling is run, as the transactionmetrics version is up to date.
+        let mut state = get_state(Some(1));
+        service.run_dynamic_sampling(&mut state);
+        assert!(state.sampling_result.should_drop());
+    }
+
+    #[test]
+    fn test_it_keeps_or_drops_transactions() {
+        let event = Event {
+            id: Annotated::new(EventId::new()),
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("testing".to_owned()),
+            ..Event::default()
+        };
+
+        for (sample_rate, should_keep) in [(0.0, false), (1.0, true)] {
+            let sampling_config = SamplingConfig {
+                rules: vec![],
+                rules_v2: vec![SamplingRule {
+                    condition: RuleCondition::all(),
+                    sampling_value: SamplingValue::SampleRate { value: sample_rate },
+                    ty: RuleType::Transaction,
+                    id: RuleId(1),
+                    time_range: Default::default(),
+                    decaying_fn: DecayingFunction::Constant,
+                }],
+                mode: SamplingMode::Received,
+            };
+
+            // TODO: This does not test if the sampling decision is actually applied. This should be
+            // refactored to send a proper Envelope in and call process_state to cover the full
+            // pipeline.
+            let res = EnvelopeProcessorService::compute_sampling_decision(
+                false,
+                dummy_reservoir(),
+                Some(&sampling_config),
+                Some(&event),
+                None,
+                None,
+            );
+            assert_eq!(res.should_keep(), should_keep);
+        }
+    }
+
+    #[test]
+    fn test_breadcrumbs_file1() {
+        let item = create_breadcrumbs_item(&[(None, "item1")]);
+
+        // NOTE: using (Some, None) here:
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            Some(item),
+            None,
+        );
+
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
+
+        assert_eq!(breadcrumbs.len(), 1);
+        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        assert_eq!("item1", first_breadcrumb_message);
+    }
+
+    #[test]
+    fn test_breadcrumbs_file2() {
+        let item = create_breadcrumbs_item(&[(None, "item2")]);
+
+        // NOTE: using (None, Some) here:
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            None,
+            Some(item),
+        );
+
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
+        assert_eq!(breadcrumbs.len(), 1);
+
+        let first_breadcrumb_message = breadcrumbs[0].value().unwrap().message.value().unwrap();
+        assert_eq!("item2", first_breadcrumb_message);
+    }
+
+    #[test]
+    fn test_breadcrumbs_truncation() {
+        let item1 = create_breadcrumbs_item(&[(None, "crumb1")]);
+        let item2 = create_breadcrumbs_item(&[(None, "crumb2"), (None, "crumb3")]);
+
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            Some(item1),
+            Some(item2),
+        );
+
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
+        assert_eq!(breadcrumbs.len(), 2);
+    }
+
+    #[test]
+    fn test_breadcrumbs_order_with_none() {
+        let d1 = Utc.with_ymd_and_hms(2019, 10, 10, 12, 10, 10).unwrap();
+        let d2 = Utc.with_ymd_and_hms(2019, 10, 11, 12, 10, 10).unwrap();
+
+        let item1 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
+        let item2 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
+
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            Some(item1),
+            Some(item2),
+        );
+
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
+        assert_eq!(breadcrumbs.len(), 2);
+
+        assert_eq!(Some("d1"), breadcrumbs[0].value().unwrap().message.as_str());
+        assert_eq!(Some("d2"), breadcrumbs[1].value().unwrap().message.as_str());
+    }
+
+    #[test]
+    fn test_breadcrumbs_reversed_with_none() {
+        let d1 = Utc.with_ymd_and_hms(2019, 10, 10, 12, 10, 10).unwrap();
+        let d2 = Utc.with_ymd_and_hms(2019, 10, 11, 12, 10, 10).unwrap();
+
+        let item1 = create_breadcrumbs_item(&[(Some(d2), "d2")]);
+        let item2 = create_breadcrumbs_item(&[(None, "none"), (Some(d1), "d1")]);
+
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            None,
+            Some(item1),
+            Some(item2),
+        );
+
+        let event = result.unwrap().0;
+        let breadcrumbs = breadcrumbs_from_event(&event);
+        assert_eq!(breadcrumbs.len(), 2);
+
+        assert_eq!(Some("d1"), breadcrumbs[0].value().unwrap().message.as_str());
+        assert_eq!(Some("d2"), breadcrumbs[1].value().unwrap().message.as_str());
+    }
+
+    #[test]
+    fn test_empty_breadcrumbs_item() {
+        let item1 = create_breadcrumbs_item(&[]);
+        let item2 = create_breadcrumbs_item(&[]);
+        let item3 = create_breadcrumbs_item(&[]);
+
+        let result = EnvelopeProcessorService::event_from_attachments(
+            &Config::default(),
+            Some(item1),
+            Some(item2),
+            Some(item3),
+        );
+
+        // regression test to ensure we don't fail parsing an empty file
+        result.expect("event_from_attachments");
+    }
+
+    fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+        let (envelope_manager, _) = mock_service("envelope_manager", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
+        let inner = InnerProcessor {
+            config: Arc::new(config),
+            envelope_manager,
+            project_cache,
+            outcome_aggregator,
+            upstream_relay,
+            #[cfg(feature = "processing")]
+            rate_limiter: None,
+            #[cfg(feature = "processing")]
+            redis_pool: None,
+            geoip_lookup: None,
+            global_config,
+        };
+
+        EnvelopeProcessorService {
+            global_config: Arc::default(),
+            inner: Arc::new(inner),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_user_report_invalid() {
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
+        let event_id = EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::UserReport);
+            item.set_payload(ContentType::Json, r#"{"foo": "bar"}"#);
+            item
+        });
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::Event);
+            item.set_payload(ContentType::Json, "{}");
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let new_envelope = ctx.envelope();
+
+        assert_eq!(new_envelope.len(), 1);
+        assert_eq!(new_envelope.items().next().unwrap().ty(), &ItemType::Event);
+    }
+
+    fn process_envelope_with_root_project_state(
+        envelope: Box<Envelope>,
+        sampling_project_state: Option<Arc<ProjectState>>,
+    ) -> Envelope {
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        ctx.envelope().clone()
+    }
+
+    fn extract_first_event_from_envelope(envelope: Envelope) -> Event {
+        let item = envelope.items().next().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&item.payload()).unwrap();
+        annotated_event.into_value().unwrap()
+    }
+
+    fn mocked_error_item() -> Item {
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(
+            ContentType::Json,
+            r#"{
+              "event_id": "52df9022835246eeb317dbd739ccd059",
+              "exception": {
+                "values": [
+                    {
+                      "type": "mytype",
+                      "value": "myvalue",
+                      "module": "mymodule",
+                      "thread_id": 42,
+                      "other": "value"
+                    }
+                ]
+              }
+            }"#,
+        );
+        item
+    }
+
+    fn project_state_with_single_rule(sample_rate: f64) -> ProjectState {
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![SamplingRule {
+                condition: RuleCondition::all(),
+                sampling_value: SamplingValue::SampleRate { value: sample_rate },
+                ty: RuleType::Trace,
+                id: RuleId(1),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            }],
+            mode: SamplingMode::Received,
+        };
+        let mut sampling_project_state = ProjectState::allowed();
+        sampling_project_state.config.dynamic_sampling = Some(sampling_config);
+        sampling_project_state
+    }
+
+    #[tokio::test]
+    async fn test_error_is_tagged_correctly_if_trace_sampling_result_is_some() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: None,
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+        envelope.set_dsc(dsc);
+        envelope.add_item(mocked_error_item());
+
+        // We test with sample rate equal to 100%.
+        let sampling_project_state = project_state_with_single_rule(1.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope.clone(),
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(trace_context.sampled.value().unwrap());
+
+        // We test with sample rate equal to 0%.
+        let sampling_project_state = project_state_with_single_rule(0.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(!trace_context.sampled.value().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_error_is_not_tagged_if_already_tagged() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        // We test tagging with an incoming event that has already been tagged by downstream Relay.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        let mut item = Item::new(ItemType::Event);
+        item.set_payload(
+            ContentType::Json,
+            r#"{
+              "event_id": "52df9022835246eeb317dbd739ccd059",
+              "exception": {
+                "values": [
+                    {
+                      "type": "mytype",
+                      "value": "myvalue",
+                      "module": "mymodule",
+                      "thread_id": 42,
+                      "other": "value"
+                    }
+                ]
+              },
+              "contexts": {
+                "trace": {
+                    "sampled": true
+                }
+              }
+            }"#,
+        );
+        envelope.add_item(item);
+        let sampling_project_state = project_state_with_single_rule(0.0);
+        let new_envelope = process_envelope_with_root_project_state(
+            envelope,
+            Some(Arc::new(sampling_project_state)),
+        );
+        let event = extract_first_event_from_envelope(new_envelope);
+        let trace_context = event.context::<TraceContext>().unwrap();
+        assert!(trace_context.sampled.value().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_error_is_tagged_correctly_if_trace_sampling_result_is_none() {
+        let event_id = EventId::new();
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+        let request_meta = RequestMeta::new(dsn);
+
+        // We test tagging when root project state and dsc are none.
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+        envelope.add_item(mocked_error_item());
+        let new_envelope = process_envelope_with_root_project_state(envelope, None);
+        let event = extract_first_event_from_envelope(new_envelope);
+
+        assert!(event.contexts.value().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_browser_version_extraction_with_pii_like_data() {
+        let processor = create_test_processor(Default::default());
+        let (outcome_aggregator, test_store) = services();
+        let event_id = EventId::new();
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(Some(event_id), request_meta);
+
+        envelope.add_item({
+                let mut item = Item::new(ItemType::Event);
+                item.set_payload(
+                    ContentType::Json,
+                    r#"
+                    {
+                        "request": {
+                            "headers": [
+                                ["User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"]
+                            ]
+                        }
+                    }
+                "#,
+                );
+                item
+            });
+
+        let mut datascrubbing_settings = DataScrubbingConfig::default();
+        // enable all the default scrubbing
+        datascrubbing_settings.scrub_data = true;
+        datascrubbing_settings.scrub_defaults = true;
+        datascrubbing_settings.scrub_ip_addresses = true;
+
+        // Make sure to mask any IP-like looking data
+        let pii_config = serde_json::from_str(r#"{"applications": {"**": ["@ip:mask"]}}"#).unwrap();
+
+        let config = ProjectConfig {
+            datascrubbing_settings,
+            pii_config: Some(pii_config),
+            ..Default::default()
+        };
+
+        let mut project_state = ProjectState::allowed();
+        project_state.config = config;
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(project_state),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let new_envelope = envelope_response.envelope.unwrap();
+        let new_envelope = new_envelope.envelope();
+
+        let event_item = new_envelope.items().last().unwrap();
+        let annotated_event: Annotated<Event> =
+            Annotated::from_json_bytes(&event_item.payload()).unwrap();
+        let event = annotated_event.into_value().unwrap();
+        let headers = event
+            .request
+            .into_value()
+            .unwrap()
+            .headers
+            .into_value()
+            .unwrap();
+
+        // IP-like data must be masked
+        assert_eq!(Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/********* Safari/537.36"), headers.get_header("User-Agent"));
+        // But we still get correct browser and version number
+        let contexts = event.contexts.into_value().unwrap();
+        let browser = contexts.0.get("browser").unwrap();
+        assert_eq!(
+            r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
+            browser.to_json().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_client_report_removal() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r#"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "#,
+            );
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        assert!(envelope_response.envelope.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_client_report_forwarding() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": false,
+                // a relay need to emit outcomes at all to not process.
+                "emit_client_outcomes": true
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r#"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "#,
+            );
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        let ctx = envelope_response.envelope.unwrap();
+        let item = ctx.envelope().items().next().unwrap();
+        assert_eq!(item.ty(), &ItemType::ClientReport);
+
+        ctx.accept(); // do not try to capture or emit outcomes
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "processing")]
+    async fn test_client_report_removal_in_processing() {
+        relay_test::setup();
+        let (outcome_aggregator, test_store) = services();
+
+        let config = Config::from_json_value(serde_json::json!({
+            "outcomes": {
+                "emit_outcomes": true,
+                "emit_client_outcomes": false,
+            },
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let processor = create_test_processor(config);
+
+        let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
+            .parse()
+            .unwrap();
+
+        let request_meta = RequestMeta::new(dsn);
+        let mut envelope = Envelope::from_request(None, request_meta);
+
+        envelope.add_item({
+            let mut item = Item::new(ItemType::ClientReport);
+            item.set_payload(
+                ContentType::Json,
+                r#"
+                    {
+                        "discarded_events": [
+                            ["queue_full", "error", 42]
+                        ]
+                    }
+                "#,
+            );
+            item
+        });
+
+        let message = ProcessEnvelope {
+            envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
+            project_state: Arc::new(ProjectState::allowed()),
+            sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
+        };
+
+        let envelope_response = processor.process(message).unwrap();
+        assert!(envelope_response.envelope.is_none());
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_unprintable_fields() {
+        let event = Annotated::new(Event {
+            environment: Annotated::new(String::from(
+                "�9�~YY���)�����9�~YY���)�����9�~YY���)�����9�~YY���)�����",
+            )),
+            ..Default::default()
+        });
+        assert!(has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            release: Annotated::new(
+                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
+            ),
+            ..Default::default()
+        });
+        assert!(has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            environment: Annotated::new(String::from("production")),
+            ..Default::default()
+        });
+        assert!(!has_unprintable_fields(&event));
+
+        let event = Annotated::new(Event {
+            release: Annotated::new(
+                String::from("release with\t some\n normal\r\nwhitespace").into(),
+            ),
+            ..Default::default()
+        });
+        assert!(!has_unprintable_fields(&event));
+    }
+
+    #[test]
+    fn test_from_outcome_type_sampled() {
+        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "adsf").is_err());
+
+        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:").is_err());
+
+        assert!(outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:foo").is_err());
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:"),
+            Err(())
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:;"),
+            Err(())
+        ));
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:ab;12"),
+            Err(())
+        ));
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123,456"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![
+                RuleId(123),
+                RuleId(456),
+            ])))
+        );
+
+        assert_eq!(
+            outcome_from_parts(ClientReportField::FilteredSampling, "Sampled:123"),
+            Ok(Outcome::FilteredSampling(MatchedRuleIds(vec![RuleId(123)])))
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_filtered() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "error-message"),
+            Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
+        ));
+        assert!(outcome_from_parts(ClientReportField::Filtered, "adsf").is_err());
+    }
+
+    #[test]
+    fn test_from_outcome_type_client_discard() {
+        assert_eq!(
+            outcome_from_parts(ClientReportField::ClientDiscard, "foo_reason").unwrap(),
+            Outcome::ClientDiscard("foo_reason".into())
+        );
+    }
+
+    #[test]
+    fn test_from_outcome_type_rate_limited() {
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::RateLimited, ""),
+            Ok(Outcome::RateLimited(None))
+        ));
+        assert_eq!(
+            outcome_from_parts(ClientReportField::RateLimited, "foo_reason").unwrap(),
+            Outcome::RateLimited(Some(ReasonCode::new("foo_reason")))
+        );
+    }
+
+    fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
+        let mut event = Annotated::<Event>::from_json(
+            r#"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053",
+                    "op": "http.server",
+                    "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                }
+            }
+            "#,
+        )
+        .unwrap();
+        let e = event.value_mut().as_mut().unwrap();
+        e.transaction.set_value(Some(transaction_name.into()));
+
+        e.transaction_info
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .source
+            .set_value(Some(source));
+
+        relay_statsd::with_capturing_test_client(|| {
+            utils::log_transaction_name_metrics(&mut event, |event| {
+                let config = LightNormalizationConfig {
+                    transaction_name_config: TransactionNameConfig {
+                        rules: &[TransactionNameRule {
+                            pattern: LazyGlob::new("/foo/*/**".to_owned()),
+                            expiry: DateTime::<Utc>::MAX_UTC,
+                            redaction: RedactionRule::Replace {
+                                substitution: "*".to_owned(),
+                            },
+                        }],
+                    },
+                    ..Default::default()
+                };
+                relay_event_normalization::light_normalize_event(event, config)
+            })
+            .unwrap();
+        })
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_none() {
+        let captures = capture_test_event("/nothing", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_rule() {
+        let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_pattern() {
+        let captures = capture_test_event("/something/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_both() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
+
+    #[test]
+    fn test_log_transaction_metrics_no_match() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
+        ]
+        "#);
+    }
+
+    /// This is a stand-in test to assert panicking behavior for spawn_blocking.
+    ///
+    /// [`EnvelopeProcessorService`] relies on tokio to restart the worker threads for blocking
+    /// tasks if there is a panic during processing. Tokio does not explicitly mention this behavior
+    /// in documentation, though the `spawn_blocking` contract suggests that this is intentional.
+    ///
+    /// This test should be moved if the worker pool is extracted into a utility.
+    #[test]
+    fn test_processor_panics() {
+        let future = async {
+            let semaphore = Arc::new(Semaphore::new(1));
+
+            // loop multiple times to prove that the runtime creates new threads
+            for _ in 0..3 {
+                // the previous permit should have been released during panic unwind
+                let permit = semaphore.clone().acquire_owned().await.unwrap();
+
+                let handle = tokio::task::spawn_blocking(move || {
+                    let _permit = permit; // drop(permit) after panic!() would warn as "unreachable"
+                    panic!("ignored");
+                });
+
+                assert!(handle.await.is_err());
+            }
+        };
+
+        tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(1)
+            .build()
+            .unwrap()
+            .block_on(future);
+    }
+
+    /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
+    /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
+    /// cannot be called from relay-metrics.
+    #[test]
+    fn test_mri_overhead_constant() {
+        let hardcoded_value = MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD;
+
+        let derived_value = {
+            let name = "foobar".to_string();
+            let value = 5.0; // Arbitrary value.
+            let unit = MetricUnit::Duration(DurationUnit::default());
+            let tags = TransactionMeasurementTags {
+                measurement_rating: None,
+                universal_tags: CommonTags(BTreeMap::new()),
+            };
+
+            let measurement = TransactionMetric::Measurement {
+                name: name.clone(),
+                value,
+                unit,
+                tags,
+            };
+
+            let metric: Bucket = measurement.into_metric(UnixTimestamp::now());
+            metric.name.len() - unit.to_string().len() - name.len()
+        };
+        assert_eq!(
+            hardcoded_value, derived_value,
+            "Update `MEASUREMENT_MRI_OVERHEAD` if the naming scheme changed."
+        );
+    }
+
+    // Helper to extract the sampling match from SamplingResult if thats the variant.
+    fn get_sampling_match(sampling_result: SamplingResult) -> SamplingMatch {
+        if let SamplingResult::Match(sampling_match) = sampling_result {
+            sampling_match
+        } else {
+            panic!()
+        }
+    }
+
+    /// Happy path test for compute_sampling_decision.
+    #[test]
+    fn test_compute_sampling_decision_matching() {
+        let event = mocked_event(EventType::Transaction, "foo", "bar");
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Transaction,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule],
+            mode: SamplingMode::Received,
+        };
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            dummy_reservoir(),
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_match());
+    }
+
+    #[test]
+    fn test_matching_with_unsupported_rule() {
+        let event = mocked_event(EventType::Transaction, "foo", "bar");
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Transaction,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let unsupported_rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Unsupported,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule, unsupported_rule],
+            mode: SamplingMode::Received,
+        };
+
+        // Unsupported rule should result in no match if processing is not enabled.
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            dummy_reservoir(),
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_no_match());
+
+        // Match if processing is enabled.
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            true,
+            dummy_reservoir(),
+            Some(&sampling_config),
+            Some(&event),
+            None,
+            None,
+        );
+        assert!(res.is_match());
+    }
+
+    #[test]
+    fn test_client_sample_rate() {
+        let dsc = DynamicSamplingContext {
+            trace_id: Uuid::new_v4(),
+            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
+            release: Some("1.1.1".to_string()),
+            user: Default::default(),
+            replay_id: None,
+            environment: None,
+            transaction: Some("transaction1".into()),
+            sample_rate: Some(0.5),
+            sampled: Some(true),
+            other: BTreeMap::new(),
+        };
+
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 0.2 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: Default::default(),
+        };
+
+        let mut sampling_config = SamplingConfig {
+            rules: vec![],
+            rules_v2: vec![rule],
+            mode: SamplingMode::Received,
+        };
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            dummy_reservoir(),
+            None,
+            None,
+            Some(&sampling_config),
+            Some(&dsc),
+        );
+
+        assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
+
+        sampling_config.mode = SamplingMode::Total;
+
+        let res = EnvelopeProcessorService::compute_sampling_decision(
+            false,
+            dummy_reservoir(),
+            None,
+            None,
+            Some(&sampling_config),
+            Some(&dsc),
+        );
+
+        assert_eq!(get_sampling_match(res).sample_rate(), 0.4);
+    }
+}
