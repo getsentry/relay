@@ -251,7 +251,10 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
             "project_grace_period": 20,
             "miss_expiry": 2,
         },
-        "http": {"max_retry_interval": 1},
+        "http": {
+            "max_retry_interval": 1,
+            "retry_delay": 0,
+        },
     }
 
     if buffer_config:

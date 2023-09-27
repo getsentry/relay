@@ -10,9 +10,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
-use relay_event_schema::protocol::{Event, TraceContext};
 use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -65,76 +63,6 @@ pub struct DynamicSamplingContext {
     /// Additional arbitrary fields for forwards compatibility.
     #[serde(flatten, default)]
     pub other: BTreeMap<String, Value>,
-}
-
-impl DynamicSamplingContext {
-    /// Computes a dynamic sampling context from a transaction event.
-    ///
-    /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
-    /// trace ID in its trace context. All optional fields in the dynamic sampling context are
-    /// populated with the corresponding attributes from the event payload if they are available.
-    ///
-    /// Since sampling information is not available in the event payload, the `sample_rate` field
-    /// cannot be set when computing the dynamic sampling context from a transaction event.
-    pub fn from_transaction(public_key: ProjectKey, event: &Event) -> Option<Self> {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            return None;
-        }
-
-        let Some(trace) = event.context::<TraceContext>() else {
-            return None;
-        };
-        let trace_id = trace.trace_id.value()?.0.parse().ok()?;
-        let user = event.user.value();
-
-        Some(Self {
-            trace_id,
-            public_key,
-            release: event.release.as_str().map(str::to_owned),
-            environment: event.environment.value().cloned(),
-            transaction: event.transaction.value().cloned(),
-            replay_id: None,
-            sample_rate: None,
-            user: TraceUserContext {
-                user_segment: user
-                    .and_then(|u| u.segment.value().cloned())
-                    .unwrap_or_default(),
-                user_id: user
-                    .and_then(|u| u.id.as_str())
-                    .unwrap_or_default()
-                    .to_owned(),
-            },
-            sampled: None,
-            other: Default::default(),
-        })
-    }
-
-    /// Compute the effective sampling rate based on the random "diceroll" and the sample rate from
-    /// the matching rule.
-    pub fn adjusted_sample_rate(&self, rule_sample_rate: f64) -> f64 {
-        let client_sample_rate = self.sample_rate.unwrap_or(1.0);
-        if client_sample_rate <= 0.0 {
-            // client_sample_rate is 0, which is bogus because the SDK should've dropped the
-            // envelope. In that case let's pretend the sample rate was not sent, because clearly
-            // the sampling decision across the trace is still 1. The most likely explanation is
-            // that the SDK is reporting its own sample rate setting instead of the one from the
-            // continued trace.
-            //
-            // since we write back the client_sample_rate into the event's trace context, it should
-            // be possible to find those values + sdk versions via snuba
-            relay_log::warn!("client sample rate is <= 0");
-            rule_sample_rate
-        } else {
-            let adjusted_sample_rate = (rule_sample_rate / client_sample_rate).clamp(0.0, 1.0);
-            if adjusted_sample_rate.is_infinite() || adjusted_sample_rate.is_nan() {
-                relay_log::error!("adjusted sample rate ended up being nan/inf");
-                debug_assert!(false);
-                rule_sample_rate
-            } else {
-                adjusted_sample_rate
-            }
-        }
-    }
 }
 
 impl Getter for DynamicSamplingContext {
@@ -294,37 +222,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_adjust_sample_rate() {
-        let mut dsc = DynamicSamplingContext {
-            trace_id: Uuid::default(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: None,
-            environment: None,
-            transaction: None,
-            sample_rate: None,
-            user: TraceUserContext::default(),
-            replay_id: None,
-            sampled: None,
-            other: BTreeMap::new(),
-        };
-
-        dsc.sample_rate = Some(0.0);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
-
-        dsc.sample_rate = Some(1.0);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
-
-        dsc.sample_rate = Some(0.1);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 1.0);
-
-        dsc.sample_rate = Some(0.5);
-        assert_eq!(dsc.adjusted_sample_rate(0.1), 0.2);
-
-        dsc.sample_rate = Some(-0.5);
-        assert_eq!(dsc.adjusted_sample_rate(0.5), 0.5);
-    }
 
     #[test]
     fn parse_full() {

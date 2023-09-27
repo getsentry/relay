@@ -27,10 +27,12 @@ static NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         # Capture `SAVEPOINT` savepoints.
         ((?-x)(?P<pre>SAVEPOINT )(?P<savepoint>(?:(?:"[^"]+")|(?:'[^']+')|(?:`[^`]+`)|(?:[a-z]\w+)))) |
         # Capture single-quoted strings, including the remaining substring if `\'` is found.
-        ((?-x)(?P<single_quoted_strs>'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
+        ((?-x)(?P<single_quoted_strs>N?'(?:\\'|[^'])*(?:'|$)(::\w+(\[\]?)?)?)) |
         # Capture placeholders.
         (   (?P<placeholder> (?:\?+|\$\d+|%(?:\(\w+\))?s|:\w+) (::\w+(\[\]?)?)? )   ) |
         # Capture numbers.
+        # Capture ODBC escape sequence.
+        ((?-x)(?P<odbc_escape_sequence>\{(?:ts?|d)\s+'.+'\})) |
         ((?-x)(?P<number>(-?\b(?:[0-9]+\.)?[0-9]+(?:[eE][+-]?[0-9]+)?\b)(::\w+(\[\]?)?)?)) |
         # Capture booleans (as full tokens, not as substrings of other tokens).
         ((?-x)(?P<bool>(\b(?:true|false)\b)))
@@ -130,9 +132,9 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
     let mut string = Cow::from(string.trim());
 
     for (regex, replacement) in [
-        (&NORMALIZER_REGEX, "$pre%s"),
         (&COMMENTS, "\n"),
         (&INLINE_COMMENTS, ""),
+        (&NORMALIZER_REGEX, "$pre%s"),
         (&WHITESPACE, " "),
         (&PARENS, "$pre$post"),
         (&COLLAPSE_PLACEHOLDERS, "$pre%s$post"),
@@ -147,8 +149,8 @@ fn scrub_queries_inner(db_system: Option<&str>, string: &str) -> (Option<String>
     }
 
     let result = match string {
-        Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(s) if mark_as_scrubbed => Some(s.to_owned()),
+        Cow::Owned(scrubbed) => Some(scrubbed.trim().to_owned()),
+        Cow::Borrowed(s) if mark_as_scrubbed => Some(s.trim().to_owned()),
         Cow::Borrowed(_) => None,
     };
     (result, Mode::Regex)
@@ -200,6 +202,19 @@ mod tests {
         unparameterized_ins_uppercase,
         "SELECT count() FROM table1 WHERE id IN (100, 101, 102)",
         "SELECT count() FROM table1 WHERE id IN (%s)"
+    );
+
+    scrub_sql_test!(
+        unparameterized_ins_nvarchar,
+        "INSERT INTO a VALUES (123, N'foo', 'bar')",
+        "INSERT INTO a (..) VALUES (%s)"
+    );
+
+    scrub_sql_test!(
+        unparameterized_ins_odbc_escape_sequence,
+        // See https://learn.microsoft.com/en-us/sql/odbc/reference/appendixes/date-time-and-timestamp-escape-sequences
+        "INSERT INTO a VALUES (123, {ts '2023-12-31 23:59:59.123'}, 'foo', N'bar')",
+        "INSERT INTO a VALUES (%s)"
     );
 
     scrub_sql_test!(
@@ -273,6 +288,26 @@ mod tests {
         "SAVEPOINT 'single_quoted_identifier'",
         "SAVEPOINT %s"
     );
+
+    scrub_sql_test!(
+        declare_cursor,
+        "DECLARE curs2 CURSOR FOR SELECT * FROM t1",
+        "DECLARE %s CURSOR FOR SELECT * FROM t1"
+    );
+
+    scrub_sql_test!(
+        declare_cursor_advanced,
+        r#"DECLARE c123456 NO SCROLL CURSOR FOR SELECT "t".* FROM "t" WHERE "t".x = 1 AND y = %s"#,
+        "DECLARE %s NO SCROLL CURSOR FOR SELECT * FROM t WHERE x = %s AND y = %s"
+    );
+
+    scrub_sql_test!(
+        fetch_cursor,
+        "FETCH LAST FROM curs3 INTO x",
+        "FETCH LAST IN %s INTO %s"
+    );
+
+    scrub_sql_test!(close_cursor, "CLOSE curs1", "CLOSE %s");
 
     scrub_sql_test!(
         savepoint_quoted_backtick,
@@ -443,13 +478,13 @@ mod tests {
     scrub_sql_test!(
         collapse_partial_column_lists,
         r#"SELECT myfield1, "a"."b", count(*) AS c, another_field, another_field2 FROM table1 WHERE %s"#,
-        "SELECT .., count(*) AS c, .. FROM table1 WHERE %s"
+        "SELECT .., count(*), .. FROM table1 WHERE %s"
     );
 
     scrub_sql_test!(
         collapse_partial_column_lists_2,
         r#"SELECT DISTINCT a, b,c ,d , e, f, g, h, COALESCE(foo, %s) AS "id" FROM x"#,
-        "SELECT DISTINCT .., COALESCE(foo, %s) AS id FROM x"
+        "SELECT DISTINCT .., COALESCE(foo, %s) FROM x"
     );
 
     scrub_sql_test!(
@@ -610,6 +645,25 @@ mod tests {
             ELSE 30
         END"#,
         "UPDATE tbl SET foo = CASE WHEN .. THEN .. END"
+    );
+
+    scrub_sql_test!(
+        unique_alias,
+        "SELECT pg_advisory_unlock(%s, %s) AS t0123456789abcdef",
+        "SELECT pg_advisory_unlock(%s, %s)"
+    );
+
+    scrub_sql_test!(
+        activerecord,
+        "/*some comment `my_function'*/ SELECT 1",
+        "SELECT %s"
+    );
+
+    scrub_sql_test!(
+        // Active record comments can be parsed even if the statement is truncated.
+        activerecord_truncated,
+        "/*some comment `my_function'*/ SELECT * FROM foo WHERE ...",
+        "SELECT * FROM foo WHERE ..."
     );
 
     scrub_sql_test!(
