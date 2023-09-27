@@ -44,6 +44,21 @@ pub struct EqCondition {
 }
 
 impl EqCondition {
+    /// TODO(ja): Doc
+    pub fn new(field: impl Into<String>, value: impl Into<Value>) -> Self {
+        Self {
+            name: field.into(),
+            value: value.into(),
+            options: EqCondOptions { ignore_case: false },
+        }
+    }
+
+    /// TODO(ja): Doc
+    pub fn ignore_case(mut self) -> Self {
+        self.options.ignore_case = true;
+        self
+    }
+
     fn cmp(&self, left: &str, right: &str) -> bool {
         if self.options.ignore_case {
             unicase::eq(left, right)
@@ -84,6 +99,14 @@ macro_rules! impl_cmp_condition {
         }
 
         impl $struct_name {
+            /// TODO(ja): Doc
+            pub fn new(field: impl Into<String>, value: impl Into<Number>) -> Self {
+                Self {
+                    name: field.into(),
+                    value: value.into(),
+                }
+            }
+
             fn matches<T>(&self, instance: &T) -> bool
             where
                 T: Getter + ?Sized,
@@ -131,6 +154,14 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
+    /// TODO(ja): Doc
+    pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self {
+            name: field.into(),
+            value: GlobPatterns::new(value.into_strings()),
+        }
+    }
+
     fn matches<T>(&self, instance: &T) -> bool
     where
         T: Getter + ?Sized,
@@ -139,6 +170,54 @@ impl GlobCondition {
             Some(Val::String(s)) => self.value.is_match(s),
             _ => false,
         }
+    }
+}
+
+/// TODO(ja): Doc
+pub trait IntoStrings {
+    /// TODO(ja): Doc
+    fn into_strings(self) -> Vec<String>;
+}
+
+impl IntoStrings for &'_ str {
+    fn into_strings(self) -> Vec<String> {
+        vec![self.to_owned()]
+    }
+}
+
+impl IntoStrings for String {
+    fn into_strings(self) -> Vec<String> {
+        vec![self]
+    }
+}
+
+impl IntoStrings for std::borrow::Cow<'_, str> {
+    fn into_strings(self) -> Vec<String> {
+        vec![self.into_owned()]
+    }
+}
+
+impl IntoStrings for &'_ [&'_ str] {
+    fn into_strings(self) -> Vec<String> {
+        self.iter().copied().map(str::to_owned).collect()
+    }
+}
+
+impl IntoStrings for &'_ [String] {
+    fn into_strings(self) -> Vec<String> {
+        self.to_vec()
+    }
+}
+
+impl IntoStrings for Vec<&'_ str> {
+    fn into_strings(self) -> Vec<String> {
+        self.into_iter().map(str::to_owned).collect()
+    }
+}
+
+impl IntoStrings for Vec<String> {
+    fn into_strings(self) -> Vec<String> {
+        self
     }
 }
 
@@ -240,6 +319,80 @@ impl RuleCondition {
         Self::And(AndCondition { inner: Vec::new() })
     }
 
+    /// Returns a condition that never matches.
+    pub fn never() -> Self {
+        Self::Or(OrCondition { inner: Vec::new() })
+    }
+
+    /// TODO(ja): Doc
+    pub fn eq(field: impl Into<String>, value: impl Into<Value>) -> Self {
+        Self::Eq(EqCondition::new(field, value))
+    }
+
+    /// TODO(ja): Doc
+    pub fn eq_ignore_case(field: impl Into<String>, value: impl Into<Value>) -> Self {
+        Self::Eq(EqCondition::new(field, value).ignore_case())
+    }
+
+    /// TODO(ja): Doc
+    pub fn glob(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self::Glob(GlobCondition::new(field, value))
+    }
+
+    /// TODO(ja): Doc
+    pub fn gt(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Gt(GtCondition::new(field, value))
+    }
+
+    /// TODO(ja): Doc
+    pub fn gte(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Gte(GteCondition::new(field, value))
+    }
+
+    /// TODO(ja): Doc
+    pub fn lt(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Lt(LtCondition::new(field, value))
+    }
+
+    /// TODO(ja): Doc
+    pub fn lte(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Lte(LteCondition::new(field, value))
+    }
+
+    /// TODO(ja): Doc
+    pub fn and(mut self, other: RuleCondition) -> Self {
+        if let Self::And(ref mut condition) = self {
+            condition.inner.push(other);
+            self
+        } else {
+            Self::And(AndCondition {
+                inner: vec![self, other],
+            })
+        }
+    }
+
+    /// TODO(ja): Doc
+    pub fn or(mut self, other: RuleCondition) -> Self {
+        if let Self::Or(ref mut condition) = self {
+            condition.inner.push(other);
+            self
+        } else {
+            Self::Or(OrCondition {
+                inner: vec![self, other],
+            })
+        }
+    }
+
+    /// TODO(ja): Doc
+    pub fn negate(self) -> Self {
+        match self {
+            Self::Not(condition) => *condition.inner,
+            other => Self::Not(NotCondition {
+                inner: Box::new(other),
+            }),
+        }
+    }
+
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
     /// which was serialized as "Unsupported" (because the configuration is either faulty or was created for a
     /// newer relay that supports some other condition types)
@@ -280,6 +433,30 @@ impl RuleCondition {
     }
 }
 
+impl std::ops::BitAnd for RuleCondition {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        self.and(rhs)
+    }
+}
+
+impl std::ops::BitOr for RuleCondition {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        self.or(rhs)
+    }
+}
+
+impl std::ops::Not for RuleCondition {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        self.negate()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -288,7 +465,6 @@ mod tests {
     use uuid::Uuid;
 
     use crate::dsc::TraceUserContext;
-    use crate::tests::{and, eq, glob, not, or};
     use crate::DynamicSamplingContext;
 
     use super::*;
@@ -445,86 +621,70 @@ mod tests {
         let conditions = [
             (
                 "simple",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                    eq("trace.transaction", &["transaction1"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip")
+                    & RuleCondition::eq_ignore_case("trace.transaction", "transaction1"),
             ),
             (
                 "glob releases",
-                and(vec![
-                    glob("trace.release", &["1.*"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.*")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "glob transaction",
-                and(vec![glob("trace.transaction", &["trans*"])]),
+                RuleCondition::glob("trace.transaction", "trans*"),
             ),
             (
                 "multiple releases",
-                and(vec![
-                    glob("trace.release", &["2.1.1", "1.1.*"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", vec!["2.1.1", "1.1.*"])
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "multiple user segments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["paid", "vip", "free"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case(
+                        "trace.user.segment",
+                        vec!["paid", "vip", "free"],
+                    ),
             ),
             (
                 "multiple transactions",
-                and(vec![glob("trace.transaction", &["t22", "trans*", "t33"])]),
+                RuleCondition::glob("trace.transaction", &["t22", "trans*", "t33"][..]),
             ),
             (
                 "case insensitive user segments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["ViP", "FrEe"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", &["ViP", "FrEe"][..]),
             ),
             (
                 "multiple user environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq(
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case(
                         "trace.environment",
-                        &["integration", "debug", "production"],
-                        true,
-                    ),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                        &["integration", "debug", "production"][..],
+                    )
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "case insensitive environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["DeBuG", "PrOd"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", &["DeBuG", "PrOd"][..])
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "all environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "undefined environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             ("match no conditions", RuleCondition::all()),
         ];
@@ -543,36 +703,33 @@ mod tests {
             (
                 "both",
                 true,
-                or(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "first",
                 true,
-                or(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
             (
                 "second",
                 true,
-                or(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "none",
                 false,
-                or(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
-            ("empty", false, or(vec![])),
+            (
+                "empty",
+                false,
+                RuleCondition::Or(OrCondition { inner: vec![] }),
+            ),
+            ("never", false, RuleCondition::never()),
         ];
 
         let dsc = dsc_dummy();
@@ -589,36 +746,33 @@ mod tests {
             (
                 "both",
                 true,
-                and(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "first",
                 false,
-                and(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
             (
                 "second",
                 false,
-                and(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "none",
                 false,
-                and(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
-            ("empty", true, RuleCondition::all()),
+            (
+                "empty",
+                true,
+                RuleCondition::And(AndCondition { inner: vec![] }),
+            ),
+            ("all", true, RuleCondition::all()),
         ];
 
         let dsc = dsc_dummy();
@@ -635,12 +789,12 @@ mod tests {
             (
                 "not true",
                 false,
-                not(eq("trace.environment", &["debug"], true)),
+                !RuleCondition::eq_ignore_case("trace.environment", "debug"),
             ),
             (
                 "not false",
                 true,
-                not(eq("trace.environment", &["prod"], true)),
+                !RuleCondition::eq_ignore_case("trace.environment", "prod"),
             ),
         ];
 
@@ -658,35 +812,27 @@ mod tests {
         let conditions = [
             (
                 "release",
-                and(vec![
-                    glob("trace.release", &["1.1.2"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.2")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user", "vip"),
             ),
             (
                 "user segment",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["all"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user", "all"),
             ),
             (
                 "environment",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    & RuleCondition::eq_ignore_case("trace.user", "vip"),
             ),
             (
                 "transaction",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    glob("trace.transaction", &["t22"]),
-                    eq("trace.user", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::glob("trace.transaction", "t22")
+                    & RuleCondition::eq_ignore_case("trace.user", "vip"),
             ),
         ];
 
