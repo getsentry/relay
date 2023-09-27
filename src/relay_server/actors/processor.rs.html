@@ -6226,7 +6226,7 @@
             <span class="kw">return</span>;
         };
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = DynamicSamplingContext::from_transaction(key_config.public_key, event) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = utils::dsc_from_event(key_config.public_key, event) {
             state.envelope_mut().set_dsc(dsc);
             state.sampling_project_state = <span class="prelude-val">Some</span>(state.project_state.clone());
         }

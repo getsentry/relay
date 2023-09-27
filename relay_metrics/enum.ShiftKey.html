@@ -2,7 +2,7 @@
     Project,
     Bucket,
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Configuration value for <a href="struct.AggregatorConfig.html#structfield.shift_key" title="field relay_metrics::AggregatorConfig::shift_key"><code>AggregatorConfig::shift_key</code></a>.</p>
-</div></details><h2 id="variants" class="variants small-section-header">Variants<a href="#variants" class="anchor">§</a></h2><div class="variants"><section id="variant.Project" class="variant"><a href="#variant.Project" class="anchor">§</a><h3 class="code-header">Project</h3></section><div class="docblock"><p>Shifts the flush time by an offset based on the <a href="../relay_base_schema/project/struct.ProjectKey.html" title="struct relay_base_schema::project::ProjectKey"><code>ProjectKey</code></a>.</p>
+</div></details><h2 id="variants" class="variants small-section-header">Variants<a href="#variants" class="anchor">§</a></h2><div class="variants"><section id="variant.Project" class="variant"><a href="#variant.Project" class="anchor">§</a><h3 class="code-header">Project</h3></section><div class="docblock"><p>Shifts the flush time by an offset based on the [<code>ProjectKey</code>].</p>
 <p>This allows buckets from the same project to be flushed together.</p>
 </div><section id="variant.Bucket" class="variant"><a href="#variant.Bucket" class="anchor">§</a><h3 class="code-header">Bucket</h3></section><div class="docblock"><p>Shifts the flush time by an offset based on the bucket key itself.</p>
 <p>This allows for a completely random distribution of bucket flush times.</p>

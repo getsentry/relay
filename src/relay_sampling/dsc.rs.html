@@ -578,51 +578,6 @@
 <a href="#578" id="578">578</a>
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contextual information stored on traces.
 //!
 //! [`DynamicSamplingContext`] (DSC) contains properties associated to traces that are shared
@@ -635,9 +590,7 @@
 </span><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 
-<span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
-<span class="kw">use </span>relay_event_schema::protocol::{Event, TraceContext};
 <span class="kw">use </span>relay_protocol::{Getter, Val};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
@@ -690,49 +643,6 @@
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[serde(flatten, default)]
     </span><span class="kw">pub </span>other: BTreeMap&lt;String, Value&gt;,
-}
-
-<span class="kw">impl </span>DynamicSamplingContext {
-    <span class="doccomment">/// Computes a dynamic sampling context from a transaction event.
-    ///
-    /// Returns `None` if the passed event is not a transaction event, or if it does not contain a
-    /// trace ID in its trace context. All optional fields in the dynamic sampling context are
-    /// populated with the corresponding attributes from the event payload if they are available.
-    ///
-    /// Since sampling information is not available in the event payload, the `sample_rate` field
-    /// cannot be set when computing the dynamic sampling context from a transaction event.
-    </span><span class="kw">pub fn </span>from_transaction(public_key: ProjectKey, event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">if </span>event.ty.value() != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-            <span class="kw">return </span><span class="prelude-val">None</span>;
-        }
-
-        <span class="kw">let </span><span class="prelude-val">Some</span>(trace) = event.context::&lt;TraceContext&gt;() <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">None</span>;
-        };
-        <span class="kw">let </span>trace_id = trace.trace_id.value()<span class="question-mark">?</span>.<span class="number">0</span>.parse().ok()<span class="question-mark">?</span>;
-        <span class="kw">let </span>user = event.user.value();
-
-        <span class="prelude-val">Some</span>(<span class="self">Self </span>{
-            trace_id,
-            public_key,
-            release: event.release.as_str().map(str::to_owned),
-            environment: event.environment.value().cloned(),
-            transaction: event.transaction.value().cloned(),
-            replay_id: <span class="prelude-val">None</span>,
-            sample_rate: <span class="prelude-val">None</span>,
-            user: TraceUserContext {
-                user_segment: user
-                    .and_then(|u| u.segment.value().cloned())
-                    .unwrap_or_default(),
-                user_id: user
-                    .and_then(|u| u.id.as_str())
-                    .unwrap_or_default()
-                    .to_owned(),
-            },
-            sampled: <span class="prelude-val">None</span>,
-            other: Default::default(),
-        })
-    }
 }
 
 <span class="kw">impl </span>Getter <span class="kw">for </span>DynamicSamplingContext {
