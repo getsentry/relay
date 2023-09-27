@@ -928,9 +928,7 @@ impl UpstreamQueue {
 
     /// Places an entry in the retry queue.
     ///
-    /// If the entry is high priority it's placed at the front of the queue, or
-    /// at the back if it's low priority. Entries in the retry queue are
-    /// dequeued from front to back.
+    /// Entries are dequeued by (1) high/low priority and (2) FIFO order.
     ///
     /// It also schedules the next retry time, based on the retry back off. The
     /// retry queue is not dequeued until the next retry has elapsed.
