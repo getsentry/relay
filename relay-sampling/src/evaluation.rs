@@ -17,7 +17,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::config::{RuleId, SamplingRule, SamplingValue};
-use crate::redis_sampling::{increment_redis_reservoir_count, set_redis_expiry, ReservoirRuleKey};
+#[cfg(feature = "redis")]
+use crate::redis_sampling::{self, ReservoirRuleKey};
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -75,38 +76,37 @@ impl ReservoirEvaluator {
         self
     }
 
-    fn redis_count(&self, rule: RuleId, _rule_expiry: Option<&DateTime<Utc>>) -> Option<i64> {
-        if cfg!(feature = "redis") {
-            if let (Some(pool), Some(org_id)) = (self.redis_pool.as_ref(), self.org_id) {
-                let key = ReservoirRuleKey::new(org_id, rule);
+    fn redis_count(&self, _rule: RuleId, _rule_expiry: Option<&DateTime<Utc>>) -> Option<i64> {
+        #[cfg(feature = "redis")]
+        if let (Some(pool), Some(org_id)) = (self.redis_pool.as_ref(), self.org_id) {
+            let key = ReservoirRuleKey::new(org_id, _rule);
 
-                let mut redis_client = pool.client().ok()?;
-                let mut redis_connection = redis_client.connection().ok()?;
+            let mut redis_client = pool.client().ok()?;
+            let mut redis_connection = redis_client.connection().ok()?;
 
-                if set_redis_expiry(&mut redis_connection, &key, _rule_expiry).is_err() {
-                    relay_log::error!("failed to set redis reservoir rule expiry");
-                }
+            if crate::redis_sampling::set_redis_expiry(&mut redis_connection, &key, _rule_expiry)
+                .is_err()
+            {
+                relay_log::error!("failed to set redis reservoir rule expiry");
+            }
 
-                match increment_redis_reservoir_count(&mut redis_connection, &key) {
-                    Ok(redis_val) => return Some(redis_val),
-                    Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
-                }
+            match redis_sampling::increment_redis_reservoir_count(&mut redis_connection, &key) {
+                Ok(redis_val) => return Some(redis_val),
+                Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
             }
         }
 
         None
     }
 
-    /// Gets the local count of a reservoir rule, and increments it.
-    fn local_count(&self, rule: RuleId) -> anyhow::Result<i64> {
-        let Ok(mut map_guard) = self.counters.lock() else {
-            return Err(anyhow::Error::msg("failed to lock reservoir counter mutex"));
-        };
+    /// Gets the local count of a reservoir rule. Increments the count before returning it.
+    fn local_count(&self, rule: RuleId) -> Option<i64> {
+        let mut map_guard = self.counters.lock().ok()?;
 
         let counter_value = map_guard.entry(rule).or_insert(0);
         *counter_value += 1;
 
-        Ok(*counter_value)
+        Some(*counter_value)
     }
 
     fn update_counter(&self, rule: RuleId, new_value: i64) {
@@ -124,19 +124,20 @@ impl ReservoirEvaluator {
 
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
     pub fn evaluate(&self, rule: RuleId, limit: i64, rule_expiry: Option<&DateTime<Utc>>) -> bool {
-        let incremented_local_count = match self.local_count(rule) {
-            Ok(local_count) => local_count,
-            Err(e) => {
-                relay_log::error!("failed to read local reservoir count: {}", e);
-                return false;
-            }
+        let Some(incremented_local_count) = self.local_count(rule) else {
+            relay_log::error!("failed to read local reservoir count");
+            return false;
         };
 
         if incremented_local_count >= limit {
             return false;
         }
 
-        let redis_count = self.redis_count(rule, rule_expiry);
+        let redis_count = if cfg!(feature = "redis") {
+            self.redis_count(rule, rule_expiry)
+        } else {
+            None
+        };
 
         match redis_count {
             Some(redis_count) if redis_count > incremented_local_count => {
