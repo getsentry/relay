@@ -53,7 +53,7 @@ pub struct ReservoirEvaluator<'a> {
     redis_pool: Option<&'a RedisPool>,
     #[cfg(feature = "redis")]
     org_id: Option<u64>,
-    // Using PhantomData because the lifetimes are behind a processing flag.
+    // Using PhantomData because the lifetimes are behind a feature flag.
     _phantom: std::marker::PhantomData<&'a ()>,
 }
 
@@ -130,7 +130,7 @@ impl<'a> ReservoirEvaluator<'a> {
 
         match (*counter_value).cmp(&limit) {
             // Limit not yet reached. Eagerly incrementing to avoid an additional lock
-            // in the case where it doesn't get overrwritten by the redis count.
+            // in the case where it doesn't get overwritten by the redis count.
             Ordering::Less => {
                 *counter_value += 1;
                 Some(*counter_value)
@@ -141,8 +141,10 @@ impl<'a> ReservoirEvaluator<'a> {
     }
 
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
+    ///
+    /// Both `local_count` and `redis_count` include the current rule in their count.
     pub fn evaluate(&self, rule: RuleId, limit: i64, _rule_expiry: Option<&DateTime<Utc>>) -> bool {
-        let Some(incremented_local_count) = self.local_count(rule, limit) else {
+        let Some(local_count) = self.local_count(rule, limit) else {
             return false;
         };
 
@@ -154,17 +156,17 @@ impl<'a> ReservoirEvaluator<'a> {
                 // We don't sample at all if we lost access to redis.
                 // Therefore we revert the previous increment.
                 // Seems inefficient, but this should be a rare occurence.
-                self.update_counter(rule, incremented_local_count - 1);
+                self.update_counter(rule, local_count - 1);
                 return false;
             };
 
-            if redis_count > incremented_local_count {
+            if redis_count > local_count {
                 self.update_counter(rule, redis_count);
                 return redis_count <= limit;
             };
         }
 
-        incremented_local_count <= limit
+        local_count <= limit
     }
 }
 
