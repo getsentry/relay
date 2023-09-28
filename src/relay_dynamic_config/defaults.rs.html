@@ -112,6 +112,7 @@
 <a href="#112" id="112">112</a>
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_sampling::condition::RuleCondition;
@@ -152,9 +153,10 @@
         <span class="kw">let </span>is_mongo = RuleCondition::eq(<span class="string">&quot;span.system&quot;</span>, <span class="string">&quot;mongodb&quot;</span>)
             | RuleCondition::glob(<span class="string">&quot;span.description&quot;</span>, <span class="string">&quot;*\&quot;$*&quot;</span>);
 
-        <span class="kw">let </span>condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db*&quot;</span>)
-            &amp; !RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, DISABLED_DATABASES)
-            &amp; !(RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db.sql.query&quot;</span>) &amp; is_mongo);
+        <span class="kw">let </span>condition = RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;http.client&quot;</span>)
+            | (RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db*&quot;</span>)
+                &amp; !RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, DISABLED_DATABASES)
+                &amp; !(RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db.sql.query&quot;</span>) &amp; is_mongo));
 
         <span class="prelude-val">Some</span>(condition)
     };
