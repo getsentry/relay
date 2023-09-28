@@ -672,6 +672,12 @@
 <a href="#672" id="672">672</a>
 <a href="#673" id="673">673</a>
 <a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1338,6 +1344,12 @@
         </span>activerecord_truncated,
         <span class="string">&quot;/*some comment `my_function&#39;*/ SELECT * FROM foo WHERE ...&quot;</span>,
         <span class="string">&quot;SELECT * FROM foo WHERE ...&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        jsonb,
+        <span class="string">r#&quot;SELECT * FROM &quot;a&quot; WHERE &quot;a&quot;.&quot;b&quot; = $1 AND (obj-&gt;&#39;id&#39; &lt;@ &#39;[123]&#39;::jsonb) AND &quot;a&quot;.&quot;b&quot; != $2&quot;#</span>,
+        <span class="string">&quot;SELECT * FROM a WHERE b = %s AND (obj -&gt; %s &lt;@ %s) AND b &lt;&gt; %s&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
