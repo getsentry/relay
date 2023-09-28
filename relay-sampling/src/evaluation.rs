@@ -53,7 +53,8 @@ pub struct ReservoirEvaluator<'a> {
     redis_pool: Option<&'a RedisPool>,
     #[cfg(feature = "redis")]
     org_id: Option<u64>,
-    _phantom: std::marker::PhantomData<&'a ()>, // Using PhantomData to associate the unused lifetime
+    // Using PhantomData because the lifetimes are behind a processing flag.
+    _phantom: std::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> ReservoirEvaluator<'a> {
@@ -128,12 +129,15 @@ impl<'a> ReservoirEvaluator<'a> {
         let counter_value = map_guard.entry(rule).or_insert(0);
 
         match (*counter_value).cmp(&limit) {
-            Ordering::Less => *counter_value += 1,
+            // Limit not yet reached. Eagerly incrementing to avoid an additional lock
+            // in the case where it doesn't get overrwritten by the redis count.
+            Ordering::Less => {
+                *counter_value += 1;
+                Some(*counter_value)
+            }
             // Limit has already been reached.
-            Ordering::Equal | Ordering::Greater => return None,
+            Ordering::Equal | Ordering::Greater => None,
         }
-
-        Some(*counter_value)
     }
 
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
@@ -147,6 +151,10 @@ impl<'a> ReservoirEvaluator<'a> {
             let key = ReservoirRuleKey::new(org_id, rule);
 
             let Ok(redis_count) = self.redis_count(&key, redis_pool, _rule_expiry) else {
+                // We don't sample at all if we lost access to redis.
+                // Therefore we revert the previous increment.
+                // Seems inefficient, but this should be a rare occurence.
+                self.update_counter(rule, incremented_local_count - 1);
                 return false;
             };
 
@@ -156,8 +164,6 @@ impl<'a> ReservoirEvaluator<'a> {
             };
         }
 
-        // We also return `true` if it's equal to the limit, since the incremented rule count
-        // represents the sampling that will be done after this function is run.
         incremented_local_count <= limit
     }
 }
