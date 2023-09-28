@@ -193,10 +193,6 @@ impl VisitorMut for NormalizeVisitor {
         match expr {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
-            // Casts are omitted for simplification.
-            Expr::Cast { expr: inner, .. } => {
-                *expr = *inner.clone(); // clone is unfortunate here.
-            }
             // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
             // `"table"."col"` is replaced by `col`.
@@ -236,9 +232,14 @@ impl VisitorMut for NormalizeVisitor {
     }
 
     fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
-        if let Expr::CompoundIdentifier(parts) = expr {
-            Self::simplify_compound_identifier(parts);
+        // Casts are omitted for simplification. Because we replace the entire expression,
+        // the replacement has to occur *after* visiting its children.
+        if let Expr::Cast { expr: inner, .. } = expr {
+            let mut swapped = Expr::Value(Value::Null);
+            std::mem::swap(&mut swapped, inner);
+            *expr = swapped;
         }
+
         self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
         ControlFlow::Continue(())
     }

@@ -665,6 +665,12 @@ mod tests {
         "/*some comment `my_function'*/ SELECT * FROM foo WHERE ...",
         "SELECT * FROM foo WHERE ..."
     );
+ 
+    scrub_sql_test!(
+        jsonb,
+        r#"SELECT * FROM "a" WHERE "a"."b" = $1 AND (obj->'id' <@ '[123]'::jsonb) AND "a"."b" != $2"#,
+        "SELECT * FROM a WHERE b = %s AND (obj -> %s <@ %s) AND b <> %s"
+    );
 
     scrub_sql_test!(
         digits_in_table_name,
@@ -688,7 +694,6 @@ mod tests {
         uuid_in_table_name,
         "SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix",
         "SELECT * FROM prefix_00_00_suffix"
-    );
 
     scrub_sql_test!(
         clickhouse,
