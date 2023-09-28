@@ -170,7 +170,7 @@ impl NormalizeVisitor {
 
     fn scrub_name(name: &mut Ident) {
         name.quote_style = None;
-        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(&name.value, "00") {
+        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(&name.value, "{%s}") {
             name.value = s
         };
     }

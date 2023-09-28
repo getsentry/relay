@@ -403,7 +403,7 @@ mod tests {
     scrub_sql_test!(
         already_scrubbed,
         "SELECT * FROM table123 WHERE id = %s",
-        "SELECT * FROM table00 WHERE id = %s"
+        "SELECT * FROM table{%s} WHERE id = %s"
     );
 
     scrub_sql_test!(
@@ -675,7 +675,7 @@ mod tests {
     scrub_sql_test!(
         digits_in_table_name,
         "SELECT * FROM temp_12c",
-        "SELECT * FROM temp_00c"
+        "SELECT * FROM temp_{%s}c"
     );
 
     scrub_sql_test!(
@@ -687,13 +687,13 @@ mod tests {
     scrub_sql_test!(
         digits_in_compound_table_name,
         r#"SELECT * FROM "foo"."temp_12c""#,
-        "SELECT * FROM temp_00c"
+        "SELECT * FROM temp_{%s}c"
     );
 
     scrub_sql_test!(
         uuid_in_table_name,
         "SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix",
-        "SELECT * FROM prefix_00_00_suffix"
+        "SELECT * FROM prefix_{%s}_{%s}_suffix"
     );
 
     scrub_sql_test!(
