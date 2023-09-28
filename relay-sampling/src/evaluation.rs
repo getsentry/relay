@@ -1,5 +1,6 @@
 //! Evaluation of dynamic sampling rules.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::num::ParseIntError;
@@ -46,15 +47,16 @@ pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 ///   across multiple relay-instances. When incremented, the Redis counter returns the current global
 ///   count for the given rule, which is then used to update the local counter.
 #[derive(Debug)]
-pub struct ReservoirEvaluator {
+pub struct ReservoirEvaluator<'a> {
     counters: ReservoirCounters,
     #[cfg(feature = "redis")]
-    redis_pool: Option<Arc<RedisPool>>,
+    redis_pool: Option<&'a RedisPool>,
     #[cfg(feature = "redis")]
     org_id: Option<u64>,
+    _phantom: std::marker::PhantomData<&'a ()>, // Using PhantomData to associate the unused lifetime
 }
 
-impl ReservoirEvaluator {
+impl<'a> ReservoirEvaluator<'a> {
     /// Constructor for [`ReservoirEvaluator`].
     pub fn new(counters: ReservoirCounters) -> Self {
         Self {
@@ -63,6 +65,7 @@ impl ReservoirEvaluator {
             org_id: None,
             #[cfg(feature = "redis")]
             redis_pool: None,
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -70,49 +73,41 @@ impl ReservoirEvaluator {
     ///
     /// These values are needed to synchronize with Redis.
     #[cfg(feature = "redis")]
-    pub fn set_redis(mut self, org_id: u64, redis_pool: Arc<RedisPool>) -> Self {
+    pub fn set_redis(&mut self, org_id: u64, redis_pool: &'a RedisPool) {
         self.org_id = Some(org_id);
         self.redis_pool = Some(redis_pool);
-        self
     }
 
-    #[allow(unused_variables)]
-    fn redis_count(&self, rule: RuleId, rule_expiry: Option<&DateTime<Utc>>) -> Option<i64> {
-        #[cfg(feature = "redis")]
-        if let (Some(pool), Some(org_id)) = (self.redis_pool.as_ref(), self.org_id) {
-            let key = ReservoirRuleKey::new(org_id, rule);
+    #[cfg(feature = "redis")]
+    fn redis_count(
+        &self,
+        key: &ReservoirRuleKey,
+        redis_pool: &RedisPool,
+        rule_expiry: Option<&DateTime<Utc>>,
+    ) -> anyhow::Result<i64> {
+        let mut redis_client = redis_pool.client()?;
+        let mut redis_connection = redis_client.connection()?;
 
-            let mut redis_client = pool.client().ok()?;
-            let mut redis_connection = redis_client.connection().ok()?;
-
-            if redis_sampling::set_redis_expiry(&mut redis_connection, &key, rule_expiry).is_err() {
-                relay_log::error!("failed to set redis reservoir rule expiry");
+        let val = match redis_sampling::increment_redis_reservoir_count(&mut redis_connection, key)
+        {
+            Ok(val) => val,
+            Err(e) => {
+                relay_log::error!("failed to increment redis value: {:?}", e);
+                return Err(e);
             }
+        };
 
-            match redis_sampling::increment_redis_reservoir_count(&mut redis_connection, &key) {
-                Ok(redis_val) => return Some(redis_val),
-                Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
-            }
+        if let Err(e) = redis_sampling::set_redis_expiry(&mut redis_connection, key, rule_expiry) {
+            relay_log::error!("failed to set redis reservoir rule expiry");
+            return Err(e);
         }
 
-        None
+        Ok(val)
     }
 
-    /// Gets the local count of a reservoir rule. Increments the count if limit isnt reached.
-    fn local_count(&self, rule: RuleId, limit: i64) -> Option<i64> {
-        let mut map_guard = self.counters.lock().ok()?;
-
-        let counter_value = map_guard.entry(rule).or_insert(0);
-        if *counter_value < limit {
-            *counter_value += 1;
-        }
-
-        Some(*counter_value)
-    }
-
+    #[cfg(feature = "redis")]
     fn update_counter(&self, rule: RuleId, new_value: i64) {
         let Ok(mut map_guard) = self.counters.lock() else {
-            relay_log::error!("failed to lock reservoir counter mutex");
             return;
         };
 
@@ -123,24 +118,47 @@ impl ReservoirEvaluator {
         }
     }
 
+    /// Gets the local count of a reserovir rule and increments it, if the limit has yet to be reached
+    fn local_count(&self, rule: RuleId, limit: i64) -> Option<i64> {
+        let Ok(mut map_guard) = self.counters.lock() else {
+            relay_log::error!("failed to lock reservoir counter mutex");
+            return None;
+        };
+
+        let counter_value = map_guard.entry(rule).or_insert(0);
+
+        match (*counter_value).cmp(&limit) {
+            Ordering::Less => *counter_value += 1,
+            // Limit has already been reached.
+            Ordering::Equal | Ordering::Greater => return None,
+        }
+
+        Some(*counter_value)
+    }
+
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
-    pub fn evaluate(&self, rule: RuleId, limit: i64, rule_expiry: Option<&DateTime<Utc>>) -> bool {
+    pub fn evaluate(&self, rule: RuleId, limit: i64, _rule_expiry: Option<&DateTime<Utc>>) -> bool {
         let Some(incremented_local_count) = self.local_count(rule, limit) else {
-            relay_log::error!("failed to read local reservoir count");
             return false;
         };
 
-        if incremented_local_count >= limit {
-            return false;
+        #[cfg(feature = "redis")]
+        if let (Some(org_id), Some(redis_pool)) = (self.org_id, self.redis_pool.as_ref()) {
+            let key = ReservoirRuleKey::new(org_id, rule);
+
+            let Ok(redis_count) = self.redis_count(&key, redis_pool, _rule_expiry) else {
+                return false;
+            };
+
+            if redis_count > incremented_local_count {
+                self.update_counter(rule, redis_count);
+                return redis_count <= limit;
+            };
         }
 
-        match self.redis_count(rule, rule_expiry) {
-            Some(redis_count) if redis_count > incremented_local_count => {
-                self.update_counter(rule, redis_count);
-                redis_count < limit
-            }
-            _ => incremented_local_count < limit,
-        }
+        // We also return `true` if it's equal to the limit, since the incremented rule count
+        // represents the sampling that will be done after this function is run.
+        incremented_local_count <= limit
     }
 }
 
@@ -151,7 +169,7 @@ pub struct SamplingEvaluator<'a> {
     rule_ids: Vec<RuleId>,
     factor: f64,
     client_sample_rate: Option<f64>,
-    reservoir: Option<&'a ReservoirEvaluator>,
+    reservoir: Option<&'a ReservoirEvaluator<'a>>,
 }
 
 impl<'a> SamplingEvaluator<'a> {

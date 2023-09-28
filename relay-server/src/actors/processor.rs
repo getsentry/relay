@@ -256,7 +256,7 @@ impl ExtractedMetrics {
 
 /// A state container for envelope processing.
 #[derive(Debug)]
-struct ProcessEnvelopeState {
+struct ProcessEnvelopeState<'a> {
     /// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -311,10 +311,10 @@ struct ProcessEnvelopeState {
     has_profile: bool,
 
     /// Reservoir evaluator that we use for dynamic sampling.
-    reservoir: ReservoirEvaluator,
+    reservoir: ReservoirEvaluator<'a>,
 }
 
-impl ProcessEnvelopeState {
+impl<'a> ProcessEnvelopeState<'a> {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
         self.managed_envelope.envelope()
@@ -540,7 +540,7 @@ pub struct EnvelopeProcessorService {
 struct InnerProcessor {
     config: Arc<Config>,
     #[cfg(feature = "processing")]
-    redis_pool: Option<Arc<RedisPool>>,
+    redis_pool: Option<RedisPool>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
@@ -574,7 +574,7 @@ impl EnvelopeProcessorService {
 
         let inner = InnerProcessor {
             #[cfg(feature = "processing")]
-            redis_pool: _redis.clone().map(Arc::new),
+            redis_pool: _redis.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: _redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
@@ -1368,7 +1368,7 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         if let Some(redis_pool) = self.inner.redis_pool.as_ref() {
             let org_id = managed_envelope.scoping().organization_id;
-            reservoir = reservoir.set_redis(org_id, redis_pool.clone());
+            reservoir.set_redis(org_id, redis_pool);
         }
 
         Ok(ProcessEnvelopeState {
@@ -3057,7 +3057,7 @@ mod tests {
         }
     }
 
-    fn dummy_reservoir() -> ReservoirEvaluator {
+    fn dummy_reservoir() -> ReservoirEvaluator<'static> {
         ReservoirEvaluator::new(ReservoirCounters::default())
     }
 

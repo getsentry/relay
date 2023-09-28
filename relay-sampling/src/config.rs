@@ -83,6 +83,7 @@ impl SamplingRule {
     }
 
     /// Returns the updated [`SamplingValue`] if it's valid.
+    /// This function is scheduled for demolition.
     pub fn evaluate(
         &self,
         now: DateTime<Utc>,
