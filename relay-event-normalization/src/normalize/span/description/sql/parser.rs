@@ -18,6 +18,7 @@ use sqlparser::dialect::{Dialect, GenericDialect};
 /// because not everything in SQL is an expression.
 const MAX_EXPRESSION_DEPTH: usize = 64;
 
+/// Regex used to scrub UUIDs and multi-digit numbers from table names and other identifiers.
 static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)[0-9a-f]{32}|\d\d+").unwrap());
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
