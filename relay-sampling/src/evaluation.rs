@@ -76,17 +76,16 @@ impl ReservoirEvaluator {
         self
     }
 
-    fn redis_count(&self, _rule: RuleId, _rule_expiry: Option<&DateTime<Utc>>) -> Option<i64> {
+    #[allow(unused_variables)]
+    fn redis_count(&self, rule: RuleId, rule_expiry: Option<&DateTime<Utc>>) -> Option<i64> {
         #[cfg(feature = "redis")]
         if let (Some(pool), Some(org_id)) = (self.redis_pool.as_ref(), self.org_id) {
-            let key = ReservoirRuleKey::new(org_id, _rule);
+            let key = ReservoirRuleKey::new(org_id, rule);
 
             let mut redis_client = pool.client().ok()?;
             let mut redis_connection = redis_client.connection().ok()?;
 
-            if crate::redis_sampling::set_redis_expiry(&mut redis_connection, &key, _rule_expiry)
-                .is_err()
-            {
+            if redis_sampling::set_redis_expiry(&mut redis_connection, &key, rule_expiry).is_err() {
                 relay_log::error!("failed to set redis reservoir rule expiry");
             }
 
@@ -133,13 +132,7 @@ impl ReservoirEvaluator {
             return false;
         }
 
-        let redis_count = if cfg!(feature = "redis") {
-            self.redis_count(rule, rule_expiry)
-        } else {
-            None
-        };
-
-        match redis_count {
+        match self.redis_count(rule, rule_expiry) {
             Some(redis_count) if redis_count > incremented_local_count => {
                 self.update_counter(rule, redis_count);
                 redis_count < limit
