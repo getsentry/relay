@@ -46,7 +46,7 @@ fn increment_redis_reservoir_count(
     Ok(command.query(&mut redis.client()?.connection()?)?)
 }
 
-/// The amount of transactions sampled of a given rule id.
+/// The amount of matches for each reservoir rule in a given project.
 pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 
 /// Utility for evaluating reservoir-based sampling rules.
@@ -107,8 +107,8 @@ impl ReservoirEvaluator {
             return false;
         }
 
-        // The new value is either the current value + 1, or the value from redis
-        // if we have access to redis.
+        // The new value for the counter will be incremented by one, or updated with the
+        // global redis counter if it's available.
         #[cfg_attr(not(feature = "redis"), allow(unused_mut))]
         let mut new_val: i64 = *counter_value + 1;
 

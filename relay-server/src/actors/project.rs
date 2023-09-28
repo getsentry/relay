@@ -428,8 +428,8 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
-    /// if a rule is no longer in the sampling config, we can assume it's deleted and no longer needed.
-    pub fn delete_expired_rules(&self) {
+    /// if a reservoir rule is no longer in the sampling config, we can assume it's no longer needed.
+    pub fn remove_expired_reservoir_rules(&self) {
         let Some(config) = self
             .state
             .as_ref()
