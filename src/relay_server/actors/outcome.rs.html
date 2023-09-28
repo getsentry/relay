@@ -1661,8 +1661,8 @@
 </span><span class="kw">impl </span>KafkaOutcomesProducer {
     <span class="doccomment">/// Creates and connects the Kafka producers.
     ///
-    /// If the given Kafka configuration parameters are invalid, or an error happens during
-    /// connecting during the broker, an error is returned.
+    /// If the given Kafka configuration parameters are invalid, or an error
+    /// happens while connecting to the broker, an error is returned.
     </span><span class="kw">pub fn </span>create(config: <span class="kw-2">&amp;</span>Config) -&gt; anyhow::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client_builder = KafkaClient::builder();
 
