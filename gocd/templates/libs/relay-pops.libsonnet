@@ -41,7 +41,7 @@ local us_pops_stage() =
             SENTRY_AUTH_TOKEN: '{{SECRET:[devinfra-temp][relay_sentry_auth_token]}}',
           },
           tasks: [
-            gocdtasks.script(importstr '../bash/create-sentry-release.sh'),
+            gocdtasks.script(importstr '../bash/create-sentry-relay-pop-release.sh'),
           ],
         },
       },

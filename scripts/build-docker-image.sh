@@ -22,7 +22,7 @@ case "$ARCH" in
 esac
 
 # Images to use and build.
-IMG_DEPS=${IMG_DEPS:-"ghcr.io/getsentry/relay-deps:$ARCH"}
+IMG_DEPS=${IMG_DEPS:-"ghcr.io/getsentry/${IMAGE_NAME}-deps:$ARCH"}
 IMG_VERSIONED=${IMG_VERSIONED:-"$IMAGE_NAME:latest"}
 
 # Relay features to enable.
