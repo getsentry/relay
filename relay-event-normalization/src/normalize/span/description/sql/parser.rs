@@ -1,7 +1,10 @@
 //! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
+use std::borrow::Cow;
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use sqlparser::ast::{
     Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
     TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
@@ -14,6 +17,8 @@ use sqlparser::dialect::{Dialect, GenericDialect};
 /// Note that the expression depth does not fully cover the depth of complex SQL statements,
 /// because not everything in SQL is an expression.
 const MAX_EXPRESSION_DEPTH: usize = 64;
+
+static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)[0-9a-f]{32}|\d\d+").unwrap());
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
@@ -150,23 +155,26 @@ impl NormalizeVisitor {
                 self.transform_query(subquery);
             }
             // Strip quotes from identifiers in table names.
-            TableFactor::Table { name, .. } => {
-                for ident in &mut name.0 {
-                    ident.quote_style = None;
-                }
-            }
+            TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
             _ => {}
         }
     }
 
     fn simplify_compound_identifier(parts: &mut Vec<Ident>) {
         if let Some(mut last) = parts.pop() {
-            last.quote_style = None;
+            Self::scrub_name(&mut last);
             *parts = vec![last];
         }
     }
 
     fn scrub_name(name: &mut Ident) {
+        name.quote_style = None;
+        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(&name.value, "00") {
+            name.value = s
+        };
+    }
+
+    fn erase_name(name: &mut Ident) {
         name.quote_style = None;
         name.value = "%s".into()
     }
@@ -197,7 +205,7 @@ impl VisitorMut for NormalizeVisitor {
             }
             // `"col"` is replaced by `col`.
             Expr::Identifier(ident) => {
-                ident.quote_style = None;
+                Self::scrub_name(ident);
             }
             // Recurse into subqueries.
             Expr::Subquery(query) => self.transform_query(query),
@@ -271,13 +279,13 @@ impl VisitorMut for NormalizeVisitor {
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            Statement::Savepoint { name } => Self::scrub_name(name),
+            Statement::Savepoint { name } => Self::erase_name(name),
             Statement::Declare { name, query, .. } => {
-                Self::scrub_name(name);
+                Self::erase_name(name);
                 self.transform_query(query);
             }
             Statement::Fetch { name, into, .. } => {
-                Self::scrub_name(name);
+                Self::erase_name(name);
                 if let Some(into) = into {
                     into.0 = vec![Ident {
                         value: "%s".into(),
@@ -287,7 +295,7 @@ impl VisitorMut for NormalizeVisitor {
             }
             Statement::Close {
                 cursor: CloseCursor::Specific { name },
-            } => Self::scrub_name(name),
+            } => Self::erase_name(name),
             _ => {}
         }
 
