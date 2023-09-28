@@ -450,6 +450,15 @@ mod tests {
         matched_rule_ids == sampling_match.matched_rules
     }
 
+    fn get_matched_rules(
+        sampling_evaluator: &ControlFlow<SamplingMatch, SamplingEvaluator>,
+    ) -> Vec<u32> {
+        match sampling_evaluator {
+            ControlFlow::Continue(_) => panic!(),
+            ControlFlow::Break(m) => m.matched_rules.0.iter().map(|rule_id| rule_id.0).collect(),
+        }
+    }
+
     /// Helper function to create a dsc with the provided getter-values set.
     fn mocked_dsc_with_getter_values(
         paths_and_values: Vec<(&str, &str)>,
@@ -573,6 +582,50 @@ mod tests {
             });
         }
         vec
+    }
+
+    /// Tests that reservoir rules override the other rules.
+    ///
+    /// Here all 3 rules are a match. But when the reservoir
+    /// rule (id = 1) has not yet reached its limit of "2" matches, the
+    /// previous rule(s) will not be present in the matched rules output.
+    /// After the limit has been reached, the reservoir rule is ignored
+    /// and the output is the two other rules (id = 0, id = 2).
+    #[test]
+    fn test_reservoir_override() {
+        let dsc = mocked_dsc_with_getter_values(vec![]);
+        let rules = simple_sampling_rules(vec![
+            (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
+            // The reservoir has a limit of 2, meaning it should be sampled twice
+            // before it is ignored.
+            (RuleCondition::all(), SamplingValue::Reservoir { limit: 2 }),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: 0.5 },
+            ),
+        ]);
+
+        // The reservoir keeps the counter state behind a mutex, which is how it
+        // shares state among multiple evaluator instances.
+        let reservoir = mock_reservoir_evaluator(vec![]);
+
+        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        // Reservoir rule overrides 0 and 2.
+        assert_eq!(&matched_rules, &[1]);
+
+        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        // Reservoir rule overrides 0 and 2.
+        assert_eq!(&matched_rules, &[1]);
+
+        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        // Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
+        assert_eq!(&matched_rules, &[0, 2]);
     }
 
     /// Checks that rules don't match if the time is outside the time range.
