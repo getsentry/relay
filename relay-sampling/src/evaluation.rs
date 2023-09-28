@@ -72,9 +72,9 @@ pub struct ReservoirEvaluator {
 
 impl ReservoirEvaluator {
     /// Constructor for [`ReservoirEvaluator`].
-    pub fn new(map: ReservoirCounters) -> Self {
+    pub fn new(counters: ReservoirCounters) -> Self {
         Self {
-            counters: map,
+            counters,
             #[cfg(feature = "redis")]
             org_id: None,
             #[cfg(feature = "redis")]
