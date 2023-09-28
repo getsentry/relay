@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::condition::RuleCondition;
-use crate::evaluation::ReservoirStuff;
+use crate::evaluation::ReservoirEvaluator;
 use crate::utils;
 
 /// Represents the dynamic sampling configuration available to a project.
@@ -92,7 +92,7 @@ impl SamplingRule {
     pub fn sample_rate(
         &self,
         now: DateTime<Utc>,
-        reservoir: Option<Arc<ReservoirStuff>>,
+        reservoir: Option<&Arc<ReservoirEvaluator>>,
     ) -> Option<SamplingValue> {
         if !self.time_range.contains(now) {
             // Return None if rule is inactive.

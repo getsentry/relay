@@ -46,28 +46,35 @@ fn increment_bias_rule_count(
 /// The amount of transactions sampled of a given rule id.
 pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 
-/// Reservoir utility.
+/// Utility for evaluating reservoir rules.
+///
+///
 #[derive(Debug)]
-pub struct ReservoirStuff {
+pub struct ReservoirEvaluator {
     #[cfg(feature = "redis")]
     redis_pool: Option<Arc<RedisPool>>,
-    _org_id: u64,
+    #[cfg(feature = "redis")]
+    org_id: Option<u64>,
     map: ReservoirCounters,
 }
 
-impl ReservoirStuff {
-    /// Creates a new whatever ill call this struct.
-    pub fn new(
-        org_id: u64,
-        map: ReservoirCounters,
-        #[cfg(feature = "redis")] redis_pool: Option<Arc<RedisPool>>,
-    ) -> Self {
+impl ReservoirEvaluator {
+    /// Constructor for [`ReservoirEvaluator`].
+    pub fn new(map: ReservoirCounters) -> Self {
         Self {
-            _org_id: org_id,
             map,
             #[cfg(feature = "redis")]
-            redis_pool,
+            org_id: None,
+            #[cfg(feature = "redis")]
+            redis_pool: None,
         }
+    }
+
+    #[cfg(feature = "redis")]
+    pub fn set_redis(mut self, org_id: Option<u64>, redis_pool: Option<Arc<RedisPool>>) -> Self {
+        self.org_id = org_id;
+        self.redis_pool = redis_pool;
+        self
     }
 
     /// Evaluates a reservoir rule, returning true if it should be sampled.
@@ -92,8 +99,8 @@ impl ReservoirStuff {
 
         #[cfg(feature = "redis")]
         {
-            if let Some(pool) = self.redis_pool.as_ref() {
-                match increment_bias_rule_count(pool.clone(), self._org_id, rule) {
+            if let (Some(pool), Some(org_id)) = (self.redis_pool.as_ref(), self.org_id) {
+                match increment_bias_rule_count(pool.clone(), org_id, rule) {
                     Ok(redis_val) => new_val = redis_val,
                     Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
                 }
@@ -112,7 +119,7 @@ pub struct SamplingEvaluator {
     rule_ids: Vec<RuleId>,
     factor: f64,
     client_sample_rate: Option<f64>,
-    reservoir: Option<Arc<ReservoirStuff>>,
+    reservoir: Option<Arc<ReservoirEvaluator>>,
 }
 
 impl SamplingEvaluator {
@@ -128,7 +135,7 @@ impl SamplingEvaluator {
     }
 
     /// Sets a new client sample rate value.
-    pub fn set_reservoir(mut self, reservoir: Option<Arc<ReservoirStuff>>) -> Self {
+    pub fn set_reservoir(mut self, reservoir: Option<Arc<ReservoirEvaluator>>) -> Self {
         self.reservoir = reservoir;
         self
     }
@@ -165,7 +172,7 @@ impl SamplingEvaluator {
                 continue;
             };
 
-            let Some(sampling_value) = rule.sample_rate(self.now, self.reservoir.clone()) else {
+            let Some(sampling_value) = rule.sample_rate(self.now, self.reservoir.as_ref()) else {
                 continue;
             };
 

@@ -45,7 +45,7 @@ use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
-    MatchedRuleIds, ReservoirCounters, ReservoirStuff, SamplingEvaluator,
+    MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
 };
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
@@ -311,7 +311,7 @@ struct ProcessEnvelopeState {
     has_profile: bool,
 
     /// Reservoir stuff
-    reservoir: Arc<ReservoirStuff>,
+    reservoir: Arc<ReservoirEvaluator>,
 }
 
 impl ProcessEnvelopeState {
@@ -1363,12 +1363,14 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let reservoir = ReservoirStuff::new(
-            managed_envelope.scoping().organization_id,
-            reservoir_counters,
-            #[cfg(feature = "processing")]
-            self.inner.redis_pool.clone(),
-        )
+        let reservoir: Arc<ReservoirEvaluator> = if cfg!(feature = "processing") {
+            let redis = self.inner.redis_pool.clone();
+            let org_id = managed_envelope.scoping().organization_id;
+
+            ReservoirEvaluator::new(reservoir_counters).set_redis(Some(org_id), redis)
+        } else {
+            ReservoirEvaluator::new(reservoir_counters)
+        }
         .into();
 
         Ok(ProcessEnvelopeState {
@@ -2384,7 +2386,7 @@ impl EnvelopeProcessorService {
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(
         processing_enabled: bool,
-        reservoir: Arc<ReservoirStuff>,
+        reservoir: Arc<ReservoirEvaluator>,
         sampling_config: Option<&SamplingConfig>,
         event: Option<&Event>,
         root_sampling_config: Option<&SamplingConfig>,
@@ -3057,14 +3059,8 @@ mod tests {
         }
     }
 
-    fn dummy_reservoir() -> Arc<ReservoirStuff> {
-        ReservoirStuff::new(
-            0,
-            ReservoirCounters::default(),
-            #[cfg(feature = "processing")]
-            None,
-        )
-        .into()
+    fn dummy_reservoir() -> Arc<ReservoirEvaluator> {
+        ReservoirEvaluator::new(ReservoirCounters::default()).into()
     }
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
