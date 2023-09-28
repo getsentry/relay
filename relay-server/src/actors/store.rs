@@ -1027,10 +1027,12 @@ struct CheckInKafkaMessage {
 
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage {
-    /// Raw span data. See [`relay_event_schema::protocol::Span`] for schema.
-    span: serde_json::Value,
+    /// Version of the schema of this message.
+    version: u16,
     /// Time at which the span was received by Relay.
     start_time: u64,
+    /// The organization_id for the current span.
+    organization_id: u64,
     /// The project id for the current span.
     project_id: ProjectId,
     /// The event id for the current span.
@@ -1038,6 +1040,20 @@ struct SpanKafkaMessage {
     /// Once spans are truly standalone, this field will be omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
+
+    parent_span_id: Uuid,
+    retention_days: u16,
+    segment_id: Uuid,
+    span_id: Uuid,
+    user_tags: todo!(),
+    sentry_tags: todo!(),
+    trace_id: todo!(),
+
+    //exclusive_time_ms:
+    is_segment: bool,
+    start_timestamp_ms:
+    duration_ms
+    description
 }
 
 /// An enum over all possible ingest messages.
