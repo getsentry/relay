@@ -2,10 +2,12 @@
 use std::ops::ControlFlow;
 
 use chrono::Utc;
+use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectKey;
-use relay_sampling::config::{RuleType, SamplingMode};
+use relay_event_schema::protocol::{Event, TraceContext};
+use relay_sampling::config::{RuleType, SamplingConfig, SamplingMode};
+use relay_sampling::dsc::{DynamicSamplingContext, TraceUserContext};
 use relay_sampling::evaluation::{SamplingEvaluator, SamplingMatch};
-use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::{Envelope, ItemType};
 
@@ -112,12 +114,53 @@ pub fn get_sampling_key(envelope: &Envelope) -> Option<ProjectKey> {
     envelope.dsc().map(|dsc| dsc.public_key)
 }
 
+/// Computes a dynamic sampling context from a transaction event.
+///
+/// Returns `None` if the passed event is not a transaction event, or if it does not contain a
+/// trace ID in its trace context. All optional fields in the dynamic sampling context are
+/// populated with the corresponding attributes from the event payload if they are available.
+///
+/// Since sampling information is not available in the event payload, the `sample_rate` field
+/// cannot be set when computing the dynamic sampling context from a transaction event.
+pub fn dsc_from_event(public_key: ProjectKey, event: &Event) -> Option<DynamicSamplingContext> {
+    if event.ty.value() != Some(&EventType::Transaction) {
+        return None;
+    }
+
+    let Some(trace) = event.context::<TraceContext>() else {
+        return None;
+    };
+    let trace_id = trace.trace_id.value()?.0.parse().ok()?;
+    let user = event.user.value();
+
+    Some(DynamicSamplingContext {
+        trace_id,
+        public_key,
+        release: event.release.as_str().map(str::to_owned),
+        environment: event.environment.value().cloned(),
+        transaction: event.transaction.value().cloned(),
+        replay_id: None,
+        sample_rate: None,
+        user: TraceUserContext {
+            user_segment: user
+                .and_then(|u| u.segment.value().cloned())
+                .unwrap_or_default(),
+            user_id: user
+                .and_then(|u| u.id.as_str())
+                .unwrap_or_default()
+                .to_owned(),
+        },
+        sampled: None,
+        other: Default::default(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use relay_base_schema::events::EventType;
     use relay_event_schema::protocol::{Event, EventId, LenientString};
     use relay_protocol::Annotated;
-    use relay_sampling::condition::{EqCondOptions, EqCondition, RuleCondition};
+    use relay_sampling::condition::RuleCondition;
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };
@@ -134,14 +177,6 @@ mod tests {
     }
 
     use super::*;
-
-    fn eq(name: &str, value: &[&str], ignore_case: bool) -> RuleCondition {
-        RuleCondition::Eq(EqCondition {
-            name: name.to_owned(),
-            value: value.iter().map(|s| s.to_string()).collect(),
-            options: EqCondOptions { ignore_case },
-        })
-    }
 
     fn mocked_simple_dynamic_sampling_context(
         sample_rate: Option<f64>,
@@ -208,7 +243,7 @@ mod tests {
     /// Tests that an event is kept when there is no match.
     fn test_match_rules_return_keep_with_no_match() {
         let rules = vec![SamplingRule {
-            condition: eq("event.transaction", &["foo"], true),
+            condition: RuleCondition::eq_ignore_case("event.transaction", "foo"),
             sampling_value: SamplingValue::SampleRate { value: 0.5 },
             ty: RuleType::Transaction,
             id: RuleId(3),

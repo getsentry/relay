@@ -24,7 +24,7 @@ pub struct EqCondOptions {
 ///
 /// This operator supports:
 ///  - boolean
-///  - strings (with `ignore_case` flag)
+///  - strings, optionally ignoring ASCII-case
 ///  - UUIDs
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,6 +44,28 @@ pub struct EqCondition {
 }
 
 impl EqCondition {
+    /// Creates a new condition that checks for equality.
+    ///
+    /// By default, this condition will perform a case-sensitive check. To ignore ASCII case, use
+    /// [`EqCondition::ignore_case`].
+    ///
+    /// The main way to create this conditions is [`RuleCondition::eq`].
+    pub fn new(field: impl Into<String>, value: impl Into<Value>) -> Self {
+        Self {
+            name: field.into(),
+            value: value.into(),
+            options: EqCondOptions { ignore_case: false },
+        }
+    }
+
+    /// Enables case-insensitive comparisions for this rule.
+    ///
+    /// To create such a condition directly, use [`RuleCondition::eq_ignore_case`].
+    pub fn ignore_case(mut self) -> Self {
+        self.options.ignore_case = true;
+        self
+    }
+
     fn cmp(&self, left: &str, right: &str) -> bool {
         if self.options.ignore_case {
             unicase::eq(left, right)
@@ -84,6 +106,14 @@ macro_rules! impl_cmp_condition {
         }
 
         impl $struct_name {
+            /// Creates a new condition that comparison condition.
+            pub fn new(field: impl Into<String>, value: impl Into<Number>) -> Self {
+                Self {
+                    name: field.into(),
+                    value: value.into(),
+                }
+            }
+
             fn matches<T>(&self, instance: &T) -> bool
             where
                 T: Getter + ?Sized,
@@ -131,6 +161,14 @@ pub struct GlobCondition {
 }
 
 impl GlobCondition {
+    /// Creates a condition that matches one or more glob patterns.
+    pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self {
+            name: field.into(),
+            value: GlobPatterns::new(value.into_strings()),
+        }
+    }
+
     fn matches<T>(&self, instance: &T) -> bool
     where
         T: Getter + ?Sized,
@@ -142,9 +180,60 @@ impl GlobCondition {
     }
 }
 
+/// A type that can be converted to a list of strings.
+pub trait IntoStrings {
+    /// Creates a list of strings from this type.
+    fn into_strings(self) -> Vec<String>;
+}
+
+impl IntoStrings for &'_ str {
+    fn into_strings(self) -> Vec<String> {
+        vec![self.to_owned()]
+    }
+}
+
+impl IntoStrings for String {
+    fn into_strings(self) -> Vec<String> {
+        vec![self]
+    }
+}
+
+impl IntoStrings for std::borrow::Cow<'_, str> {
+    fn into_strings(self) -> Vec<String> {
+        vec![self.into_owned()]
+    }
+}
+
+impl IntoStrings for &'_ [&'_ str] {
+    fn into_strings(self) -> Vec<String> {
+        self.iter().copied().map(str::to_owned).collect()
+    }
+}
+
+impl IntoStrings for &'_ [String] {
+    fn into_strings(self) -> Vec<String> {
+        self.to_vec()
+    }
+}
+
+impl IntoStrings for Vec<&'_ str> {
+    fn into_strings(self) -> Vec<String> {
+        self.into_iter().map(str::to_owned).collect()
+    }
+}
+
+impl IntoStrings for Vec<String> {
+    fn into_strings(self) -> Vec<String> {
+        self
+    }
+}
+
 /// Combines multiple conditions using logical OR.
 ///
-/// This condition matches if **any** of the inner conditions matches.
+/// This condition matches if **any** of the inner conditions match. The default value for this
+/// condition is `false`, that is, this rule does not match if there are no inner conditions.
+///
+/// See [`RuleCondition::or`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrCondition {
     /// Inner rules to combine.
@@ -166,7 +255,10 @@ impl OrCondition {
 
 /// Combines multiple conditions using logical AND.
 ///
-/// This condition matches if **all** of the inner conditions matches.
+/// This condition matches if **all** of the inner conditions match. The default value for this
+/// condition is `true`, that is, this rule matches if there are no inner conditions.
+///
+/// See [`RuleCondition::and`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AndCondition {
     /// Inner rules to combine.
@@ -188,6 +280,8 @@ impl AndCondition {
 /// Applies logical NOT to a condition.
 ///
 /// This condition matches if the inner condition does not match.
+///
+/// See [`RuleCondition::negate`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NotCondition {
     /// An inner rule to negate.
@@ -207,37 +301,335 @@ impl NotCondition {
     }
 }
 
-/// A condition from a sampling rule.
+/// A condition that can be evaluated on structured data.
+///
+/// The basic conditions are [`eq`](Self::eq), [`glob`](Self::glob), and the comparison operators.
+/// These conditions compare a data field specified through a path with a value or a set of values.
+/// If the field's value [matches](Self::matches) the values declared in the rule, the condition
+/// returns `true`.
+///
+/// Conditions can be combined with the logical operators [`and`](Self::and), [`or`](Self::or), and
+/// [`not` (negate)](Self::negate).
+///
+/// # Data Access
+///
+/// Rule conditions access data fields through the [`Getter`] trait. Note that getters always have a
+/// root namespace which must be part of the field's path. If path's root component does not match
+/// the one of the passed getter instance, the rule condition will not be able to retrieve data and
+/// likely not match.
+///
+/// # Serialization
+///
+/// Conditions are represented as nested JSON objects. The condition type is declared in the `op`
+/// field.
+///
+/// # Example
+///
+/// ```
+/// use relay_sampling::condition::RuleCondition;
+///
+/// let condition = !RuleCondition::eq("obj.status", "invalid");
+/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
     /// A condition that compares values for equality.
+    ///
+    /// This operator supports:
+    ///  - boolean
+    ///  - strings, optionally ignoring ASCII-case
+    ///  - UUIDs
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::eq("obj.status", "invalid");
+    /// ```
     Eq(EqCondition),
+
     /// A condition that applies `>=`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::gte("obj.length", 10);
+    /// ```
     Gte(GteCondition),
+
     /// A condition that applies `<=`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::lte("obj.length", 10);
+    /// ```
     Lte(LteCondition),
+
     /// A condition that applies `>`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::gt("obj.length", 10);
+    /// ```
     Gt(GtCondition),
+
     /// A condition that applies `<`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::lt("obj.length", 10);
+    /// ```
     Lt(LtCondition),
+
     /// A condition that uses glob matching.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::glob("obj.name", "error: *");
+    /// ```
     Glob(GlobCondition),
+
     /// Combines multiple conditions using logical OR.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     | RuleCondition::eq("obj.status", "unknown");
+    /// ```
     Or(OrCondition),
+
     /// Combines multiple conditions using logical AND.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     & RuleCondition::gte("obj.length", 10);
+    /// ```
     And(AndCondition),
+
     /// Applies logical NOT to a condition.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = !RuleCondition::eq("obj.status", "invalid");
+    /// ```
     Not(NotCondition),
+
     /// An unsupported condition for future compatibility.
     #[serde(other)]
     Unsupported,
 }
 
 impl RuleCondition {
-    /// Returns a condition that matches everything.
+    /// Returns a condition that always matches.
     pub fn all() -> Self {
         Self::And(AndCondition { inner: Vec::new() })
+    }
+
+    /// Returns a condition that never matches.
+    pub fn never() -> Self {
+        Self::Or(OrCondition { inner: Vec::new() })
+    }
+
+    /// Creates a condition that compares values for equality.
+    ///
+    /// This operator supports:
+    ///  - boolean
+    ///  - strings
+    ///  - UUIDs
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// // Matches if the value is identical to the given string:
+    /// let condition = RuleCondition::eq("obj.status", "invalid");
+    ///
+    /// // Matches if the value is identical to any of the given strings:
+    /// let condition = RuleCondition::eq("obj.status", &["invalid", "unknown"][..]);
+    ///
+    /// // Matches a boolean flag:
+    /// let condition = RuleCondition::eq("obj.valid", false);
+    /// ```
+    pub fn eq(field: impl Into<String>, value: impl Into<Value>) -> Self {
+        Self::Eq(EqCondition::new(field, value))
+    }
+
+    /// Creates a condition that compares values for equality ignoring ASCII-case.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// // Matches if the value is identical to the given string:
+    /// let condition = RuleCondition::eq_ignore_case("obj.status", "invalid");
+    ///
+    /// // Matches if the value is identical to any of the given strings:
+    /// let condition = RuleCondition::eq_ignore_case("obj.status", &["invalid", "unknown"][..]);
+    /// ```
+    pub fn eq_ignore_case(field: impl Into<String>, value: impl Into<Value>) -> Self {
+        Self::Eq(EqCondition::new(field, value).ignore_case())
+    }
+
+    /// Creates a condition that matches one or more glob patterns.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// // Match a single pattern:
+    /// let condition = RuleCondition::glob("obj.name", "error: *");
+    ///
+    /// // Match any of a list of patterns:
+    /// let condition = RuleCondition::glob("obj.name", &["error: *", "*failure*"][..]);
+    /// ```
+    pub fn glob(field: impl Into<String>, value: impl IntoStrings) -> Self {
+        Self::Glob(GlobCondition::new(field, value))
+    }
+
+    /// Creates a condition that applies `>`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::gt("obj.length", 10);
+    /// ```
+    pub fn gt(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Gt(GtCondition::new(field, value))
+    }
+
+    /// Creates a condition that applies `>=`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::gte("obj.length", 10);
+    /// ```
+    pub fn gte(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Gte(GteCondition::new(field, value))
+    }
+
+    /// Creates a condition that applies `<`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::lt("obj.length", 10);
+    /// ```
+    pub fn lt(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Lt(LtCondition::new(field, value))
+    }
+
+    /// Creates a condition that applies `<=`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::lte("obj.length", 10);
+    /// ```
+    pub fn lte(field: impl Into<String>, value: impl Into<Number>) -> Self {
+        Self::Lte(LteCondition::new(field, value))
+    }
+
+    /// Combines this condition and another condition with a logical AND operator.
+    ///
+    /// The short-hand operator for this combinator is `&`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     & RuleCondition::gte("obj.length", 10);
+    /// ```
+    pub fn and(mut self, other: RuleCondition) -> Self {
+        if let Self::And(ref mut condition) = self {
+            condition.inner.push(other);
+            self
+        } else {
+            Self::And(AndCondition {
+                inner: vec![self, other],
+            })
+        }
+    }
+
+    /// Combines this condition and another condition with a logical OR operator.
+    ///
+    /// The short-hand operator for this combinator is `|`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = RuleCondition::eq("obj.status", "invalid")
+    ///     | RuleCondition::eq("obj.status", "unknown");
+    /// ```
+    pub fn or(mut self, other: RuleCondition) -> Self {
+        if let Self::Or(ref mut condition) = self {
+            condition.inner.push(other);
+            self
+        } else {
+            Self::Or(OrCondition {
+                inner: vec![self, other],
+            })
+        }
+    }
+
+    /// Negates this condition with logical NOT.
+    ///
+    /// The short-hand operator for this combinator is `!`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use relay_sampling::condition::RuleCondition;
+    ///
+    /// let condition = !RuleCondition::eq("obj.status", "invalid");
+    /// ```
+    pub fn negate(self) -> Self {
+        match self {
+            Self::Not(condition) => *condition.inner,
+            other => Self::Not(NotCondition {
+                inner: Box::new(other),
+            }),
+        }
     }
 
     /// Checks if Relay supports this condition (in other words if the condition had any unknown configuration
@@ -280,6 +672,30 @@ impl RuleCondition {
     }
 }
 
+impl std::ops::BitAnd for RuleCondition {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        self.and(rhs)
+    }
+}
+
+impl std::ops::BitOr for RuleCondition {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        self.or(rhs)
+    }
+}
+
+impl std::ops::Not for RuleCondition {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        self.negate()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -288,7 +704,6 @@ mod tests {
     use uuid::Uuid;
 
     use crate::dsc::TraceUserContext;
-    use crate::tests::{and, eq, glob, not, or};
     use crate::DynamicSamplingContext;
 
     use super::*;
@@ -445,86 +860,70 @@ mod tests {
         let conditions = [
             (
                 "simple",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                    eq("trace.transaction", &["transaction1"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip")
+                    & RuleCondition::eq_ignore_case("trace.transaction", "transaction1"),
             ),
             (
                 "glob releases",
-                and(vec![
-                    glob("trace.release", &["1.*"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.*")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "glob transaction",
-                and(vec![glob("trace.transaction", &["trans*"])]),
+                RuleCondition::glob("trace.transaction", "trans*"),
             ),
             (
                 "multiple releases",
-                and(vec![
-                    glob("trace.release", &["2.1.1", "1.1.*"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", vec!["2.1.1", "1.1.*"])
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "multiple user segments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["paid", "vip", "free"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case(
+                        "trace.user.segment",
+                        vec!["paid", "vip", "free"],
+                    ),
             ),
             (
                 "multiple transactions",
-                and(vec![glob("trace.transaction", &["t22", "trans*", "t33"])]),
+                RuleCondition::glob("trace.transaction", &["t22", "trans*", "t33"][..]),
             ),
             (
                 "case insensitive user segments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["ViP", "FrEe"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", &["ViP", "FrEe"][..]),
             ),
             (
                 "multiple user environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq(
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case(
                         "trace.environment",
-                        &["integration", "debug", "production"],
-                        true,
-                    ),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                        &["integration", "debug", "production"][..],
+                    )
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "case insensitive environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["DeBuG", "PrOd"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", &["DeBuG", "PrOd"][..])
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "all environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "undefined environments",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             ("match no conditions", RuleCondition::all()),
         ];
@@ -543,36 +942,33 @@ mod tests {
             (
                 "both",
                 true,
-                or(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "first",
                 true,
-                or(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
             (
                 "second",
                 true,
-                or(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "none",
                 false,
-                or(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    | RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
-            ("empty", false, or(vec![])),
+            (
+                "empty",
+                false,
+                RuleCondition::Or(OrCondition { inner: vec![] }),
+            ),
+            ("never", false, RuleCondition::never()),
         ];
 
         let dsc = dsc_dummy();
@@ -589,36 +985,33 @@ mod tests {
             (
                 "both",
                 true,
-                and(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "first",
                 false,
-                and(vec![
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
             (
                 "second",
                 false,
-                and(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["vip"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "vip"),
             ),
             (
                 "none",
                 false,
-                and(vec![
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user.segment", &["all"], true),
-                ]),
+                RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    & RuleCondition::eq_ignore_case("trace.user.segment", "all"),
             ),
-            ("empty", true, RuleCondition::all()),
+            (
+                "empty",
+                true,
+                RuleCondition::And(AndCondition { inner: vec![] }),
+            ),
+            ("all", true, RuleCondition::all()),
         ];
 
         let dsc = dsc_dummy();
@@ -635,12 +1028,12 @@ mod tests {
             (
                 "not true",
                 false,
-                not(eq("trace.environment", &["debug"], true)),
+                !RuleCondition::eq_ignore_case("trace.environment", "debug"),
             ),
             (
                 "not false",
                 true,
-                not(eq("trace.environment", &["prod"], true)),
+                !RuleCondition::eq_ignore_case("trace.environment", "prod"),
             ),
         ];
 
@@ -658,35 +1051,27 @@ mod tests {
         let conditions = [
             (
                 "release",
-                and(vec![
-                    glob("trace.release", &["1.1.2"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.2")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user", "vip"),
             ),
             (
                 "user segment",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["debug"], true),
-                    eq("trace.user", &["all"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "debug")
+                    & RuleCondition::eq_ignore_case("trace.user", "all"),
             ),
             (
                 "environment",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    eq("trace.environment", &["prod"], true),
-                    eq("trace.user", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::eq_ignore_case("trace.environment", "prod")
+                    & RuleCondition::eq_ignore_case("trace.user", "vip"),
             ),
             (
                 "transaction",
-                and(vec![
-                    glob("trace.release", &["1.1.1"]),
-                    glob("trace.transaction", &["t22"]),
-                    eq("trace.user", &["vip"], true),
-                ]),
+                RuleCondition::glob("trace.release", "1.1.1")
+                    & RuleCondition::glob("trace.transaction", "t22")
+                    & RuleCondition::eq_ignore_case("trace.user", "vip"),
             ),
         ];
 
