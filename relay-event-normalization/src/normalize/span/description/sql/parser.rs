@@ -36,15 +36,6 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
     let mut visitor = NormalizeVisitor::new();
     parsed.visit(&mut visitor);
-    if visitor.max_expr_depth > MAX_EXPRESSION_DEPTH {
-        // Temporarily collect error cases to see if we were too strict.
-        relay_log::error!(
-            query = string,
-            depth = visitor.max_expr_depth,
-            "SQL query too deep"
-        );
-        return Err(());
-    }
 
     let concatenated = parsed
         .iter()
@@ -63,15 +54,12 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
 struct NormalizeVisitor {
     /// The current depth of an expression.
     current_expr_depth: usize,
-    /// The largest depth of any expression encountered during traversal.
-    max_expr_depth: usize,
 }
 
 impl NormalizeVisitor {
     pub fn new() -> Self {
         Self {
             current_expr_depth: 0,
-            max_expr_depth: 0,
         }
     }
 
@@ -188,14 +176,15 @@ impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
+        if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
+            *expr = Expr::Value(Value::Placeholder("..".to_owned()));
+            return ControlFlow::Continue(());
+        }
         self.current_expr_depth += 1;
+
         match expr {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
-            // Casts are omitted for simplification.
-            Expr::Cast { expr: inner, .. } => {
-                *expr = *inner.clone(); // clone is unfortunate here.
-            }
             // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
             // `"table"."col"` is replaced by `col`.
@@ -235,10 +224,14 @@ impl VisitorMut for NormalizeVisitor {
     }
 
     fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
-        if let Expr::CompoundIdentifier(parts) = expr {
-            Self::simplify_compound_identifier(parts);
+        // Casts are omitted for simplification. Because we replace the entire expression,
+        // the replacement has to occur *after* visiting its children.
+        if let Expr::Cast { expr: inner, .. } = expr {
+            let mut swapped = Expr::Value(Value::Null);
+            std::mem::swap(&mut swapped, inner);
+            *expr = swapped;
         }
-        self.max_expr_depth = self.max_expr_depth.max(self.current_expr_depth);
+
         self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
         ControlFlow::Continue(())
     }
@@ -380,41 +373,11 @@ impl Dialect for DialectWithParameters {
 
 #[cfg(test)]
 mod tests {
-
-    use sqlparser::parser::Parser;
-
     use super::*;
 
     #[test]
-    fn depth() {
-        let query = "SELECT (a + b + (c1 + (c2 + c3)) + c)";
-        let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
-        let mut visitor = NormalizeVisitor::new();
-        parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_expr_depth, 8);
-    }
-
-    #[test]
-    fn depth_nested_select() {
-        let query = "SELECT (SELECT 1) AS one FROM a";
-        let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
-        let mut visitor = NormalizeVisitor::new();
-        parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_expr_depth, 2);
-    }
-
-    #[test]
-    fn depth_nested_select_2() {
-        let query = "SELECT (SELECT (SELECT 1)) AS one FROM a";
-        let mut parsed = Parser::parse_sql(&GenericDialect {}, query).unwrap();
-        let mut visitor = NormalizeVisitor::new();
-        parsed.visit(&mut visitor);
-        assert_eq!(visitor.max_expr_depth, 3);
-    }
-
-    #[test]
     fn parse_deep_expression() {
-        let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
-        assert!(normalize_parsed_queries(None, query).is_err());
+        let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
+        assert_eq!(normalize_parsed_queries(None, query).as_deref(), Ok("SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"));
     }
 }
