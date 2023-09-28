@@ -1363,7 +1363,7 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let reservoir: Arc<ReservoirEvaluator> = {
+        let reservoir = {
             #[allow(unused_mut)]
             let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
 

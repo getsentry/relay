@@ -95,7 +95,6 @@ impl ReservoirEvaluator {
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
     pub fn evaluate(&self, rule: RuleId, limit: i64) -> bool {
         // If the mutex is already locked, we abort the match, for performance reasons.
-
         let Ok(mut map_guard) = self.counters.try_lock() else {
             return false;
         };
@@ -397,7 +396,7 @@ mod tests {
     fn matches_rule_ids(rule_ids: &[u32], rules: &[SamplingRule], instance: &impl Getter) -> bool {
         let matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(*num)).collect());
         let sampling_match = get_sampling_match(rules, instance);
-        matched_rule_ids == sampling_match.into_matched_rules()
+        matched_rule_ids == sampling_match.matched_rules
     }
 
     /// Helper function to create a dsc with the provided getter-values set.

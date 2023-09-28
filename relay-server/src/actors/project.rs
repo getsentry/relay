@@ -424,11 +424,12 @@ impl Project {
         }
     }
 
+    /// Returns the [`ReservoirCounters`] for the project.
     pub fn reservoir_counters(&self) -> ReservoirCounters {
         self.reservoir_counters.clone()
     }
 
-    /// if a reservoir rule is no longer in the sampling config, we can assume it's no longer needed.
+    /// If a reservoir rule is no longer in the sampling config, we can assume it's no longer needed.
     pub fn remove_expired_reservoir_rules(&self) {
         let Some(config) = self
             .state
