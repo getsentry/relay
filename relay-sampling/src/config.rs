@@ -88,8 +88,8 @@ impl SamplingRule {
         matches!(&self.sampling_value, &SamplingValue::Reservoir { .. })
     }
 
-    /// Returns the sample rate if the rule is active.
-    pub fn sample_rate(
+    /// Returns the updated sampling value if it's valid.
+    pub fn evaluate(
         &self,
         now: DateTime<Utc>,
         reservoir: Option<&Arc<ReservoirEvaluator>>,
@@ -105,7 +105,7 @@ impl SamplingRule {
             SamplingValue::Reservoir { limit } => {
                 return reservoir.and_then(|reservoir| {
                     reservoir
-                        .evaluate_rule(self.id, limit)
+                        .evaluate(self.id, limit)
                         .then_some(SamplingValue::Reservoir { limit })
                 });
             }
@@ -167,11 +167,13 @@ pub enum SamplingValue {
         /// The factor to apply on another matched sample rate.
         value: f64,
     },
+
     /// A reservoir limit.
     ///
-    /// Rule will match if less than `limit` rules have been sampled.
+    /// A rule with a reservoir limit will be sampled if the rule have been matched fewer times
+    /// than the limit.
     Reservoir {
-        /// The limit of how many transactions with this rule will be sampled.
+        /// The limit of how many times this rule will be sampled before this rule is invalid.
         limit: i64,
     },
 }
@@ -537,19 +539,19 @@ mod tests {
 
         // At the start of the time range, sample rate is equal to the rule's initial sampling value.
         assert_eq!(
-            rule.sample_rate(start, None).unwrap(),
+            rule.evaluate(start, None).unwrap(),
             SamplingValue::SampleRate { value: 1.0 }
         );
 
         // Halfway in the time range, the value is exactly between 1.0 and 0.5.
         assert_eq!(
-            rule.sample_rate(halfway, None).unwrap(),
+            rule.evaluate(halfway, None).unwrap(),
             SamplingValue::SampleRate { value: 0.75 }
         );
 
         // Approaches 0.5 at the end.
         assert_eq!(
-            rule.sample_rate(end, None).unwrap(),
+            rule.evaluate(end, None).unwrap(),
             SamplingValue::SampleRate {
                 // It won't go to exactly 0.5 because the time range is end-exclusive.
                 value: 0.5000028935185186
@@ -563,7 +565,7 @@ mod tests {
             rule
         };
 
-        assert!(rule_without_start.sample_rate(halfway, None).is_none());
+        assert!(rule_without_start.evaluate(halfway, None).is_none());
 
         let rule_without_end = {
             let mut rule = rule.clone();
@@ -571,7 +573,7 @@ mod tests {
             rule
         };
 
-        assert!(rule_without_end.sample_rate(halfway, None).is_none());
+        assert!(rule_without_end.evaluate(halfway, None).is_none());
     }
 
     /// If the decayingfunction is set to `Constant` then it shouldn't adjust the sample rate.
@@ -593,7 +595,7 @@ mod tests {
 
         let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
 
-        assert_eq!(rule.sample_rate(halfway, None), Some(sampling_value));
+        assert_eq!(rule.evaluate(halfway, None), Some(sampling_value));
     }
 
     /// Validates the `sample_rate` method for different time range configurations.
@@ -619,47 +621,41 @@ mod tests {
             time_range,
             decaying_fn: DecayingFunction::Constant,
         };
-        assert!(rule.sample_rate(before_time_range, None).is_none());
-        assert!(rule.sample_rate(during_time_range, None).is_some());
-        assert!(rule.sample_rate(after_time_range, None).is_none());
+        assert!(rule.evaluate(before_time_range, None).is_none());
+        assert!(rule.evaluate(during_time_range, None).is_some());
+        assert!(rule.evaluate(after_time_range, None).is_none());
 
         // [start..]
         let mut rule_without_end = rule.clone();
         rule_without_end.time_range.end = None;
-        assert!(rule_without_end
-            .sample_rate(before_time_range, None)
-            .is_none());
-        assert!(rule_without_end
-            .sample_rate(during_time_range, None)
-            .is_some());
-        assert!(rule_without_end
-            .sample_rate(after_time_range, None)
-            .is_some());
+        assert!(rule_without_end.evaluate(before_time_range, None).is_none());
+        assert!(rule_without_end.evaluate(during_time_range, None).is_some());
+        assert!(rule_without_end.evaluate(after_time_range, None).is_some());
 
         // [..end]
         let mut rule_without_start = rule.clone();
         rule_without_start.time_range.start = None;
         assert!(rule_without_start
-            .sample_rate(before_time_range, None)
+            .evaluate(before_time_range, None)
             .is_some());
         assert!(rule_without_start
-            .sample_rate(during_time_range, None)
+            .evaluate(during_time_range, None)
             .is_some());
         assert!(rule_without_start
-            .sample_rate(after_time_range, None)
+            .evaluate(after_time_range, None)
             .is_none());
 
         // [..]
         let mut rule_without_range = rule.clone();
         rule_without_range.time_range = TimeRange::default();
         assert!(rule_without_range
-            .sample_rate(before_time_range, None)
+            .evaluate(before_time_range, None)
             .is_some());
         assert!(rule_without_range
-            .sample_rate(during_time_range, None)
+            .evaluate(during_time_range, None)
             .is_some());
         assert!(rule_without_range
-            .sample_rate(after_time_range, None)
+            .evaluate(after_time_range, None)
             .is_some());
     }
 
@@ -679,13 +675,13 @@ mod tests {
         };
 
         matches!(
-            rule.sample_rate(Utc::now(), None).unwrap(),
+            rule.evaluate(Utc::now(), None).unwrap(),
             SamplingValue::SampleRate { .. }
         );
 
         rule.sampling_value = SamplingValue::Factor { value: 0.42 };
         matches!(
-            rule.sample_rate(Utc::now(), None).unwrap(),
+            rule.evaluate(Utc::now(), None).unwrap(),
             SamplingValue::Factor { .. }
         );
     }

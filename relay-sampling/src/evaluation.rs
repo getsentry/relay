@@ -28,41 +28,53 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     generator.sample(dist)
 }
 
-/// Increments the count, it will be initialized automatically if it doesn't exist.
+/// Increments the reservoir count for a given rule in redis.
 ///
-/// INCR docs: [`https://redis.io/commands/incr/`]
+/// - INCR docs: [`https://redis.io/commands/incr/`]
+/// - If the counter doesn't exist in redis, a new one will be inserted.
 #[cfg(feature = "redis")]
-fn increment_bias_rule_count(
-    redis: Arc<RedisPool>,
+fn increment_redis_reservoir_count(
+    redis: &Arc<RedisPool>,
     org_id: u64,
     rule_id: RuleId,
 ) -> anyhow::Result<i64> {
-    let key = format!("bias:{}:{}", org_id, rule_id);
     let mut command = relay_redis::redis::cmd("INCR");
-    command.arg(key.as_str());
+
+    let key = format!("bias:{}:{}", org_id, rule_id);
+    command.arg(key);
+
     Ok(command.query(&mut redis.client()?.connection()?)?)
 }
 
 /// The amount of transactions sampled of a given rule id.
 pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 
-/// Utility for evaluating reservoir rules.
+/// Utility for evaluating reservoir-based sampling rules.
 ///
+/// A "reservoir limit" rule samples every match until its limit is reached, after which
+/// the rule is disabled.
 ///
+/// This utility uses a dual-counter system for enforcing this limit:
+///
+/// - Local Counter: Each relay instance maintains a local counter to track sampled events.
+///
+/// - Redis Counter: For processing relays, a Redis-based counter provides synchronization
+///   across multiple relay-instances. When incremented, the Redis counter returns the current global
+///   count for the given rule, which is then used to update the local counter.
 #[derive(Debug)]
 pub struct ReservoirEvaluator {
+    counters: ReservoirCounters,
     #[cfg(feature = "redis")]
     redis_pool: Option<Arc<RedisPool>>,
     #[cfg(feature = "redis")]
     org_id: Option<u64>,
-    map: ReservoirCounters,
 }
 
 impl ReservoirEvaluator {
     /// Constructor for [`ReservoirEvaluator`].
     pub fn new(map: ReservoirCounters) -> Self {
         Self {
-            map,
+            counters: map,
             #[cfg(feature = "redis")]
             org_id: None,
             #[cfg(feature = "redis")]
@@ -70,45 +82,50 @@ impl ReservoirEvaluator {
         }
     }
 
+    /// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].
+    ///
+    /// These values are needed to synchronize with Redis.
     #[cfg(feature = "redis")]
-    pub fn set_redis(mut self, org_id: Option<u64>, redis_pool: Option<Arc<RedisPool>>) -> Self {
-        self.org_id = org_id;
-        self.redis_pool = redis_pool;
+    pub fn set_redis(mut self, org_id: u64, redis_pool: Arc<RedisPool>) -> Self {
+        self.org_id = Some(org_id);
+        self.redis_pool = Some(redis_pool);
         self
     }
 
-    /// Evaluates a reservoir rule, returning true if it should be sampled.
-    pub fn evaluate_rule(&self, rule: RuleId, limit: i64) -> bool {
-        let Ok(mut map_guard) = self.map.try_lock() else {
+    /// Evaluates a reservoir rule, returning `true` if it should be sampled.
+    pub fn evaluate(&self, rule: RuleId, limit: i64) -> bool {
+        // If the mutex is already locked, we abort the match, for performance reasons.
+        let Ok(mut map_guard) = self.counters.try_lock() else {
             return false;
         };
 
-        let incremented_value = self.increment(&mut map_guard, rule);
+        let counter_value = map_guard.entry(rule).or_insert(0);
 
-        incremented_value < limit
-    }
+        // Avoid Redis call if limit has already been reached.
+        if *counter_value >= limit {
+            return false;
+        }
 
-    // if limit isn't reached yet, we wanna increment.
-    // when incrementing, if processing is enabled, we increment redis and insert back the value
-    // otherwise we just increment directly
-    fn increment(&self, map_guard: &mut MutexGuard<BTreeMap<RuleId, i64>>, rule: RuleId) -> i64 {
-        let val = map_guard.entry(rule).or_insert(0);
-
+        // The new value is either the current value + 1, or the value from redis
+        // if we have access to redis.
         #[cfg_attr(not(feature = "redis"), allow(unused_mut))]
-        let mut new_val: i64 = *val + 1;
+        let mut new_val: i64 = *counter_value + 1;
 
         #[cfg(feature = "redis")]
         {
             if let (Some(pool), Some(org_id)) = (self.redis_pool.as_ref(), self.org_id) {
-                match increment_bias_rule_count(pool.clone(), org_id, rule) {
+                match increment_redis_reservoir_count(pool, org_id, rule) {
                     Ok(redis_val) => new_val = redis_val,
                     Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
                 }
             }
         }
 
-        *val = new_val;
-        *val
+        // Update the counter.
+        *counter_value = new_val;
+
+        // We sample the rule if the limit has not been reached.
+        *counter_value < limit
     }
 }
 
@@ -134,7 +151,7 @@ impl SamplingEvaluator {
         }
     }
 
-    /// Sets a new client sample rate value.
+    /// Sets a [`ReservoirEvaluator`].
     pub fn set_reservoir(mut self, reservoir: Option<Arc<ReservoirEvaluator>>) -> Self {
         self.reservoir = reservoir;
         self
@@ -172,7 +189,7 @@ impl SamplingEvaluator {
                 continue;
             };
 
-            let Some(sampling_value) = rule.sample_rate(self.now, self.reservoir.as_ref()) else {
+            let Some(sampling_value) = rule.evaluate(self.now, self.reservoir.as_ref()) else {
                 continue;
             };
 

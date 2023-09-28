@@ -310,7 +310,7 @@ struct ProcessEnvelopeState {
     /// Whether there is a profiling item in the envelope.
     has_profile: bool,
 
-    /// Reservoir stuff
+    /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: Arc<ReservoirEvaluator>,
 }
 
@@ -1363,15 +1363,18 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let reservoir: Arc<ReservoirEvaluator> = if cfg!(feature = "processing") {
-            let redis = self.inner.redis_pool.clone();
-            let org_id = managed_envelope.scoping().organization_id;
+        let reservoir: Arc<ReservoirEvaluator> = {
+            #[allow(unused_mut)]
+            let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
 
-            ReservoirEvaluator::new(reservoir_counters).set_redis(Some(org_id), redis)
-        } else {
-            ReservoirEvaluator::new(reservoir_counters)
-        }
-        .into();
+            #[cfg(feature = "processing")]
+            if let Some(redis_pool) = self.inner.redis_pool.as_ref() {
+                let org_id = managed_envelope.scoping().organization_id;
+                reservoir = reservoir.set_redis(org_id, redis_pool.clone());
+            }
+
+            Arc::new(reservoir)
+        };
 
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
