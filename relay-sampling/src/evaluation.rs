@@ -415,6 +415,18 @@ mod tests {
 
     use super::*;
 
+    fn mock_reservoir_evaluator(vals: Vec<(u32, i64)>) -> ReservoirEvaluator<'static> {
+        let mut map = BTreeMap::default();
+
+        for (rule_id, count) in vals {
+            map.insert(RuleId(rule_id), count);
+        }
+
+        let map = Arc::new(Mutex::new(map));
+
+        ReservoirEvaluator::new(map)
+    }
+
     /// Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
         match SamplingEvaluator::new(Utc::now()).match_rules(
@@ -468,6 +480,21 @@ mod tests {
         }
 
         dsc
+    }
+
+    #[test]
+    fn test_reservoir_evaluator_limit() {
+        let evaluator = mock_reservoir_evaluator(vec![(1, 0)]);
+
+        let rule = RuleId(1);
+        let limit = 3;
+
+        assert!(evaluator.evaluate(rule, limit, None));
+        assert!(evaluator.evaluate(rule, limit, None));
+        assert!(evaluator.evaluate(rule, limit, None));
+        // After 3 samples we have reached the limit, and the following rules are not sampled.
+        assert!(!evaluator.evaluate(rule, limit, None));
+        assert!(!evaluator.evaluate(rule, limit, None));
     }
 
     #[test]
