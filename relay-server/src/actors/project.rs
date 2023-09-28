@@ -429,8 +429,8 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
-    /// If a reservoir rule is no longer in the sampling config, we can assume it's no longer needed.
-    pub fn remove_expired_reservoir_rules(&self) {
+    /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
+    fn remove_expired_reservoir_rules(&self) {
         let Some(config) = self
             .state
             .as_ref()
@@ -439,6 +439,7 @@ impl Project {
             return;
         };
 
+        // Using try_lock to not slow down the project cache service.
         if let Ok(mut guard) = self.reservoir_counters.try_lock() {
             guard.retain(|key, _| config.rules_v2.iter().any(|rule| rule.id == *key));
         }
@@ -765,6 +766,9 @@ impl Project {
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(state);
+
+        // Check if the new sampling config got rid of any reservoir rules we have counters for.
+        self.remove_expired_reservoir_rules();
     }
 
     /// Creates `Scoping` for this project if the state is loaded.

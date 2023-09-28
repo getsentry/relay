@@ -311,7 +311,7 @@ struct ProcessEnvelopeState {
     has_profile: bool,
 
     /// Reservoir evaluator that we use for dynamic sampling.
-    reservoir: Arc<ReservoirEvaluator>,
+    reservoir: ReservoirEvaluator,
 }
 
 impl ProcessEnvelopeState {
@@ -1363,18 +1363,13 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        let reservoir = {
-            #[allow(unused_mut)]
-            let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
-
-            #[cfg(feature = "processing")]
-            if let Some(redis_pool) = self.inner.redis_pool.as_ref() {
-                let org_id = managed_envelope.scoping().organization_id;
-                reservoir = reservoir.set_redis(org_id, redis_pool.clone());
-            }
-
-            Arc::new(reservoir)
-        };
+        #[allow(unused_mut)]
+        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
+        #[cfg(feature = "processing")]
+        if let Some(redis_pool) = self.inner.redis_pool.as_ref() {
+            let org_id = managed_envelope.scoping().organization_id;
+            reservoir = reservoir.set_redis(org_id, redis_pool.clone());
+        }
 
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
@@ -2369,7 +2364,7 @@ impl EnvelopeProcessorService {
                     if config.is_enabled() {
                         state.sampling_result = Self::compute_sampling_decision(
                             self.inner.config.processing_enabled(),
-                            state.reservoir.clone(),
+                            &state.reservoir,
                             state.project_state.config.dynamic_sampling.as_ref(),
                             state.event.value(),
                             state
@@ -2389,7 +2384,7 @@ impl EnvelopeProcessorService {
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(
         processing_enabled: bool,
-        reservoir: Arc<ReservoirEvaluator>,
+        reservoir: &ReservoirEvaluator,
         sampling_config: Option<&SamplingConfig>,
         event: Option<&Event>,
         root_sampling_config: Option<&SamplingConfig>,
@@ -3062,8 +3057,8 @@ mod tests {
         }
     }
 
-    fn dummy_reservoir() -> Arc<ReservoirEvaluator> {
-        ReservoirEvaluator::new(ReservoirCounters::default()).into()
+    fn dummy_reservoir() -> ReservoirEvaluator {
+        ReservoirEvaluator::new(ReservoirCounters::default())
     }
 
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
@@ -3267,7 +3262,7 @@ mod tests {
             // pipeline.
             let res = EnvelopeProcessorService::compute_sampling_decision(
                 false,
-                dummy_reservoir(),
+                &dummy_reservoir(),
                 Some(&sampling_config),
                 Some(&event),
                 None,
@@ -4167,7 +4162,7 @@ mod tests {
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
-            dummy_reservoir(),
+            &dummy_reservoir(),
             Some(&sampling_config),
             Some(&event),
             None,
@@ -4206,7 +4201,7 @@ mod tests {
         // Unsupported rule should result in no match if processing is not enabled.
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
-            dummy_reservoir(),
+            &dummy_reservoir(),
             Some(&sampling_config),
             Some(&event),
             None,
@@ -4217,7 +4212,7 @@ mod tests {
         // Match if processing is enabled.
         let res = EnvelopeProcessorService::compute_sampling_decision(
             true,
-            dummy_reservoir(),
+            &dummy_reservoir(),
             Some(&sampling_config),
             Some(&event),
             None,
@@ -4258,7 +4253,7 @@ mod tests {
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
-            dummy_reservoir(),
+            &dummy_reservoir(),
             None,
             None,
             Some(&sampling_config),
@@ -4271,7 +4266,7 @@ mod tests {
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
-            dummy_reservoir(),
+            &dummy_reservoir(),
             None,
             None,
             Some(&sampling_config),

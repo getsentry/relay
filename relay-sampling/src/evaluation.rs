@@ -17,6 +17,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::config::{RuleId, SamplingRule, SamplingValue};
+use crate::redis_sampling::{increment_redis_reservoir_count, set_redis_expiry, ReservoirRuleKey};
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -26,24 +27,6 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     let mut generator = Pcg32::new((big_seed >> 64) as u64, big_seed as u64);
     let dist = Uniform::new(0f64, 1f64);
     generator.sample(dist)
-}
-
-/// Increments the reservoir count for a given rule in redis.
-///
-/// - INCR docs: [`https://redis.io/commands/incr/`]
-/// - If the counter doesn't exist in redis, a new one will be inserted.
-#[cfg(feature = "redis")]
-fn increment_redis_reservoir_count(
-    redis: &Arc<RedisPool>,
-    org_id: u64,
-    rule_id: RuleId,
-) -> anyhow::Result<i64> {
-    let mut command = relay_redis::redis::cmd("INCR");
-
-    let key = format!("bias:{}:{}", org_id, rule_id);
-    command.arg(key);
-
-    Ok(command.query(&mut redis.client()?.connection()?)?)
 }
 
 /// The amount of matches for each reservoir rule in a given project.
@@ -92,54 +75,90 @@ impl ReservoirEvaluator {
         self
     }
 
-    /// Evaluates a reservoir rule, returning `true` if it should be sampled.
-    pub fn evaluate(&self, rule: RuleId, limit: i64) -> bool {
-        // If the mutex is already locked, we abort the match, for performance reasons.
-        let Ok(mut map_guard) = self.counters.try_lock() else {
-            return false;
-        };
-
-        let counter_value = map_guard.entry(rule).or_insert(0);
-
-        // Avoid Redis call if limit has already been reached.
-        if *counter_value >= limit {
-            return false;
-        }
-
-        // The new value for the counter will be incremented by one, or updated with the
-        // global redis counter if it's available.
-        #[cfg_attr(not(feature = "redis"), allow(unused_mut))]
-        let mut new_val: i64 = *counter_value + 1;
-
-        #[cfg(feature = "redis")]
-        {
+    fn redis_count(&self, rule: RuleId, _rule_expiry: Option<&DateTime<Utc>>) -> Option<i64> {
+        if cfg!(feature = "redis") {
             if let (Some(pool), Some(org_id)) = (self.redis_pool.as_ref(), self.org_id) {
-                match increment_redis_reservoir_count(pool, org_id, rule) {
-                    Ok(redis_val) => new_val = redis_val,
+                let key = ReservoirRuleKey::new(org_id, rule);
+
+                let mut redis_client = pool.client().ok()?;
+                let mut redis_connection = redis_client.connection().ok()?;
+
+                if set_redis_expiry(&mut redis_connection, &key, _rule_expiry).is_err() {
+                    relay_log::error!("failed to set redis reservoir rule expiry");
+                }
+
+                match increment_redis_reservoir_count(&mut redis_connection, &key) {
+                    Ok(redis_val) => return Some(redis_val),
                     Err(e) => relay_log::error!("failed to increment redis reservoir count: {}", e),
                 }
             }
         }
 
-        // Update the counter.
-        *counter_value = new_val;
+        None
+    }
 
-        // We sample the rule if the limit has not been reached.
-        *counter_value < limit
+    /// Gets the local count of a reservoir rule, and increments it.
+    fn local_count(&self, rule: RuleId) -> anyhow::Result<i64> {
+        let Ok(mut map_guard) = self.counters.lock() else {
+            return Err(anyhow::Error::msg("failed to lock reservoir counter mutex"));
+        };
+
+        let counter_value = map_guard.entry(rule).or_insert(0);
+        *counter_value += 1;
+
+        Ok(*counter_value)
+    }
+
+    fn update_counter(&self, rule: RuleId, new_value: i64) {
+        let Ok(mut map_guard) = self.counters.lock() else {
+            relay_log::error!("failed to lock reservoir counter mutex");
+            return;
+        };
+
+        match map_guard.get_mut(&rule) {
+            Some(value) => *value = new_value,
+            // Logging an error because at this point the value should definitively be here.
+            None => relay_log::error!("failed to retrieve counter entry"),
+        }
+    }
+
+    /// Evaluates a reservoir rule, returning `true` if it should be sampled.
+    pub fn evaluate(&self, rule: RuleId, limit: i64, rule_expiry: Option<&DateTime<Utc>>) -> bool {
+        let incremented_local_count = match self.local_count(rule) {
+            Ok(local_count) => local_count,
+            Err(e) => {
+                relay_log::error!("failed to read local reservoir count: {}", e);
+                return false;
+            }
+        };
+
+        if incremented_local_count >= limit {
+            return false;
+        }
+
+        let redis_count = self.redis_count(rule, rule_expiry);
+
+        match redis_count {
+            Some(redis_count) if redis_count > incremented_local_count => {
+                self.update_counter(rule, redis_count);
+                redis_count < limit
+            }
+            _ => incremented_local_count < limit,
+        }
     }
 }
 
 /// State machine for dynamic sampling.
 #[derive(Debug)]
-pub struct SamplingEvaluator {
+pub struct SamplingEvaluator<'a> {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
     factor: f64,
     client_sample_rate: Option<f64>,
-    reservoir: Option<Arc<ReservoirEvaluator>>,
+    reservoir: Option<&'a ReservoirEvaluator>,
 }
 
-impl SamplingEvaluator {
+impl<'a> SamplingEvaluator<'a> {
     /// Constructor for [`SamplingEvaluator`].
     pub fn new(now: DateTime<Utc>) -> Self {
         Self {
@@ -152,7 +171,7 @@ impl SamplingEvaluator {
     }
 
     /// Sets a [`ReservoirEvaluator`].
-    pub fn set_reservoir(mut self, reservoir: Option<Arc<ReservoirEvaluator>>) -> Self {
+    pub fn set_reservoir(mut self, reservoir: Option<&'a ReservoirEvaluator>) -> Self {
         self.reservoir = reservoir;
         self
     }
@@ -174,7 +193,7 @@ impl SamplingEvaluator {
     ///    - If this value is returned and there are no more rules to evaluate, it should be interpreted as "no match."
     ///
     /// - `ControlFlow::Break`: Indicates that one or more rules have successfully matched.
-    pub fn match_rules<'a, I, G>(
+    pub fn match_rules<'b, I, G>(
         mut self,
         seed: Uuid,
         instance: &G,
@@ -182,14 +201,14 @@ impl SamplingEvaluator {
     ) -> ControlFlow<SamplingMatch, Self>
     where
         G: Getter,
-        I: Iterator<Item = &'a SamplingRule>,
+        I: Iterator<Item = &'b SamplingRule>,
     {
         for rule in rules {
             if !rule.condition.matches(instance) {
                 continue;
             };
 
-            let Some(sampling_value) = rule.evaluate(self.now, self.reservoir.as_ref()) else {
+            let Some(sampling_value) = rule.evaluate(self.now, self.reservoir) else {
                 continue;
             };
 

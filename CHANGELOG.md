@@ -2,10 +2,6 @@
 
 ## Unreleased
 
-**Features**:
-
-- Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
-
 **Bug Fixes**:
 
 - Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
@@ -19,6 +15,7 @@
 - Remove filtering for Android events with missing close events. ([#2524](https://github.com/getsentry/relay/pull/2524))
 - Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522), [#2525](https://github.com/getsentry/relay/pull/2525), [#2545](https://github.com/getsentry/relay/pull/2545))
 - Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
+- Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
 
 ## 23.9.1
 

@@ -1,7 +1,6 @@
 //! Dynamic sampling rule configuration.
 
 use std::fmt;
-use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -83,16 +82,11 @@ impl SamplingRule {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
-    /// Returns `true` if rule is a reservoir rule.
-    pub fn is_reservoir(&self) -> bool {
-        matches!(&self.sampling_value, &SamplingValue::Reservoir { .. })
-    }
-
     /// Returns the updated [`SamplingValue`] if it's valid.
     pub fn evaluate(
         &self,
         now: DateTime<Utc>,
-        reservoir: Option<&Arc<ReservoirEvaluator>>,
+        reservoir: Option<&ReservoirEvaluator>,
     ) -> Option<SamplingValue> {
         if !self.time_range.contains(now) {
             // Return None if rule is inactive.
@@ -105,7 +99,7 @@ impl SamplingRule {
             SamplingValue::Reservoir { limit } => {
                 return reservoir.and_then(|reservoir| {
                     reservoir
-                        .evaluate(self.id, limit)
+                        .evaluate(self.id, limit, self.time_range.end.as_ref())
                         .then_some(SamplingValue::Reservoir { limit })
                 });
             }

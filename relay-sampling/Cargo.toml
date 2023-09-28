@@ -11,10 +11,11 @@ publish = false
 
 [features]
 default = []
-redis = ["dep:relay-redis"]
+redis = ["dep:anyhow", "dep:relay-redis"]
+
 
 [dependencies]
-anyhow = { workspace = true }
+anyhow = { workspace = true, optional = true }
 chrono = { workspace = true }
 rand = { workspace = true }
 rand_pcg = "0.3.1"

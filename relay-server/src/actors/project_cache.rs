@@ -572,7 +572,6 @@ impl ProjectCacheBroker {
         let project_cache = self.services.project_cache.clone();
         let project = self.get_or_create_project(project_key);
         project.update_state(project_cache, state.clone(), no_cache);
-        project.remove_expired_reservoir_rules();
 
         if !state.invalid() {
             self.dequeue(project_key);
