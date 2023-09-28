@@ -706,8 +706,8 @@ struct KafkaOutcomesProducer {
 impl KafkaOutcomesProducer {
     /// Creates and connects the Kafka producers.
     ///
-    /// If the given Kafka configuration parameters are invalid, or an error happens during
-    /// connecting the broker, an error is returned.
+    /// If the given Kafka configuration parameters are invalid, or an error
+    /// happens while connecting to the broker, an error is returned.
     pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
