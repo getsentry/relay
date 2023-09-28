@@ -2426,7 +2426,7 @@ impl EnvelopeProcessorService {
 
         let mut evaluator = SamplingEvaluator::new(Utc::now())
             .adjust_client_sample_rate(adjustment_rate)
-            .set_reservoir(Some(reservoir));
+            .set_reservoir(reservoir);
 
         if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
             if let Some(seed) = event.id.value().map(|id| id.0) {

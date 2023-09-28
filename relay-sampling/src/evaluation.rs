@@ -98,12 +98,14 @@ impl ReservoirEvaluator {
         None
     }
 
-    /// Gets the local count of a reservoir rule. Increments the count before returning it.
-    fn local_count(&self, rule: RuleId) -> Option<i64> {
+    /// Gets the local count of a reservoir rule. Increments the count if limit isnt reached.
+    fn local_count(&self, rule: RuleId, limit: i64) -> Option<i64> {
         let mut map_guard = self.counters.lock().ok()?;
 
         let counter_value = map_guard.entry(rule).or_insert(0);
-        *counter_value += 1;
+        if *counter_value < limit {
+            *counter_value += 1;
+        }
 
         Some(*counter_value)
     }
@@ -123,7 +125,7 @@ impl ReservoirEvaluator {
 
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
     pub fn evaluate(&self, rule: RuleId, limit: i64, rule_expiry: Option<&DateTime<Utc>>) -> bool {
-        let Some(incremented_local_count) = self.local_count(rule) else {
+        let Some(incremented_local_count) = self.local_count(rule, limit) else {
             relay_log::error!("failed to read local reservoir count");
             return false;
         };
@@ -165,8 +167,8 @@ impl<'a> SamplingEvaluator<'a> {
     }
 
     /// Sets a [`ReservoirEvaluator`].
-    pub fn set_reservoir(mut self, reservoir: Option<&'a ReservoirEvaluator>) -> Self {
-        self.reservoir = reservoir;
+    pub fn set_reservoir(mut self, reservoir: &'a ReservoirEvaluator) -> Self {
+        self.reservoir = Some(reservoir);
         self
     }
 
