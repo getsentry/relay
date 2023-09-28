@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::num::ParseIntError;
 use std::ops::ControlFlow;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
@@ -95,6 +95,7 @@ impl ReservoirEvaluator {
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
     pub fn evaluate(&self, rule: RuleId, limit: i64) -> bool {
         // If the mutex is already locked, we abort the match, for performance reasons.
+
         let Ok(mut map_guard) = self.counters.try_lock() else {
             return false;
         };

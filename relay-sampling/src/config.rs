@@ -88,7 +88,7 @@ impl SamplingRule {
         matches!(&self.sampling_value, &SamplingValue::Reservoir { .. })
     }
 
-    /// Returns the updated sampling value if it's valid.
+    /// Returns the updated [`SamplingValue`] if it's valid.
     pub fn evaluate(
         &self,
         now: DateTime<Utc>,
