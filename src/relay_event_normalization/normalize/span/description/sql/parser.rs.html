@@ -381,10 +381,22 @@
 <a href="#381" id="381">381</a>
 <a href="#382" id="382">382</a>
 <a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
-</span><span class="kw">use </span>std::ops::ControlFlow;
+</span><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>sqlparser::ast::{
     Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
     TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
@@ -397,6 +409,9 @@
 /// Note that the expression depth does not fully cover the depth of complex SQL statements,
 /// because not everything in SQL is an expression.
 </span><span class="kw">const </span>MAX_EXPRESSION_DEPTH: usize = <span class="number">64</span>;
+
+<span class="doccomment">/// Regex used to scrub UUIDs and multi-digit numbers from table names and other identifiers.
+</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;(?i)[0-9a-f]{32}|\d\d+&quot;</span>).unwrap());
 
 <span class="doccomment">/// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
@@ -533,23 +548,26 @@
                 <span class="self">self</span>.transform_query(subquery);
             }
             <span class="comment">// Strip quotes from identifiers in table names.
-            </span>TableFactor::Table { name, .. } =&gt; {
-                <span class="kw">for </span>ident <span class="kw">in </span><span class="kw-2">&amp;mut </span>name.<span class="number">0 </span>{
-                    ident.quote_style = <span class="prelude-val">None</span>;
-                }
-            }
+            </span>TableFactor::Table { name, .. } =&gt; <span class="self">Self</span>::simplify_compound_identifier(<span class="kw-2">&amp;mut </span>name.<span class="number">0</span>),
             <span class="kw">_ </span>=&gt; {}
         }
     }
 
     <span class="kw">fn </span>simplify_compound_identifier(parts: <span class="kw-2">&amp;mut </span>Vec&lt;Ident&gt;) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>last) = parts.pop() {
-            last.quote_style = <span class="prelude-val">None</span>;
+            <span class="self">Self</span>::scrub_name(<span class="kw-2">&amp;mut </span>last);
             <span class="kw-2">*</span>parts = <span class="macro">vec!</span>[last];
         }
     }
 
     <span class="kw">fn </span>scrub_name(name: <span class="kw-2">&amp;mut </span>Ident) {
+        name.quote_style = <span class="prelude-val">None</span>;
+        <span class="kw">if let </span>Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(<span class="kw-2">&amp;</span>name.value, <span class="string">&quot;{%s}&quot;</span>) {
+            name.value = s
+        };
+    }
+
+    <span class="kw">fn </span>erase_name(name: <span class="kw-2">&amp;mut </span>Ident) {
         name.quote_style = <span class="prelude-val">None</span>;
         name.value = <span class="string">&quot;%s&quot;</span>.into()
     }
@@ -576,7 +594,7 @@
             }
             <span class="comment">// `&quot;col&quot;` is replaced by `col`.
             </span>Expr::Identifier(ident) =&gt; {
-                ident.quote_style = <span class="prelude-val">None</span>;
+                <span class="self">Self</span>::scrub_name(ident);
             }
             <span class="comment">// Recurse into subqueries.
             </span>Expr::Subquery(query) =&gt; <span class="self">self</span>.transform_query(query),
@@ -655,13 +673,13 @@
                 }
             }
             <span class="comment">// `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            </span>Statement::Savepoint { name } =&gt; <span class="self">Self</span>::scrub_name(name),
+            </span>Statement::Savepoint { name } =&gt; <span class="self">Self</span>::erase_name(name),
             Statement::Declare { name, query, .. } =&gt; {
-                <span class="self">Self</span>::scrub_name(name);
+                <span class="self">Self</span>::erase_name(name);
                 <span class="self">self</span>.transform_query(query);
             }
             Statement::Fetch { name, into, .. } =&gt; {
-                <span class="self">Self</span>::scrub_name(name);
+                <span class="self">Self</span>::erase_name(name);
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(into) = into {
                     into.<span class="number">0 </span>= <span class="macro">vec!</span>[Ident {
                         value: <span class="string">&quot;%s&quot;</span>.into(),
@@ -671,7 +689,7 @@
             }
             Statement::Close {
                 cursor: CloseCursor::Specific { name },
-            } =&gt; <span class="self">Self</span>::scrub_name(name),
+            } =&gt; <span class="self">Self</span>::erase_name(name),
             <span class="kw">_ </span>=&gt; {}
         }
 

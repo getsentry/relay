@@ -678,6 +678,30 @@
 <a href="#678" id="678">678</a>
 <a href="#679" id="679">679</a>
 <a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1083,7 +1107,7 @@
     <span class="macro">scrub_sql_test!</span>(
         already_scrubbed,
         <span class="string">&quot;SELECT * FROM table123 WHERE id = %s&quot;</span>,
-        <span class="string">&quot;SELECT * FROM table123 WHERE id = %s&quot;
+        <span class="string">&quot;SELECT * FROM table{%s} WHERE id = %s&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
@@ -1350,6 +1374,30 @@
         jsonb,
         <span class="string">r#&quot;SELECT * FROM &quot;a&quot; WHERE &quot;a&quot;.&quot;b&quot; = $1 AND (obj-&gt;&#39;id&#39; &lt;@ &#39;[123]&#39;::jsonb) AND &quot;a&quot;.&quot;b&quot; != $2&quot;#</span>,
         <span class="string">&quot;SELECT * FROM a WHERE b = %s AND (obj -&gt; %s &lt;@ %s) AND b &lt;&gt; %s&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        digits_in_table_name,
+        <span class="string">&quot;SELECT * FROM temp_12c&quot;</span>,
+        <span class="string">&quot;SELECT * FROM temp_{%s}c&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        single_digit_in_table_name,
+        <span class="string">&quot;SELECT * FROM temp_1c&quot;</span>,
+        <span class="string">&quot;SELECT * FROM temp_1c&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        digits_in_compound_table_name,
+        <span class="string">r#&quot;SELECT * FROM &quot;foo&quot;.&quot;temp_12c&quot;&quot;#</span>,
+        <span class="string">&quot;SELECT * FROM temp_{%s}c&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        uuid_in_table_name,
+        <span class="string">&quot;SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix&quot;</span>,
+        <span class="string">&quot;SELECT * FROM prefix_{%s}_{%s}_suffix&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
