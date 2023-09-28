@@ -65,7 +65,7 @@ pipelines:
               elastic_profile_id: relay
               tasks:
                 - script: |
-                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
+                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}" "relay"
 
             deploy:
               timeout: 1200
