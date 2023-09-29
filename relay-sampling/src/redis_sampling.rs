@@ -22,13 +22,14 @@ pub fn increment_redis_reservoir_count(
     redis_connection: &mut relay_redis::Connection,
     key: &ReservoirRuleKey,
 ) -> anyhow::Result<i64> {
-    let mut command = relay_redis::redis::cmd("INCR");
-    command.arg(key.as_str());
-    let val = command.query(redis_connection)?;
+    let val = relay_redis::redis::cmd("INCR")
+        .arg(key.as_str())
+        .query(redis_connection)?;
 
     Ok(val)
 }
 
+/// Sets the expiry time for a reservoir rule count.
 pub fn set_redis_expiry(
     redis_connection: &mut relay_redis::Connection,
     key: &ReservoirRuleKey,
@@ -36,12 +37,12 @@ pub fn set_redis_expiry(
 ) -> anyhow::Result<()> {
     let now = Utc::now().timestamp();
     let expiry_time = rule_expiry
-        .map(|rule_expiry| rule_expiry.timestamp())
+        .map(|rule_expiry| rule_expiry.timestamp() + 60)
         .unwrap_or_else(|| now + 86400);
 
-    let ttl = expiry_time - now;
-    let mut expire_command = relay_redis::redis::cmd("EXPIRE");
-    expire_command.arg(key.as_str()).arg(ttl);
-    expire_command.query(redis_connection)?;
+    relay_redis::redis::cmd("EXPIRE")
+        .arg(key.as_str())
+        .arg(expiry_time - now)
+        .query(redis_connection)?;
     Ok(())
 }

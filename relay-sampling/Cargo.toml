@@ -11,8 +11,7 @@ publish = false
 
 [features]
 default = []
-redis = ["dep:anyhow", "dep:relay-redis"]
-
+redis = ["dep:anyhow", "relay-redis/impl"]
 
 [dependencies]
 anyhow = { workspace = true, optional = true }

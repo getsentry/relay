@@ -1,6 +1,5 @@
 //! Evaluation of dynamic sampling rules.
 
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::num::ParseIntError;
@@ -50,9 +49,7 @@ pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 pub struct ReservoirEvaluator<'a> {
     counters: ReservoirCounters,
     #[cfg(feature = "redis")]
-    redis_pool: Option<&'a RedisPool>,
-    #[cfg(feature = "redis")]
-    org_id: Option<u64>,
+    org_id_and_redis_pool: Option<(u64, &'a RedisPool)>,
     // Using PhantomData because the lifetimes are behind a feature flag.
     _phantom: std::marker::PhantomData<&'a ()>,
 }
@@ -63,9 +60,7 @@ impl<'a> ReservoirEvaluator<'a> {
         Self {
             counters,
             #[cfg(feature = "redis")]
-            org_id: None,
-            #[cfg(feature = "redis")]
-            redis_pool: None,
+            org_id_and_redis_pool: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -75,12 +70,11 @@ impl<'a> ReservoirEvaluator<'a> {
     /// These values are needed to synchronize with Redis.
     #[cfg(feature = "redis")]
     pub fn set_redis(&mut self, org_id: u64, redis_pool: &'a RedisPool) {
-        self.org_id = Some(org_id);
-        self.redis_pool = Some(redis_pool);
+        self.org_id_and_redis_pool = Some((org_id, redis_pool));
     }
 
     #[cfg(feature = "redis")]
-    fn redis_count(
+    fn redis_incr(
         &self,
         key: &ReservoirRuleKey,
         redis_pool: &RedisPool,
@@ -89,84 +83,59 @@ impl<'a> ReservoirEvaluator<'a> {
         let mut redis_client = redis_pool.client()?;
         let mut redis_connection = redis_client.connection()?;
 
-        let val = match redis_sampling::increment_redis_reservoir_count(&mut redis_connection, key)
-        {
-            Ok(val) => val,
-            Err(e) => {
-                relay_log::error!("failed to increment redis value: {:?}", e);
-                return Err(e);
-            }
-        };
-
-        if let Err(e) = redis_sampling::set_redis_expiry(&mut redis_connection, key, rule_expiry) {
-            relay_log::error!("failed to set redis reservoir rule expiry");
-            return Err(e);
-        }
+        let val = redis_sampling::increment_redis_reservoir_count(&mut redis_connection, key)?;
+        redis_sampling::set_redis_expiry(&mut redis_connection, key, rule_expiry)?;
 
         Ok(val)
     }
 
-    #[cfg(feature = "redis")]
-    fn update_counter(&self, rule: RuleId, new_value: i64) {
-        let Ok(mut map_guard) = self.counters.lock() else {
-            return;
-        };
-
-        match map_guard.get_mut(&rule) {
-            Some(value) => *value = new_value,
-            // Logging an error because at this point the value should definitively be here.
-            None => relay_log::error!("failed to retrieve counter entry"),
-        }
-    }
-
-    /// Gets the local count of a reserovir rule and increments it, if the limit has yet to be reached
-    fn local_count(&self, rule: RuleId, limit: i64) -> Option<i64> {
+    /// Evaluates a reservoir rule, returning `true` if it should be sampled.
+    pub fn incr_local(&self, rule: RuleId, limit: i64) -> bool {
         let Ok(mut map_guard) = self.counters.lock() else {
             relay_log::error!("failed to lock reservoir counter mutex");
-            return None;
+            return false;
         };
 
         let counter_value = map_guard.entry(rule).or_insert(0);
 
-        match (*counter_value).cmp(&limit) {
-            // Limit not yet reached. Eagerly incrementing to avoid an additional lock
-            // in the case where it doesn't get overwritten by the redis count.
-            Ordering::Less => {
-                *counter_value += 1;
-                Some(*counter_value)
-            }
-            // Limit has already been reached.
-            Ordering::Equal | Ordering::Greater => None,
+        if *counter_value < limit {
+            *counter_value += 1;
+            true
+        } else {
+            false
         }
     }
 
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
-    ///
-    /// Both `local_count` and `redis_count` include the current rule in their count.
     pub fn evaluate(&self, rule: RuleId, limit: i64, _rule_expiry: Option<&DateTime<Utc>>) -> bool {
-        let Some(local_count) = self.local_count(rule, limit) else {
-            return false;
-        };
-
         #[cfg(feature = "redis")]
-        if let (Some(org_id), Some(redis_pool)) = (self.org_id, self.redis_pool.as_ref()) {
+        if let Some((org_id, redis_pool)) = self.org_id_and_redis_pool {
+            if let Ok(guard) = self.counters.lock() {
+                if *guard.get(&rule).unwrap_or(&0) > limit {
+                    return false;
+                }
+            }
+
             let key = ReservoirRuleKey::new(org_id, rule);
-
-            let Ok(redis_count) = self.redis_count(&key, redis_pool, _rule_expiry) else {
-                // We don't sample at all if we lost access to redis.
-                // Therefore we revert the previous increment.
-                // Seems inefficient, but this should be a rare occurence.
-                self.update_counter(rule, local_count - 1);
-                return false;
+            let redis_count = match self.redis_incr(&key, redis_pool, _rule_expiry) {
+                Ok(redis_count) => redis_count,
+                Err(e) => {
+                    relay_log::error!(error = &*e, "failed to increment reservoir rule");
+                    return false;
+                }
             };
 
-            if redis_count > local_count {
-                self.update_counter(rule, redis_count);
-                return redis_count <= limit;
-            };
+            if let Ok(mut map_guard) = self.counters.lock() {
+                // If the rule isn't present, it has just been cleaned up by a project state update.
+                // In that case, it is no longer relevant so we ignore it.
+                if let Some(value) = map_guard.get_mut(&rule) {
+                    *value = redis_count.max(*value);
+                }
+            }
+            return redis_count <= limit;
         }
 
-        local_count <= limit
+        self.incr_local(rule, limit)
     }
 }
 
@@ -452,11 +421,12 @@ mod tests {
         matched_rule_ids == sampling_match.matched_rules
     }
 
+    // Helper method to "unwrap" the sampling match.
     fn get_matched_rules(
         sampling_evaluator: &ControlFlow<SamplingMatch, SamplingEvaluator>,
     ) -> Vec<u32> {
         match sampling_evaluator {
-            ControlFlow::Continue(_) => panic!(),
+            ControlFlow::Continue(_) => panic!("expected a sampling match"),
             ControlFlow::Break(m) => m.matched_rules.0.iter().map(|rule_id| rule_id.0).collect(),
         }
     }
