@@ -680,6 +680,8 @@ impl ProjectCacheBroker {
             ..
         }) = project.check_envelope(managed_envelope, self.services.outcome_aggregator.clone())
         {
+            let reservoir_counters = project.reservoir_counters();
+
             let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
@@ -688,6 +690,7 @@ impl ProjectCacheBroker {
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
                 sampling_project_state: None,
+                reservoir_counters,
             };
 
             if let Some(sampling_state) = sampling_state {

@@ -38,9 +38,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.description", "*\"$*");
 
-        let condition = RuleCondition::glob("span.op", "db*")
-            & !RuleCondition::glob("span.op", DISABLED_DATABASES)
-            & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo);
+        let condition = RuleCondition::eq("span.op", "http.client")
+            | (RuleCondition::glob("span.op", "db*")
+                & !RuleCondition::glob("span.op", DISABLED_DATABASES)
+                & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo));
 
         Some(condition)
     };

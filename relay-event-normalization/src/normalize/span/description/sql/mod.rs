@@ -403,7 +403,7 @@ mod tests {
     scrub_sql_test!(
         already_scrubbed,
         "SELECT * FROM table123 WHERE id = %s",
-        "SELECT * FROM table123 WHERE id = %s"
+        "SELECT * FROM table{%s} WHERE id = %s"
     );
 
     scrub_sql_test!(
@@ -670,6 +670,30 @@ mod tests {
         jsonb,
         r#"SELECT * FROM "a" WHERE "a"."b" = $1 AND (obj->'id' <@ '[123]'::jsonb) AND "a"."b" != $2"#,
         "SELECT * FROM a WHERE b = %s AND (obj -> %s <@ %s) AND b <> %s"
+    );
+
+    scrub_sql_test!(
+        digits_in_table_name,
+        "SELECT * FROM temp_12c",
+        "SELECT * FROM temp_{%s}c"
+    );
+
+    scrub_sql_test!(
+        single_digit_in_table_name,
+        "SELECT * FROM temp_1c",
+        "SELECT * FROM temp_1c"
+    );
+
+    scrub_sql_test!(
+        digits_in_compound_table_name,
+        r#"SELECT * FROM "foo"."temp_12c""#,
+        "SELECT * FROM temp_{%s}c"
+    );
+
+    scrub_sql_test!(
+        uuid_in_table_name,
+        "SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix",
+        "SELECT * FROM prefix_{%s}_{%s}_suffix"
     );
 
     scrub_sql_test!(

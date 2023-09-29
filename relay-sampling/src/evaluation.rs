@@ -1,18 +1,24 @@
 //! Evaluation of dynamic sampling rules.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::num::ParseIntError;
 use std::ops::ControlFlow;
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
 use relay_protocol::Getter;
+#[cfg(feature = "redis")]
+use relay_redis::RedisPool;
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::config::{RuleId, SamplingRule, SamplingValue};
+#[cfg(feature = "redis")]
+use crate::redis_sampling::{self, ReservoirRuleKey};
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -24,16 +30,126 @@ fn pseudo_random_from_uuid(id: Uuid) -> f64 {
     generator.sample(dist)
 }
 
+/// The amount of matches for each reservoir rule in a given project.
+pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
+
+/// Utility for evaluating reservoir-based sampling rules.
+///
+/// A "reservoir limit" rule samples every match until its limit is reached, after which
+/// the rule is disabled.
+///
+/// This utility uses a dual-counter system for enforcing this limit:
+///
+/// - Local Counter: Each relay instance maintains a local counter to track sampled events.
+///
+/// - Redis Counter: For processing relays, a Redis-based counter provides synchronization
+///   across multiple relay-instances. When incremented, the Redis counter returns the current global
+///   count for the given rule, which is then used to update the local counter.
+#[derive(Debug)]
+pub struct ReservoirEvaluator<'a> {
+    counters: ReservoirCounters,
+    #[cfg(feature = "redis")]
+    org_id_and_redis_pool: Option<(u64, &'a RedisPool)>,
+    // Using PhantomData because the lifetimes are behind a feature flag.
+    _phantom: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a> ReservoirEvaluator<'a> {
+    /// Constructor for [`ReservoirEvaluator`].
+    pub fn new(counters: ReservoirCounters) -> Self {
+        Self {
+            counters,
+            #[cfg(feature = "redis")]
+            org_id_and_redis_pool: None,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    /// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].
+    ///
+    /// These values are needed to synchronize with Redis.
+    #[cfg(feature = "redis")]
+    pub fn set_redis(&mut self, org_id: u64, redis_pool: &'a RedisPool) {
+        self.org_id_and_redis_pool = Some((org_id, redis_pool));
+    }
+
+    #[cfg(feature = "redis")]
+    fn redis_incr(
+        &self,
+        key: &ReservoirRuleKey,
+        redis_pool: &RedisPool,
+        rule_expiry: Option<&DateTime<Utc>>,
+    ) -> anyhow::Result<i64> {
+        let mut redis_client = redis_pool.client()?;
+        let mut redis_connection = redis_client.connection()?;
+
+        let val = redis_sampling::increment_redis_reservoir_count(&mut redis_connection, key)?;
+        redis_sampling::set_redis_expiry(&mut redis_connection, key, rule_expiry)?;
+
+        Ok(val)
+    }
+
+    /// Evaluates a reservoir rule, returning `true` if it should be sampled.
+    pub fn incr_local(&self, rule: RuleId, limit: i64) -> bool {
+        let Ok(mut map_guard) = self.counters.lock() else {
+            relay_log::error!("failed to lock reservoir counter mutex");
+            return false;
+        };
+
+        let counter_value = map_guard.entry(rule).or_insert(0);
+
+        if *counter_value < limit {
+            *counter_value += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Evaluates a reservoir rule, returning `true` if it should be sampled.
+    pub fn evaluate(&self, rule: RuleId, limit: i64, _rule_expiry: Option<&DateTime<Utc>>) -> bool {
+        #[cfg(feature = "redis")]
+        if let Some((org_id, redis_pool)) = self.org_id_and_redis_pool {
+            if let Ok(guard) = self.counters.lock() {
+                if *guard.get(&rule).unwrap_or(&0) > limit {
+                    return false;
+                }
+            }
+
+            let key = ReservoirRuleKey::new(org_id, rule);
+            let redis_count = match self.redis_incr(&key, redis_pool, _rule_expiry) {
+                Ok(redis_count) => redis_count,
+                Err(e) => {
+                    relay_log::error!(error = &*e, "failed to increment reservoir rule");
+                    return false;
+                }
+            };
+
+            if let Ok(mut map_guard) = self.counters.lock() {
+                // If the rule isn't present, it has just been cleaned up by a project state update.
+                // In that case, it is no longer relevant so we ignore it.
+                if let Some(value) = map_guard.get_mut(&rule) {
+                    *value = redis_count.max(*value);
+                }
+            }
+            return redis_count <= limit;
+        }
+
+        self.incr_local(rule, limit)
+    }
+}
+
 /// State machine for dynamic sampling.
 #[derive(Debug)]
-pub struct SamplingEvaluator {
+pub struct SamplingEvaluator<'a> {
     now: DateTime<Utc>,
     rule_ids: Vec<RuleId>,
     factor: f64,
     client_sample_rate: Option<f64>,
+    reservoir: Option<&'a ReservoirEvaluator<'a>>,
 }
 
-impl SamplingEvaluator {
+impl<'a> SamplingEvaluator<'a> {
     /// Constructor for [`SamplingEvaluator`].
     pub fn new(now: DateTime<Utc>) -> Self {
         Self {
@@ -41,7 +157,14 @@ impl SamplingEvaluator {
             rule_ids: vec![],
             factor: 1.0,
             client_sample_rate: None,
+            reservoir: None,
         }
+    }
+
+    /// Sets a [`ReservoirEvaluator`].
+    pub fn set_reservoir(mut self, reservoir: &'a ReservoirEvaluator) -> Self {
+        self.reservoir = Some(reservoir);
+        self
     }
 
     /// Sets a new client sample rate value.
@@ -61,7 +184,7 @@ impl SamplingEvaluator {
     ///    - If this value is returned and there are no more rules to evaluate, it should be interpreted as "no match."
     ///
     /// - `ControlFlow::Break`: Indicates that one or more rules have successfully matched.
-    pub fn match_rules<'a, I, G>(
+    pub fn match_rules<'b, I, G>(
         mut self,
         seed: Uuid,
         instance: &G,
@@ -69,14 +192,14 @@ impl SamplingEvaluator {
     ) -> ControlFlow<SamplingMatch, Self>
     where
         G: Getter,
-        I: Iterator<Item = &'a SamplingRule>,
+        I: Iterator<Item = &'b SamplingRule>,
     {
         for rule in rules {
             if !rule.condition.matches(instance) {
                 continue;
             };
 
-            let Some(sampling_value) = rule.sample_rate(self.now) else {
+            let Some(sampling_value) = rule.evaluate(self.now, self.reservoir) else {
                 continue;
             };
 
@@ -92,6 +215,9 @@ impl SamplingEvaluator {
                         seed,
                         self.rule_ids,
                     ));
+                }
+                SamplingValue::Reservoir { .. } => {
+                    return ControlFlow::Break(SamplingMatch::new(1.0, seed, vec![rule.id]));
                 }
             }
         }
@@ -130,6 +256,12 @@ impl SamplingEvaluator {
 }
 
 fn sampling_match(sample_rate: f64, seed: Uuid) -> bool {
+    if sample_rate == 0.0 {
+        return false;
+    } else if sample_rate == 1.0 {
+        return true;
+    }
+
     let random_number = pseudo_random_from_uuid(seed);
     relay_log::trace!(
         sample_rate,
@@ -254,6 +386,18 @@ mod tests {
 
     use super::*;
 
+    fn mock_reservoir_evaluator(vals: Vec<(u32, i64)>) -> ReservoirEvaluator<'static> {
+        let mut map = BTreeMap::default();
+
+        for (rule_id, count) in vals {
+            map.insert(RuleId(rule_id), count);
+        }
+
+        let map = Arc::new(Mutex::new(map));
+
+        ReservoirEvaluator::new(map)
+    }
+
     /// Helper to extract the sampling match after evaluating rules.
     fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
         match SamplingEvaluator::new(Utc::now()).match_rules(
@@ -275,6 +419,16 @@ mod tests {
         let matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(*num)).collect());
         let sampling_match = get_sampling_match(rules, instance);
         matched_rule_ids == sampling_match.matched_rules
+    }
+
+    // Helper method to "unwrap" the sampling match.
+    fn get_matched_rules(
+        sampling_evaluator: &ControlFlow<SamplingMatch, SamplingEvaluator>,
+    ) -> Vec<u32> {
+        match sampling_evaluator {
+            ControlFlow::Continue(_) => panic!("expected a sampling match"),
+            ControlFlow::Break(m) => m.matched_rules.0.iter().map(|rule_id| rule_id.0).collect(),
+        }
     }
 
     /// Helper function to create a dsc with the provided getter-values set.
@@ -307,6 +461,21 @@ mod tests {
         }
 
         dsc
+    }
+
+    #[test]
+    fn test_reservoir_evaluator_limit() {
+        let evaluator = mock_reservoir_evaluator(vec![(1, 0)]);
+
+        let rule = RuleId(1);
+        let limit = 3;
+
+        assert!(evaluator.evaluate(rule, limit, None));
+        assert!(evaluator.evaluate(rule, limit, None));
+        assert!(evaluator.evaluate(rule, limit, None));
+        // After 3 samples we have reached the limit, and the following rules are not sampled.
+        assert!(!evaluator.evaluate(rule, limit, None));
+        assert!(!evaluator.evaluate(rule, limit, None));
     }
 
     #[test]
@@ -385,6 +554,50 @@ mod tests {
             });
         }
         vec
+    }
+
+    /// Tests that reservoir rules override the other rules.
+    ///
+    /// Here all 3 rules are a match. But when the reservoir
+    /// rule (id = 1) has not yet reached its limit of "2" matches, the
+    /// previous rule(s) will not be present in the matched rules output.
+    /// After the limit has been reached, the reservoir rule is ignored
+    /// and the output is the two other rules (id = 0, id = 2).
+    #[test]
+    fn test_reservoir_override() {
+        let dsc = mocked_dsc_with_getter_values(vec![]);
+        let rules = simple_sampling_rules(vec![
+            (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
+            // The reservoir has a limit of 2, meaning it should be sampled twice
+            // before it is ignored.
+            (RuleCondition::all(), SamplingValue::Reservoir { limit: 2 }),
+            (
+                RuleCondition::all(),
+                SamplingValue::SampleRate { value: 0.5 },
+            ),
+        ]);
+
+        // The reservoir keeps the counter state behind a mutex, which is how it
+        // shares state among multiple evaluator instances.
+        let reservoir = mock_reservoir_evaluator(vec![]);
+
+        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        // Reservoir rule overrides 0 and 2.
+        assert_eq!(&matched_rules, &[1]);
+
+        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        // Reservoir rule overrides 0 and 2.
+        assert_eq!(&matched_rules, &[1]);
+
+        let evaluator = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+        let matched_rules =
+            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        // Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
+        assert_eq!(&matched_rules, &[0, 2]);
     }
 
     /// Checks that rules don't match if the time is outside the time range.
