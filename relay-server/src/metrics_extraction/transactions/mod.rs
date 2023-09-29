@@ -949,7 +949,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
 
         let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
@@ -1119,7 +1119,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
             extracted.project_metrics[0].name,
             "d:transactions/duration@millisecond"
@@ -1158,7 +1158,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
             extracted.project_metrics[0].name,
             "d:transactions/duration@millisecond"
@@ -1226,7 +1226,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
             extracted.project_metrics[0].name,
             "d:transactions/duration@millisecond"
@@ -1239,6 +1239,11 @@ mod tests {
                 ("http.status_code".to_string(), "200".to_string())
             ])
         );
+        assert_eq!(
+            extracted.project_metrics[1].name,
+            "d:transactions/duration_light@millisecond"
+        );
+        assert_eq!(extracted.project_metrics[1].tags, BTreeMap::from([]));
     }
 
     /// Helper function to check if the transaction name is set correctly
@@ -1260,7 +1265,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         extracted.project_metrics[0]
             .tags
             .get("transaction")
