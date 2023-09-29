@@ -107,13 +107,13 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
 
         let tags = extract_tags(span, config);
 
-        let data = span.data.value_mut().get_or_insert_with(Default::default);
-        data.extend(
+        span.sentry_tags = Annotated::new(
             shared_tags
                 .clone()
                 .into_iter()
                 .chain(tags)
-                .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+                .map(|(k, v)| (k.to_string(), Annotated::new(v)))
+                .collect(),
         );
     }
 }
@@ -561,7 +561,7 @@ mod tests {
                         .value()
                         .and_then(|e| e.spans.value())
                         .and_then(|spans| spans[0].value())
-                        .and_then(|s| s.data.value())
+                        .and_then(|s| s.sentry_tags.value())
                         .and_then(|d| d.get("transaction.method"))
                         .and_then(|v| v.value())
                         .and_then(|v| v.as_str())

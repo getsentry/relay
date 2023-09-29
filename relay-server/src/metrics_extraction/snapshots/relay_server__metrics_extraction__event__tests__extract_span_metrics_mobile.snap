@@ -26,7 +26,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
             status: ~,
             tags: ~,
             origin: ~,
-            data: {
+            data: ~,
+            sentry_tags: {
                 "device.class": String(
                     "1",
                 ),
