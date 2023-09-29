@@ -1089,6 +1089,9 @@
 <a href="#1089" id="1089">1089</a>
 <a href="#1090" id="1090">1090</a>
 <a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1771,6 +1774,8 @@
             ..
         }) = project.check_envelope(managed_envelope, <span class="self">self</span>.services.outcome_aggregator.clone())
         {
+            <span class="kw">let </span>reservoir_counters = project.reservoir_counters();
+
             <span class="kw">let </span>sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| <span class="self">self</span>.projects.get(<span class="kw-2">&amp;</span>key))
                 .and_then(|p| p.valid_state());
@@ -1779,6 +1784,7 @@
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
                 sampling_project_state: <span class="prelude-val">None</span>,
+                reservoir_counters,
             };
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = sampling_state {

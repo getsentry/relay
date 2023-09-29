@@ -4235,6 +4235,48 @@
 <a href="#4235" id="4235">4235</a>
 <a href="#4236" id="4236">4236</a>
 <a href="#4237" id="4237">4237</a>
+<a href="#4238" id="4238">4238</a>
+<a href="#4239" id="4239">4239</a>
+<a href="#4240" id="4240">4240</a>
+<a href="#4241" id="4241">4241</a>
+<a href="#4242" id="4242">4242</a>
+<a href="#4243" id="4243">4243</a>
+<a href="#4244" id="4244">4244</a>
+<a href="#4245" id="4245">4245</a>
+<a href="#4246" id="4246">4246</a>
+<a href="#4247" id="4247">4247</a>
+<a href="#4248" id="4248">4248</a>
+<a href="#4249" id="4249">4249</a>
+<a href="#4250" id="4250">4250</a>
+<a href="#4251" id="4251">4251</a>
+<a href="#4252" id="4252">4252</a>
+<a href="#4253" id="4253">4253</a>
+<a href="#4254" id="4254">4254</a>
+<a href="#4255" id="4255">4255</a>
+<a href="#4256" id="4256">4256</a>
+<a href="#4257" id="4257">4257</a>
+<a href="#4258" id="4258">4258</a>
+<a href="#4259" id="4259">4259</a>
+<a href="#4260" id="4260">4260</a>
+<a href="#4261" id="4261">4261</a>
+<a href="#4262" id="4262">4262</a>
+<a href="#4263" id="4263">4263</a>
+<a href="#4264" id="4264">4264</a>
+<a href="#4265" id="4265">4265</a>
+<a href="#4266" id="4266">4266</a>
+<a href="#4267" id="4267">4267</a>
+<a href="#4268" id="4268">4268</a>
+<a href="#4269" id="4269">4269</a>
+<a href="#4270" id="4270">4270</a>
+<a href="#4271" id="4271">4271</a>
+<a href="#4272" id="4272">4272</a>
+<a href="#4273" id="4273">4273</a>
+<a href="#4274" id="4274">4274</a>
+<a href="#4275" id="4275">4275</a>
+<a href="#4276" id="4276">4276</a>
+<a href="#4277" id="4277">4277</a>
+<a href="#4278" id="4278">4278</a>
+<a href="#4279" id="4279">4279</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4281,7 +4323,9 @@
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
 <span class="kw">use </span>relay_sampling::config::{RuleType, SamplingMode};
-<span class="kw">use </span>relay_sampling::evaluation::{MatchedRuleIds, SamplingEvaluator};
+<span class="kw">use </span>relay_sampling::evaluation::{
+    MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
+};
 <span class="kw">use </span>relay_sampling::{DynamicSamplingContext, SamplingConfig};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -4491,7 +4535,7 @@
 
 <span class="doccomment">/// A state container for envelope processing.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>ProcessEnvelopeState {
+</span><span class="kw">struct </span>ProcessEnvelopeState&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -4544,9 +4588,12 @@
 
     <span class="doccomment">/// Whether there is a profiling item in the envelope.
     </span>has_profile: bool,
+
+    <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
+    </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">&#39;a</span>&gt;,
 }
 
-<span class="kw">impl </span>ProcessEnvelopeState {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ProcessEnvelopeState&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="doccomment">/// Returns a reference to the contained [`Envelope`].
     </span><span class="kw">fn </span>envelope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Envelope {
         <span class="self">self</span>.managed_envelope.envelope()
@@ -4662,6 +4709,7 @@
     <span class="kw">pub </span>envelope: ManagedEnvelope,
     <span class="kw">pub </span>project_state: Arc&lt;ProjectState&gt;,
     <span class="kw">pub </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
+    <span class="kw">pub </span>reservoir_counters: ReservoirCounters,
 }
 
 <span class="doccomment">/// Parses a list of metrics or metric buckets and pushes them to the project&#39;s aggregator.
@@ -4770,6 +4818,8 @@
 
 <span class="kw">struct </span>InnerProcessor {
     config: Arc&lt;Config&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>redis_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     envelope_manager: Addr&lt;EnvelopeManager&gt;,
     project_cache: Addr&lt;ProjectCache&gt;,
     global_config: Addr&lt;GlobalConfigManager&gt;,
@@ -4802,6 +4852,8 @@
         });
 
         <span class="kw">let </span>inner = InnerProcessor {
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>redis_pool: _redis.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>rate_limiter: _redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
@@ -5556,6 +5608,7 @@
             envelope: <span class="kw-2">mut </span>managed_envelope,
             project_state,
             sampling_project_state,
+            reservoir_counters,
         } = message;
 
         <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
@@ -5589,6 +5642,14 @@
         //  2. The DSN was moved and the envelope sent to the old project ID.
         </span>envelope.meta_mut().set_project_id(project_id);
 
+        <span class="attr">#[allow(unused_mut)]
+        </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_pool) = <span class="self">self</span>.inner.redis_pool.as_ref() {
+            <span class="kw">let </span>org_id = managed_envelope.scoping().organization_id;
+            reservoir.set_redis(org_id, redis_pool);
+        }
+
         <span class="prelude-val">Ok</span>(ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: <span class="bool-val">false</span>,
@@ -5601,6 +5662,7 @@
             project_id,
             managed_envelope,
             has_profile: <span class="bool-val">false</span>,
+            reservoir,
         })
     }
 
@@ -6582,6 +6644,7 @@
                     <span class="kw">if </span>config.is_enabled() {
                         state.sampling_result = <span class="self">Self</span>::compute_sampling_decision(
                             <span class="self">self</span>.inner.config.processing_enabled(),
+                            <span class="kw-2">&amp;</span>state.reservoir,
                             state.project_state.config.dynamic_sampling.as_ref(),
                             state.event.value(),
                             state
@@ -6601,6 +6664,7 @@
     <span class="doccomment">/// Computes the sampling decision on the incoming transaction.
     </span><span class="kw">fn </span>compute_sampling_decision(
         processing_enabled: bool,
+        reservoir: <span class="kw-2">&amp;</span>ReservoirEvaluator,
         sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
         event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
         root_sampling_config: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>SamplingConfig&gt;,
@@ -6640,8 +6704,9 @@
             }
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>evaluator =
-            SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
+        <span class="kw">let </span><span class="kw-2">mut </span>evaluator = SamplingEvaluator::new(Utc::now())
+            .adjust_client_sample_rate(adjustment_rate)
+            .set_reservoir(reservoir);
 
         <span class="kw">if let </span>(<span class="prelude-val">Some</span>(event), <span class="prelude-val">Some</span>(sampling_state)) = (event, sampling_config) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(seed) = event.id.value().map(|id| id.<span class="number">0</span>) {
@@ -7272,6 +7337,10 @@
         }
     }
 
+    <span class="kw">fn </span>dummy_reservoir() -&gt; ReservoirEvaluator&lt;<span class="lifetime">&#39;static</span>&gt; {
+        ReservoirEvaluator::new(ReservoirCounters::default())
+    }
+
     <span class="kw">fn </span>mocked_event(event_type: EventType, transaction: <span class="kw-2">&amp;</span>str, release: <span class="kw-2">&amp;</span>str) -&gt; Event {
         Event {
             id: Annotated::new(EventId::new()),
@@ -7425,6 +7494,7 @@
                 ),
                 has_profile: <span class="bool-val">false</span>,
                 event_metrics_extracted: <span class="bool-val">false</span>,
+                reservoir: dummy_reservoir(),
             }
         };
 
@@ -7472,6 +7542,7 @@
             // pipeline.
             </span><span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
                 <span class="bool-val">false</span>,
+                <span class="kw-2">&amp;</span>dummy_reservoir(),
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
                 <span class="prelude-val">None</span>,
@@ -7615,6 +7686,8 @@
             upstream_relay,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>rate_limiter: <span class="prelude-val">None</span>,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>redis_pool: <span class="prelude-val">None</span>,
             geoip_lookup: <span class="prelude-val">None</span>,
             global_config,
         };
@@ -7654,6 +7727,7 @@
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -7675,6 +7749,7 @@
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -7885,6 +7960,7 @@
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(project_state),
             sampling_project_state: <span class="prelude-val">None</span>,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -7955,6 +8031,7 @@
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8003,6 +8080,7 @@
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8059,6 +8137,7 @@
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: <span class="prelude-val">None</span>,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
@@ -8363,6 +8442,7 @@
 
         <span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
             <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>dummy_reservoir(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
@@ -8401,6 +8481,7 @@
         <span class="comment">// Unsupported rule should result in no match if processing is not enabled.
         </span><span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
             <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>dummy_reservoir(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
@@ -8411,6 +8492,7 @@
         <span class="comment">// Match if processing is enabled.
         </span><span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
             <span class="bool-val">true</span>,
+            <span class="kw-2">&amp;</span>dummy_reservoir(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>event),
             <span class="prelude-val">None</span>,
@@ -8451,6 +8533,7 @@
 
         <span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
             <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>dummy_reservoir(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),
@@ -8463,6 +8546,7 @@
 
         <span class="kw">let </span>res = EnvelopeProcessorService::compute_sampling_decision(
             <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>dummy_reservoir(),
             <span class="prelude-val">None</span>,
             <span class="prelude-val">None</span>,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>sampling_config),

@@ -410,7 +410,7 @@
     }
 }
 
-<span class="kw">impl </span>From&lt;ControlFlow&lt;SamplingMatch, SamplingEvaluator&gt;&gt; <span class="kw">for </span>SamplingResult {
+<span class="kw">impl </span>From&lt;ControlFlow&lt;SamplingMatch, SamplingEvaluator&lt;<span class="lifetime">&#39;_</span>&gt;&gt;&gt; <span class="kw">for </span>SamplingResult {
     <span class="kw">fn </span>from(value: ControlFlow&lt;SamplingMatch, SamplingEvaluator&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>value {
             ControlFlow::Break(sampling_match) =&gt; <span class="self">Self</span>::Match(sampling_match),
