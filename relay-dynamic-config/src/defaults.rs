@@ -38,9 +38,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.description", "*\"$*");
 
-        let condition = RuleCondition::glob("span.op", "db*")
-            & !RuleCondition::glob("span.op", DISABLED_DATABASES)
-            & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo);
+        let condition = RuleCondition::eq("span.op", "http.client")
+            | (RuleCondition::glob("span.op", "db*")
+                & !RuleCondition::glob("span.op", DISABLED_DATABASES)
+                & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo));
 
         Some(condition)
     };
@@ -53,7 +54,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             condition: span_op_conditions.clone(),
             tags: vec![TagSpec {
                 key: "transaction".into(),
-                field: Some("span.data.transaction".into()),
+                field: Some("span.sentry_tags.transaction".into()),
                 value: None,
                 condition: None,
             }],
@@ -88,7 +89,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             ]
             .map(|key| TagSpec {
                 key: key.into(),
-                field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+                field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
                 condition: None,
             })
@@ -99,9 +100,9 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             tags: ["release", "device.class"] // TODO: sentry PR for static strings
                 .map(|key| TagSpec {
                     key: key.into(),
-                    field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+                    field: Some(format!("span.sentry_tags.{}", key)),
                     value: None,
-                    condition: Some(RuleCondition::eq("span.data.mobile", true)),
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
                 })
                 .into(),
         },

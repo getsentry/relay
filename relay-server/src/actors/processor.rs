@@ -44,7 +44,9 @@ use relay_quotas::{DataCategory, ReasonCode};
 use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
-use relay_sampling::evaluation::{MatchedRuleIds, SamplingEvaluator};
+use relay_sampling::evaluation::{
+    MatchedRuleIds, ReservoirCounters, ReservoirEvaluator, SamplingEvaluator,
+};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
@@ -254,7 +256,7 @@ impl ExtractedMetrics {
 
 /// A state container for envelope processing.
 #[derive(Debug)]
-struct ProcessEnvelopeState {
+struct ProcessEnvelopeState<'a> {
     /// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -307,9 +309,12 @@ struct ProcessEnvelopeState {
 
     /// Whether there is a profiling item in the envelope.
     has_profile: bool,
+
+    /// Reservoir evaluator that we use for dynamic sampling.
+    reservoir: ReservoirEvaluator<'a>,
 }
 
-impl ProcessEnvelopeState {
+impl<'a> ProcessEnvelopeState<'a> {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
         self.managed_envelope.envelope()
@@ -425,6 +430,7 @@ pub struct ProcessEnvelope {
     pub envelope: ManagedEnvelope,
     pub project_state: Arc<ProjectState>,
     pub sampling_project_state: Option<Arc<ProjectState>>,
+    pub reservoir_counters: ReservoirCounters,
 }
 
 /// Parses a list of metrics or metric buckets and pushes them to the project's aggregator.
@@ -533,6 +539,8 @@ pub struct EnvelopeProcessorService {
 
 struct InnerProcessor {
     config: Arc<Config>,
+    #[cfg(feature = "processing")]
+    redis_pool: Option<RedisPool>,
     envelope_manager: Addr<EnvelopeManager>,
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
@@ -565,6 +573,8 @@ impl EnvelopeProcessorService {
         });
 
         let inner = InnerProcessor {
+            #[cfg(feature = "processing")]
+            redis_pool: _redis.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: _redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
@@ -1319,6 +1329,7 @@ impl EnvelopeProcessorService {
             envelope: mut managed_envelope,
             project_state,
             sampling_project_state,
+            reservoir_counters,
         } = message;
 
         let envelope = managed_envelope.envelope_mut();
@@ -1352,6 +1363,14 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
+        #[allow(unused_mut)]
+        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
+        #[cfg(feature = "processing")]
+        if let Some(redis_pool) = self.inner.redis_pool.as_ref() {
+            let org_id = managed_envelope.scoping().organization_id;
+            reservoir.set_redis(org_id, redis_pool);
+        }
+
         Ok(ProcessEnvelopeState {
             event: Annotated::empty(),
             event_metrics_extracted: false,
@@ -1364,6 +1383,7 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             has_profile: false,
+            reservoir,
         })
     }
 
@@ -2244,9 +2264,10 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        op.starts_with("db")
-            && !(op.contains("clickhouse") || op.contains("mongodb") || op.contains("redis"))
-            && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
+        op == "http.client"
+            || op.starts_with("db")
+                && !(op.contains("clickhouse") || op.contains("mongodb") || op.contains("redis"))
+                && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
     }
 
     #[cfg(feature = "processing")]
@@ -2316,15 +2337,11 @@ impl EnvelopeProcessorService {
         if all_modules_enabled {
             // Extract tags to add to this span as well
             let shared_tags = span::tag_extraction::extract_shared_tags(event);
-            let data = transaction_span
-                .data
-                .value_mut()
-                .get_or_insert_with(Default::default);
-            data.extend(
+            transaction_span.sentry_tags = Annotated::new(
                 shared_tags
-                    .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+                    .map(|(k, v)| (k.to_string(), Annotated::new(v)))
+                    .collect(),
             );
             add_span(transaction_span.into());
         }
@@ -2344,6 +2361,7 @@ impl EnvelopeProcessorService {
                     if config.is_enabled() {
                         state.sampling_result = Self::compute_sampling_decision(
                             self.inner.config.processing_enabled(),
+                            &state.reservoir,
                             state.project_state.config.dynamic_sampling.as_ref(),
                             state.event.value(),
                             state
@@ -2363,6 +2381,7 @@ impl EnvelopeProcessorService {
     /// Computes the sampling decision on the incoming transaction.
     fn compute_sampling_decision(
         processing_enabled: bool,
+        reservoir: &ReservoirEvaluator,
         sampling_config: Option<&SamplingConfig>,
         event: Option<&Event>,
         root_sampling_config: Option<&SamplingConfig>,
@@ -2402,8 +2421,9 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let mut evaluator =
-            SamplingEvaluator::new(Utc::now()).adjust_client_sample_rate(adjustment_rate);
+        let mut evaluator = SamplingEvaluator::new(Utc::now())
+            .adjust_client_sample_rate(adjustment_rate)
+            .set_reservoir(reservoir);
 
         if let (Some(event), Some(sampling_state)) = (event, sampling_config) {
             if let Some(seed) = event.id.value().map(|id| id.0) {
@@ -3034,6 +3054,10 @@ mod tests {
         }
     }
 
+    fn dummy_reservoir() -> ReservoirEvaluator<'static> {
+        ReservoirEvaluator::new(ReservoirCounters::default())
+    }
+
     fn mocked_event(event_type: EventType, transaction: &str, release: &str) -> Event {
         Event {
             id: Annotated::new(EventId::new()),
@@ -3187,6 +3211,7 @@ mod tests {
                 ),
                 has_profile: false,
                 event_metrics_extracted: false,
+                reservoir: dummy_reservoir(),
             }
         };
 
@@ -3234,6 +3259,7 @@ mod tests {
             // pipeline.
             let res = EnvelopeProcessorService::compute_sampling_decision(
                 false,
+                &dummy_reservoir(),
                 Some(&sampling_config),
                 Some(&event),
                 None,
@@ -3377,6 +3403,8 @@ mod tests {
             upstream_relay,
             #[cfg(feature = "processing")]
             rate_limiter: None,
+            #[cfg(feature = "processing")]
+            redis_pool: None,
             geoip_lookup: None,
             global_config,
         };
@@ -3416,6 +3444,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3437,6 +3466,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3647,6 +3677,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(project_state),
             sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3717,6 +3748,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3765,6 +3797,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -3821,6 +3854,7 @@ mod tests {
             envelope: ManagedEnvelope::standalone(envelope, outcome_aggregator, test_store),
             project_state: Arc::new(ProjectState::allowed()),
             sampling_project_state: None,
+            reservoir_counters: ReservoirCounters::default(),
         };
 
         let envelope_response = processor.process(message).unwrap();
@@ -4125,6 +4159,7 @@ mod tests {
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
+            &dummy_reservoir(),
             Some(&sampling_config),
             Some(&event),
             None,
@@ -4163,6 +4198,7 @@ mod tests {
         // Unsupported rule should result in no match if processing is not enabled.
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
+            &dummy_reservoir(),
             Some(&sampling_config),
             Some(&event),
             None,
@@ -4173,6 +4209,7 @@ mod tests {
         // Match if processing is enabled.
         let res = EnvelopeProcessorService::compute_sampling_decision(
             true,
+            &dummy_reservoir(),
             Some(&sampling_config),
             Some(&event),
             None,
@@ -4213,6 +4250,7 @@ mod tests {
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
+            &dummy_reservoir(),
             None,
             None,
             Some(&sampling_config),
@@ -4225,6 +4263,7 @@ mod tests {
 
         let res = EnvelopeProcessorService::compute_sampling_decision(
             false,
+            &dummy_reservoir(),
             None,
             None,
             Some(&sampling_config),
