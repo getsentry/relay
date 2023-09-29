@@ -754,18 +754,14 @@ impl StoreService {
             timestamp,
             start_timestamp,
             exclusive_time,
-            description,
-            op,
             span_id,
             parent_span_id,
             trace_id,
             segment_id,
             is_segment,
-            status,
             tags,
-            origin,
-            data,
-            other,
+            sentry_tags,
+            ..
         } = span;
         let start_timestamp_ms: u64 = start_timestamp
             .0
@@ -797,8 +793,18 @@ impl StoreService {
             duration_ms: timestamp_ms.saturating_sub(start_timestamp_ms),
             exclusive_time_ms: exclusive_time.0.ok_or(anyhow!("missing exclusive_time"))? as u64,
             retention_days,
-            user_tags: tags,
-            sentry_tags,
+            user_tags: tags
+                .into_value()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|(k, v)| v.into_value().map(|v| (k, v.to_string())))
+                .collect(),
+            sentry_tags: sentry_tags
+                .into_value()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|(k, v)| v.into_value().map(|v| (k, v.to_string())))
+                .collect(),
         })
     }
 
@@ -821,10 +827,7 @@ impl StoreService {
         ) {
             Ok(message) => KafkaMessage::Span(message),
             Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "failed to parse span"
-                );
+                relay_log::error!("failed to parse span: {error}");
                 return Ok(());
             }
         };
