@@ -5,17 +5,18 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+use anyhow::anyhow;
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{
-    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate, Span,
 };
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
-use relay_log::protocol::{SpanId, TraceId};
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
+use relay_protocol::Annotated;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
@@ -31,6 +32,9 @@ const MAX_EXPLODED_SESSIONS: usize = 100;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
+
+/// Current version of the kafka span protocol.
+const SPAN_VERSION: u16 = 1;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -207,6 +211,7 @@ impl StoreService {
                     scoping.project_id,
                     event_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 _ => {}
@@ -733,17 +738,88 @@ impl StoreService {
         Ok(())
     }
 
+    fn convert_span(
+        &self,
+        organization_id: u64,
+        project_id: ProjectId,
+        event_id: Option<EventId>,
+        start_time: Instant,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<SpanKafkaMessage, anyhow::Error> {
+        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
+        let span = Annotated::<Span>::from_json_bytes(&item.payload())?;
+        let span = span.into_value().ok_or(anyhow!("empty span"))?;
+        let Span {
+            timestamp,
+            start_timestamp,
+            exclusive_time,
+            description,
+            op,
+            span_id,
+            parent_span_id,
+            trace_id,
+            segment_id,
+            is_segment,
+            status,
+            tags,
+            origin,
+            data,
+            other,
+        } = span;
+        let start_timestamp_ms: u64 = start_timestamp
+            .0
+            .ok_or(anyhow!("missing start_timestamp"))?
+            .0
+            .timestamp_millis()
+            .try_into()?;
+        let timestamp_ms: u64 = timestamp
+            .0
+            .ok_or(anyhow!("missing timestamp"))?
+            .0
+            .timestamp_millis()
+            .try_into()?;
+
+        Ok(SpanKafkaMessage {
+            version: SPAN_VERSION,
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            event_id,
+            organization_id,
+            project_id,
+            trace_id: trace_id.into_value().ok_or(anyhow!("missing trace ID"))?.0,
+            span_id: span_id.into_value().ok_or(anyhow!("missing span ID"))?.0,
+            parent_span_id: parent_span_id.into_value().map(|id| id.0),
+            segment_id: segment_id.into_value().map(|id| id.0),
+            is_segment: is_segment
+                .into_value()
+                .ok_or(anyhow!("missing is_segment"))?,
+            start_timestamp_ms,
+            duration_ms: timestamp_ms.saturating_sub(start_timestamp_ms),
+            exclusive_time_ms: exclusive_time.0.ok_or(anyhow!("missing exclusive_time"))? as u64,
+            retention_days,
+            user_tags: tags,
+            sentry_tags,
+        })
+    }
+
     fn produce_span(
         &self,
         organization_id: u64,
         project_id: ProjectId,
         event_id: Option<EventId>,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
-        let span: serde_json::Value = match serde_json::from_slice(&item.payload()) {
-            Ok(span) => span,
+        let message = match self.convert_span(
+            organization_id,
+            project_id,
+            event_id,
+            start_time,
+            retention_days,
+            item,
+        ) {
+            Ok(message) => KafkaMessage::Span(message),
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn std::error::Error,
@@ -752,12 +828,6 @@ impl StoreService {
                 return Ok(());
             }
         };
-        let message = KafkaMessage::Span(SpanKafkaMessage {
-            project_id,
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            span,
-            event_id,
-        });
 
         self.produce(KafkaTopic::Spans, organization_id, message)?;
 
@@ -1034,35 +1104,37 @@ struct CheckInKafkaMessage {
 struct SpanKafkaMessage {
     /// Version of this message's format. Tells the consumer how to parse this message.
     version: u16,
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
+    start_time: u64,
     /// The ID of the transaction event associated to this span, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
     /// The numeric ID of the organization.
     organization_id: u64,
     /// The numeric ID of the project.
-    project_id: u64, // required
+    project_id: ProjectId,
     /// The ID of the trace that the current span belongs to.
-    trace_id: TraceId, // required
+    trace_id: String,
     /// The unique ID of the current span.
-    span_id: SpanId, // required
+    span_id: String,
     /// The ID of the current span's parent, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
-    parent_span_id: Option<SpanId>,
+    parent_span_id: Option<String>,
     /// A unique identifier for a segment within a trace (8 byte hexadecimal string).
     ///
     /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
     /// transaction.
     #[serde(skip_serializing_if = "Option::is_none")]
-    segment_id: Option<SpanId>,
+    segment_id: Option<String>,
     /// Whether or not the current span is the root of the segment.
     is_segment: bool,
     /// Timestamp when the span started in milliseconds.
-    start_timestamp_ms: u64, // required
+    start_timestamp_ms: u64,
     /// Total duration of the span in milliseconds.
-    duration_ms: u64, // required
+    duration_ms: u64,
     /// The amount of time spent in this span, excluding its immediate child spans.
-    exclusive_time_ms: u64, // required
-    retention_days: u16, // required
+    exclusive_time_ms: u64,
+    retention_days: u16,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     /// Tags set by the user. Copy of `span.tags`.
     user_tags: BTreeMap<String, String>,
