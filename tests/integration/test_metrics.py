@@ -174,7 +174,7 @@ def test_metrics_with_processing(mini_sentry, relay_with_processing, metrics_con
     metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
-    metrics = metrics_by_name(metrics_consumer, 3)
+    metrics = metrics_by_name(metrics_consumer, 2)
 
     assert metrics["headers"]["c:transactions/foo@none"] == [
         ("namespace", b"transactions")
@@ -249,7 +249,7 @@ def test_metrics_with_sharded_kafka(
     # There must be no messages in the metrics-1, since the shard was not picked up
     m1.assert_empty()
 
-    metrics2 = metrics_by_name(m2, 3)
+    metrics2 = metrics_by_name(m2, 2)
     assert metrics2["c:transactions/foo@none"] == {
         "org_id": 5,
         "project_id": project_id,
@@ -457,7 +457,7 @@ def test_session_metrics_extracted_only_once(
 
     relay_chain.send_session(project_id, session_payload)
 
-    metrics = metrics_by_name(metrics_consumer, 3, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, 2, timeout=6)
 
     # if it is not 1 it means the session was extracted multiple times
     assert metrics["c:sessions/session@none"]["value"] == 1.0
@@ -498,7 +498,7 @@ def test_session_metrics_processing(
         metrics_consumer.assert_empty(timeout=2)
         return
 
-    metrics = metrics_by_name(metrics_consumer, 3)
+    metrics = metrics_by_name(metrics_consumer, 2)
 
     expected_timestamp = int(started.timestamp())
     assert metrics["c:sessions/session@none"] == {
@@ -1393,7 +1393,7 @@ def test_custom_metrics_disabled(mini_sentry, relay_with_processing, metrics_con
     metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
-    metrics = metrics_by_name(metrics_consumer, 2)
+    metrics = metrics_by_name(metrics_consumer, 1)
 
     assert "c:transactions/foo@none" in metrics
     assert "c:custom/bar@second" not in metrics
