@@ -89,7 +89,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             ]
             .map(|key| TagSpec {
                 key: key.into(),
-                field: Some(format!("span.sentry_tags.{}", key.replace('.', "\\."))),
+                field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
                 condition: None,
             })
@@ -100,9 +100,9 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             tags: ["release", "device.class"] // TODO: sentry PR for static strings
                 .map(|key| TagSpec {
                     key: key.into(),
-                    field: Some(format!("span.sentry_tags.{}", key.replace('.', "\\."))),
+                    field: Some(format!("span.sentry_tags.{}", key)),
                     value: None,
-                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", true)),
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
                 })
                 .into(),
         },

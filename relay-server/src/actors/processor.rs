@@ -2337,15 +2337,11 @@ impl EnvelopeProcessorService {
         if all_modules_enabled {
             // Extract tags to add to this span as well
             let shared_tags = span::tag_extraction::extract_shared_tags(event);
-            let data = transaction_span
-                .data
-                .value_mut()
-                .get_or_insert_with(Default::default);
-            data.extend(
+            transaction_span.sentry_tags = Annotated::new(
                 shared_tags
-                    .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+                    .map(|(k, v)| (k.to_string(), Annotated::new(v)))
+                    .collect(),
             );
             add_span(transaction_span.into());
         }
