@@ -835,7 +835,9 @@ def test_transaction_metrics_extraction_external_relays(
         m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
         assert len(m_item_body) == 3
         m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
-        assert m_item_body_sorted[2]["name"] == "d:transactions/duration_light@millisecond"
+        assert (
+            m_item_body_sorted[2]["name"] == "d:transactions/duration_light@millisecond"
+        )
         assert (
             m_item_body_sorted[2]["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
@@ -903,7 +905,9 @@ def test_transaction_metrics_extraction_processing_relays(
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
-        assert metric_duration_light["name"] == "d:transactions/duration_light@millisecond"
+        assert (
+            metric_duration_light["name"] == "d:transactions/duration_light@millisecond"
+        )
         assert (
             metric_duration_light["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"

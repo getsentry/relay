@@ -659,6 +659,19 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "gEt /api/:version/users/",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "s:transactions/user@none",
                 value: Set(
                     {
@@ -786,6 +799,19 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "<unlabeled transaction>",
+                },
+            },
         ]
         "###);
     }
@@ -873,6 +899,19 @@ mod tests {
                     "platform": "other",
                     "transaction": "<unlabeled transaction>",
                     "transaction.status": "unknown",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "<unlabeled transaction>",
                 },
             },
         ]
@@ -1038,6 +1077,19 @@ mod tests {
                     "platform": "other",
                     "transaction": "foo",
                     "transaction.status": "unknown",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "foo",
                 },
             },
         ]
@@ -1513,7 +1565,7 @@ mod tests {
             .map(|m| m.name)
             .collect();
 
-        insta::assert_debug_snapshot!(metrics_names, @r#"
+        insta::assert_debug_snapshot!(metrics_names, @r###"
         [
             "d:transactions/measurements.frames_frozen@none",
             "d:transactions/measurements.frames_frozen_rate@ratio",
@@ -1523,8 +1575,9 @@ mod tests {
             "d:transactions/measurements.stall_percentage@ratio",
             "d:transactions/measurements.stall_total_time@millisecond",
             "d:transactions/duration@millisecond",
+            "d:transactions/duration_light@millisecond",
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1664,6 +1717,17 @@ mod tests {
                     "platform": "javascript",
                     "satisfaction": "tolerated",
                 },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {},
             },
         ]
         "###);
