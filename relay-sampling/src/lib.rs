@@ -77,6 +77,8 @@ pub mod condition;
 pub mod config;
 pub mod dsc;
 pub mod evaluation;
+#[cfg(feature = "redis")]
+mod redis_sampling;
 mod utils;
 
 pub use config::SamplingConfig;
