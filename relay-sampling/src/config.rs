@@ -82,57 +82,17 @@ impl SamplingRule {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
-    /// Returns the updated [`SamplingValue`] if it's valid.
-    pub fn evaluate(
-        &self,
-        now: DateTime<Utc>,
-        reservoir: Option<&ReservoirEvaluator>,
-    ) -> Option<SamplingValue> {
-        if !self.time_range.contains(now) {
-            // Return None if rule is inactive.
-            return None;
-        }
+    /// Returns an adjusted [`SamplingValue`] based on the [`DecayingFunction`].
+    pub fn adjusted_sampling_value(&self, now: DateTime<Utc>) -> Option<SamplingValue> {
+        let mut sampling_value = self.sampling_value;
 
-        let sampling_base_value = match self.sampling_value {
-            SamplingValue::SampleRate { value } => value,
-            SamplingValue::Factor { value } => value,
-            SamplingValue::Reservoir { limit } => {
-                return reservoir.and_then(|reservoir| {
-                    reservoir
-                        .evaluate(self.id, limit, self.time_range.end.as_ref())
-                        .then_some(SamplingValue::Reservoir { limit })
-                });
+        match &mut sampling_value {
+            SamplingValue::SampleRate { value } | SamplingValue::Factor { value } => {
+                *value = self.decaying_fn.evaluate(*value, now, self.time_range)?;
             }
-        };
-
-        let value = match self.decaying_fn {
-            DecayingFunction::Linear { decayed_value } => {
-                let (Some(start), Some(end)) = (self.time_range.start, self.time_range.end) else {
-                    return None;
-                };
-
-                (sampling_base_value > decayed_value).then_some(())?;
-
-                let now = now.timestamp() as f64;
-                let start = start.timestamp() as f64;
-                let end = end.timestamp() as f64;
-
-                let progress_ratio = ((now - start) / (end - start)).clamp(0.0, 1.0);
-
-                // This interval will always be < 0.
-                let interval = decayed_value - sampling_base_value;
-                sampling_base_value + (interval * progress_ratio)
-            }
-            DecayingFunction::Constant => sampling_base_value,
-        };
-
-        match self.sampling_value {
-            SamplingValue::SampleRate { .. } => Some(SamplingValue::SampleRate { value }),
-            SamplingValue::Factor { .. } => Some(SamplingValue::Factor { value }),
-            // This should be impossible.
-            // Todo(tor): refactor so we don't run into this invalid state.
-            _ => None,
+            SamplingValue::Reservoir { .. } => {}
         }
+        Some(sampling_value)
     }
 }
 
@@ -253,6 +213,36 @@ pub enum DecayingFunction {
     /// Apply the sample rate of the rule for the full time window with hard cutoff.
     #[default]
     Constant,
+}
+
+impl DecayingFunction {
+    pub fn evaluate(
+        &self,
+        sampling_base_value: f64,
+        now: DateTime<Utc>,
+        time_range: TimeRange,
+    ) -> Option<f64> {
+        match self {
+            DecayingFunction::Linear { decayed_value } => {
+                let (Some(start), Some(end)) = (time_range.start, time_range.end) else {
+                    return None;
+                };
+
+                (sampling_base_value > *decayed_value).then_some(())?;
+
+                let now = now.timestamp() as f64;
+                let start = start.timestamp() as f64;
+                let end = end.timestamp() as f64;
+
+                let progress_ratio = ((now - start) / (end - start)).clamp(0.0, 1.0);
+
+                // This interval will always be < 0.
+                let interval = decayed_value - sampling_base_value;
+                Some(sampling_base_value + (interval * progress_ratio))
+            }
+            DecayingFunction::Constant => Some(sampling_base_value),
+        }
+    }
 }
 
 /// Defines which population of items a dynamic sample rate applies to.

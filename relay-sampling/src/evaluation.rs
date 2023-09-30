@@ -195,19 +195,21 @@ impl<'a> SamplingEvaluator<'a> {
         I: Iterator<Item = &'b SamplingRule>,
     {
         for rule in rules {
-            if !rule.condition.matches(instance) {
+            if !(rule.time_range.contains(self.now) && rule.condition.matches(instance)) {
                 continue;
             };
 
-            let Some(sampling_value) = rule.evaluate(self.now, self.reservoir) else {
+            let Some(sampling_value) = rule.adjusted_sampling_value(self.now) else {
                 continue;
             };
-
-            self.rule_ids.push(rule.id);
 
             match sampling_value {
-                SamplingValue::Factor { value } => self.factor *= value,
                 SamplingValue::SampleRate { value } => {
+                    self.rule_ids.push(rule.id);
+                    self.factor *= value;
+                }
+                SamplingValue::Factor { value } => {
+                    self.rule_ids.push(rule.id);
                     let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
                     return ControlFlow::Break(SamplingMatch::new(
@@ -216,10 +218,14 @@ impl<'a> SamplingEvaluator<'a> {
                         self.rule_ids,
                     ));
                 }
-                SamplingValue::Reservoir { .. } => {
-                    return ControlFlow::Break(SamplingMatch::new(1.0, seed, vec![rule.id]));
+                SamplingValue::Reservoir { limit } => {
+                    if let Some(true) = self.reservoir.map(|reservoir| {
+                        reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref())
+                    }) {
+                        return ControlFlow::Break(SamplingMatch::new(1.0, seed, vec![rule.id]));
+                    }
                 }
-            }
+            };
         }
         ControlFlow::Continue(self)
     }
