@@ -203,13 +203,11 @@ impl<'a> SamplingEvaluator<'a> {
                 continue;
             };
 
+            self.rule_ids.push(rule.id);
+
             match sampling_value {
+                SamplingValue::Factor { value } => self.factor *= value,
                 SamplingValue::SampleRate { value } => {
-                    self.rule_ids.push(rule.id);
-                    self.factor *= value;
-                }
-                SamplingValue::Factor { value } => {
-                    self.rule_ids.push(rule.id);
                     let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
                     return ControlFlow::Break(SamplingMatch::new(
