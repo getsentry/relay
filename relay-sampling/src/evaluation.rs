@@ -204,11 +204,11 @@ impl<'a> SamplingEvaluator<'a> {
             };
 
             match sampling_value {
-                SamplingValue::SampleRate { value } => {
+                SamplingValue::Factor { value } => {
                     self.rule_ids.push(rule.id);
                     self.factor *= value;
                 }
-                SamplingValue::Factor { value } => {
+                SamplingValue::SampleRate { value } => {
                     self.rule_ids.push(rule.id);
                     let sample_rate = (value * self.factor).clamp(0.0, 1.0);
 
