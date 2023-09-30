@@ -77,6 +77,10 @@ pub struct SamplingRule {
 }
 
 impl SamplingRule {
+    fn supported(&self) -> bool {
+        self.condition.supported() && self.ty != RuleType::Unsupported
+    }
+
     /// Returns an adjusted [`SamplingValue`] based on the [`DecayingFunction`].
     pub fn adjusted_sampling_value(&self, now: DateTime<Utc>) -> Option<SamplingValue> {
         let mut sampling_value = self.sampling_value;
@@ -90,10 +94,6 @@ impl SamplingRule {
             SamplingValue::Reservoir { .. } => {}
         }
         Some(sampling_value)
-    }
-
-    fn supported(&self) -> bool {
-        self.condition.supported() && self.ty != RuleType::Unsupported
     }
 }
 
