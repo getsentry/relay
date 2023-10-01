@@ -173,6 +173,37 @@ impl<'a> SamplingEvaluator<'a> {
         self
     }
 
+    /// Validates a sampling match.
+    ///
+    /// Some(Continue) -> valid match of type Factor
+    /// Some(Break) -> valid match to return
+    /// None -> invalid match, skipping rule.
+    fn validate_match(&mut self, rule: &SamplingRule) -> Option<ControlFlow<f64, f64>> {
+        match rule.sampling_value {
+            SamplingValue::Factor { value } => {
+                let sample_rate = rule.apply_decaying_fn(value, self.now)?;
+                self.rule_ids.push(rule.id);
+                return Some(ControlFlow::Continue(sample_rate));
+            }
+            SamplingValue::SampleRate { value } => {
+                let sample_rate = rule.apply_decaying_fn(value, self.now)?;
+                self.rule_ids.push(rule.id);
+                return Some(ControlFlow::Break(sample_rate));
+            }
+            SamplingValue::Reservoir { limit } => {
+                if let Some(true) = self.reservoir.map(|reservoir| {
+                    reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref())
+                }) {
+                    self.rule_ids.clear();
+
+                    self.rule_ids.push(rule.id);
+                    return Some(ControlFlow::Break(1.0));
+                }
+            }
+        };
+        None
+    }
+
     /// Attempts to find a match for sampling rules using `ControlFlow`.
     ///
     /// This function returns a `ControlFlow` to provide control over the matching process.
@@ -199,18 +230,14 @@ impl<'a> SamplingEvaluator<'a> {
                 continue;
             };
 
-            let Some(sampling_value) = rule.adjusted_sampling_value(self.now) else {
+            let Some(valid_match) = self.validate_match(rule) else {
                 continue;
             };
 
-            match sampling_value {
-                SamplingValue::Factor { value } => {
-                    self.rule_ids.push(rule.id);
-                    self.factor *= value;
-                }
-                SamplingValue::SampleRate { value } => {
-                    self.rule_ids.push(rule.id);
-                    let sample_rate = (value * self.factor).clamp(0.0, 1.0);
+            match valid_match {
+                ControlFlow::Continue(sample_rate) => self.factor *= sample_rate,
+                ControlFlow::Break(sample_rate) => {
+                    let sample_rate = (self.factor * sample_rate).clamp(0.0, 1.0);
 
                     return ControlFlow::Break(SamplingMatch::new(
                         self.adjusted_sample_rate(sample_rate),
@@ -218,14 +245,7 @@ impl<'a> SamplingEvaluator<'a> {
                         self.rule_ids,
                     ));
                 }
-                SamplingValue::Reservoir { limit } => {
-                    if let Some(true) = self.reservoir.map(|reservoir| {
-                        reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref())
-                    }) {
-                        return ControlFlow::Break(SamplingMatch::new(1.0, seed, vec![rule.id]));
-                    }
-                }
-            };
+            }
         }
 
         ControlFlow::Continue(self)

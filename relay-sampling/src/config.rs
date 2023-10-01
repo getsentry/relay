@@ -55,6 +55,8 @@ pub struct SamplingRule {
     pub condition: RuleCondition,
 
     /// The sample rate to apply when this rule matches.
+    ///
+    /// Use the `adjusted_sampling_value` method to have it corrected by the decaying function.
     pub sampling_value: SamplingValue,
 
     /// The rule type declares what to apply a dynamic sampling rule to and how.
@@ -81,19 +83,10 @@ impl SamplingRule {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
-    /// Returns an adjusted [`SamplingValue`] based on the [`DecayingFunction`].
-    pub fn adjusted_sampling_value(&self, now: DateTime<Utc>) -> Option<SamplingValue> {
-        let mut sampling_value = self.sampling_value;
-
-        match &mut sampling_value {
-            SamplingValue::SampleRate { value } | SamplingValue::Factor { value } => {
-                *value = self
-                    .decaying_fn
-                    .adjust_sample_rate(*value, now, self.time_range)?;
-            }
-            SamplingValue::Reservoir { .. } => {}
-        }
-        Some(sampling_value)
+    /// Applies decaying function to the given sample rate.
+    pub fn apply_decaying_fn(&self, sample_rate: f64, now: DateTime<Utc>) -> Option<f64> {
+        self.decaying_fn
+            .adjust_sample_rate(sample_rate, now, self.time_range)
     }
 }
 
@@ -567,32 +560,5 @@ mod tests {
         assert!(decaying_fn
             .adjust_sample_rate(1.0, halfway, time_range_without_end)
             .is_none());
-    }
-
-    /// You can pass in a SamplingValue of either variant, and it should return the same one if
-    /// the rule is valid.
-    #[test]
-    fn test_sample_rate_returns_same_samplingvalue_variant() {
-        let sampling_value = SamplingValue::SampleRate { value: 0.42 };
-
-        let mut rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value,
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange::default(),
-            decaying_fn: DecayingFunction::Constant,
-        };
-
-        matches!(
-            rule.adjusted_sampling_value(Utc::now()).unwrap(),
-            SamplingValue::SampleRate { .. }
-        );
-
-        rule.sampling_value = SamplingValue::Factor { value: 0.42 };
-        matches!(
-            rule.adjusted_sampling_value(Utc::now()).unwrap(),
-            SamplingValue::Factor { .. }
-        );
     }
 }
