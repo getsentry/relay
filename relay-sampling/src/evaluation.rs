@@ -173,11 +173,6 @@ impl<'a> SamplingEvaluator<'a> {
         self
     }
 
-    /// Validates a sampling match.
-    ///
-    /// Some(Continue) -> valid match of type Factor
-    /// Some(Break) -> valid match to return
-    /// None -> invalid match, skipping rule.
     fn validate_match(&mut self, rule: &SamplingRule) -> Option<ControlFlow<f64, f64>> {
         match rule.sampling_value {
             SamplingValue::Factor { value } => {
@@ -586,12 +581,14 @@ mod tests {
         for (i, val) in vals.into_iter().enumerate() {
             let (condition, sampling_value) = val;
 
-            let mut sampling_rule = mocked_sampling_rule();
-            sampling_rule.condition = condition;
-            sampling_rule.sampling_value = sampling_value;
-            sampling_rule.id = RuleId(i as u32);
-
-            vec.push(sampling_rule);
+            vec.push(SamplingRule {
+                condition,
+                sampling_value,
+                ty: RuleType::Transaction,
+                id: RuleId(i as u32),
+                time_range: Default::default(),
+                decaying_fn: Default::default(),
+            });
         }
         vec
     }

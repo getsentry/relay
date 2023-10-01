@@ -55,8 +55,6 @@ pub struct SamplingRule {
     pub condition: RuleCondition,
 
     /// The sample rate to apply when this rule matches.
-    ///
-    /// Use the `adjusted_sampling_value` method to have it corrected by the decaying function.
     pub sampling_value: SamplingValue,
 
     /// The rule type declares what to apply a dynamic sampling rule to and how.
@@ -83,7 +81,7 @@ impl SamplingRule {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
-    /// Applies decaying function to the given sample rate.
+    /// Applies its decaying function to the given sample rate.
     pub fn apply_decaying_fn(&self, sample_rate: f64, now: DateTime<Utc>) -> Option<f64> {
         self.decaying_fn
             .adjust_sample_rate(sample_rate, now, self.time_range)
