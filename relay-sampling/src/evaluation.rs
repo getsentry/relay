@@ -194,6 +194,7 @@ impl<'a> SamplingEvaluator<'a> {
                 if let Some(true) = self.reservoir.map(|reservoir| {
                     reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref())
                 }) {
+                    // Clearing the previously matched rules because reservoir overrides them.
                     self.rule_ids.clear();
 
                     self.rule_ids.push(rule.id);
@@ -822,14 +823,9 @@ mod tests {
         };
 
         let is_match = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
-            match SamplingEvaluator::new(now).match_rules(
-                Uuid::default(),
-                &dsc,
-                [rule.clone()].iter(),
-            ) {
-                ControlFlow::Break(_) => true,
-                ControlFlow::Continue(_) => false,
-            }
+            SamplingEvaluator::new(now)
+                .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
+                .is_break()
         };
 
         // [start..end]
@@ -857,5 +853,27 @@ mod tests {
         assert!(is_match(before_time_range, &rule_without_range));
         assert!(is_match(during_time_range, &rule_without_range));
         assert!(is_match(after_time_range, &rule_without_range));
+    }
+
+    /// Checks that `validate_match` yields the correct controlflow given the SamplingValue variant.
+    #[test]
+    fn test_validate_match() {
+        let mut eval = SamplingEvaluator::new(Utc::now());
+        let mut rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: TimeRange::default(),
+            decaying_fn: DecayingFunction::Constant,
+        };
+
+        assert!(eval.validate_match(&rule).unwrap().is_break());
+
+        rule.sampling_value = SamplingValue::Factor { value: 1.0 };
+        assert!(eval.validate_match(&rule).unwrap().is_continue());
+
+        rule.sampling_value = SamplingValue::Reservoir { limit: 1 };
+        assert!(eval.validate_match(&rule).unwrap().is_break());
     }
 }
