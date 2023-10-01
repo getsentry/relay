@@ -89,7 +89,7 @@ impl SamplingRule {
             SamplingValue::SampleRate { value } | SamplingValue::Factor { value } => {
                 *value = self
                     .decaying_fn
-                    .evaluate_sample_rate(*value, now, self.time_range)?;
+                    .adjust_sample_rate(*value, now, self.time_range)?;
             }
             SamplingValue::Reservoir { .. } => {}
         }
@@ -218,7 +218,7 @@ pub enum DecayingFunction {
 
 impl DecayingFunction {
     /// Applies the decaying function to the given sample rate.
-    pub fn evaluate_sample_rate(
+    pub fn adjust_sample_rate(
         &self,
         sample_rate: f64,
         now: DateTime<Utc>,

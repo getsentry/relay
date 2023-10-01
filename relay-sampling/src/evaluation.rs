@@ -775,9 +775,10 @@ mod tests {
         assert!(!evaluation_is_match(res));
     }
 
-    /// Validates the `sample_rate` method for different time range configurations.
-    /// The method should return `None` for times outside of the valid range and `Some` for times within it.
-    /// When the `start` or `end` of the range is missing, it defaults to always include times before the `end` or after the `start`, respectively.
+    /// Validates the early return (and hence no match) of the `match_rules` function if the current
+    /// time is out of bounds of the time range.
+    /// When the `start` or `end` of the range is missing, it defaults to always include
+    /// times before the `end` or after the `start`, respectively.
     #[test]
     fn test_sample_rate_valid_time_range() {
         let dsc = mocked_dsc_with_getter_values(vec![]);
@@ -800,7 +801,7 @@ mod tests {
             decaying_fn: DecayingFunction::Constant,
         };
 
-        let is_sampled = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
+        let is_match = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
             let eval = SamplingEvaluator::new(now).match_rules(
                 Uuid::default(),
                 &dsc,
@@ -813,29 +814,29 @@ mod tests {
             }
         };
 
-        assert!(!is_sampled(before_time_range, &rule));
-        assert!(is_sampled(during_time_range, &rule));
-        assert!(!is_sampled(after_time_range, &rule));
+        assert!(!is_match(before_time_range, &rule));
+        assert!(is_match(during_time_range, &rule));
+        assert!(!is_match(after_time_range, &rule));
 
         // [start..]
         let mut rule_without_end = rule.clone();
         rule_without_end.time_range.end = None;
-        assert!(!is_sampled(before_time_range, &rule_without_end));
-        assert!(is_sampled(during_time_range, &rule_without_end));
-        assert!(is_sampled(after_time_range, &rule_without_end));
+        assert!(!is_match(before_time_range, &rule_without_end));
+        assert!(is_match(during_time_range, &rule_without_end));
+        assert!(is_match(after_time_range, &rule_without_end));
 
         // [..end]
         let mut rule_without_start = rule.clone();
         rule_without_start.time_range.start = None;
-        assert!(is_sampled(before_time_range, &rule_without_start));
-        assert!(is_sampled(during_time_range, &rule_without_start));
-        assert!(!is_sampled(after_time_range, &rule_without_start));
+        assert!(is_match(before_time_range, &rule_without_start));
+        assert!(is_match(during_time_range, &rule_without_start));
+        assert!(!is_match(after_time_range, &rule_without_start));
 
         // [..]
         let mut rule_without_range = rule.clone();
         rule_without_range.time_range = TimeRange::default();
-        assert!(is_sampled(before_time_range, &rule_without_range));
-        assert!(is_sampled(during_time_range, &rule_without_range));
-        assert!(is_sampled(after_time_range, &rule_without_range));
+        assert!(is_match(before_time_range, &rule_without_range));
+        assert!(is_match(during_time_range, &rule_without_range));
+        assert!(is_match(after_time_range, &rule_without_range));
     }
 }
