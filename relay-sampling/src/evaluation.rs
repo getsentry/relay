@@ -791,7 +791,6 @@ mod tests {
         let during_time_range = Utc.with_ymd_and_hms(1975, 1, 1, 0, 0, 0).unwrap();
         let after_time_range = Utc.with_ymd_and_hms(1981, 1, 1, 0, 0, 0).unwrap();
 
-        // [start..end]
         let rule = SamplingRule {
             condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
@@ -812,6 +811,7 @@ mod tests {
             }
         };
 
+        // [start..end]
         assert!(!is_match(before_time_range, &rule));
         assert!(is_match(during_time_range, &rule));
         assert!(!is_match(after_time_range, &rule));
