@@ -227,6 +227,7 @@ impl<'a> SamplingEvaluator<'a> {
                 }
             };
         }
+
         ControlFlow::Continue(self)
     }
 

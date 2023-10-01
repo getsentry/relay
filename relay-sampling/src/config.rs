@@ -506,19 +506,28 @@ mod tests {
         assert_eq!(serialized_config, expected_serialized_config)
     }
 
+    /// Checks that the sample rate stays constant if `DecayingFunction::Constant` is set.
+    #[test]
+    fn test_decay_fn_constant() {
+        let sample_rate = 0.5;
+
+        assert_eq!(
+            DecayingFunction::Constant.adjust_sample_rate(
+                sample_rate,
+                Utc::now(),
+                TimeRange::default()
+            ),
+            Some(sample_rate)
+        );
+    }
+
     /// Checks if the sample rate decays linearly if `DecayingFunction::Linear` is set.
     #[test]
-    fn test_sample_rate_with_linear_decay() {
-        let rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value: SamplingValue::SampleRate { value: 1.0 },
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange {
-                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
-                end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
-            },
-            decaying_fn: DecayingFunction::Linear { decayed_value: 0.5 },
+    fn test_decay_fn_linear() {
+        let decaying_fn = DecayingFunction::Linear { decayed_value: 0.5 };
+        let time_range = TimeRange {
+            start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
+            end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
         };
 
         let start = Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap();
@@ -527,65 +536,37 @@ mod tests {
 
         // At the start of the time range, sample rate is equal to the rule's initial sampling value.
         assert_eq!(
-            rule.adjusted_sampling_value(start).unwrap(),
-            SamplingValue::SampleRate { value: 1.0 }
+            decaying_fn.adjust_sample_rate(1.0, start, time_range),
+            Some(1.0)
         );
 
         // Halfway in the time range, the value is exactly between 1.0 and 0.5.
         assert_eq!(
-            rule.adjusted_sampling_value(halfway).unwrap(),
-            SamplingValue::SampleRate { value: 0.75 }
+            decaying_fn.adjust_sample_rate(1.0, halfway, time_range),
+            Some(0.75)
         );
 
         // Approaches 0.5 at the end.
         assert_eq!(
-            rule.adjusted_sampling_value(end).unwrap(),
-            SamplingValue::SampleRate {
-                // It won't go to exactly 0.5 because the time range is end-exclusive.
-                value: 0.5000028935185186
-            }
+            decaying_fn.adjust_sample_rate(1.0, end, time_range),
+            // It won't go to exactly 0.5 because the time range is end-exclusive.
+            Some(0.5000028935185186)
         );
 
         // If the end or beginning is missing, the linear decay shouldn't be run.
-        let rule_without_start = {
-            let mut rule = rule.clone();
-            rule.time_range.start = None;
-            rule
-        };
+        let mut time_range_without_start = time_range;
+        time_range_without_start.start = None;
 
-        assert!(rule_without_start
-            .adjusted_sampling_value(halfway)
+        assert!(decaying_fn
+            .adjust_sample_rate(1.0, halfway, time_range_without_start)
             .is_none());
 
-        let rule_without_end = {
-            let mut rule = rule.clone();
-            rule.time_range.end = None;
-            rule
-        };
+        let mut time_range_without_end = time_range;
+        time_range_without_end.end = None;
 
-        assert!(rule_without_end.adjusted_sampling_value(halfway).is_none());
-    }
-
-    /// If the decayingfunction is set to `Constant` then it shouldn't adjust the sample rate.
-    #[test]
-    fn test_sample_rate_with_constant_decayingfn() {
-        let sampling_value = SamplingValue::SampleRate { value: 0.42 };
-
-        let rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value,
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange {
-                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
-                end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
-            },
-            decaying_fn: DecayingFunction::Constant,
-        };
-
-        let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-
-        assert_eq!(rule.adjusted_sampling_value(halfway), Some(sampling_value));
+        assert!(decaying_fn
+            .adjust_sample_rate(1.0, halfway, time_range_without_end)
+            .is_none());
     }
 
     /// You can pass in a SamplingValue of either variant, and it should return the same one if
