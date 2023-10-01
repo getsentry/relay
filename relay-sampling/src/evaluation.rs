@@ -173,7 +173,13 @@ impl<'a> SamplingEvaluator<'a> {
         self
     }
 
-    fn validate_match(&mut self, rule: &SamplingRule) -> Option<ControlFlow<f64, f64>> {
+    /// Attempts to compute the sample rate for a given [`SamplingRule`].
+    ///
+    /// # Returns
+    /// - `None` if the `rule` is invalid or expired.
+    /// - `ControlFlow::Continue` if the sample rate should act as a factor for subsequent rules.
+    /// - `ControlFlow::Break` if the computed sample rate should be applied directly.
+    fn try_compute_sample_rate(&mut self, rule: &SamplingRule) -> Option<ControlFlow<f64, f64>> {
         match rule.sampling_value {
             SamplingValue::Factor { value } => {
                 let sample_rate = rule.apply_decaying_fn(value, self.now)?;
@@ -193,6 +199,7 @@ impl<'a> SamplingEvaluator<'a> {
                     self.rule_ids.clear();
 
                     self.rule_ids.push(rule.id);
+                    // If the reservoir has not yet reached its limit, we want to sample 100%.
                     return Some(ControlFlow::Break(1.0));
                 }
             }
@@ -226,11 +233,13 @@ impl<'a> SamplingEvaluator<'a> {
                 continue;
             };
 
-            let Some(valid_match) = self.validate_match(rule) else {
+            let Some(sample_rate) = self.try_compute_sample_rate(rule) else {
+                // A None-value means the rule is either invalid or expired.
+                // In which case we simply skip it.
                 continue;
             };
 
-            match valid_match {
+            match sample_rate {
                 ControlFlow::Continue(sample_rate) => self.factor *= sample_rate,
                 ControlFlow::Break(sample_rate) => {
                     let sample_rate = (self.factor * sample_rate).clamp(0.0, 1.0);
@@ -871,12 +880,12 @@ mod tests {
         let mut eval = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
 
         rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
-        assert!(eval.validate_match(&rule).unwrap().is_break());
+        assert!(eval.try_compute_sample_rate(&rule).unwrap().is_break());
 
         rule.sampling_value = SamplingValue::Factor { value: 1.0 };
-        assert!(eval.validate_match(&rule).unwrap().is_continue());
+        assert!(eval.try_compute_sample_rate(&rule).unwrap().is_continue());
 
         rule.sampling_value = SamplingValue::Reservoir { limit: 1 };
-        assert!(eval.validate_match(&rule).unwrap().is_break());
+        assert!(eval.try_compute_sample_rate(&rule).unwrap().is_break());
     }
 }
