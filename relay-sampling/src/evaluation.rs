@@ -242,7 +242,7 @@ impl<'a> SamplingEvaluator<'a> {
             match sample_rate {
                 ControlFlow::Continue(sample_rate) => self.factor *= sample_rate,
                 ControlFlow::Break(sample_rate) => {
-                    let sample_rate = (self.factor * sample_rate).clamp(0.0, 1.0);
+                    let sample_rate = (sample_rate * self.factor).clamp(0.0, 1.0);
 
                     return ControlFlow::Break(SamplingMatch::new(
                         self.adjusted_sample_rate(sample_rate),
@@ -593,7 +593,7 @@ mod tests {
             vec.push(SamplingRule {
                 condition,
                 sampling_value,
-                ty: RuleType::Transaction,
+                ty: RuleType::Trace,
                 id: RuleId(i as u32),
                 time_range: Default::default(),
                 decaying_fn: Default::default(),
