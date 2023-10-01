@@ -230,7 +230,9 @@ impl DecayingFunction {
                     return None;
                 };
 
-                (sample_rate > *decayed_value).then_some(())?;
+                if sample_rate < *decayed_value {
+                    return None;
+                }
 
                 let now = now.timestamp() as f64;
                 let start = start.timestamp() as f64;

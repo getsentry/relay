@@ -802,15 +802,13 @@ mod tests {
         };
 
         let is_match = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
-            let eval = SamplingEvaluator::new(now).match_rules(
+            match SamplingEvaluator::new(now).match_rules(
                 Uuid::default(),
                 &dsc,
                 [rule.clone()].iter(),
-            );
-
-            match eval {
-                ControlFlow::Continue(_) => false,
+            ) {
                 ControlFlow::Break(_) => true,
+                ControlFlow::Continue(_) => false,
             }
         };
 
