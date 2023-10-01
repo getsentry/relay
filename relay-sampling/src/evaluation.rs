@@ -567,6 +567,17 @@ mod tests {
         assert_eq!(get_sampling_match(&rules, &dsc).sample_rate(), 0.1);
     }
 
+    fn mocked_sampling_rule() -> SamplingRule {
+        SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }
+    }
+
     /// Helper function to quickly construct many rules with their condition and value, and a unique id,
     /// so the caller can easily check which rules are matching.
     fn simple_sampling_rules(vals: Vec<(RuleCondition, SamplingValue)>) -> Vec<SamplingRule> {
@@ -574,14 +585,13 @@ mod tests {
 
         for (i, val) in vals.into_iter().enumerate() {
             let (condition, sampling_value) = val;
-            vec.push(SamplingRule {
-                condition,
-                sampling_value,
-                ty: RuleType::Trace,
-                id: RuleId(i as u32),
-                time_range: Default::default(),
-                decaying_fn: Default::default(),
-            });
+
+            let mut sampling_rule = mocked_sampling_rule();
+            sampling_rule.condition = condition;
+            sampling_rule.sampling_value = sampling_value;
+            sampling_rule.id = RuleId(i as u32);
+
+            vec.push(sampling_rule);
         }
         vec
     }
@@ -858,16 +868,12 @@ mod tests {
     /// Checks that `validate_match` yields the correct controlflow given the SamplingValue variant.
     #[test]
     fn test_validate_match() {
-        let mut eval = SamplingEvaluator::new(Utc::now());
-        let mut rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value: SamplingValue::SampleRate { value: 1.0 },
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange::default(),
-            decaying_fn: DecayingFunction::Constant,
-        };
+        let mut rule = mocked_sampling_rule();
 
+        let reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
+        let mut eval = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+
+        rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
         assert!(eval.validate_match(&rule).unwrap().is_break());
 
         rule.sampling_value = SamplingValue::Factor { value: 1.0 };
