@@ -385,7 +385,9 @@ mod tests {
     use uuid::Uuid;
 
     use crate::condition::RuleCondition;
-    use crate::config::{RuleId, RuleType, SamplingRule, SamplingValue, TimeRange};
+    use crate::config::{
+        DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue, TimeRange,
+    };
     use crate::dsc::TraceUserContext;
     use crate::evaluation::MatchedRuleIds;
     use crate::DynamicSamplingContext;
@@ -771,5 +773,69 @@ mod tests {
         let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
 
         assert!(!evaluation_is_match(res));
+    }
+
+    /// Validates the `sample_rate` method for different time range configurations.
+    /// The method should return `None` for times outside of the valid range and `Some` for times within it.
+    /// When the `start` or `end` of the range is missing, it defaults to always include times before the `end` or after the `start`, respectively.
+    #[test]
+    fn test_sample_rate_valid_time_range() {
+        let dsc = mocked_dsc_with_getter_values(vec![]);
+        let time_range = TimeRange {
+            start: Some(Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap()),
+            end: Some(Utc.with_ymd_and_hms(1980, 1, 1, 0, 0, 0).unwrap()),
+        };
+
+        let before_time_range = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
+        let during_time_range = Utc.with_ymd_and_hms(1975, 1, 1, 0, 0, 0).unwrap();
+        let after_time_range = Utc.with_ymd_and_hms(1981, 1, 1, 0, 0, 0).unwrap();
+
+        // [start..end]
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range,
+            decaying_fn: DecayingFunction::Constant,
+        };
+
+        let is_sampled = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
+            let eval = SamplingEvaluator::new(now).match_rules(
+                Uuid::default(),
+                &dsc,
+                [rule.clone()].iter(),
+            );
+
+            match eval {
+                ControlFlow::Continue(_) => false,
+                ControlFlow::Break(_) => true,
+            }
+        };
+
+        assert!(!is_sampled(before_time_range, &rule));
+        assert!(is_sampled(during_time_range, &rule));
+        assert!(!is_sampled(after_time_range, &rule));
+
+        // [start..]
+        let mut rule_without_end = rule.clone();
+        rule_without_end.time_range.end = None;
+        assert!(!is_sampled(before_time_range, &rule_without_end));
+        assert!(is_sampled(during_time_range, &rule_without_end));
+        assert!(is_sampled(after_time_range, &rule_without_end));
+
+        // [..end]
+        let mut rule_without_start = rule.clone();
+        rule_without_start.time_range.start = None;
+        assert!(is_sampled(before_time_range, &rule_without_start));
+        assert!(is_sampled(during_time_range, &rule_without_start));
+        assert!(!is_sampled(after_time_range, &rule_without_start));
+
+        // [..]
+        let mut rule_without_range = rule.clone();
+        rule_without_range.time_range = TimeRange::default();
+        assert!(is_sampled(before_time_range, &rule_without_range));
+        assert!(is_sampled(during_time_range, &rule_without_range));
+        assert!(is_sampled(after_time_range, &rule_without_range));
     }
 }
