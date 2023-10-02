@@ -37,7 +37,7 @@ pub enum SpanTagKey {
     TransactionMethod,
     TransactionOp,
     HttpStatusCode,
-    // `true` if the transaction was sent by a mobile SDK.
+    // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
 
@@ -52,13 +52,6 @@ pub enum SpanTagKey {
     System,
     Status,
     StatusCode,
-}
-
-impl SpanTagKey {
-    /// Whether or not this tag should be added to metrics extracted from the span.
-    pub fn is_metric_tag(&self) -> bool {
-        !matches!(self, SpanTagKey::Release | SpanTagKey::User)
-    }
 }
 
 relay_common::derive_fromstr_and_display!(SpanTagKey, (), {
