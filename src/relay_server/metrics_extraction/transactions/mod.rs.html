@@ -1645,6 +1645,99 @@
 <a href="#1645" id="1645">1645</a>
 <a href="#1646" id="1646">1646</a>
 <a href="#1647" id="1647">1647</a>
+<a href="#1648" id="1648">1648</a>
+<a href="#1649" id="1649">1649</a>
+<a href="#1650" id="1650">1650</a>
+<a href="#1651" id="1651">1651</a>
+<a href="#1652" id="1652">1652</a>
+<a href="#1653" id="1653">1653</a>
+<a href="#1654" id="1654">1654</a>
+<a href="#1655" id="1655">1655</a>
+<a href="#1656" id="1656">1656</a>
+<a href="#1657" id="1657">1657</a>
+<a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a>
+<a href="#1664" id="1664">1664</a>
+<a href="#1665" id="1665">1665</a>
+<a href="#1666" id="1666">1666</a>
+<a href="#1667" id="1667">1667</a>
+<a href="#1668" id="1668">1668</a>
+<a href="#1669" id="1669">1669</a>
+<a href="#1670" id="1670">1670</a>
+<a href="#1671" id="1671">1671</a>
+<a href="#1672" id="1672">1672</a>
+<a href="#1673" id="1673">1673</a>
+<a href="#1674" id="1674">1674</a>
+<a href="#1675" id="1675">1675</a>
+<a href="#1676" id="1676">1676</a>
+<a href="#1677" id="1677">1677</a>
+<a href="#1678" id="1678">1678</a>
+<a href="#1679" id="1679">1679</a>
+<a href="#1680" id="1680">1680</a>
+<a href="#1681" id="1681">1681</a>
+<a href="#1682" id="1682">1682</a>
+<a href="#1683" id="1683">1683</a>
+<a href="#1684" id="1684">1684</a>
+<a href="#1685" id="1685">1685</a>
+<a href="#1686" id="1686">1686</a>
+<a href="#1687" id="1687">1687</a>
+<a href="#1688" id="1688">1688</a>
+<a href="#1689" id="1689">1689</a>
+<a href="#1690" id="1690">1690</a>
+<a href="#1691" id="1691">1691</a>
+<a href="#1692" id="1692">1692</a>
+<a href="#1693" id="1693">1693</a>
+<a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -1761,6 +1854,16 @@
             .unwrap_or_default(),
         name_used = name_used,
     );
+}
+
+<span class="doccomment">/// These are the tags that are added to extracted low cardinality metrics.
+</span><span class="kw">fn </span>extract_light_transaction_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; CommonTags {
+    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = get_transaction_name(event) {
+        tags.insert(CommonTag::Transaction, transaction_name);
+    }
+
+    CommonTags(tags)
 }
 
 <span class="doccomment">/// These are the tags that are added to all extracted metrics.
@@ -1894,6 +1997,7 @@
 
         track_transaction_name_stats(event);
         <span class="kw">let </span>tags = extract_universal_tags(event, <span class="self">self</span>.config);
+        <span class="kw">let </span>light_tags = extract_light_transaction_tags(event);
 
         <span class="comment">// Measurements
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = event.measurements.value() {
@@ -1966,6 +2070,19 @@
                 tags: TransactionDurationTags {
                     has_profile: <span class="self">self</span>.has_profile,
                     universal_tags: tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        );
+
+        <span class="comment">// Lower cardinality duration
+        </span>metrics.project_metrics.push(
+            TransactionMetric::DurationLight {
+                unit: DurationUnit::MilliSecond,
+                value: relay_common::time::chrono_to_positive_millis(end - start),
+                tags: TransactionDurationTags {
+                    has_profile: <span class="self">self</span>.has_profile,
+                    universal_tags: light_tags.clone(),
                 },
             }
             .into_metric(timestamp),
@@ -2282,6 +2399,19 @@
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
+                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    &quot;transaction&quot;: &quot;gEt /api/:version/users/&quot;,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: &quot;s:transactions/user@none&quot;,
                 value: Set(
                     {
@@ -2409,6 +2539,19 @@
                     &quot;transaction.status&quot;: &quot;unknown&quot;,
                 },
             },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
+                },
+            },
         ]
         &quot;###</span>);
     }
@@ -2498,6 +2641,19 @@
                     &quot;transaction.status&quot;: &quot;unknown&quot;,
                 },
             },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    &quot;transaction&quot;: &quot;&lt;unlabeled transaction&gt;&quot;,
+                },
+            },
         ]
         &quot;###</span>);
     }
@@ -2533,7 +2689,7 @@
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">2</span>);
 
         <span class="kw">let </span>duration_metric = <span class="kw-2">&amp;</span>extracted.project_metrics[<span class="number">0</span>];
         <span class="macro">assert_eq!</span>(duration_metric.name, <span class="string">&quot;d:transactions/duration@millisecond&quot;</span>);
@@ -2663,6 +2819,19 @@
                     &quot;transaction.status&quot;: &quot;unknown&quot;,
                 },
             },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {
+                    &quot;transaction&quot;: &quot;foo&quot;,
+                },
+            },
         ]
         &quot;###</span>);
     }
@@ -2690,7 +2859,7 @@
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">2</span>);
         <span class="macro">assert_eq!</span>(
             extracted.project_metrics[<span class="number">0</span>].name,
             <span class="string">&quot;d:transactions/duration@millisecond&quot;
@@ -2729,7 +2898,7 @@
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">2</span>);
         <span class="macro">assert_eq!</span>(
             extracted.project_metrics[<span class="number">0</span>].name,
             <span class="string">&quot;d:transactions/duration@millisecond&quot;
@@ -2797,7 +2966,7 @@
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">2</span>);
         <span class="macro">assert_eq!</span>(
             extracted.project_metrics[<span class="number">0</span>].name,
             <span class="string">&quot;d:transactions/duration@millisecond&quot;
@@ -2810,6 +2979,11 @@
                 (<span class="string">&quot;http.status_code&quot;</span>.to_string(), <span class="string">&quot;200&quot;</span>.to_string())
             ])
         );
+        <span class="macro">assert_eq!</span>(
+            extracted.project_metrics[<span class="number">1</span>].name,
+            <span class="string">&quot;d:transactions/duration_light@millisecond&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(extracted.project_metrics[<span class="number">1</span>].tags, BTreeMap::from([]));
     }
 
     <span class="doccomment">/// Helper function to check if the transaction name is set correctly
@@ -2831,7 +3005,7 @@
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(extracted.project_metrics.len(), <span class="number">2</span>);
         extracted.project_metrics[<span class="number">0</span>]
             .tags
             .get(<span class="string">&quot;transaction&quot;</span>)
@@ -3136,7 +3310,7 @@
             .map(|m| m.name)
             .collect();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics_names, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics_names, @<span class="string">r###&quot;
         [
             &quot;d:transactions/measurements.frames_frozen@none&quot;,
             &quot;d:transactions/measurements.frames_frozen_rate@ratio&quot;,
@@ -3146,8 +3320,9 @@
             &quot;d:transactions/measurements.stall_percentage@ratio&quot;,
             &quot;d:transactions/measurements.stall_total_time@millisecond&quot;,
             &quot;d:transactions/duration@millisecond&quot;,
+            &quot;d:transactions/duration_light@millisecond&quot;,
         ]
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -3287,6 +3462,17 @@
                     &quot;platform&quot;: &quot;javascript&quot;,
                     &quot;satisfaction&quot;: &quot;tolerated&quot;,
                 },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: &quot;d:transactions/duration_light@millisecond&quot;,
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {},
             },
         ]
         &quot;###</span>);
