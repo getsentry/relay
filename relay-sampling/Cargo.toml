@@ -29,5 +29,6 @@ unicase = "2.6.0"
 uuid = { workspace = true }
 
 [dev-dependencies]
+chrono = { workspace = true, features = ["clock"] }
 insta = { workspace = true }
 similar-asserts = { workspace = true }

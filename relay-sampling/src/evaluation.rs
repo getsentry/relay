@@ -173,41 +173,6 @@ impl<'a> SamplingEvaluator<'a> {
         self
     }
 
-    /// Attempts to compute the sample rate for a given [`SamplingRule`].
-    ///
-    /// # Returns
-    /// - `None` if the sampling rule is invalid or expired.
-    /// - `ControlFlow::Continue` if the sample rate should act as a factor for subsequent rules.
-    /// - `ControlFlow::Break` if the computed sample rate should be applied directly.
-    fn try_compute_sample_rate(&mut self, rule: &SamplingRule) -> Option<ControlFlow<f64, f64>> {
-        match rule.sampling_value {
-            SamplingValue::Factor { value } => {
-                let sample_rate = rule.apply_decaying_fn(value, self.now)?;
-                self.rule_ids.push(rule.id);
-                Some(ControlFlow::Continue(sample_rate))
-            }
-            SamplingValue::SampleRate { value } => {
-                let sample_rate = rule.apply_decaying_fn(value, self.now)?;
-                self.rule_ids.push(rule.id);
-                Some(ControlFlow::Break(sample_rate))
-            }
-            SamplingValue::Reservoir { limit } => {
-                if let Some(true) = self.reservoir.map(|reservoir| {
-                    reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref())
-                }) {
-                    // Clearing the previously matched rules because reservoir overrides them.
-                    self.rule_ids.clear();
-
-                    self.rule_ids.push(rule.id);
-                    // If the reservoir has not yet reached its limit, we want to sample 100%.
-                    Some(ControlFlow::Break(1.0))
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
     /// Attempts to find a match for sampling rules using `ControlFlow`.
     ///
     /// This function returns a `ControlFlow` to provide control over the matching process.
@@ -234,27 +199,50 @@ impl<'a> SamplingEvaluator<'a> {
                 continue;
             };
 
-            let Some(sample_rate) = self.try_compute_sample_rate(rule) else {
-                // A None-value means the rule is either invalid or expired.
-                // In which case we simply skip it.
-                continue;
+            if let Some(sample_rate) = self.try_compute_sample_rate(rule) {
+                return ControlFlow::Break(SamplingMatch::new(sample_rate, seed, self.rule_ids));
             };
-
-            match sample_rate {
-                ControlFlow::Continue(sample_rate) => self.factor *= sample_rate,
-                ControlFlow::Break(sample_rate) => {
-                    let sample_rate = (sample_rate * self.factor).clamp(0.0, 1.0);
-
-                    return ControlFlow::Break(SamplingMatch::new(
-                        self.adjusted_sample_rate(sample_rate),
-                        seed,
-                        self.rule_ids,
-                    ));
-                }
-            }
         }
 
         ControlFlow::Continue(self)
+    }
+
+    /// Attempts to compute the sample rate for a given [`SamplingRule`].
+    ///
+    /// # Returns
+    ///
+    /// - `None` if the sampling rule is invalid, expired, or if the final sample rate has not been
+    ///   determined yet.
+    /// - `Some` if the computed sample rate should be applied directly.
+    fn try_compute_sample_rate(&mut self, rule: &SamplingRule) -> Option<f64> {
+        match rule.sampling_value {
+            SamplingValue::Factor { value } => {
+                self.factor *= rule.apply_decaying_fn(value, self.now)?;
+                self.rule_ids.push(rule.id);
+                None
+            }
+            SamplingValue::SampleRate { value } => {
+                let sample_rate = rule.apply_decaying_fn(value, self.now)?;
+                let adjusted = self
+                    .adjusted_sample_rate(sample_rate * self.factor)
+                    .clamp(0.0, 1.0);
+
+                self.rule_ids.push(rule.id);
+                Some(adjusted)
+            }
+            SamplingValue::Reservoir { limit } => {
+                let reservoir = &self.reservoir?;
+                if !reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref()) {
+                    return None;
+                }
+
+                // Clearing the previously matched rules because reservoir overrides them.
+                self.rule_ids.clear();
+                self.rule_ids.push(rule.id);
+                // If the reservoir has not yet reached its limit, we want to sample 100%.
+                Some(1.0)
+            }
+        }
     }
 
     /// Tries to negate the client side sampling if the evaluator has been provided
@@ -880,12 +868,12 @@ mod tests {
         let mut eval = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
 
         rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
-        assert!(eval.try_compute_sample_rate(&rule).unwrap().is_break());
+        assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));
 
         rule.sampling_value = SamplingValue::Factor { value: 1.0 };
-        assert!(eval.try_compute_sample_rate(&rule).unwrap().is_continue());
+        assert_eq!(eval.try_compute_sample_rate(&rule), None);
 
         rule.sampling_value = SamplingValue::Reservoir { limit: 1 };
-        assert!(eval.try_compute_sample_rate(&rule).unwrap().is_break());
+        assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));
     }
 }
