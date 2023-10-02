@@ -116,6 +116,16 @@ fn track_transaction_name_stats(event: &Event) {
     );
 }
 
+/// These are the tags that are added to extracted low cardinality metrics.
+fn extract_light_transaction_tags(event: &Event) -> CommonTags {
+    let mut tags = BTreeMap::new();
+    if let Some(transaction_name) = get_transaction_name(event) {
+        tags.insert(CommonTag::Transaction, transaction_name);
+    }
+
+    CommonTags(tags)
+}
+
 /// These are the tags that are added to all extracted metrics.
 fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> CommonTags {
     let mut tags = BTreeMap::new();
@@ -247,6 +257,7 @@ impl TransactionExtractor<'_> {
 
         track_transaction_name_stats(event);
         let tags = extract_universal_tags(event, self.config);
+        let light_tags = extract_light_transaction_tags(event);
 
         // Measurements
         if let Some(measurements) = event.measurements.value() {
@@ -319,6 +330,19 @@ impl TransactionExtractor<'_> {
                 tags: TransactionDurationTags {
                     has_profile: self.has_profile,
                     universal_tags: tags.clone(),
+                },
+            }
+            .into_metric(timestamp),
+        );
+
+        // Lower cardinality duration
+        metrics.project_metrics.push(
+            TransactionMetric::DurationLight {
+                unit: DurationUnit::MilliSecond,
+                value: relay_common::time::chrono_to_positive_millis(end - start),
+                tags: TransactionDurationTags {
+                    has_profile: self.has_profile,
+                    universal_tags: light_tags.clone(),
                 },
             }
             .into_metric(timestamp),
@@ -635,6 +659,19 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "gEt /api/:version/users/",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "s:transactions/user@none",
                 value: Set(
                     {
@@ -762,6 +799,19 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "<unlabeled transaction>",
+                },
+            },
         ]
         "###);
     }
@@ -851,6 +901,19 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "<unlabeled transaction>",
+                },
+            },
         ]
         "###);
     }
@@ -886,7 +949,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
 
         let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
@@ -1016,6 +1079,19 @@ mod tests {
                     "transaction.status": "unknown",
                 },
             },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {
+                    "transaction": "foo",
+                },
+            },
         ]
         "###);
     }
@@ -1043,7 +1119,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
             extracted.project_metrics[0].name,
             "d:transactions/duration@millisecond"
@@ -1082,7 +1158,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
             extracted.project_metrics[0].name,
             "d:transactions/duration@millisecond"
@@ -1150,7 +1226,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
             extracted.project_metrics[0].name,
             "d:transactions/duration@millisecond"
@@ -1163,6 +1239,11 @@ mod tests {
                 ("http.status_code".to_string(), "200".to_string())
             ])
         );
+        assert_eq!(
+            extracted.project_metrics[1].name,
+            "d:transactions/duration_light@millisecond"
+        );
+        assert_eq!(extracted.project_metrics[1].tags, BTreeMap::from([]));
     }
 
     /// Helper function to check if the transaction name is set correctly
@@ -1184,7 +1265,7 @@ mod tests {
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 1);
+        assert_eq!(extracted.project_metrics.len(), 2);
         extracted.project_metrics[0]
             .tags
             .get("transaction")
@@ -1489,7 +1570,7 @@ mod tests {
             .map(|m| m.name)
             .collect();
 
-        insta::assert_debug_snapshot!(metrics_names, @r#"
+        insta::assert_debug_snapshot!(metrics_names, @r###"
         [
             "d:transactions/measurements.frames_frozen@none",
             "d:transactions/measurements.frames_frozen_rate@ratio",
@@ -1499,8 +1580,9 @@ mod tests {
             "d:transactions/measurements.stall_percentage@ratio",
             "d:transactions/measurements.stall_total_time@millisecond",
             "d:transactions/duration@millisecond",
+            "d:transactions/duration_light@millisecond",
         ]
-        "#);
+        "###);
     }
 
     #[test]
@@ -1640,6 +1722,17 @@ mod tests {
                     "platform": "javascript",
                     "satisfaction": "tolerated",
                 },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        2000.0,
+                    ],
+                ),
+                tags: {},
             },
         ]
         "###);

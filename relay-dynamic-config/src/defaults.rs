@@ -1,14 +1,13 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_common::glob3::GlobPatterns;
-use relay_sampling::condition::{
-    AndCondition, EqCondition, GlobCondition, NotCondition, OrCondition, RuleCondition,
-};
-use serde_json::Value;
+use relay_sampling::condition::RuleCondition;
 
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use crate::project::ProjectConfig;
+
+/// A list of `span.op` patterns that indicate databases that should be skipped.
+const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -30,56 +29,21 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
-    let span_op_field_name = "span.op";
     let span_op_conditions = if project_config
         .features
         .has(Feature::SpanMetricsExtractionAllModules)
     {
         None
     } else {
-        Some(RuleCondition::And(AndCondition {
-            inner: vec![
-                RuleCondition::Glob(GlobCondition {
-                    name: span_op_field_name.into(),
-                    value: GlobPatterns::new(vec!["db*".into()]),
-                }),
-                RuleCondition::Not(NotCondition {
-                    inner: Box::new(RuleCondition::Glob(GlobCondition {
-                        name: span_op_field_name.into(),
-                        value: GlobPatterns::new(vec![
-                            "*active*record*".into(),
-                            "*clickhouse*".into(),
-                            "*mongodb*".into(),
-                            "*redis*".into(),
-                        ]),
-                    })),
-                }),
-                RuleCondition::Not(NotCondition {
-                    inner: Box::new(RuleCondition::And(AndCondition {
-                        inner: vec![
-                            RuleCondition::Eq(EqCondition {
-                                name: span_op_field_name.into(),
-                                value: Value::String("db.sql.query".into()),
-                                options: Default::default(),
-                            }),
-                            RuleCondition::Or(OrCondition {
-                                inner: vec![
-                                    RuleCondition::Eq(EqCondition {
-                                        name: "span.system".into(),
-                                        value: Value::String("mongodb".into()),
-                                        options: Default::default(),
-                                    }),
-                                    RuleCondition::Glob(GlobCondition {
-                                        name: "span.description".into(),
-                                        value: GlobPatterns::new(vec![r#"*"$*"#.into()]),
-                                    }),
-                                ],
-                            }),
-                        ],
-                    })),
-                }),
-            ],
-        }))
+        let is_mongo = RuleCondition::eq("span.system", "mongodb")
+            | RuleCondition::glob("span.description", "*\"$*");
+
+        let condition = RuleCondition::eq("span.op", "http.client")
+            | (RuleCondition::glob("span.op", "db*")
+                & !RuleCondition::glob("span.op", DISABLED_DATABASES)
+                & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo));
+
+        Some(condition)
     };
 
     config.metrics.extend([
@@ -138,11 +102,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     key: key.into(),
                     field: Some(format!("span.data.{}", key.replace('.', "\\."))),
                     value: None,
-                    condition: Some(RuleCondition::Eq(EqCondition {
-                        name: "span.data.mobile".into(),
-                        value: Value::Bool(true),
-                        options: Default::default(),
-                    })),
+                    condition: Some(RuleCondition::eq("span.data.mobile", true)),
                 })
                 .into(),
         },

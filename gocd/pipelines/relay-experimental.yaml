@@ -43,7 +43,8 @@ pipelines:
                     "Test (macos-latest)" \
                     "Test (windows-latest)" \
                     "Test All Features (ubuntu-latest)" \
-                    "Push GCR Docker Image"
+                    "Push GCR Docker Image (relay)" \
+                    "Push GCR Docker Image (relay-pop)"
 
       - deploy-experimental:
           approval:
@@ -64,7 +65,7 @@ pipelines:
               elastic_profile_id: relay
               tasks:
                 - script: |
-                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}"
+                    ./relay/scripts/create-sentry-release "${GO_REVISION_RELAY_REPO}" "relay"
 
             deploy:
               timeout: 1200

@@ -1,12 +1,25 @@
 //! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
+use std::borrow::Cow;
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use sqlparser::ast::{
     Assignment, CloseCursor, Expr, Ident, Query, Select, SelectItem, SetExpr, Statement,
     TableFactor, TableWithJoins, UnaryOperator, Value, VisitMut, VisitorMut,
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
+
+/// Keeps track of the maximum depth of an SQL expression that the [`NormalizeVisitor`] encounters.
+///
+/// This is used to prevent the serialization of the AST from crashing.
+/// Note that the expression depth does not fully cover the depth of complex SQL statements,
+/// because not everything in SQL is an expression.
+const MAX_EXPRESSION_DEPTH: usize = 64;
+
+/// Regex used to scrub UUIDs and multi-digit numbers from table names and other identifiers.
+static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)[0-9a-f]{32}|\d\d+").unwrap());
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
@@ -27,7 +40,8 @@ pub fn parse_query(
 /// Tries to parse a series of SQL queries into an AST and normalize it.
 pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result<String, ()> {
     let mut parsed = parse_query(db_system, string).map_err(|_| ())?;
-    parsed.visit(&mut NormalizeVisitor);
+    let mut visitor = NormalizeVisitor::new();
+    parsed.visit(&mut visitor);
 
     let concatenated = parsed
         .iter()
@@ -43,9 +57,18 @@ pub fn normalize_parsed_queries(db_system: Option<&str>, string: &str) -> Result
 /// A visitor that normalizes the SQL AST in-place.
 ///
 /// Used for span description normalization.
-pub struct NormalizeVisitor;
+struct NormalizeVisitor {
+    /// The current depth of an expression.
+    current_expr_depth: usize,
+}
 
 impl NormalizeVisitor {
+    pub fn new() -> Self {
+        Self {
+            current_expr_depth: 0,
+        }
+    }
+
     /// Placeholder for string and numerical literals.
     fn placeholder() -> Value {
         Value::Number("%s".into(), false)
@@ -84,14 +107,14 @@ impl NormalizeVisitor {
     }
 
     /// Normalizes `SELECT ...` queries.
-    fn transform_query(query: &mut Query) {
+    fn transform_query(&mut self, query: &mut Query) {
         if let SetExpr::Select(select) = &mut *query.body {
-            Self::transform_select(&mut *select);
-            Self::transform_from(&mut select.from);
+            self.transform_select(&mut *select);
+            self.transform_from(&mut select.from);
         }
     }
 
-    fn transform_select(select: &mut Select) {
+    fn transform_select(&mut self, select: &mut Select) {
         // Track collapsible selected items (e.g. `SELECT col1, col2`).
         let mut collapse = vec![];
 
@@ -116,40 +139,43 @@ impl NormalizeVisitor {
         Self::collapse_items(&mut collapse, &mut select.projection);
     }
 
-    fn transform_from(from: &mut [TableWithJoins]) {
+    fn transform_from(&mut self, from: &mut [TableWithJoins]) {
         // Iterate "FROM".
         for from in from {
-            Self::transform_table_factor(&mut from.relation);
+            self.transform_table_factor(&mut from.relation);
             for join in &mut from.joins {
-                Self::transform_table_factor(&mut join.relation);
+                self.transform_table_factor(&mut join.relation);
             }
         }
     }
 
-    fn transform_table_factor(table_factor: &mut TableFactor) {
+    fn transform_table_factor(&mut self, table_factor: &mut TableFactor) {
         match table_factor {
             // Recurse into subqueries.
             TableFactor::Derived { subquery, .. } => {
-                Self::transform_query(subquery);
+                self.transform_query(subquery);
             }
             // Strip quotes from identifiers in table names.
-            TableFactor::Table { name, .. } => {
-                for ident in &mut name.0 {
-                    ident.quote_style = None;
-                }
-            }
+            TableFactor::Table { name, .. } => Self::simplify_compound_identifier(&mut name.0),
             _ => {}
         }
     }
 
     fn simplify_compound_identifier(parts: &mut Vec<Ident>) {
         if let Some(mut last) = parts.pop() {
-            last.quote_style = None;
+            Self::scrub_name(&mut last);
             *parts = vec![last];
         }
     }
 
     fn scrub_name(name: &mut Ident) {
+        name.quote_style = None;
+        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(&name.value, "{%s}") {
+            name.value = s
+        };
+    }
+
+    fn erase_name(name: &mut Ident) {
         name.quote_style = None;
         name.value = "%s".into()
     }
@@ -159,13 +185,15 @@ impl VisitorMut for NormalizeVisitor {
     type Break = ();
 
     fn pre_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
+        if self.current_expr_depth > MAX_EXPRESSION_DEPTH {
+            *expr = Expr::Value(Value::Placeholder("..".to_owned()));
+            return ControlFlow::Continue(());
+        }
+        self.current_expr_depth += 1;
+
         match expr {
             // Simple values like numbers and strings are replaced by a placeholder:
             Expr::Value(x) => *x = Self::placeholder(),
-            // Casts are omitted for simplification.
-            Expr::Cast { expr: inner, .. } => {
-                *expr = *inner.clone(); // clone is unfortunate here.
-            }
             // `IN (val1, val2, val3)` is replaced by `IN (%s)`.
             Expr::InList { list, .. } => *list = vec![Expr::Value(Self::placeholder())],
             // `"table"."col"` is replaced by `col`.
@@ -174,10 +202,10 @@ impl VisitorMut for NormalizeVisitor {
             }
             // `"col"` is replaced by `col`.
             Expr::Identifier(ident) => {
-                ident.quote_style = None;
+                Self::scrub_name(ident);
             }
             // Recurse into subqueries.
-            Expr::Subquery(query) => Self::transform_query(query),
+            Expr::Subquery(query) => self.transform_query(query),
             // Remove negative sign, e.g. `-100` becomes `%s`.
             Expr::UnaryOp {
                 op: UnaryOperator::Minus,
@@ -205,16 +233,22 @@ impl VisitorMut for NormalizeVisitor {
     }
 
     fn post_visit_expr(&mut self, expr: &mut Expr) -> ControlFlow<Self::Break> {
-        if let Expr::CompoundIdentifier(parts) = expr {
-            Self::simplify_compound_identifier(parts);
+        // Casts are omitted for simplification. Because we replace the entire expression,
+        // the replacement has to occur *after* visiting its children.
+        if let Expr::Cast { expr: inner, .. } = expr {
+            let mut swapped = Expr::Value(Value::Null);
+            std::mem::swap(&mut swapped, inner);
+            *expr = swapped;
         }
+
+        self.current_expr_depth = self.current_expr_depth.saturating_sub(1);
         ControlFlow::Continue(())
     }
 
     fn post_visit_statement(&mut self, statement: &mut Statement) -> ControlFlow<Self::Break> {
         match statement {
             Statement::Query(query) => {
-                Self::transform_query(query);
+                self.transform_query(query);
             }
             // `INSERT INTO col1, col2 VALUES (val1, val2)` becomes `INSERT INTO .. VALUES (%s)`.
             Statement::Insert {
@@ -247,13 +281,13 @@ impl VisitorMut for NormalizeVisitor {
                 }
             }
             // `SAVEPOINT foo` becomes `SAVEPOINT %s`.
-            Statement::Savepoint { name } => Self::scrub_name(name),
+            Statement::Savepoint { name } => Self::erase_name(name),
             Statement::Declare { name, query, .. } => {
-                Self::scrub_name(name);
-                Self::transform_query(query);
+                Self::erase_name(name);
+                self.transform_query(query);
             }
             Statement::Fetch { name, into, .. } => {
-                Self::scrub_name(name);
+                Self::erase_name(name);
                 if let Some(into) = into {
                     into.0 = vec![Ident {
                         value: "%s".into(),
@@ -263,9 +297,10 @@ impl VisitorMut for NormalizeVisitor {
             }
             Statement::Close {
                 cursor: CloseCursor::Specific { name },
-            } => Self::scrub_name(name),
+            } => Self::erase_name(name),
             _ => {}
         }
+
         ControlFlow::Continue(())
     }
 }
@@ -342,5 +377,16 @@ impl Dialect for DialectWithParameters {
         parser: &mut sqlparser::parser::Parser,
     ) -> Option<Result<Statement, sqlparser::parser::ParserError>> {
         self.0.parse_statement(parser)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_deep_expression() {
+        let query = "SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1";
+        assert_eq!(normalize_parsed_queries(None, query).as_deref(), Ok("SELECT .. + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s + %s"));
     }
 }

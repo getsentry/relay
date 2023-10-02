@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -59,7 +59,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -87,7 +87,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -126,7 +126,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -153,7 +153,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -196,13 +196,13 @@ jobs:
 
     env:
       IMG_BASE: ghcr.io/getsentry/${{ matrix.image_name }}
-      IMG_DEPS: ghcr.io/getsentry/relay-deps:${{ matrix.arch }}
+      IMG_DEPS: ghcr.io/getsentry/${{ matrix.image_name }}-deps:${{ matrix.arch }}
       # GITHUB_SHA in pull requests points to the merge commit
       IMG_VERSIONED: ghcr.io/getsentry/${{ matrix.image_name }}:${{ github.event.pull_request.head.sha || github.sha }}
       ARCH: ${{ matrix.arch }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -311,8 +311,6 @@ jobs:
           docker push "us.gcr.io/sentryio/${{ matrix.image_name }}:nightly"
 
       - name: Upload gocd deployment assets
-        # Collect assets only for processing Relay, since it contains more information.
-        if: matrix.image_name == 'relay'
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "$IMG_VERSIONED" --version | cut -d" " -f2)"
@@ -332,7 +330,7 @@ jobs:
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
           gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-            "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/" || status=$? && status=$?
+            "gs://dicd-team-devinfra-cd--relay/deployment-assets/$REVISION/${{ matrix.image_name }}/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"
 
@@ -374,7 +372,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -408,7 +406,7 @@ jobs:
     steps:
       # Checkout Sentry and run integration tests against latest Relay
       - name: Checkout Sentry
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: getsentry/sentry
           path: sentry
@@ -455,7 +453,7 @@ jobs:
     runs-on: ubuntu-20.04
     if: ${{ (github.ref_name == 'master') }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - timeout-minutes: 20
         run: until docker pull "ghcr.io/getsentry/relay:${{ github.sha }}" 2>/dev/null; do sleep 10; done
       - name: Push built docker image

@@ -24,6 +24,12 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         return;
     };
 
+    let db_system = span
+        .data
+        .value()
+        .and_then(|v| v.get("db.system"))
+        .and_then(|system| system.as_str());
+
     let scrubbed = span
         .op
         .as_str()
@@ -31,14 +37,27 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         .and_then(|(op, sub)| match (op, sub) {
             ("http", _) => scrub_http(description),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
-            ("db", _) => sql::scrub_queries(
-                span.data
-                    .value()
-                    .and_then(|d| d.get("db.system"))
-                    .and_then(|v| v.as_str()),
-                description,
-            ),
+            ("db", sub) => {
+                if sub.contains("clickhouse")
+                    || sub.contains("mongodb")
+                    || sub.contains("redis")
+                    || is_legacy_activerecord(sub, db_system)
+                    || is_sql_mongodb(sub, description, db_system)
+                {
+                    None
+                } else {
+                    sql::scrub_queries(db_system, description)
+                }
+            }
             ("resource", _) => scrub_resource_identifiers(description),
+            ("ui", "load") => {
+                // `ui.load` spans contain component names like `ListAppViewController`, so
+                // they _should_ be low-cardinality.
+                // At the moment the metrics from this module
+                // are still filtered by the `SpanMetricsExtractionAllModules` feature, so it should
+                // be low-risk to start adding the description.
+                Some(description.to_owned())
+            }
             _ => None,
         });
 
@@ -54,6 +73,16 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
     }
 
     apply_span_rename_rules(span, rules).ok(); // Only fails on InvalidTransaction
+}
+
+/// A span declares `op: db.sql.query`, but contains mongodb.
+fn is_sql_mongodb(sub_op: &str, description: &str, db_system: Option<&str>) -> bool {
+    sub_op == "sql.query" && (description.contains("\"$") || db_system == Some("mongodb"))
+}
+
+/// We are unable to parse active record when we do not know which database is being used.
+fn is_legacy_activerecord(sub_op: &str, db_system: Option<&str>) -> bool {
+    db_system.is_none() && (sub_op.contains("active_record") || sub_op.contains("activerecord"))
 }
 
 fn scrub_http(string: &str) -> Option<String> {
@@ -217,6 +246,7 @@ fn apply_span_rename_rules(span: &mut Span, rules: &Vec<SpanDescriptionRule>) ->
 
 #[cfg(test)]
 mod tests {
+    use relay_protocol::get_value;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -428,6 +458,13 @@ mod tests {
         ""
     );
 
+    span_description_test!(
+        span_description_scrub_ui_load,
+        "ListAppViewController",
+        "ui.load",
+        "ListAppViewController"
+    );
+
     #[test]
     fn informed_sql_parser() {
         let json = r#"
@@ -452,5 +489,40 @@ mod tests {
             .and_then(|v| v.value())
             .and_then(|v| v.as_str());
         assert_eq!(scrubbed, Some("SELECT %s"));
+    }
+
+    #[test]
+    fn active_record() {
+        let json = r#"{
+            "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
+            "op": "db.sql.activerecord"
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]);
+
+        // When db.system is missing, no scrubbed description (i.e. no group) is set.
+        assert!(scrubbed.is_none());
+    }
+
+    #[test]
+    fn active_record_with_db_system() {
+        let json = r#"{
+            "description": "/*some comment `my_function'*/ SELECT `a` FROM `b`",
+            "op": "db.sql.activerecord",
+            "data": {
+                "db.system": "mysql"
+            }
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+
+        // Can be scrubbed with db system.
+        assert_eq!(scrubbed.as_str(), Some("SELECT a FROM b"));
     }
 }

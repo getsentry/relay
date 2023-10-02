@@ -441,10 +441,13 @@ pub struct Relay {
     /// The port to bind for the unencrypted relay HTTP server.
     pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
+    #[serde(skip_serializing)]
     pub tls_port: Option<u16>,
     /// The path to the identity (DER-encoded PKCS12) to use for TLS.
+    #[serde(skip_serializing)]
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
+    #[serde(skip_serializing)]
     pub tls_identity_password: Option<String>,
     /// Always override project IDs from the URL and DSN with the identifier used at the upstream.
     ///
@@ -706,6 +709,10 @@ struct Http {
     /// During a network outage relay will try to reconnect and will buffer all upstream messages
     /// until it manages to reconnect.
     outage_grace_period: u64,
+    /// The time Relay waits before retrying an upstream request, in seconds.
+    ///
+    /// This time is only used before going into a network outage mode.
+    retry_delay: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -732,9 +739,15 @@ impl Default for Http {
             host_header: None,
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
+            retry_delay: default_retry_delay(),
             encoding: HttpEncoding::Gzip,
         }
     }
+}
+
+/// Default for unavailable upstream retry period, 1s.
+fn default_retry_delay() -> u64 {
+    1
 }
 
 /// Default for max memory size, 500 MB.
@@ -1596,6 +1609,14 @@ impl Config {
     /// it has encountered a network outage.
     pub fn http_outage_grace_period(&self) -> Duration {
         Duration::from_secs(self.values.http.outage_grace_period)
+    }
+
+    /// Time Relay waits before retrying an upstream request.
+    ///
+    /// Before going into a network outage, Relay may fail to make upstream
+    /// requests. This is the time Relay waits before retrying the same request.
+    pub fn http_retry_delay(&self) -> Duration {
+        Duration::from_secs(self.values.http.retry_delay)
     }
 
     /// Content encoding of upstream requests.

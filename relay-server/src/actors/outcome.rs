@@ -706,8 +706,8 @@ struct KafkaOutcomesProducer {
 impl KafkaOutcomesProducer {
     /// Creates and connects the Kafka producers.
     ///
-    /// If the given Kafka configuration parameters are invalid, or an error happens during
-    /// connecting during the broker, an error is returned.
+    /// If the given Kafka configuration parameters are invalid, or an error
+    /// happens while connecting to the broker, an error is returned.
     pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
@@ -801,7 +801,7 @@ impl OutcomeBroker {
         // Here we create a fake EventId, when we don't have the real one, so that we can
         // create a kafka message key that spreads the events nicely over all the
         // kafka consumer groups.
-        let key = message.event_id.unwrap_or_else(EventId::new).0;
+        let key = message.event_id.unwrap_or_default().0;
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
         let topic = if message.is_billing() {

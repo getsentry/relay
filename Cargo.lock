@@ -3822,15 +3822,16 @@ dependencies = [
 name = "relay-sampling"
 version = "23.9.1"
 dependencies = [
+ "anyhow",
  "chrono",
  "insta",
  "rand",
  "rand_pcg",
  "relay-base-schema",
  "relay-common",
- "relay-event-schema",
  "relay-log",
  "relay-protocol",
+ "relay-redis",
  "serde",
  "serde_json",
  "similar-asserts",

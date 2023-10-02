@@ -7,12 +7,16 @@
 - Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
 - Fix reporting of Relay's crashes to Sentry. The `crash-handler` feature did not enable the crash reporter and uploads of crashes were broken. ([#2532](https://github.com/getsentry/relay/pull/2532))
 - Use correct field to pick SQL parser for span normalization. ([#2536](https://github.com/getsentry/relay/pull/2536))
+- Prevent stack overflow on SQL serialization. ([#2538](https://github.com/getsentry/relay/pull/2538))
 
 **Internal**:
 
 - Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522))
 - Remove filtering for Android events with missing close events. ([#2524](https://github.com/getsentry/relay/pull/2524))
-- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522), [#2525](https://github.com/getsentry/relay/pull/2525))
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522), [#2525](https://github.com/getsentry/relay/pull/2525), [#2545](https://github.com/getsentry/relay/pull/2545))
+- Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
+- Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
+- Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
 
 ## 23.9.1
 

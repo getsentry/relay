@@ -9,20 +9,26 @@ edition = "2021"
 license-file = "../LICENSE"
 publish = false
 
+[features]
+default = []
+redis = ["dep:anyhow", "relay-redis/impl"]
+
 [dependencies]
+anyhow = { workspace = true, optional = true }
 chrono = { workspace = true }
 rand = { workspace = true }
 rand_pcg = "0.3.1"
 relay-base-schema = { path = "../relay-base-schema" }
 relay-common = { path = "../relay-common" }
-relay-event-schema = { path = "../relay-event-schema" }
 relay-log = { path = "../relay-log" }
 relay-protocol = { path = "../relay-protocol" }
+relay-redis = { path = "../relay-redis", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 unicase = "2.6.0"
 uuid = { workspace = true }
 
 [dev-dependencies]
+chrono = { workspace = true, features = ["clock"] }
 insta = { workspace = true }
 similar-asserts = { workspace = true }
