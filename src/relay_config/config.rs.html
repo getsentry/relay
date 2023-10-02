@@ -2082,6 +2082,9 @@
 <a href="#2082" id="2082">2082</a>
 <a href="#2083" id="2083">2083</a>
 <a href="#2084" id="2084">2084</a>
+<a href="#2085" id="2085">2085</a>
+<a href="#2086" id="2086">2086</a>
+<a href="#2087" id="2087">2087</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2525,10 +2528,13 @@
     <span class="doccomment">/// The port to bind for the unencrypted relay HTTP server.
     </span><span class="kw">pub </span>port: u16,
     <span class="doccomment">/// Optional port to bind for the encrypted relay HTTPS server.
+    </span><span class="attr">#[serde(skip_serializing)]
     </span><span class="kw">pub </span>tls_port: <span class="prelude-ty">Option</span>&lt;u16&gt;,
     <span class="doccomment">/// The path to the identity (DER-encoded PKCS12) to use for TLS.
+    </span><span class="attr">#[serde(skip_serializing)]
     </span><span class="kw">pub </span>tls_identity_path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
     <span class="doccomment">/// Password for the PKCS12 archive.
+    </span><span class="attr">#[serde(skip_serializing)]
     </span><span class="kw">pub </span>tls_identity_password: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Always override project IDs from the URL and DSN with the identifier used at the upstream.
     ///
