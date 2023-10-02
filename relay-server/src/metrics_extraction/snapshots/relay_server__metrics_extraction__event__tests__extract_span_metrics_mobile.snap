@@ -26,13 +26,12 @@ expression: "(&event.value().unwrap().spans, metrics)"
             status: ~,
             tags: ~,
             origin: ~,
-            data: ~,
-            sentry_tags: {
+            data: {
                 "device.class": String(
                     "1",
                 ),
-                "mobile": Bool(
-                    true,
+                "mobile": String(
+                    "true",
                 ),
                 "release": String(
                     "1.2.3",
@@ -46,6 +45,14 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": String(
                     "GET",
                 ),
+            },
+            sentry_tags: {
+                "device.class": "1",
+                "mobile": "true",
+                "release": "1.2.3",
+                "span.op": "default",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
             },
             other: {},
         },

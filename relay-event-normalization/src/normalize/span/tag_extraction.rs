@@ -111,9 +111,20 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
             shared_tags
                 .clone()
                 .into_iter()
-                .chain(tags)
+                .chain(tags.clone())
                 .map(|(k, v)| (k.to_string(), Annotated::new(v)))
                 .collect(),
+        );
+
+        // Double write to `span.data` for now. This can be removed once all users of these fields
+        // have switched to `sentry_tags`.
+        let data = span.data.value_mut().get_or_insert_with(Default::default);
+        data.extend(
+            shared_tags
+                .clone()
+                .into_iter()
+                .chain(tags)
+                .map(|(k, v)| (k.to_string(), Annotated::new(v.into()))),
         );
     }
 }
