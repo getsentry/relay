@@ -767,6 +767,116 @@
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -964,33 +1074,54 @@
         I: Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span>SamplingRule&gt;,
     {
         <span class="kw">for </span>rule <span class="kw">in </span>rules {
-            <span class="kw">if </span>!rule.condition.matches(instance) {
+            <span class="kw">if </span>!rule.time_range.contains(<span class="self">self</span>.now) || !rule.condition.matches(instance) {
                 <span class="kw">continue</span>;
             };
 
-            <span class="kw">let </span><span class="prelude-val">Some</span>(sampling_value) = rule.evaluate(<span class="self">self</span>.now, <span class="self">self</span>.reservoir) <span class="kw">else </span>{
-                <span class="kw">continue</span>;
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(sample_rate) = <span class="self">self</span>.try_compute_sample_rate(rule) {
+                <span class="kw">return </span>ControlFlow::Break(SamplingMatch::new(sample_rate, seed, <span class="self">self</span>.rule_ids));
             };
+        }
 
-            <span class="self">self</span>.rule_ids.push(rule.id);
+        ControlFlow::Continue(<span class="self">self</span>)
+    }
 
-            <span class="kw">match </span>sampling_value {
-                SamplingValue::Factor { value } =&gt; <span class="self">self</span>.factor <span class="kw-2">*</span>= value,
-                SamplingValue::SampleRate { value } =&gt; {
-                    <span class="kw">let </span>sample_rate = (value * <span class="self">self</span>.factor).clamp(<span class="number">0.0</span>, <span class="number">1.0</span>);
+    <span class="doccomment">/// Attempts to compute the sample rate for a given [`SamplingRule`].
+    ///
+    /// # Returns
+    ///
+    /// - `None` if the sampling rule is invalid, expired, or if the final sample rate has not been
+    ///   determined yet.
+    /// - `Some` if the computed sample rate should be applied directly.
+    </span><span class="kw">fn </span>try_compute_sample_rate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rule: <span class="kw-2">&amp;</span>SamplingRule) -&gt; <span class="prelude-ty">Option</span>&lt;f64&gt; {
+        <span class="kw">match </span>rule.sampling_value {
+            SamplingValue::Factor { value } =&gt; {
+                <span class="self">self</span>.factor <span class="kw-2">*</span>= rule.apply_decaying_fn(value, <span class="self">self</span>.now)<span class="question-mark">?</span>;
+                <span class="self">self</span>.rule_ids.push(rule.id);
+                <span class="prelude-val">None
+            </span>}
+            SamplingValue::SampleRate { value } =&gt; {
+                <span class="kw">let </span>sample_rate = rule.apply_decaying_fn(value, <span class="self">self</span>.now)<span class="question-mark">?</span>;
+                <span class="kw">let </span>adjusted = <span class="self">self
+                    </span>.adjusted_sample_rate(sample_rate * <span class="self">self</span>.factor)
+                    .clamp(<span class="number">0.0</span>, <span class="number">1.0</span>);
 
-                    <span class="kw">return </span>ControlFlow::Break(SamplingMatch::new(
-                        <span class="self">self</span>.adjusted_sample_rate(sample_rate),
-                        seed,
-                        <span class="self">self</span>.rule_ids,
-                    ));
+                <span class="self">self</span>.rule_ids.push(rule.id);
+                <span class="prelude-val">Some</span>(adjusted)
+            }
+            SamplingValue::Reservoir { limit } =&gt; {
+                <span class="kw">let </span>reservoir = <span class="self">self</span>.reservoir<span class="question-mark">?</span>;
+                <span class="kw">if </span>!reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref()) {
+                    <span class="kw">return </span><span class="prelude-val">None</span>;
                 }
-                SamplingValue::Reservoir { .. } =&gt; {
-                    <span class="kw">return </span>ControlFlow::Break(SamplingMatch::new(<span class="number">1.0</span>, seed, <span class="macro">vec!</span>[rule.id]));
-                }
+
+                <span class="comment">// Clearing the previously matched rules because reservoir overrides them.
+                </span><span class="self">self</span>.rule_ids.clear();
+                <span class="self">self</span>.rule_ids.push(rule.id);
+                <span class="comment">// If the reservoir has not yet reached its limit, we want to sample 100%.
+                </span><span class="prelude-val">Some</span>(<span class="number">1.0</span>)
             }
         }
-        ControlFlow::Continue(<span class="self">self</span>)
     }
 
     <span class="doccomment">/// Tries to negate the client side sampling if the evaluator has been provided
@@ -1148,7 +1279,9 @@
     <span class="kw">use </span>uuid::Uuid;
 
     <span class="kw">use </span><span class="kw">crate</span>::condition::RuleCondition;
-    <span class="kw">use </span><span class="kw">crate</span>::config::{RuleId, RuleType, SamplingRule, SamplingValue, TimeRange};
+    <span class="kw">use </span><span class="kw">crate</span>::config::{
+        DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue, TimeRange,
+    };
     <span class="kw">use </span><span class="kw">crate</span>::dsc::TraceUserContext;
     <span class="kw">use </span><span class="kw">crate</span>::evaluation::MatchedRuleIds;
     <span class="kw">use </span><span class="kw">crate</span>::DynamicSamplingContext;
@@ -1304,6 +1437,17 @@
 
         <span class="comment">// 0.8 * 0.5 * 0.25 == 0.1
         </span><span class="macro">assert_eq!</span>(get_sampling_match(<span class="kw-2">&amp;</span>rules, <span class="kw-2">&amp;</span>dsc).sample_rate(), <span class="number">0.1</span>);
+    }
+
+    <span class="kw">fn </span>mocked_sampling_rule() -&gt; SamplingRule {
+        SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+            ty: RuleType::Trace,
+            id: RuleId(<span class="number">0</span>),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }
     }
 
     <span class="doccomment">/// Helper function to quickly construct many rules with their condition and value, and a unique id,
@@ -1534,6 +1678,82 @@
         <span class="kw">let </span>res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [].iter());
 
         <span class="macro">assert!</span>(!evaluation_is_match(res));
+    }
+
+    <span class="doccomment">/// Validates the early return (and hence no match) of the `match_rules` function if the current
+    /// time is out of bounds of the time range.
+    /// When the `start` or `end` of the range is missing, it defaults to always include
+    /// times before the `end` or after the `start`, respectively.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_sample_rate_valid_time_range() {
+        <span class="kw">let </span>dsc = mocked_dsc_with_getter_values(<span class="macro">vec!</span>[]);
+        <span class="kw">let </span>time_range = TimeRange {
+            start: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1970</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+            end: <span class="prelude-val">Some</span>(Utc.with_ymd_and_hms(<span class="number">1980</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap()),
+        };
+
+        <span class="kw">let </span>before_time_range = Utc.with_ymd_and_hms(<span class="number">1969</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>during_time_range = Utc.with_ymd_and_hms(<span class="number">1975</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>after_time_range = Utc.with_ymd_and_hms(<span class="number">1981</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+
+        <span class="kw">let </span>rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: <span class="number">1.0 </span>},
+            ty: RuleType::Trace,
+            id: RuleId(<span class="number">0</span>),
+            time_range,
+            decaying_fn: DecayingFunction::Constant,
+        };
+
+        <span class="kw">let </span>is_match = |now: DateTime&lt;Utc&gt;, rule: <span class="kw-2">&amp;</span>SamplingRule| -&gt; bool {
+            SamplingEvaluator::new(now)
+                .match_rules(Uuid::default(), <span class="kw-2">&amp;</span>dsc, [rule.clone()].iter())
+                .is_break()
+        };
+
+        <span class="comment">// [start..end]
+        </span><span class="macro">assert!</span>(!is_match(before_time_range, <span class="kw-2">&amp;</span>rule));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule));
+        <span class="macro">assert!</span>(!is_match(after_time_range, <span class="kw-2">&amp;</span>rule));
+
+        <span class="comment">// [start..]
+        </span><span class="kw">let </span><span class="kw-2">mut </span>rule_without_end = rule.clone();
+        rule_without_end.time_range.end = <span class="prelude-val">None</span>;
+        <span class="macro">assert!</span>(!is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_end));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_end));
+        <span class="macro">assert!</span>(is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_end));
+
+        <span class="comment">// [..end]
+        </span><span class="kw">let </span><span class="kw-2">mut </span>rule_without_start = rule.clone();
+        rule_without_start.time_range.start = <span class="prelude-val">None</span>;
+        <span class="macro">assert!</span>(is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_start));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_start));
+        <span class="macro">assert!</span>(!is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_start));
+
+        <span class="comment">// [..]
+        </span><span class="kw">let </span><span class="kw-2">mut </span>rule_without_range = rule.clone();
+        rule_without_range.time_range = TimeRange::default();
+        <span class="macro">assert!</span>(is_match(before_time_range, <span class="kw-2">&amp;</span>rule_without_range));
+        <span class="macro">assert!</span>(is_match(during_time_range, <span class="kw-2">&amp;</span>rule_without_range));
+        <span class="macro">assert!</span>(is_match(after_time_range, <span class="kw-2">&amp;</span>rule_without_range));
+    }
+
+    <span class="doccomment">/// Checks that `validate_match` yields the correct controlflow given the SamplingValue variant.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_validate_match() {
+        <span class="kw">let </span><span class="kw-2">mut </span>rule = mocked_sampling_rule();
+
+        <span class="kw">let </span>reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
+        <span class="kw">let </span><span class="kw-2">mut </span>eval = SamplingEvaluator::new(Utc::now()).set_reservoir(<span class="kw-2">&amp;</span>reservoir);
+
+        rule.sampling_value = SamplingValue::SampleRate { value: <span class="number">1.0 </span>};
+        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule), <span class="prelude-val">Some</span>(<span class="number">1.0</span>));
+
+        rule.sampling_value = SamplingValue::Factor { value: <span class="number">1.0 </span>};
+        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule), <span class="prelude-val">None</span>);
+
+        rule.sampling_value = SamplingValue::Reservoir { limit: <span class="number">1 </span>};
+        <span class="macro">assert_eq!</span>(eval.try_compute_sample_rate(<span class="kw-2">&amp;</span>rule), <span class="prelude-val">Some</span>(<span class="number">1.0</span>));
     }
 }
 </code></pre></div></section></main></body></html>
