@@ -23,6 +23,12 @@ pub enum TransactionMetric {
         value: DistributionType,
         tags: TransactionDurationTags,
     },
+    /// A distribution metric for the transaction duration with limited tags.
+    DurationLight {
+        unit: DurationUnit,
+        value: DistributionType,
+        tags: TransactionDurationTags,
+    },
     /// An internal counter metric used to compute dynamic sampling biases.
     ///
     /// See '<https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40>'.
@@ -58,6 +64,12 @@ impl IntoMetric for TransactionMetric {
             ),
             TransactionMetric::Duration { unit, value, tags } => (
                 Cow::Borrowed("duration"),
+                BucketValue::distribution(value),
+                MetricUnit::Duration(unit),
+                tags.into(),
+            ),
+            TransactionMetric::DurationLight { unit, value, tags } => (
+                Cow::Borrowed("duration_light"),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
