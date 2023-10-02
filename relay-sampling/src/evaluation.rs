@@ -195,33 +195,54 @@ impl<'a> SamplingEvaluator<'a> {
         I: Iterator<Item = &'b SamplingRule>,
     {
         for rule in rules {
-            if !rule.condition.matches(instance) {
+            if !rule.time_range.contains(self.now) || !rule.condition.matches(instance) {
                 continue;
             };
 
-            let Some(sampling_value) = rule.evaluate(self.now, self.reservoir) else {
-                continue;
+            if let Some(sample_rate) = self.try_compute_sample_rate(rule) {
+                return ControlFlow::Break(SamplingMatch::new(sample_rate, seed, self.rule_ids));
             };
+        }
 
-            self.rule_ids.push(rule.id);
+        ControlFlow::Continue(self)
+    }
 
-            match sampling_value {
-                SamplingValue::Factor { value } => self.factor *= value,
-                SamplingValue::SampleRate { value } => {
-                    let sample_rate = (value * self.factor).clamp(0.0, 1.0);
+    /// Attempts to compute the sample rate for a given [`SamplingRule`].
+    ///
+    /// # Returns
+    ///
+    /// - `None` if the sampling rule is invalid, expired, or if the final sample rate has not been
+    ///   determined yet.
+    /// - `Some` if the computed sample rate should be applied directly.
+    fn try_compute_sample_rate(&mut self, rule: &SamplingRule) -> Option<f64> {
+        match rule.sampling_value {
+            SamplingValue::Factor { value } => {
+                self.factor *= rule.apply_decaying_fn(value, self.now)?;
+                self.rule_ids.push(rule.id);
+                None
+            }
+            SamplingValue::SampleRate { value } => {
+                let sample_rate = rule.apply_decaying_fn(value, self.now)?;
+                let adjusted = self
+                    .adjusted_sample_rate(sample_rate * self.factor)
+                    .clamp(0.0, 1.0);
 
-                    return ControlFlow::Break(SamplingMatch::new(
-                        self.adjusted_sample_rate(sample_rate),
-                        seed,
-                        self.rule_ids,
-                    ));
+                self.rule_ids.push(rule.id);
+                Some(adjusted)
+            }
+            SamplingValue::Reservoir { limit } => {
+                let reservoir = self.reservoir?;
+                if !reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref()) {
+                    return None;
                 }
-                SamplingValue::Reservoir { .. } => {
-                    return ControlFlow::Break(SamplingMatch::new(1.0, seed, vec![rule.id]));
-                }
+
+                // Clearing the previously matched rules because reservoir overrides them.
+                self.rule_ids.clear();
+                self.rule_ids.push(rule.id);
+                // If the reservoir has not yet reached its limit, we want to sample 100%.
+                Some(1.0)
             }
         }
-        ControlFlow::Continue(self)
     }
 
     /// Tries to negate the client side sampling if the evaluator has been provided
@@ -379,7 +400,9 @@ mod tests {
     use uuid::Uuid;
 
     use crate::condition::RuleCondition;
-    use crate::config::{RuleId, RuleType, SamplingRule, SamplingValue, TimeRange};
+    use crate::config::{
+        DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue, TimeRange,
+    };
     use crate::dsc::TraceUserContext;
     use crate::evaluation::MatchedRuleIds;
     use crate::DynamicSamplingContext;
@@ -535,6 +558,17 @@ mod tests {
 
         // 0.8 * 0.5 * 0.25 == 0.1
         assert_eq!(get_sampling_match(&rules, &dsc).sample_rate(), 0.1);
+    }
+
+    fn mocked_sampling_rule() -> SamplingRule {
+        SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range: Default::default(),
+            decaying_fn: Default::default(),
+        }
     }
 
     /// Helper function to quickly construct many rules with their condition and value, and a unique id,
@@ -765,5 +799,81 @@ mod tests {
         let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
 
         assert!(!evaluation_is_match(res));
+    }
+
+    /// Validates the early return (and hence no match) of the `match_rules` function if the current
+    /// time is out of bounds of the time range.
+    /// When the `start` or `end` of the range is missing, it defaults to always include
+    /// times before the `end` or after the `start`, respectively.
+    #[test]
+    fn test_sample_rate_valid_time_range() {
+        let dsc = mocked_dsc_with_getter_values(vec![]);
+        let time_range = TimeRange {
+            start: Some(Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap()),
+            end: Some(Utc.with_ymd_and_hms(1980, 1, 1, 0, 0, 0).unwrap()),
+        };
+
+        let before_time_range = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
+        let during_time_range = Utc.with_ymd_and_hms(1975, 1, 1, 0, 0, 0).unwrap();
+        let after_time_range = Utc.with_ymd_and_hms(1981, 1, 1, 0, 0, 0).unwrap();
+
+        let rule = SamplingRule {
+            condition: RuleCondition::all(),
+            sampling_value: SamplingValue::SampleRate { value: 1.0 },
+            ty: RuleType::Trace,
+            id: RuleId(0),
+            time_range,
+            decaying_fn: DecayingFunction::Constant,
+        };
+
+        let is_match = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
+            SamplingEvaluator::new(now)
+                .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
+                .is_break()
+        };
+
+        // [start..end]
+        assert!(!is_match(before_time_range, &rule));
+        assert!(is_match(during_time_range, &rule));
+        assert!(!is_match(after_time_range, &rule));
+
+        // [start..]
+        let mut rule_without_end = rule.clone();
+        rule_without_end.time_range.end = None;
+        assert!(!is_match(before_time_range, &rule_without_end));
+        assert!(is_match(during_time_range, &rule_without_end));
+        assert!(is_match(after_time_range, &rule_without_end));
+
+        // [..end]
+        let mut rule_without_start = rule.clone();
+        rule_without_start.time_range.start = None;
+        assert!(is_match(before_time_range, &rule_without_start));
+        assert!(is_match(during_time_range, &rule_without_start));
+        assert!(!is_match(after_time_range, &rule_without_start));
+
+        // [..]
+        let mut rule_without_range = rule.clone();
+        rule_without_range.time_range = TimeRange::default();
+        assert!(is_match(before_time_range, &rule_without_range));
+        assert!(is_match(during_time_range, &rule_without_range));
+        assert!(is_match(after_time_range, &rule_without_range));
+    }
+
+    /// Checks that `validate_match` yields the correct controlflow given the SamplingValue variant.
+    #[test]
+    fn test_validate_match() {
+        let mut rule = mocked_sampling_rule();
+
+        let reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
+        let mut eval = SamplingEvaluator::new(Utc::now()).set_reservoir(&reservoir);
+
+        rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
+        assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));
+
+        rule.sampling_value = SamplingValue::Factor { value: 1.0 };
+        assert_eq!(eval.try_compute_sample_rate(&rule), None);
+
+        rule.sampling_value = SamplingValue::Reservoir { limit: 1 };
+        assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));
     }
 }
