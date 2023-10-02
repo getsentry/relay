@@ -231,7 +231,7 @@ impl<'a> SamplingEvaluator<'a> {
                 Some(adjusted)
             }
             SamplingValue::Reservoir { limit } => {
-                let reservoir = &self.reservoir?;
+                let reservoir = self.reservoir?;
                 if !reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref()) {
                     return None;
                 }
