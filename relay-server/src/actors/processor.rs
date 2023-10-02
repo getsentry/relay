@@ -2614,7 +2614,13 @@ impl EnvelopeProcessorService {
             self.normalize_dsc(state);
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
-            self.extract_metrics(state)?;
+
+            if_processing!({
+                if state.sampling_result.should_keep() {
+                    self.extract_metrics(state)?;
+                }
+            });
+
             self.sample_envelope(state)?;
 
             if_processing!({
