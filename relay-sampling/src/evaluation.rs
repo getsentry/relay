@@ -176,7 +176,7 @@ impl<'a> SamplingEvaluator<'a> {
     /// Attempts to compute the sample rate for a given [`SamplingRule`].
     ///
     /// # Returns
-    /// - `None` if the `rule` is invalid or expired.
+    /// - `None` if the sampling rule is invalid or expired.
     /// - `ControlFlow::Continue` if the sample rate should act as a factor for subsequent rules.
     /// - `ControlFlow::Break` if the computed sample rate should be applied directly.
     fn try_compute_sample_rate(&mut self, rule: &SamplingRule) -> Option<ControlFlow<f64, f64>> {
@@ -589,7 +589,6 @@ mod tests {
 
         for (i, val) in vals.into_iter().enumerate() {
             let (condition, sampling_value) = val;
-
             vec.push(SamplingRule {
                 condition,
                 sampling_value,
