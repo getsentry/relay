@@ -184,12 +184,12 @@ impl<'a> SamplingEvaluator<'a> {
             SamplingValue::Factor { value } => {
                 let sample_rate = rule.apply_decaying_fn(value, self.now)?;
                 self.rule_ids.push(rule.id);
-                return Some(ControlFlow::Continue(sample_rate));
+                Some(ControlFlow::Continue(sample_rate))
             }
             SamplingValue::SampleRate { value } => {
                 let sample_rate = rule.apply_decaying_fn(value, self.now)?;
                 self.rule_ids.push(rule.id);
-                return Some(ControlFlow::Break(sample_rate));
+                Some(ControlFlow::Break(sample_rate))
             }
             SamplingValue::Reservoir { limit } => {
                 if let Some(true) = self.reservoir.map(|reservoir| {
@@ -200,11 +200,12 @@ impl<'a> SamplingEvaluator<'a> {
 
                     self.rule_ids.push(rule.id);
                     // If the reservoir has not yet reached its limit, we want to sample 100%.
-                    return Some(ControlFlow::Break(1.0));
+                    Some(ControlFlow::Break(1.0))
+                } else {
+                    None
                 }
             }
-        };
-        None
+        }
     }
 
     /// Attempts to find a match for sampling rules using `ControlFlow`.
