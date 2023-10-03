@@ -2757,51 +2757,54 @@ impl EnvelopeProcessorService {
 
         for item in items {
             let payload = item.payload();
-            if item.ty() == &ItemType::Statsd {
-                let mut buckets = Vec::new();
-                for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
-                    match bucket_result {
-                        Ok(mut bucket) => {
-                            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                            buckets.push(bucket);
+
+            let buckets = match item.ty() {
+                ItemType::Statsd => {
+                    let mut buckets = Vec::new();
+                    for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
+                        match bucket_result {
+                            Ok(bucket) => buckets.push(bucket),
+                            Err(error) => relay_log::debug!(
+                                error = &error as &dyn Error,
+                                "failed to parse metric bucket from statsd format",
+                            ),
                         }
-                        Err(error) => relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket from statsd format",
-                        ),
                     }
+                    Some(buckets)
                 }
-
-                relay_log::trace!("inserting metric buckets into project cache");
-                self.inner
-                    .project_cache
-                    .send(MergeBuckets::new(public_key, buckets));
-            } else if item.ty() == &ItemType::MetricBuckets {
-                match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                    Ok(mut buckets) => {
-                        for bucket in &mut buckets {
-                            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-                        }
-
-                        relay_log::trace!("merging metric buckets into project cache");
-                        self.inner
-                            .project_cache
-                            .send(MergeBuckets::new(public_key, buckets));
-                    }
+                ItemType::MetricBuckets => match serde_json::from_slice::<Vec<Bucket>>(&payload) {
+                    Ok(buckets) => Some(buckets),
                     Err(error) => {
                         relay_log::debug!(
                             error = &error as &dyn Error,
                             "failed to parse metric bucket",
                         );
                         metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                        None
                     }
+                },
+                _ => {
+                    relay_log::error!(
+                        "invalid item of type {} passed to ProcessMetrics",
+                        item.ty()
+                    );
+                    None
                 }
-            } else {
-                relay_log::error!(
-                    "invalid item of type {} passed to ProcessMetrics",
-                    item.ty()
-                );
+            };
+
+            let Some(mut buckets) = buckets else {
+                continue;
+            };
+
+            for bucket in &mut buckets {
+                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
             }
+
+            relay_log::trace!("inserting metric buckets into project cache");
+
+            self.inner
+                .project_cache
+                .send(MergeBuckets::new(public_key, buckets));
         }
     }
 
