@@ -58,7 +58,7 @@ impl SpanTagKey {
     /// The key used to write this tag into `span.data`.
     ///
     /// This key corresponds to the tag key on span metrics.
-    // NOTE: This method can be removed once we stop double-writing span tags.
+    /// NOTE: This method can be removed once we stop double-writing span tags.
     pub fn data_key(&self) -> &str {
         match self {
             SpanTagKey::Release => "release",
