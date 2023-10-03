@@ -2371,8 +2371,17 @@ impl EnvelopeProcessorService {
     ///
     /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
     #[cfg(feature = "processing")]
-    fn validate_span(&self, span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
-        let inner = span.value().ok_or(anyhow::anyhow!("empty span"))?;
+    fn validate_span(&self, mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
+        let inner = span
+            .value_mut()
+            .as_mut()
+            .ok_or(anyhow::anyhow!("empty span"))?;
+        let Span {
+            ref exclusive_time,
+            ref mut tags,
+            ref mut sentry_tags,
+            ..
+        } = inner;
         // The following required fields are already validated by the `TransactionsProcessor`:
         // - `timestamp`
         // - `start_timestamp`
@@ -2380,10 +2389,27 @@ impl EnvelopeProcessorService {
         // - `span_id`
         //
         // `is_segment` is set by `extract_span`.
-        inner
-            .exclusive_time
+        exclusive_time
             .value()
             .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
+
+        if let Some(sentry_tags) = sentry_tags.value_mut() {
+            sentry_tags.retain(|key, value| match value.value() {
+                Some(s) => {
+                    if key == "group" {
+                        // Only allow 16-char hex strings in group.
+                        s.len() == 16 && s.chars().all(|c| c.is_ascii_hexdigit())
+                    } else {
+                        true
+                    }
+                }
+                // Drop empty string values.
+                None => false,
+            });
+        }
+        if let Some(tags) = tags.value_mut() {
+            tags.retain(|_, value| !value.is_empty())
+        }
 
         Ok(span)
     }
