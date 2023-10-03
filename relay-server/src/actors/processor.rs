@@ -8,7 +8,7 @@ use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
@@ -2370,8 +2370,9 @@ impl EnvelopeProcessorService {
     /// Helper for [`Self::extract_spans`].
     ///
     /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
+    #[cfg(feature = "processing")]
     fn validate_span(&self, span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
-        let inner = span.value().ok_or(anyhow!("empty span"))?;
+        let inner = span.value().ok_or(anyhow::anyhow!("empty span"))?;
         // The following required fields are already validated by the `TransactionsProcessor`:
         // - `timestamp`
         // - `start_timestamp`
@@ -2382,7 +2383,7 @@ impl EnvelopeProcessorService {
         inner
             .exclusive_time
             .value()
-            .ok_or(anyhow!("missing exclusive_time"))?;
+            .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
 
         Ok(span)
     }
