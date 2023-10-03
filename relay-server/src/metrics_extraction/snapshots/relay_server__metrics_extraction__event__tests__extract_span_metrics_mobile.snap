@@ -49,8 +49,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
             sentry_tags: {
                 "device.class": "1",
                 "mobile": "true",
+                "op": "default",
                 "release": "1.2.3",
-                "span.op": "default",
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
             },
