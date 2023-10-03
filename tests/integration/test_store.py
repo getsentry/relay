@@ -1197,7 +1197,7 @@ def test_spans(
 
     relay = relay_with_processing()
     project_id = 42
-    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
         "projects:span-metrics-extraction-all-modules",
@@ -1223,64 +1223,71 @@ def test_spans(
     child_span = spans_consumer.get_span()
     del child_span["start_time"]
     assert child_span == {
-        "data": {
-            "description.scrubbed": "GET *",
-            "span.category": "http",
-            "span.description": "GET *",
-            "span.group": "37e3d9fab1ae9162",
-            "span.module": "http",
-            "span.op": "http",
-            "transaction": "hi",
-            "transaction.op": "hi",
-        },
-        "description": "GET /api/0/organizations/?member=1",
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time": 500.0,
-        "is_segment": False,
-        "op": "http",
-        "organization_id": 0,
-        "parent_span_id": "aaaaaaaaaaaaaaaa",
         "project_id": 42,
+        "organization_id": 1,
         "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {
-            "category": "http",
-            "description": "GET *",
-            "group": "37e3d9fab1ae9162",
-            "module": "http",
+        "span": {
+            "data": {
+                "description.scrubbed": "GET *",
+                "span.category": "http",
+                "span.description": "GET *",
+                "span.group": "37e3d9fab1ae9162",
+                "span.module": "http",
+                "span.op": "http",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "description": "GET /api/0/organizations/?member=1",
+            "exclusive_time": 500.0,
+            "is_segment": False,
             "op": "http",
-            "transaction": "hi",
-            "transaction.op": "hi",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "segment_id": "968cff94913ebb07",
+            "sentry_tags": {
+                "category": "http",
+                "description": "GET *",
+                "group": "37e3d9fab1ae9162",
+                "module": "http",
+                "op": "http",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.timestamp(),
+            "timestamp": end.timestamp(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
-        "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp": start.timestamp(),
-        "timestamp": end.timestamp(),
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
     }
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["start_time"]
     assert transaction_span == {
-        "data": {"transaction": "hi", "transaction.op": "hi"},
-        "description": "hi",
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time": 2000.0,
-        "is_segment": True,
-        "op": "hi",
-        "organization_id": 0,
         "project_id": 42,
+        "organization_id": 1,
         "retention_days": 90,
-        "segment_id": "968cff94913ebb07",
-        "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
-        "span_id": "968cff94913ebb07",
-        "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
-        .replace(tzinfo=timezone.utc)
-        .timestamp(),
-        "status": "unknown",
-        "timestamp": datetime.fromisoformat(event["timestamp"])
-        .replace(tzinfo=timezone.utc)
-        .timestamp(),
-        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        "span": {
+            "data": {
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "description": "hi",
+            "exclusive_time": 2000.0,
+            "is_segment": True,
+            "op": "hi",
+            "segment_id": "968cff94913ebb07",
+            "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+            "span_id": "968cff94913ebb07",
+            "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "status": "unknown",
+            "timestamp": datetime.fromisoformat(event["timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        },
     }
 
     spans_consumer.assert_empty()

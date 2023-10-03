@@ -5,23 +5,22 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
-use anyhow::anyhow;
 use bytes::Bytes;
 use once_cell::sync::OnceCell;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{
-    self, EventId, SessionAggregates, SessionStatus, SessionUpdate, Span,
+    self, EventId, SessionAggregates, SessionStatus, SessionUpdate,
 };
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
-use relay_protocol::Annotated;
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
+use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -32,9 +31,6 @@ const MAX_EXPLODED_SESSIONS: usize = 100;
 
 /// Fallback name used for attachment items without a `filename` header.
 const UNNAMED_ATTACHMENT: &str = "Unnamed Attachment";
-
-/// Current version of the kafka span protocol.
-const SPAN_VERSION: u16 = 1;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -747,8 +743,8 @@ impl StoreService {
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
-        let span: serde_json::Value = match serde_json::from_slice(&item.payload()) {
+        let payload = item.payload();
+        let span = match serde_json::from_slice(&payload) {
             Ok(span) => span,
             Err(error) => {
                 relay_log::error!(
@@ -1042,7 +1038,7 @@ struct CheckInKafkaMessage {
 ///
 /// Most notably, this schema does not contain the `group_raw`, which must be computed on sentry-side.
 #[derive(Debug, Serialize)]
-struct SpanKafkaMessage {
+struct SpanKafkaMessage<'a> {
     /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
     start_time: u64,
     /// The ID of the transaction event associated to this span, if any.
@@ -1054,17 +1050,18 @@ struct SpanKafkaMessage {
     project_id: ProjectId,
     /// Number of days until these data should be deleted.
     retention_days: u16,
-    /// Fields from the original span payload, flattened.
+    /// Fields from the original span payload.
     /// See [`relay-event-schema::protocol::span::Span`] for schema.
-    #[serde(flatten)]
-    span: serde_json::Value,
+    ///
+    /// By using a [`RawValue`] here, we can embed the span's JSON without additional parsing.
+    span: &'a RawValue,
 }
 
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[allow(clippy::large_enum_variant)]
-enum KafkaMessage {
+enum KafkaMessage<'a> {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
@@ -1080,10 +1077,10 @@ enum KafkaMessage {
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage),
+    Span(SpanKafkaMessage<'a>),
 }
 
-impl Message for KafkaMessage {
+impl Message for KafkaMessage<'_> {
     fn variant(&self) -> &'static str {
         match self {
             KafkaMessage::Event(_) => "event",
