@@ -2615,11 +2615,9 @@ impl EnvelopeProcessorService {
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
 
-            if_processing!({
-                if state.sampling_result.should_keep() {
-                    self.extract_metrics(state)?;
-                }
-            });
+            if cfg!(feature = "processing") || state.sampling_result.should_drop() {
+                self.extract_metrics(state)?;
+            }
 
             self.sample_envelope(state)?;
 
