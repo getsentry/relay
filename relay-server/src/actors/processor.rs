@@ -2792,13 +2792,18 @@ impl EnvelopeProcessorService {
         let received = relay_common::time::instant_to_date_time(start_time);
         let received_timestamp = UnixTimestamp::from_secs(received.timestamp() as u64);
 
-        let clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
-
         let mut buckets: Vec<Bucket> = items
             .iter()
             .flat_map(|item| Self::extract_metric_buckets_from_item(item, received_timestamp))
             .collect();
+
+        if buckets.is_empty() {
+            relay_log::trace!("no metric buckets could be extracted from items");
+            return;
+        };
+
+        let clock_drift_processor =
+            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
         for bucket in &mut buckets {
             clock_drift_processor.process_timestamp(&mut bucket.timestamp);
