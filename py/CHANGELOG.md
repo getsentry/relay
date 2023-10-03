@@ -6,7 +6,6 @@
 - Remove dynamic sampling ABI. ([#2515](https://github.com/getsentry/relay/pull/2515))
 - Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
 
-
 ## 0.8.30
 
 - Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
