@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.31
 
 - Add `Reservoir` variant to `SamplingRule`. ([#2550](https://github.com/getsentry/relay/pull/2550))
 - Remove dynamic sampling ABI. ([#2515](https://github.com/getsentry/relay/pull/2515))
