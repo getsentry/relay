@@ -806,7 +806,9 @@ def test_transaction_metrics_extraction_external_relays(
     timestamp = datetime.now(tz=timezone.utc)
     tx["timestamp"] = timestamp.isoformat()
 
-    external = relay(mini_sentry, options=TEST_CONFIG)
+    relay_config = TEST_CONFIG
+    relay_config["processing"] = {"enabled": True}
+    external = relay(mini_sentry, options=relay_config)
 
     trace_info = {
         "trace_id": tx["contexts"]["trace"]["trace_id"],
@@ -1247,8 +1249,11 @@ def test_generic_metric_extraction(mini_sentry, relay):
     transaction["timestamp"] = timestamp.isoformat()
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
 
+    relay_config = TEST_CONFIG
+    relay_config["processing"] = {"enabled": True}
+
     # Explicitly test a chain of Relays
-    relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(relay(mini_sentry, options=relay_config), options=relay_config)
     relay.send_transaction(PROJECT_ID, transaction)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
