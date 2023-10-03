@@ -631,12 +631,9 @@ def test_transaction_metrics(
         transactions_consumer.assert_empty()
     else:
         event, _ = transactions_consumer.get_event()
-        if with_external_relay:
-            # there is some rounding error while serializing/deserializing
-            # timestamps... haven't investigated too closely
-            span_time = 9.910107
-        else:
-            span_time = 9.910106
+        # there is some rounding error while serializing/deserializing
+        # timestamps... haven't investigated too closely
+        span_time = 9.910107
 
         assert event["breakdowns"] == {
             "span_ops": {
@@ -784,7 +781,7 @@ def test_transaction_metrics_count_per_root_project(
 )
 def test_transaction_metrics_extraction_external_relays(
     mini_sentry,
-    relay,
+    relay_with_processing,
     send_extracted_header,
     expect_extracted_header,
     expect_metrics_extraction,
@@ -806,9 +803,7 @@ def test_transaction_metrics_extraction_external_relays(
     timestamp = datetime.now(tz=timezone.utc)
     tx["timestamp"] = timestamp.isoformat()
 
-    relay_config = TEST_CONFIG
-    relay_config["processing"] = {"enabled": True}
-    external = relay(mini_sentry, options=relay_config)
+    external = relay_with_processing(mini_sentry, options=TEST_CONFIG)
 
     trace_info = {
         "trace_id": tx["contexts"]["trace"]["trace_id"],
@@ -1227,7 +1222,7 @@ def test_span_metrics(
         assert metric["tags"]["span.group"] == expected_group
 
 
-def test_generic_metric_extraction(mini_sentry, relay):
+def test_generic_metric_extraction(mini_sentry, relay_with_processing):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID)
 
@@ -1249,11 +1244,10 @@ def test_generic_metric_extraction(mini_sentry, relay):
     transaction["timestamp"] = timestamp.isoformat()
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
 
-    relay_config = TEST_CONFIG
-    relay_config["processing"] = {"enabled": True}
-
     # Explicitly test a chain of Relays
-    relay = relay(relay(mini_sentry, options=relay_config), options=relay_config)
+    relay = relay_with_processing(
+        relay_with_processing(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG
+    )
     relay.send_transaction(PROJECT_ID, transaction)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
