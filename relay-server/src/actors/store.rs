@@ -1033,10 +1033,6 @@ struct CheckInKafkaMessage {
     retention_days: u16,
 }
 
-/// Schema inspired by but not equal to the sentry <-> snuba schema.
-/// See https://github.com/getsentry/sentry-kafka-schemas/blob/main/schemas/snuba-spans.v1.schema.json
-///
-/// Most notably, this schema does not contain the `group_raw`, which must be computed on sentry-side.
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage<'a> {
     /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
