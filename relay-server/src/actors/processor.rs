@@ -8,7 +8,7 @@ use std::ops::ControlFlow;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use brotli::CompressorWriter as BrotliEncoder;
 use bytes::Bytes;
 use chrono::{DateTime, Duration as SignedDuration, Utc};
@@ -2292,6 +2292,13 @@ impl EnvelopeProcessorService {
         };
 
         let mut add_span = |span: Annotated<Span>| {
+            let span = match self.validate_span(span) {
+                Ok(span) => span,
+                Err(e) => {
+                    relay_log::error!("Invalid span: {e}");
+                    return;
+                }
+            };
             let span = match span.to_json() {
                 Ok(span) => span,
                 Err(e) => {
@@ -2358,6 +2365,35 @@ impl EnvelopeProcessorService {
             );
             add_span(transaction_span.into());
         }
+    }
+
+    /// Helper for [`Self::extract_spans`].
+    ///
+    /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
+    fn validate_span(&self, span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
+        let inner = span.value().ok_or(anyhow!("empty span"))?;
+        let Span {
+            timestamp,
+            start_timestamp,
+            exclusive_time,
+            span_id,
+            trace_id,
+            is_segment,
+            ..
+        } = inner;
+
+        timestamp.value().ok_or(anyhow!("missing timestamp"))?;
+        start_timestamp
+            .value()
+            .ok_or(anyhow!("missing start_timestamp"))?;
+        trace_id.value().ok_or(anyhow!("missing trace ID"))?;
+        span_id.value().ok_or(anyhow!("missing span ID"))?;
+        is_segment.value().ok_or(anyhow!("missing is_segment"))?;
+        exclusive_time
+            .value()
+            .ok_or(anyhow!("missing exclusive_time"))?;
+
+        Ok(span)
     }
 
     /// Computes the sampling decision on the incoming event
