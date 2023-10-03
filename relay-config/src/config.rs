@@ -441,10 +441,13 @@ pub struct Relay {
     /// The port to bind for the unencrypted relay HTTP server.
     pub port: u16,
     /// Optional port to bind for the encrypted relay HTTPS server.
+    #[serde(skip_serializing)]
     pub tls_port: Option<u16>,
     /// The path to the identity (DER-encoded PKCS12) to use for TLS.
+    #[serde(skip_serializing)]
     pub tls_identity_path: Option<PathBuf>,
     /// Password for the PKCS12 archive.
+    #[serde(skip_serializing)]
     pub tls_identity_password: Option<String>,
     /// Always override project IDs from the URL and DSN with the identifier used at the upstream.
     ///

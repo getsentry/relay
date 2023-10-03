@@ -91,6 +91,10 @@ fn scrub_http(string: &str) -> Option<String> {
         return None;
     };
 
+    if url.starts_with("data:image/") {
+        return Some(format!("{method} data:image/*"));
+    }
+
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
             let host = url.host().map(|h| h.to_string())?;
@@ -365,6 +369,13 @@ mod tests {
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
         "http.client",
         "GET *"
+    );
+
+    span_description_test!(
+        span_description_scrub_data_images,
+        "GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah",
+        "http.client",
+        "GET data:image/*"
     );
 
     span_description_test!(
