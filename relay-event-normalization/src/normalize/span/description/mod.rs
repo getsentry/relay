@@ -161,7 +161,7 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
 }
 
 fn scrub_resource_identifiers(string: &str) -> Option<String> {
-    match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
+    match dbg!(RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post")) {
         Cow::Borrowed(_) => None,
         Cow::Owned(scrubbed) => Some(scrubbed),
     }
@@ -467,6 +467,41 @@ mod tests {
         "https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js",
         "resource.css",
         ""
+    );
+
+    span_description_test!(
+        resource_query_params,
+        "/organization-avatar/123/?s=120",
+        "resource.img",
+        "/organization-avatar/*"
+    );
+
+    span_description_test!(
+        resource_query_params2,
+        "https://data.domain.com/data/guide.gif/foo?jzb=3f535634H467g5-2f256f&ct=1234567890&v=2.203.0_prod",
+        "resource.img",
+        "https://data.domain.com/data/guide.gif/foo"
+    );
+
+    span_description_test!(
+        resource_webpack,
+        "resource.js",
+        "https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js",
+        "https://domain.com/path/to/app-*.*.js"
+    );
+
+    span_description_test!(
+        resource_vite,
+        "resource.js",
+        "webroot/assets/Profile-73f6525d.js",
+        "webroot/assets/Profile-*.js"
+    );
+
+    span_description_test!(
+        resource_vite_css,
+        "resource.css",
+        "webroot/assets/Shop-1aff80f7.css",
+        "webroot/assets/Shop-*.css"
     );
 
     span_description_test!(
