@@ -2184,6 +2184,31 @@
 <a href="#2184" id="2184">2184</a>
 <a href="#2185" id="2185">2185</a>
 <a href="#2186" id="2186">2186</a>
+<a href="#2187" id="2187">2187</a>
+<a href="#2188" id="2188">2188</a>
+<a href="#2189" id="2189">2189</a>
+<a href="#2190" id="2190">2190</a>
+<a href="#2191" id="2191">2191</a>
+<a href="#2192" id="2192">2192</a>
+<a href="#2193" id="2193">2193</a>
+<a href="#2194" id="2194">2194</a>
+<a href="#2195" id="2195">2195</a>
+<a href="#2196" id="2196">2196</a>
+<a href="#2197" id="2197">2197</a>
+<a href="#2198" id="2198">2198</a>
+<a href="#2199" id="2199">2199</a>
+<a href="#2200" id="2200">2200</a>
+<a href="#2201" id="2201">2201</a>
+<a href="#2202" id="2202">2202</a>
+<a href="#2203" id="2203">2203</a>
+<a href="#2204" id="2204">2204</a>
+<a href="#2205" id="2205">2205</a>
+<a href="#2206" id="2206">2206</a>
+<a href="#2207" id="2207">2207</a>
+<a href="#2208" id="2208">2208</a>
+<a href="#2209" id="2209">2209</a>
+<a href="#2210" id="2210">2210</a>
+<a href="#2211" id="2211">2211</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2526,10 +2551,6 @@
         <span class="kw">let </span>output_timestamp = UnixTimestamp::from_secs(ts);
 
         <span class="kw">if </span>!<span class="self">self</span>.timestamp_range().contains(<span class="kw-2">&amp;</span>output_timestamp) {
-            <span class="kw">let </span>delta = (ts <span class="kw">as </span>i64) - (UnixTimestamp::now().as_secs() <span class="kw">as </span>i64);
-            <span class="macro">relay_statsd::metric!</span>(
-                histogram(MetricHistograms::InvalidBucketTimestamp) = delta <span class="kw">as </span>f64,
-            );
             <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
         }
 
@@ -3106,6 +3127,28 @@
         key
     }
 
+    <span class="comment">// Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
+    // Logs a statsd metric for invalid timestamps.
+    </span><span class="kw">fn </span>get_bucket_timestamp(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        timestamp: UnixTimestamp,
+        bucket_width: u64,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;UnixTimestamp, AggregateMetricsError&gt; {
+        <span class="kw">let </span>res = <span class="self">self</span>.config.get_bucket_timestamp(timestamp, bucket_width);
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(AggregateMetricsError {
+            kind: AggregateMetricsErrorKind::InvalidTimestamp(ts),
+        }) = res
+        {
+            <span class="kw">let </span>delta = (ts.as_secs() <span class="kw">as </span>i64) - (UnixTimestamp::now().as_secs() <span class="kw">as </span>i64);
+            <span class="macro">relay_statsd::metric!</span>(
+                histogram(MetricHistograms::InvalidBucketTimestamp) = delta <span class="kw">as </span>f64,
+                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+            );
+        }
+
+        res
+    }
+
     <span class="doccomment">/// Merge a preaggregated bucket into this aggregator.
     ///
     /// If no bucket exists for the given bucket key, a new bucket will be created.
@@ -3114,9 +3157,7 @@
         project_key: ProjectKey,
         bucket: Bucket,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
-        <span class="kw">let </span>timestamp = <span class="self">self
-            </span>.config
-            .get_bucket_timestamp(bucket.timestamp, bucket.width)<span class="question-mark">?</span>;
+        <span class="kw">let </span>timestamp = <span class="self">self</span>.get_bucket_timestamp(bucket.timestamp, bucket.width)<span class="question-mark">?</span>;
         <span class="kw">let </span>key = BucketKey {
             project_key,
             timestamp,
@@ -3210,7 +3251,7 @@
     {
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.merge(project_key, bucket) {
-                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error);
+                <span class="macro">relay_log::error!</span>(tags.aggregator = <span class="self">self</span>.name, error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error);
             }
         }
 
@@ -3229,7 +3270,8 @@
         <span class="comment">// We only emit statsd metrics for the cost on flush (and not when merging the buckets),
         // assuming that this gives us more than enough data points.
         </span><span class="macro">relay_statsd::metric!</span>(
-            gauge(MetricGauges::BucketsCost) = <span class="self">self</span>.cost_tracker.total_cost <span class="kw">as </span>u64
+            gauge(MetricGauges::BucketsCost) = <span class="self">self</span>.cost_tracker.total_cost <span class="kw">as </span>u64,
+            aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
         );
 
         <span class="kw">let </span><span class="kw-2">mut </span>buckets = HashMap::&lt;ProjectKey, Vec&lt;HashedBucket&gt;&gt;::new();
@@ -3285,7 +3327,8 @@
             <span class="macro">relay_statsd::metric!</span>(
                 gauge(MetricGauges::AvgBucketSize) = item_count <span class="kw">as </span>f64 / bucket_count <span class="kw">as </span>f64,
                 metric_type = ty.as_str(),
-                namespace = namespace.as_str()
+                namespace = namespace.as_str(),
+                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
             );
         }
 
@@ -3402,7 +3445,11 @@
             buckets,
         } = msg;
         <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.merge_all(project_key, buckets) {
-            <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to merge buckets&quot;</span>);
+            <span class="macro">relay_log::error!</span>(
+                tags.aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                <span class="string">&quot;failed to merge buckets&quot;
+            </span>);
         }
     }
 
@@ -3461,7 +3508,10 @@
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>remaining_buckets = <span class="self">self</span>.buckets.len();
         <span class="kw">if </span>remaining_buckets &gt; <span class="number">0 </span>{
-            <span class="macro">relay_log::error!</span>(<span class="string">&quot;metrics aggregator dropping {remaining_buckets} buckets&quot;</span>);
+            <span class="macro">relay_log::error!</span>(
+                tags.aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                <span class="string">&quot;metrics aggregator dropping {remaining_buckets} buckets&quot;
+            </span>);
             <span class="macro">relay_statsd::metric!</span>(
                 counter(MetricCounters::BucketsDropped) += remaining_buckets <span class="kw">as </span>i64,
                 aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
