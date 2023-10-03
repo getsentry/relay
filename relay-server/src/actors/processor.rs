@@ -2741,6 +2741,46 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn extract_metric_buckets_from_item(
+        item: &Item,
+        received_timestamp: UnixTimestamp,
+    ) -> Vec<Bucket> {
+        match item.ty() {
+            ItemType::Statsd => Bucket::parse_all(&item.payload(), received_timestamp)
+                .filter_map(|res| match res {
+                    Ok(bucket) => Some(bucket),
+                    Err(error) => {
+                        relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket from statsd format",
+                        );
+                        None
+                    }
+                })
+                .collect(),
+            ItemType::MetricBuckets => {
+                match serde_json::from_slice::<Vec<Bucket>>(&item.payload()) {
+                    Ok(buckets) => buckets,
+                    Err(error) => {
+                        relay_log::debug!(
+                            error = &error as &dyn Error,
+                            "failed to parse metric bucket",
+                        );
+                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                        vec![]
+                    }
+                }
+            }
+            _ => {
+                relay_log::error!(
+                    "invalid item of type {} passed to ProcessMetrics",
+                    item.ty()
+                );
+                vec![]
+            }
+        }
+    }
+
     fn handle_process_metrics(&self, message: ProcessMetrics) {
         let ProcessMetrics {
             items,
@@ -2755,57 +2795,19 @@ impl EnvelopeProcessorService {
         let clock_drift_processor =
             ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        for item in items {
-            let payload = item.payload();
+        let mut buckets: Vec<Bucket> = items
+            .iter()
+            .flat_map(|item| Self::extract_metric_buckets_from_item(item, received_timestamp))
+            .collect();
 
-            let buckets = match item.ty() {
-                ItemType::Statsd => {
-                    let mut buckets = Vec::new();
-                    for bucket_result in Bucket::parse_all(&payload, received_timestamp) {
-                        match bucket_result {
-                            Ok(bucket) => buckets.push(bucket),
-                            Err(error) => relay_log::debug!(
-                                error = &error as &dyn Error,
-                                "failed to parse metric bucket from statsd format",
-                            ),
-                        }
-                    }
-                    Some(buckets)
-                }
-                ItemType::MetricBuckets => match serde_json::from_slice::<Vec<Bucket>>(&payload) {
-                    Ok(buckets) => Some(buckets),
-                    Err(error) => {
-                        relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket",
-                        );
-                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
-                        None
-                    }
-                },
-                _ => {
-                    relay_log::error!(
-                        "invalid item of type {} passed to ProcessMetrics",
-                        item.ty()
-                    );
-                    None
-                }
-            };
-
-            let Some(mut buckets) = buckets else {
-                continue;
-            };
-
-            for bucket in &mut buckets {
-                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
-            }
-
-            relay_log::trace!("inserting metric buckets into project cache");
-
-            self.inner
-                .project_cache
-                .send(MergeBuckets::new(public_key, buckets));
+        for bucket in &mut buckets {
+            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
         }
+
+        relay_log::trace!("inserting metric buckets into project cache");
+        self.inner
+            .project_cache
+            .send(MergeBuckets::new(public_key, buckets));
     }
 
     /// Check and apply rate limits to metrics buckets.
