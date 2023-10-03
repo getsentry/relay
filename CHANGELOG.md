@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
+
 **Bug Fixes**:
 
 - Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
