@@ -2758,19 +2758,17 @@ impl EnvelopeProcessorService {
                     }
                 })
                 .collect(),
-            ItemType::MetricBuckets => {
-                match serde_json::from_slice::<Vec<Bucket>>(&item.payload()) {
-                    Ok(buckets) => buckets,
-                    Err(error) => {
-                        relay_log::debug!(
-                            error = &error as &dyn Error,
-                            "failed to parse metric bucket",
-                        );
-                        metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
-                        vec![]
-                    }
+            ItemType::MetricBuckets => match serde_json::from_slice(&item.payload()) {
+                Ok(buckets) => buckets,
+                Err(error) => {
+                    relay_log::debug!(
+                        error = &error as &dyn Error,
+                        "failed to parse metric bucket",
+                    );
+                    metric!(counter(RelayCounters::MetricBucketsParsingFailed) += 1);
+                    vec![]
                 }
-            }
+            },
             _ => {
                 relay_log::error!(
                     "invalid item of type {} passed to ProcessMetrics",
