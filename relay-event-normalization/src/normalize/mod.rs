@@ -3620,6 +3620,7 @@ mod tests {
                 tags: ~,
                 origin: ~,
                 data: ~,
+                sentry_tags: ~,
                 other: {},
             },
         ]
@@ -3658,6 +3659,7 @@ mod tests {
                 tags: ~,
                 origin: ~,
                 data: ~,
+                sentry_tags: ~,
                 other: {},
             },
         ]
@@ -3696,6 +3698,7 @@ mod tests {
                 tags: ~,
                 origin: ~,
                 data: ~,
+                sentry_tags: ~,
                 other: {},
             },
         ]
