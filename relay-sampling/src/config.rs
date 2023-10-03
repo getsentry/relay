@@ -6,7 +6,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::condition::RuleCondition;
-use crate::evaluation::ReservoirEvaluator;
 use crate::utils;
 
 /// Represents the dynamic sampling configuration available to a project.
@@ -82,57 +81,10 @@ impl SamplingRule {
         self.condition.supported() && self.ty != RuleType::Unsupported
     }
 
-    /// Returns the updated [`SamplingValue`] if it's valid.
-    pub fn evaluate(
-        &self,
-        now: DateTime<Utc>,
-        reservoir: Option<&ReservoirEvaluator>,
-    ) -> Option<SamplingValue> {
-        if !self.time_range.contains(now) {
-            // Return None if rule is inactive.
-            return None;
-        }
-
-        let sampling_base_value = match self.sampling_value {
-            SamplingValue::SampleRate { value } => value,
-            SamplingValue::Factor { value } => value,
-            SamplingValue::Reservoir { limit } => {
-                return reservoir.and_then(|reservoir| {
-                    reservoir
-                        .evaluate(self.id, limit, self.time_range.end.as_ref())
-                        .then_some(SamplingValue::Reservoir { limit })
-                });
-            }
-        };
-
-        let value = match self.decaying_fn {
-            DecayingFunction::Linear { decayed_value } => {
-                let (Some(start), Some(end)) = (self.time_range.start, self.time_range.end) else {
-                    return None;
-                };
-
-                (sampling_base_value > decayed_value).then_some(())?;
-
-                let now = now.timestamp() as f64;
-                let start = start.timestamp() as f64;
-                let end = end.timestamp() as f64;
-
-                let progress_ratio = ((now - start) / (end - start)).clamp(0.0, 1.0);
-
-                // This interval will always be < 0.
-                let interval = decayed_value - sampling_base_value;
-                sampling_base_value + (interval * progress_ratio)
-            }
-            DecayingFunction::Constant => sampling_base_value,
-        };
-
-        match self.sampling_value {
-            SamplingValue::SampleRate { .. } => Some(SamplingValue::SampleRate { value }),
-            SamplingValue::Factor { .. } => Some(SamplingValue::Factor { value }),
-            // This should be impossible.
-            // Todo(tor): refactor so we don't run into this invalid state.
-            _ => None,
-        }
+    /// Applies its decaying function to the given sample rate.
+    pub fn apply_decaying_fn(&self, sample_rate: f64, now: DateTime<Utc>) -> Option<f64> {
+        self.decaying_fn
+            .adjust_sample_rate(sample_rate, now, self.time_range)
     }
 }
 
@@ -253,6 +205,39 @@ pub enum DecayingFunction {
     /// Apply the sample rate of the rule for the full time window with hard cutoff.
     #[default]
     Constant,
+}
+
+impl DecayingFunction {
+    /// Applies the decaying function to the given sample rate.
+    pub fn adjust_sample_rate(
+        &self,
+        sample_rate: f64,
+        now: DateTime<Utc>,
+        time_range: TimeRange,
+    ) -> Option<f64> {
+        match self {
+            DecayingFunction::Linear { decayed_value } => {
+                let (Some(start), Some(end)) = (time_range.start, time_range.end) else {
+                    return None;
+                };
+
+                if sample_rate < *decayed_value {
+                    return None;
+                }
+
+                let now = now.timestamp() as f64;
+                let start = start.timestamp() as f64;
+                let end = end.timestamp() as f64;
+
+                let progress_ratio = ((now - start) / (end - start)).clamp(0.0, 1.0);
+
+                // This interval will always be < 0.
+                let interval = decayed_value - sample_rate;
+                Some(sample_rate + (interval * progress_ratio))
+            }
+            DecayingFunction::Constant => Some(sample_rate),
+        }
+    }
 }
 
 /// Defines which population of items a dynamic sample rate applies to.
@@ -512,19 +497,28 @@ mod tests {
         assert_eq!(serialized_config, expected_serialized_config)
     }
 
+    /// Checks that the sample rate stays constant if `DecayingFunction::Constant` is set.
+    #[test]
+    fn test_decay_fn_constant() {
+        let sample_rate = 0.5;
+
+        assert_eq!(
+            DecayingFunction::Constant.adjust_sample_rate(
+                sample_rate,
+                Utc::now(),
+                TimeRange::default()
+            ),
+            Some(sample_rate)
+        );
+    }
+
     /// Checks if the sample rate decays linearly if `DecayingFunction::Linear` is set.
     #[test]
-    fn test_sample_rate_with_linear_decay() {
-        let rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value: SamplingValue::SampleRate { value: 1.0 },
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange {
-                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
-                end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
-            },
-            decaying_fn: DecayingFunction::Linear { decayed_value: 0.5 },
+    fn test_decay_fn_linear() {
+        let decaying_fn = DecayingFunction::Linear { decayed_value: 0.5 };
+        let time_range = TimeRange {
+            start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
+            end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
         };
 
         let start = Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap();
@@ -533,150 +527,36 @@ mod tests {
 
         // At the start of the time range, sample rate is equal to the rule's initial sampling value.
         assert_eq!(
-            rule.evaluate(start, None).unwrap(),
-            SamplingValue::SampleRate { value: 1.0 }
+            decaying_fn.adjust_sample_rate(1.0, start, time_range),
+            Some(1.0)
         );
 
         // Halfway in the time range, the value is exactly between 1.0 and 0.5.
         assert_eq!(
-            rule.evaluate(halfway, None).unwrap(),
-            SamplingValue::SampleRate { value: 0.75 }
+            decaying_fn.adjust_sample_rate(1.0, halfway, time_range),
+            Some(0.75)
         );
 
         // Approaches 0.5 at the end.
         assert_eq!(
-            rule.evaluate(end, None).unwrap(),
-            SamplingValue::SampleRate {
-                // It won't go to exactly 0.5 because the time range is end-exclusive.
-                value: 0.5000028935185186
-            }
+            decaying_fn.adjust_sample_rate(1.0, end, time_range),
+            // It won't go to exactly 0.5 because the time range is end-exclusive.
+            Some(0.5000028935185186)
         );
 
         // If the end or beginning is missing, the linear decay shouldn't be run.
-        let rule_without_start = {
-            let mut rule = rule.clone();
-            rule.time_range.start = None;
-            rule
-        };
+        let mut time_range_without_start = time_range;
+        time_range_without_start.start = None;
 
-        assert!(rule_without_start.evaluate(halfway, None).is_none());
-
-        let rule_without_end = {
-            let mut rule = rule.clone();
-            rule.time_range.end = None;
-            rule
-        };
-
-        assert!(rule_without_end.evaluate(halfway, None).is_none());
-    }
-
-    /// If the decayingfunction is set to `Constant` then it shouldn't adjust the sample rate.
-    #[test]
-    fn test_sample_rate_with_constant_decayingfn() {
-        let sampling_value = SamplingValue::SampleRate { value: 0.42 };
-
-        let rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value,
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange {
-                start: Some(Utc.with_ymd_and_hms(1970, 10, 10, 0, 0, 0).unwrap()),
-                end: Some(Utc.with_ymd_and_hms(1970, 10, 12, 0, 0, 0).unwrap()),
-            },
-            decaying_fn: DecayingFunction::Constant,
-        };
-
-        let halfway = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-
-        assert_eq!(rule.evaluate(halfway, None), Some(sampling_value));
-    }
-
-    /// Validates the `sample_rate` method for different time range configurations.
-    /// The method should return `None` for times outside of the valid range and `Some` for times within it.
-    /// When the `start` or `end` of the range is missing, it defaults to always include times before the `end` or after the `start`, respectively.
-    #[test]
-    fn test_sample_rate_valid_time_range() {
-        let time_range = TimeRange {
-            start: Some(Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap()),
-            end: Some(Utc.with_ymd_and_hms(1980, 1, 1, 0, 0, 0).unwrap()),
-        };
-
-        let before_time_range = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        let during_time_range = Utc.with_ymd_and_hms(1975, 1, 1, 0, 0, 0).unwrap();
-        let after_time_range = Utc.with_ymd_and_hms(1981, 1, 1, 0, 0, 0).unwrap();
-
-        // [start..end]
-        let rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value: SamplingValue::SampleRate { value: 1.0 },
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range,
-            decaying_fn: DecayingFunction::Constant,
-        };
-        assert!(rule.evaluate(before_time_range, None).is_none());
-        assert!(rule.evaluate(during_time_range, None).is_some());
-        assert!(rule.evaluate(after_time_range, None).is_none());
-
-        // [start..]
-        let mut rule_without_end = rule.clone();
-        rule_without_end.time_range.end = None;
-        assert!(rule_without_end.evaluate(before_time_range, None).is_none());
-        assert!(rule_without_end.evaluate(during_time_range, None).is_some());
-        assert!(rule_without_end.evaluate(after_time_range, None).is_some());
-
-        // [..end]
-        let mut rule_without_start = rule.clone();
-        rule_without_start.time_range.start = None;
-        assert!(rule_without_start
-            .evaluate(before_time_range, None)
-            .is_some());
-        assert!(rule_without_start
-            .evaluate(during_time_range, None)
-            .is_some());
-        assert!(rule_without_start
-            .evaluate(after_time_range, None)
+        assert!(decaying_fn
+            .adjust_sample_rate(1.0, halfway, time_range_without_start)
             .is_none());
 
-        // [..]
-        let mut rule_without_range = rule.clone();
-        rule_without_range.time_range = TimeRange::default();
-        assert!(rule_without_range
-            .evaluate(before_time_range, None)
-            .is_some());
-        assert!(rule_without_range
-            .evaluate(during_time_range, None)
-            .is_some());
-        assert!(rule_without_range
-            .evaluate(after_time_range, None)
-            .is_some());
-    }
+        let mut time_range_without_end = time_range;
+        time_range_without_end.end = None;
 
-    /// You can pass in a SamplingValue of either variant, and it should return the same one if
-    /// the rule is valid.
-    #[test]
-    fn test_sample_rate_returns_same_samplingvalue_variant() {
-        let sampling_value = SamplingValue::SampleRate { value: 0.42 };
-
-        let mut rule = SamplingRule {
-            condition: RuleCondition::all(),
-            sampling_value,
-            ty: RuleType::Trace,
-            id: RuleId(0),
-            time_range: TimeRange::default(),
-            decaying_fn: DecayingFunction::Constant,
-        };
-
-        matches!(
-            rule.evaluate(Utc::now(), None).unwrap(),
-            SamplingValue::SampleRate { .. }
-        );
-
-        rule.sampling_value = SamplingValue::Factor { value: 0.42 };
-        matches!(
-            rule.evaluate(Utc::now(), None).unwrap(),
-            SamplingValue::Factor { .. }
-        );
+        assert!(decaying_fn
+            .adjust_sample_rate(1.0, halfway, time_range_without_end)
+            .is_none());
     }
 }

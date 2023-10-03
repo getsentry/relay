@@ -651,7 +651,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 5)
+    metrics = metrics_by_name(metrics_consumer, 6)
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -833,8 +833,15 @@ def test_transaction_metrics_extraction_external_relays(
         metrics_envelope = mini_sentry.captured_events.get(timeout=3)
         assert len(metrics_envelope.items) == 1
         m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(m_item_body) == 2
+        assert len(m_item_body) == 3
         m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
+        assert (
+            m_item_body_sorted[2]["name"] == "d:transactions/duration_light@millisecond"
+        )
+        assert (
+            m_item_body_sorted[2]["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
         assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
         assert (
             m_item_body_sorted[1]["tags"]["transaction"]
@@ -890,11 +897,19 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 2, timeout=3)
+        metrics = metrics_by_name(metrics_consumer, 3, timeout=3)
         metric_duration = metrics["d:transactions/duration@millisecond"]
         assert metric_duration["name"] == "d:transactions/duration@millisecond"
         assert (
             metric_duration["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
+        metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
+        assert (
+            metric_duration_light["name"] == "d:transactions/duration_light@millisecond"
+        )
+        assert (
+            metric_duration_light["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
@@ -1110,13 +1125,14 @@ def test_limit_custom_measurements(
     event, _ = transactions_consumer.get_event()
     assert len(event["measurements"]) == 2
 
-    # Expect exactly 4 metrics:
-    # (transaction.duration, transactions.count_per_root_project, 1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 4)
+    # Expect exactly 5 metrics:
+    # (transaction.duration, transaction.duration_light, transactions.count_per_root_project, 1 builtin, 1 custom)
+    metrics = metrics_by_name(metrics_consumer, 5)
     metrics.pop("headers")
 
     assert metrics.keys() == {
         "d:transactions/duration@millisecond",
+        "d:transactions/duration_light@millisecond",
         "c:transactions/count_per_root_project@none",
         "d:transactions/measurements.foo@none",
         "d:transactions/measurements.bar@none",
