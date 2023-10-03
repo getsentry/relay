@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.31
+
+- Add `Reservoir` variant to `SamplingRule`. ([#2550](https://github.com/getsentry/relay/pull/2550))
+
 ## 0.8.30
 
 - Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
