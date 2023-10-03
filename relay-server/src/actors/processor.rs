@@ -2372,24 +2372,15 @@ impl EnvelopeProcessorService {
     /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
     fn validate_span(&self, span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
         let inner = span.value().ok_or(anyhow!("empty span"))?;
-        let Span {
-            timestamp,
-            start_timestamp,
-            exclusive_time,
-            span_id,
-            trace_id,
-            is_segment,
-            ..
-        } = inner;
-
-        timestamp.value().ok_or(anyhow!("missing timestamp"))?;
-        start_timestamp
-            .value()
-            .ok_or(anyhow!("missing start_timestamp"))?;
-        trace_id.value().ok_or(anyhow!("missing trace ID"))?;
-        span_id.value().ok_or(anyhow!("missing span ID"))?;
-        is_segment.value().ok_or(anyhow!("missing is_segment"))?;
-        exclusive_time
+        // The following required fields are already validated by the `TransactionsProcessor`:
+        // - `timestamp`
+        // - `start_timestamp`
+        // - `trace_id`
+        // - `span_id`
+        //
+        // `is_segment` is set by `extract_span`.
+        inner
+            .exclusive_time
             .value()
             .ok_or(anyhow!("missing exclusive_time"))?;
 

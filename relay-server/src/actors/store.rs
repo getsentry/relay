@@ -738,76 +738,6 @@ impl StoreService {
         Ok(())
     }
 
-    fn convert_span(
-        &self,
-        organization_id: u64,
-        project_id: ProjectId,
-        event_id: Option<EventId>,
-        start_time: Instant,
-        retention_days: u16,
-        item: &Item,
-    ) -> Result<SpanKafkaMessage, anyhow::Error> {
-        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
-        let span = Annotated::<Span>::from_json_bytes(&item.payload())?;
-        let span = span.into_value().ok_or(anyhow!("empty span"))?;
-        let Span {
-            timestamp,
-            start_timestamp,
-            exclusive_time,
-            span_id,
-            parent_span_id,
-            trace_id,
-            segment_id,
-            is_segment,
-            tags,
-            sentry_tags,
-            ..
-        } = span;
-        let start_timestamp_ms: u64 = start_timestamp
-            .0
-            .ok_or(anyhow!("missing start_timestamp"))?
-            .0
-            .timestamp_millis()
-            .try_into()?;
-        let timestamp_ms: u64 = timestamp
-            .0
-            .ok_or(anyhow!("missing timestamp"))?
-            .0
-            .timestamp_millis()
-            .try_into()?;
-
-        Ok(SpanKafkaMessage {
-            version: SPAN_VERSION,
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            event_id,
-            organization_id,
-            project_id,
-            trace_id: trace_id.into_value().ok_or(anyhow!("missing trace ID"))?.0,
-            span_id: span_id.into_value().ok_or(anyhow!("missing span ID"))?.0,
-            parent_span_id: parent_span_id.into_value().map(|id| id.0),
-            segment_id: segment_id.into_value().map(|id| id.0),
-            is_segment: is_segment
-                .into_value()
-                .ok_or(anyhow!("missing is_segment"))?,
-            start_timestamp_ms,
-            duration_ms: timestamp_ms.saturating_sub(start_timestamp_ms),
-            exclusive_time_ms: exclusive_time.0.ok_or(anyhow!("missing exclusive_time"))? as u64,
-            retention_days,
-            user_tags: tags
-                .into_value()
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|(k, v)| v.into_value().map(|v| (k, v.to_string())))
-                .collect(),
-            sentry_tags: sentry_tags
-                .into_value()
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|(k, v)| v.into_value().map(|v| (k, v.to_string())))
-                .collect(),
-        })
-    }
-
     fn produce_span(
         &self,
         organization_id: u64,
@@ -817,22 +747,30 @@ impl StoreService {
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        let message = match self.convert_span(
-            organization_id,
-            project_id,
-            event_id,
-            start_time,
-            retention_days,
-            item,
-        ) {
-            Ok(message) => KafkaMessage::Span(message),
+        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
+        let span: serde_json::Value = match serde_json::from_slice(&item.payload()) {
+            Ok(span) => span,
             Err(error) => {
-                relay_log::error!("failed to parse span: {error}");
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse span"
+                );
                 return Ok(());
             }
         };
-
-        self.produce(KafkaTopic::Spans, organization_id, message)?;
+        let message = SpanKafkaMessage {
+            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            event_id,
+            organization_id,
+            project_id,
+            retention_days,
+            span,
+        };
+        self.produce(
+            KafkaTopic::Spans,
+            organization_id,
+            KafkaMessage::Span(message),
+        )?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -1105,8 +1043,6 @@ struct CheckInKafkaMessage {
 /// Most notably, this schema does not contain the `group_raw`, which must be computed on sentry-side.
 #[derive(Debug, Serialize)]
 struct SpanKafkaMessage {
-    /// Version of this message's format. Tells the consumer how to parse this message.
-    version: u16,
     /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
     start_time: u64,
     /// The ID of the transaction event associated to this span, if any.
@@ -1116,33 +1052,12 @@ struct SpanKafkaMessage {
     organization_id: u64,
     /// The numeric ID of the project.
     project_id: ProjectId,
-    /// The ID of the trace that the current span belongs to.
-    trace_id: String,
-    /// The unique ID of the current span.
-    span_id: String,
-    /// The ID of the current span's parent, if any.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    parent_span_id: Option<String>,
-    /// A unique identifier for a segment within a trace (8 byte hexadecimal string).
-    ///
-    /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
-    /// transaction.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    segment_id: Option<String>,
-    /// Whether or not the current span is the root of the segment.
-    is_segment: bool,
-    /// Timestamp when the span started in milliseconds.
-    start_timestamp_ms: u64,
-    /// Total duration of the span in milliseconds.
-    duration_ms: u64,
-    /// The amount of time spent in this span, excluding its immediate child spans.
-    exclusive_time_ms: u64,
+    /// Number of days until these data should be deleted.
     retention_days: u16,
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    /// Tags set by the user. Copy of `span.tags`.
-    user_tags: BTreeMap<String, String>,
-    /// Tags generated by sentry.
-    sentry_tags: BTreeMap<String, String>,
+    /// Fields from the original span payload, flattened.
+    /// See [`relay-event-schema::protocol::span::Span`] for schema.
+    #[serde(flatten)]
+    span: serde_json::Value,
 }
 
 /// An enum over all possible ingest messages.
@@ -1227,6 +1142,9 @@ impl Message for KafkaMessage {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) => {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
+            KafkaMessage::Span(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),

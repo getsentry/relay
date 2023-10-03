@@ -1220,13 +1220,24 @@ def test_spans(
 
     relay.send_event(project_id, event)
 
-    child_span = spans_consumer.get_message()
+    child_span = spans_consumer.get_span()
     del child_span["start_time"]
     assert child_span == {
-        "duration_ms": 500,
+        "data": {
+            "description.scrubbed": "GET *",
+            "span.category": "http",
+            "span.description": "GET *",
+            "span.group": "37e3d9fab1ae9162",
+            "span.module": "http",
+            "span.op": "http",
+            "transaction": "hi",
+            "transaction.op": "hi",
+        },
+        "description": "GET /api/0/organizations/?member=1",
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 500,
+        "exclusive_time": 500.0,
         "is_segment": False,
+        "op": "http",
         "organization_id": 0,
         "parent_span_id": "aaaaaaaaaaaaaaaa",
         "project_id": 42,
@@ -1242,29 +1253,34 @@ def test_spans(
             "transaction.op": "hi",
         },
         "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp_ms": int(start.timestamp() * 1000),
+        "start_timestamp": start.timestamp(),
+        "timestamp": end.timestamp(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        "type": "span",
-        "version": 1,
     }
 
-    transaction_span = spans_consumer.get_message()
+    transaction_span = spans_consumer.get_span()
     del transaction_span["start_time"]
     assert transaction_span == {
-        "duration_ms": 2000,
+        "data": {"transaction": "hi", "transaction.op": "hi"},
+        "description": "hi",
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
-        "exclusive_time_ms": 2000,
+        "exclusive_time": 2000.0,
         "is_segment": True,
+        "op": "hi",
         "organization_id": 0,
         "project_id": 42,
         "retention_days": 90,
         "segment_id": "968cff94913ebb07",
         "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
         "span_id": "968cff94913ebb07",
-        "start_timestamp_ms": int(start.timestamp() * 1000),
+        "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
+        .replace(tzinfo=timezone.utc)
+        .timestamp(),
+        "status": "unknown",
+        "timestamp": datetime.fromisoformat(event["timestamp"])
+        .replace(tzinfo=timezone.utc)
+        .timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "type": "span",
-        "version": 1,
     }
 
     spans_consumer.assert_empty()
