@@ -2341,7 +2341,7 @@ impl EnvelopeProcessorService {
                 shared_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(v)))
+                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                     .collect(),
             );
             // Double write to `span.data` for now. This can be removed once all users of these fields
@@ -2354,7 +2354,7 @@ impl EnvelopeProcessorService {
                 shared_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(v.into()))),
+                    .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
             );
             add_span(transaction_span.into());
         }

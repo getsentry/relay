@@ -54,28 +54,64 @@ pub enum SpanTagKey {
     StatusCode,
 }
 
-relay_common::derive_fromstr_and_display!(SpanTagKey, (), {
-    SpanTagKey::Release => "release",
-    SpanTagKey::User => "user",
-    SpanTagKey::Environment => "environment",
-    SpanTagKey::Transaction => "transaction",
-    SpanTagKey::TransactionMethod => "transaction.method",
-    SpanTagKey::TransactionOp => "transaction.op",
-    SpanTagKey::HttpStatusCode => "http.status_code",
-    SpanTagKey::Mobile => "mobile",
-    SpanTagKey::DeviceClass => "device.class",
+impl SpanTagKey {
+    /// The key used to write this tag into `span.data`.
+    ///
+    /// This key corresponds to the tag key on span metrics.
+    // NOTE: This method can be removed once we stop double-writing span tags.
+    pub fn data_key(&self) -> &str {
+        match self {
+            SpanTagKey::Release => "release",
+            SpanTagKey::User => "user",
+            SpanTagKey::Environment => "environment",
+            SpanTagKey::Transaction => "transaction",
+            SpanTagKey::TransactionMethod => "transaction.method",
+            SpanTagKey::TransactionOp => "transaction.op",
+            SpanTagKey::HttpStatusCode => "http.status_code",
+            SpanTagKey::Mobile => "mobile",
+            SpanTagKey::DeviceClass => "device.class",
 
-    SpanTagKey::Description => "span.description",
-    SpanTagKey::Group => "span.group",
-    SpanTagKey::SpanOp => "span.op",
-    SpanTagKey::Category => "span.category",
-    SpanTagKey::Module => "span.module",
-    SpanTagKey::Action => "span.action",
-    SpanTagKey::Domain => "span.domain",
-    SpanTagKey::System => "span.system",
-    SpanTagKey::Status => "span.status",
-    SpanTagKey::StatusCode => "span.status_code",
-});
+            SpanTagKey::Description => "span.description",
+            SpanTagKey::Group => "span.group",
+            SpanTagKey::SpanOp => "span.op",
+            SpanTagKey::Category => "span.category",
+            SpanTagKey::Module => "span.module",
+            SpanTagKey::Action => "span.action",
+            SpanTagKey::Domain => "span.domain",
+            SpanTagKey::System => "span.system",
+            SpanTagKey::Status => "span.status",
+            SpanTagKey::StatusCode => "span.status_code",
+        }
+    }
+
+    /// The key used to write this tag into `span.sentry_keys`.
+    ///
+    /// This key corresponds to the tag key in the snuba span dataset.
+    pub fn sentry_tag_key(&self) -> &str {
+        match self {
+            SpanTagKey::Release => "release",
+            SpanTagKey::User => "user",
+            SpanTagKey::Environment => "environment",
+            SpanTagKey::Transaction => "transaction",
+            SpanTagKey::TransactionMethod => "transaction.method",
+            SpanTagKey::TransactionOp => "transaction.op",
+            SpanTagKey::HttpStatusCode => "http.status_code",
+            SpanTagKey::Mobile => "mobile",
+            SpanTagKey::DeviceClass => "device.class",
+
+            SpanTagKey::Description => "description",
+            SpanTagKey::Group => "group",
+            SpanTagKey::SpanOp => "op",
+            SpanTagKey::Category => "category",
+            SpanTagKey::Module => "module",
+            SpanTagKey::Action => "action",
+            SpanTagKey::Domain => "domain",
+            SpanTagKey::System => "system",
+            SpanTagKey::Status => "status",
+            SpanTagKey::StatusCode => "status_code",
+        }
+    }
+}
 
 /// Configuration for span tag extraction.
 pub(crate) struct Config {
@@ -105,7 +141,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
                 .clone()
                 .into_iter()
                 .chain(tags.clone())
-                .map(|(k, v)| (k.to_string(), Annotated::new(v)))
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
         );
 
@@ -117,7 +153,7 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
                 .clone()
                 .into_iter()
                 .chain(tags)
-                .map(|(k, v)| (k.to_string(), Annotated::new(v.into()))),
+                .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
         );
     }
 }
