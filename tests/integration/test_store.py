@@ -1243,6 +1243,15 @@ def test_spans(
             "op": "http",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "segment_id": "968cff94913ebb07",
+            "sentry_tags": {
+                "category": "http",
+                "description": "GET *",
+                "group": "37e3d9fab1ae9162",
+                "module": "http",
+                "op": "http",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
             "span_id": "bbbbbbbbbbbbbbbb",
             "start_timestamp": start.timestamp(),
             "timestamp": end.timestamp(),
@@ -1257,6 +1266,10 @@ def test_spans(
         "project_id": 42,
         "span": {
             "data": {
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "sentry_tags": {
                 "transaction": "hi",
                 "transaction.op": "hi",
             },

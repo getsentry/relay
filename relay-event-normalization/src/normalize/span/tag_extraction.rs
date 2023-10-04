@@ -7,7 +7,7 @@ use std::ops::ControlFlow;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, TraceContext};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Annotated;
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -37,7 +37,7 @@ pub enum SpanTagKey {
     TransactionMethod,
     TransactionOp,
     HttpStatusCode,
-    // `true` if the transaction was sent by a mobile SDK.
+    // `"true"` if the transaction was sent by a mobile SDK.
     Mobile,
     DeviceClass,
 
@@ -55,34 +55,63 @@ pub enum SpanTagKey {
 }
 
 impl SpanTagKey {
-    /// Whether or not this tag should be added to metrics extracted from the span.
-    pub fn is_metric_tag(&self) -> bool {
-        !matches!(self, SpanTagKey::Release | SpanTagKey::User)
+    /// The key used to write this tag into `span.data`.
+    ///
+    /// This key corresponds to the tag key on span metrics.
+    /// NOTE: This method can be removed once we stop double-writing span tags.
+    pub fn data_key(&self) -> &str {
+        match self {
+            SpanTagKey::Release => "release",
+            SpanTagKey::User => "user",
+            SpanTagKey::Environment => "environment",
+            SpanTagKey::Transaction => "transaction",
+            SpanTagKey::TransactionMethod => "transaction.method",
+            SpanTagKey::TransactionOp => "transaction.op",
+            SpanTagKey::HttpStatusCode => "http.status_code",
+            SpanTagKey::Mobile => "mobile",
+            SpanTagKey::DeviceClass => "device.class",
+
+            SpanTagKey::Description => "span.description",
+            SpanTagKey::Group => "span.group",
+            SpanTagKey::SpanOp => "span.op",
+            SpanTagKey::Category => "span.category",
+            SpanTagKey::Module => "span.module",
+            SpanTagKey::Action => "span.action",
+            SpanTagKey::Domain => "span.domain",
+            SpanTagKey::System => "span.system",
+            SpanTagKey::Status => "span.status",
+            SpanTagKey::StatusCode => "span.status_code",
+        }
+    }
+
+    /// The key used to write this tag into `span.sentry_keys`.
+    ///
+    /// This key corresponds to the tag key in the snuba span dataset.
+    pub fn sentry_tag_key(&self) -> &str {
+        match self {
+            SpanTagKey::Release => "release",
+            SpanTagKey::User => "user",
+            SpanTagKey::Environment => "environment",
+            SpanTagKey::Transaction => "transaction",
+            SpanTagKey::TransactionMethod => "transaction.method",
+            SpanTagKey::TransactionOp => "transaction.op",
+            SpanTagKey::HttpStatusCode => "http.status_code",
+            SpanTagKey::Mobile => "mobile",
+            SpanTagKey::DeviceClass => "device.class",
+
+            SpanTagKey::Description => "description",
+            SpanTagKey::Group => "group",
+            SpanTagKey::SpanOp => "op",
+            SpanTagKey::Category => "category",
+            SpanTagKey::Module => "module",
+            SpanTagKey::Action => "action",
+            SpanTagKey::Domain => "domain",
+            SpanTagKey::System => "system",
+            SpanTagKey::Status => "status",
+            SpanTagKey::StatusCode => "status_code",
+        }
     }
 }
-
-relay_common::derive_fromstr_and_display!(SpanTagKey, (), {
-    SpanTagKey::Release => "release",
-    SpanTagKey::User => "user",
-    SpanTagKey::Environment => "environment",
-    SpanTagKey::Transaction => "transaction",
-    SpanTagKey::TransactionMethod => "transaction.method",
-    SpanTagKey::TransactionOp => "transaction.op",
-    SpanTagKey::HttpStatusCode => "http.status_code",
-    SpanTagKey::Mobile => "mobile",
-    SpanTagKey::DeviceClass => "device.class",
-
-    SpanTagKey::Description => "span.description",
-    SpanTagKey::Group => "span.group",
-    SpanTagKey::SpanOp => "span.op",
-    SpanTagKey::Category => "span.category",
-    SpanTagKey::Module => "span.module",
-    SpanTagKey::Action => "span.action",
-    SpanTagKey::Domain => "span.domain",
-    SpanTagKey::System => "span.system",
-    SpanTagKey::Status => "span.status",
-    SpanTagKey::StatusCode => "span.status_code",
-});
 
 /// Configuration for span tag extraction.
 pub(crate) struct Config {
@@ -107,35 +136,46 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
 
         let tags = extract_tags(span, config);
 
+        span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .chain(tags.clone())
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+
+        // Double write to `span.data` for now. This can be removed once all users of these fields
+        // have switched to `sentry_tags`.
         let data = span.data.value_mut().get_or_insert_with(Default::default);
         data.extend(
             shared_tags
                 .clone()
                 .into_iter()
                 .chain(tags)
-                .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+                .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
         );
     }
 }
 
 /// Extracts tags shared by every span.
-pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
-    let mut tags = BTreeMap::<SpanTagKey, Value>::new();
+pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
+    let mut tags = BTreeMap::new();
 
     if let Some(release) = event.release.as_str() {
-        tags.insert(SpanTagKey::Release, release.to_owned().into());
+        tags.insert(SpanTagKey::Release, release.to_owned());
     }
 
     if let Some(user) = event.user.value().and_then(get_eventuser_tag) {
-        tags.insert(SpanTagKey::User, user.into());
+        tags.insert(SpanTagKey::User, user);
     }
 
     if let Some(environment) = event.environment.as_str() {
-        tags.insert(SpanTagKey::Environment, environment.into());
+        tags.insert(SpanTagKey::Environment, environment.to_owned());
     }
 
     if let Some(transaction_name) = event.transaction.value() {
-        tags.insert(SpanTagKey::Transaction, transaction_name.clone().into());
+        tags.insert(SpanTagKey::Transaction, transaction_name.clone());
 
         let transaction_method_from_request = event
             .request
@@ -146,25 +186,25 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
         if let Some(transaction_method) = transaction_method_from_request.or_else(|| {
             http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
         }) {
-            tags.insert(SpanTagKey::TransactionMethod, transaction_method.into());
+            tags.insert(SpanTagKey::TransactionMethod, transaction_method);
         }
     }
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().into());
+            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
         }
     }
 
     if let Some(transaction_http_status_code) = extract_http_status_code(event) {
         tags.insert(
             SpanTagKey::HttpStatusCode,
-            transaction_http_status_code.into(),
+            transaction_http_status_code.to_owned(),
         );
     }
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
-        tags.insert(SpanTagKey::Mobile, true.into());
+        tags.insert(SpanTagKey::Mobile, "true".to_owned());
     }
 
     if let Some(device_class) = event.tag_value("device.class") {
@@ -180,8 +220,8 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, Value> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, Value> {
-    let mut span_tags: BTreeMap<SpanTagKey, Value> = BTreeMap::new();
+pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, String> {
+    let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
     let system = span
         .data
@@ -189,16 +229,16 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         .and_then(|v| v.get("db.system"))
         .and_then(|system| system.as_str());
     if let Some(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
+        span_tags.insert(SpanTagKey::System, sys.to_lowercase());
     }
 
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned().into());
+        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
         if let Some(category) = span_op_to_category(&span_op) {
-            span_tags.insert(SpanTagKey::Category, category.to_owned().into());
+            span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
         let span_module = if span_op.starts_with("http") {
@@ -212,7 +252,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         };
 
         if let Some(module) = span_module {
-            span_tags.insert(SpanTagKey::Module, module.to_owned().into());
+            span_tags.insert(SpanTagKey::Module, module.to_owned());
         }
 
         let scrubbed_description = span
@@ -259,7 +299,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         };
 
         if let Some(act) = action {
-            span_tags.insert(SpanTagKey::Action, act.into());
+            span_tags.insert(SpanTagKey::Action, act);
         }
 
         let domain = if span_op == "http.client" {
@@ -286,7 +326,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
         if !span_op.starts_with("db.redis") {
             if let Some(dom) = domain {
-                span_tags.insert(SpanTagKey::Domain, dom.into());
+                span_tags.insert(SpanTagKey::Domain, dom);
             }
         }
 
@@ -298,19 +338,19 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
             let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
             span_group.truncate(16);
-            span_tags.insert(SpanTagKey::Group, span_group.into());
+            span_tags.insert(SpanTagKey::Group, span_group);
 
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
-            span_tags.insert(SpanTagKey::Description, truncated.into());
+            span_tags.insert(SpanTagKey::Description, truncated);
         }
     }
 
     if let Some(span_status) = span.status.value() {
-        span_tags.insert(SpanTagKey::Status, span_status.to_string().into());
+        span_tags.insert(SpanTagKey::Status, span_status.to_string());
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {
-        span_tags.insert(SpanTagKey::StatusCode, status_code.into());
+        span_tags.insert(SpanTagKey::StatusCode, status_code);
     }
 
     span_tags
@@ -561,9 +601,8 @@ mod tests {
                         .value()
                         .and_then(|e| e.spans.value())
                         .and_then(|spans| spans[0].value())
-                        .and_then(|s| s.data.value())
+                        .and_then(|s| s.sentry_tags.value())
                         .and_then(|d| d.get("transaction.method"))
-                        .and_then(|v| v.value())
                         .and_then(|v| v.as_str())
                         .unwrap()
                 );

@@ -54,7 +54,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             condition: span_op_conditions.clone(),
             tags: vec![TagSpec {
                 key: "transaction".into(),
-                field: Some("span.data.transaction".into()),
+                field: Some("span.sentry_tags.transaction".into()),
                 value: None,
                 condition: None,
             }],
@@ -72,24 +72,24 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: [
-                "environment",
-                "http.status_code",
-                "span.action",
-                "span.category",
-                "span.description",
-                "span.domain",
-                "span.group",
-                "span.module",
-                "span.op",
-                "span.status_code",
-                "span.status",
-                "span.system",
-                "transaction.method",
-                "transaction.op",
+                ("", "environment"),
+                ("", "http.status_code"),
+                ("span.", "action"),
+                ("span.", "category"),
+                ("span.", "description"),
+                ("span.", "domain"),
+                ("span.", "group"),
+                ("span.", "module"),
+                ("span.", "op"),
+                ("span.", "status_code"),
+                ("span.", "status"),
+                ("span.", "system"),
+                ("", "transaction.method"),
+                ("", "transaction.op"),
             ]
-            .map(|key| TagSpec {
-                key: key.into(),
-                field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
                 condition: None,
             })
@@ -100,9 +100,9 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             tags: ["release", "device.class"] // TODO: sentry PR for static strings
                 .map(|key| TagSpec {
                     key: key.into(),
-                    field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+                    field: Some(format!("span.sentry_tags.{}", key)),
                     value: None,
-                    condition: Some(RuleCondition::eq("span.data.mobile", true)),
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
                 })
                 .into(),
         },

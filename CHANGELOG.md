@@ -21,6 +21,7 @@
 - Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
 - Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
 - Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
+- Write span tags to `span.sentry_tags`.  ([#2555](https://github.com/getsentry/relay/pull/2555))
 
 ## 23.9.1
 
