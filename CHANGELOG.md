@@ -15,13 +15,13 @@
 
 **Internal**:
 
-- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522))
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522)), [#2525](https://github.com/getsentry/relay/pull/2525), [#2545](https://github.com/getsentry/relay/pull/2545)
 - Remove filtering for Android events with missing close events. ([#2524](https://github.com/getsentry/relay/pull/2524))
-- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522), [#2525](https://github.com/getsentry/relay/pull/2525), [#2545](https://github.com/getsentry/relay/pull/2545))
 - Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
 - Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
 - Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
-- Write span tags to `span.sentry_tags`.  ([#2555](https://github.com/getsentry/relay/pull/2555))
+- Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
+- Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
 
 ## 23.9.1
 

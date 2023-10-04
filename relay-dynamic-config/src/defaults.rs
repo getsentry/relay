@@ -82,7 +82,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("span.", "module"),
                 ("span.", "op"),
                 ("span.", "status_code"),
-                ("span.", "status"),
                 ("span.", "system"),
                 ("", "transaction.method"),
                 ("", "transaction.op"),
@@ -93,7 +92,15 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 value: None,
                 condition: None,
             })
-            .into(),
+            .into_iter()
+            // Tags taken directly from the span payload:
+            .chain(std::iter::once(TagSpec {
+                key: "span.status".into(),
+                field: Some("span.status".into()),
+                value: None,
+                condition: None,
+            }))
+            .collect(),
         },
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],

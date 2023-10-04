@@ -50,7 +50,6 @@ pub enum SpanTagKey {
     Action,
     Domain,
     System,
-    Status,
     StatusCode,
 }
 
@@ -79,7 +78,6 @@ impl SpanTagKey {
             SpanTagKey::Action => "span.action",
             SpanTagKey::Domain => "span.domain",
             SpanTagKey::System => "span.system",
-            SpanTagKey::Status => "span.status",
             SpanTagKey::StatusCode => "span.status_code",
         }
     }
@@ -107,7 +105,6 @@ impl SpanTagKey {
             SpanTagKey::Action => "action",
             SpanTagKey::Domain => "domain",
             SpanTagKey::System => "system",
-            SpanTagKey::Status => "status",
             SpanTagKey::StatusCode => "status_code",
         }
     }
@@ -343,10 +340,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
-    }
-
-    if let Some(span_status) = span.status.value() {
-        span_tags.insert(SpanTagKey::Status, span_status.to_string());
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {

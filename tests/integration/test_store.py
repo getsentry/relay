@@ -1197,7 +1197,7 @@ def test_spans(
 
     relay = relay_with_processing()
     project_id = 42
-    project_config = mini_sentry.add_basic_project_config(project_id)
+    project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["features"] = [
         "projects:span-metrics-extraction",
         "projects:span-metrics-extraction-all-modules",
@@ -1220,12 +1220,13 @@ def test_spans(
 
     relay.send_event(project_id, event)
 
-    child_span = spans_consumer.get_message()
+    child_span = spans_consumer.get_span()
     del child_span["start_time"]
     assert child_span == {
-        "type": "span",
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
+        "organization_id": 1,
+        "retention_days": 90,
         "span": {
             "data": {
                 "description.scrubbed": "GET *",
@@ -1259,17 +1260,15 @@ def test_spans(
         },
     }
 
-    transaction_span = spans_consumer.get_message()
+    transaction_span = spans_consumer.get_span()
     del transaction_span["start_time"]
     assert transaction_span == {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
+        "organization_id": 1,
+        "retention_days": 90,
         "span": {
             "data": {
-                "transaction": "hi",
-                "transaction.op": "hi",
-            },
-            "sentry_tags": {
                 "transaction": "hi",
                 "transaction.op": "hi",
             },
@@ -1278,6 +1277,7 @@ def test_spans(
             "is_segment": True,
             "op": "hi",
             "segment_id": "968cff94913ebb07",
+            "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
             "span_id": "968cff94913ebb07",
             "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
             .replace(tzinfo=timezone.utc)
@@ -1288,7 +1288,6 @@ def test_spans(
             .timestamp(),
             "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
         },
-        "type": "span",
     }
 
     spans_consumer.assert_empty()
