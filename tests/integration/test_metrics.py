@@ -1245,9 +1245,7 @@ def test_generic_metric_extraction(mini_sentry, relay_with_processing):
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
 
     # Explicitly test a chain of Relays
-    relay = relay_with_processing(
-        relay_with_processing(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG
-    )
+    relay = relay_with_processing(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
