@@ -4277,6 +4277,15 @@
 <a href="#4277" id="4277">4277</a>
 <a href="#4278" id="4278">4278</a>
 <a href="#4279" id="4279">4279</a>
+<a href="#4280" id="4280">4280</a>
+<a href="#4281" id="4281">4281</a>
+<a href="#4282" id="4282">4282</a>
+<a href="#4283" id="4283">4283</a>
+<a href="#4284" id="4284">4284</a>
+<a href="#4285" id="4285">4285</a>
+<a href="#4286" id="4286">4286</a>
+<a href="#4287" id="4287">4287</a>
+<a href="#4288" id="4288">4288</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6616,7 +6625,16 @@
         <span class="kw">if </span>all_modules_enabled {
             <span class="comment">// Extract tags to add to this span as well
             </span><span class="kw">let </span>shared_tags = span::tag_extraction::extract_shared_tags(event);
-            <span class="kw">let </span>data = transaction_span
+            transaction_span.sentry_tags = Annotated::new(
+                shared_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                    .collect(),
+            );
+            <span class="comment">// Double write to `span.data` for now. This can be removed once all users of these fields
+            // have switched to `sentry_tags`.
+            </span><span class="kw">let </span>data = transaction_span
                 .data
                 .value_mut()
                 .get_or_insert_with(Default::default);
@@ -6624,7 +6642,7 @@
                 shared_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+                    .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
             );
             add_span(transaction_span.into());
         }

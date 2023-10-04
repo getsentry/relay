@@ -711,6 +711,45 @@
 <a href="#711" id="711">711</a>
 <a href="#712" id="712">712</a>
 <a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -720,7 +759,7 @@
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span, TraceContext};
-<span class="kw">use </span>relay_protocol::{Annotated, Value};
+<span class="kw">use </span>relay_protocol::Annotated;
 <span class="kw">use </span>sqlparser::ast::Visit;
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <span class="kw">use </span>url::Url;
@@ -750,7 +789,7 @@
     TransactionMethod,
     TransactionOp,
     HttpStatusCode,
-    <span class="comment">// `true` if the transaction was sent by a mobile SDK.
+    <span class="comment">// `&quot;true&quot;` if the transaction was sent by a mobile SDK.
     </span>Mobile,
     DeviceClass,
 
@@ -768,34 +807,63 @@
 }
 
 <span class="kw">impl </span>SpanTagKey {
-    <span class="doccomment">/// Whether or not this tag should be added to metrics extracted from the span.
-    </span><span class="kw">pub fn </span>is_metric_tag(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="macro">matches!</span>(<span class="self">self</span>, SpanTagKey::Release | SpanTagKey::User)
+    <span class="doccomment">/// The key used to write this tag into `span.data`.
+    ///
+    /// This key corresponds to the tag key on span metrics.
+    /// NOTE: This method can be removed once we stop double-writing span tags.
+    </span><span class="kw">pub fn </span>data_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            SpanTagKey::Release =&gt; <span class="string">&quot;release&quot;</span>,
+            SpanTagKey::User =&gt; <span class="string">&quot;user&quot;</span>,
+            SpanTagKey::Environment =&gt; <span class="string">&quot;environment&quot;</span>,
+            SpanTagKey::Transaction =&gt; <span class="string">&quot;transaction&quot;</span>,
+            SpanTagKey::TransactionMethod =&gt; <span class="string">&quot;transaction.method&quot;</span>,
+            SpanTagKey::TransactionOp =&gt; <span class="string">&quot;transaction.op&quot;</span>,
+            SpanTagKey::HttpStatusCode =&gt; <span class="string">&quot;http.status_code&quot;</span>,
+            SpanTagKey::Mobile =&gt; <span class="string">&quot;mobile&quot;</span>,
+            SpanTagKey::DeviceClass =&gt; <span class="string">&quot;device.class&quot;</span>,
+
+            SpanTagKey::Description =&gt; <span class="string">&quot;span.description&quot;</span>,
+            SpanTagKey::Group =&gt; <span class="string">&quot;span.group&quot;</span>,
+            SpanTagKey::SpanOp =&gt; <span class="string">&quot;span.op&quot;</span>,
+            SpanTagKey::Category =&gt; <span class="string">&quot;span.category&quot;</span>,
+            SpanTagKey::Module =&gt; <span class="string">&quot;span.module&quot;</span>,
+            SpanTagKey::Action =&gt; <span class="string">&quot;span.action&quot;</span>,
+            SpanTagKey::Domain =&gt; <span class="string">&quot;span.domain&quot;</span>,
+            SpanTagKey::System =&gt; <span class="string">&quot;span.system&quot;</span>,
+            SpanTagKey::Status =&gt; <span class="string">&quot;span.status&quot;</span>,
+            SpanTagKey::StatusCode =&gt; <span class="string">&quot;span.status_code&quot;</span>,
+        }
+    }
+
+    <span class="doccomment">/// The key used to write this tag into `span.sentry_keys`.
+    ///
+    /// This key corresponds to the tag key in the snuba span dataset.
+    </span><span class="kw">pub fn </span>sentry_tag_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            SpanTagKey::Release =&gt; <span class="string">&quot;release&quot;</span>,
+            SpanTagKey::User =&gt; <span class="string">&quot;user&quot;</span>,
+            SpanTagKey::Environment =&gt; <span class="string">&quot;environment&quot;</span>,
+            SpanTagKey::Transaction =&gt; <span class="string">&quot;transaction&quot;</span>,
+            SpanTagKey::TransactionMethod =&gt; <span class="string">&quot;transaction.method&quot;</span>,
+            SpanTagKey::TransactionOp =&gt; <span class="string">&quot;transaction.op&quot;</span>,
+            SpanTagKey::HttpStatusCode =&gt; <span class="string">&quot;http.status_code&quot;</span>,
+            SpanTagKey::Mobile =&gt; <span class="string">&quot;mobile&quot;</span>,
+            SpanTagKey::DeviceClass =&gt; <span class="string">&quot;device.class&quot;</span>,
+
+            SpanTagKey::Description =&gt; <span class="string">&quot;description&quot;</span>,
+            SpanTagKey::Group =&gt; <span class="string">&quot;group&quot;</span>,
+            SpanTagKey::SpanOp =&gt; <span class="string">&quot;op&quot;</span>,
+            SpanTagKey::Category =&gt; <span class="string">&quot;category&quot;</span>,
+            SpanTagKey::Module =&gt; <span class="string">&quot;module&quot;</span>,
+            SpanTagKey::Action =&gt; <span class="string">&quot;action&quot;</span>,
+            SpanTagKey::Domain =&gt; <span class="string">&quot;domain&quot;</span>,
+            SpanTagKey::System =&gt; <span class="string">&quot;system&quot;</span>,
+            SpanTagKey::Status =&gt; <span class="string">&quot;status&quot;</span>,
+            SpanTagKey::StatusCode =&gt; <span class="string">&quot;status_code&quot;</span>,
+        }
     }
 }
-
-<span class="macro">relay_common::derive_fromstr_and_display!</span>(SpanTagKey, (), {
-    SpanTagKey::Release =&gt; <span class="string">&quot;release&quot;</span>,
-    SpanTagKey::User =&gt; <span class="string">&quot;user&quot;</span>,
-    SpanTagKey::Environment =&gt; <span class="string">&quot;environment&quot;</span>,
-    SpanTagKey::Transaction =&gt; <span class="string">&quot;transaction&quot;</span>,
-    SpanTagKey::TransactionMethod =&gt; <span class="string">&quot;transaction.method&quot;</span>,
-    SpanTagKey::TransactionOp =&gt; <span class="string">&quot;transaction.op&quot;</span>,
-    SpanTagKey::HttpStatusCode =&gt; <span class="string">&quot;http.status_code&quot;</span>,
-    SpanTagKey::Mobile =&gt; <span class="string">&quot;mobile&quot;</span>,
-    SpanTagKey::DeviceClass =&gt; <span class="string">&quot;device.class&quot;</span>,
-
-    SpanTagKey::Description =&gt; <span class="string">&quot;span.description&quot;</span>,
-    SpanTagKey::Group =&gt; <span class="string">&quot;span.group&quot;</span>,
-    SpanTagKey::SpanOp =&gt; <span class="string">&quot;span.op&quot;</span>,
-    SpanTagKey::Category =&gt; <span class="string">&quot;span.category&quot;</span>,
-    SpanTagKey::Module =&gt; <span class="string">&quot;span.module&quot;</span>,
-    SpanTagKey::Action =&gt; <span class="string">&quot;span.action&quot;</span>,
-    SpanTagKey::Domain =&gt; <span class="string">&quot;span.domain&quot;</span>,
-    SpanTagKey::System =&gt; <span class="string">&quot;span.system&quot;</span>,
-    SpanTagKey::Status =&gt; <span class="string">&quot;span.status&quot;</span>,
-    SpanTagKey::StatusCode =&gt; <span class="string">&quot;span.status_code&quot;</span>,
-});
 
 <span class="doccomment">/// Configuration for span tag extraction.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Config {
@@ -820,35 +888,46 @@
 
         <span class="kw">let </span>tags = extract_tags(span, config);
 
-        <span class="kw">let </span>data = span.data.value_mut().get_or_insert_with(Default::default);
+        span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .chain(tags.clone())
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+
+        <span class="comment">// Double write to `span.data` for now. This can be removed once all users of these fields
+        // have switched to `sentry_tags`.
+        </span><span class="kw">let </span>data = span.data.value_mut().get_or_insert_with(Default::default);
         data.extend(
             shared_tags
                 .clone()
                 .into_iter()
                 .chain(tags)
-                .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+                .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
         );
     }
 }
 
 <span class="doccomment">/// Extracts tags shared by every span.
-</span><span class="kw">pub fn </span>extract_shared_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; BTreeMap&lt;SpanTagKey, Value&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::&lt;SpanTagKey, Value&gt;::new();
+</span><span class="kw">pub fn </span>extract_shared_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
-        tags.insert(SpanTagKey::Release, release.to_owned().into());
+        tags.insert(SpanTagKey::Release, release.to_owned());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value().and_then(get_eventuser_tag) {
-        tags.insert(SpanTagKey::User, user.into());
+        tags.insert(SpanTagKey::User, user);
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
-        tags.insert(SpanTagKey::Environment, environment.into());
+        tags.insert(SpanTagKey::Environment, environment.to_owned());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = event.transaction.value() {
-        tags.insert(SpanTagKey::Transaction, transaction_name.clone().into());
+        tags.insert(SpanTagKey::Transaction, transaction_name.clone());
 
         <span class="kw">let </span>transaction_method_from_request = event
             .request
@@ -859,25 +938,25 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_method) = transaction_method_from_request.or_else(|| {
             http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
         }) {
-            tags.insert(SpanTagKey::TransactionMethod, transaction_method.into());
+            tags.insert(SpanTagKey::TransactionMethod, transaction_method);
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
-            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().into());
+            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_http_status_code) = extract_http_status_code(event) {
         tags.insert(
             SpanTagKey::HttpStatusCode,
-            transaction_http_status_code.into(),
+            transaction_http_status_code.to_owned(),
         );
     }
 
     <span class="kw">if </span>MOBILE_SDKS.contains(<span class="kw-2">&amp;</span>event.sdk_name()) {
-        tags.insert(SpanTagKey::Mobile, <span class="bool-val">true</span>.into());
+        tags.insert(SpanTagKey::Mobile, <span class="string">&quot;true&quot;</span>.to_owned());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = event.tag_value(<span class="string">&quot;device.class&quot;</span>) {
@@ -893,8 +972,8 @@
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_tags(span: <span class="kw-2">&amp;</span>Span, config: <span class="kw-2">&amp;</span>Config) -&gt; BTreeMap&lt;SpanTagKey, Value&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>span_tags: BTreeMap&lt;SpanTagKey, Value&gt; = BTreeMap::new();
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_tags(span: <span class="kw-2">&amp;</span>Span, config: <span class="kw-2">&amp;</span>Config) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>span_tags: BTreeMap&lt;SpanTagKey, String&gt; = BTreeMap::new();
 
     <span class="kw">let </span>system = span
         .data
@@ -902,16 +981,16 @@
         .and_then(|v| v.get(<span class="string">&quot;db.system&quot;</span>))
         .and_then(|system| system.as_str());
     <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase().into());
+        span_tags.insert(SpanTagKey::System, sys.to_lowercase());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(unsanitized_span_op) = span.op.value() {
         <span class="kw">let </span>span_op = unsanitized_span_op.to_owned().to_lowercase();
 
-        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned().into());
+        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = span_op_to_category(<span class="kw-2">&amp;</span>span_op) {
-            span_tags.insert(SpanTagKey::Category, category.to_owned().into());
+            span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
         <span class="kw">let </span>span_module = <span class="kw">if </span>span_op.starts_with(<span class="string">&quot;http&quot;</span>) {
@@ -925,7 +1004,7 @@
         </span>};
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = span_module {
-            span_tags.insert(SpanTagKey::Module, module.to_owned().into());
+            span_tags.insert(SpanTagKey::Module, module.to_owned());
         }
 
         <span class="kw">let </span>scrubbed_description = span
@@ -972,7 +1051,7 @@
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action {
-            span_tags.insert(SpanTagKey::Action, act.into());
+            span_tags.insert(SpanTagKey::Action, act);
         }
 
         <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>{
@@ -999,7 +1078,7 @@
 
         <span class="kw">if </span>!span_op.starts_with(<span class="string">&quot;db.redis&quot;</span>) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(dom) = domain {
-                span_tags.insert(SpanTagKey::Domain, dom.into());
+                span_tags.insert(SpanTagKey::Domain, dom);
             }
         }
 
@@ -1011,19 +1090,19 @@
 
             </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, md5::compute(scrubbed_desc));
             span_group.truncate(<span class="number">16</span>);
-            span_tags.insert(SpanTagKey::Group, span_group.into());
+            span_tags.insert(SpanTagKey::Group, span_group);
 
             <span class="kw">let </span>truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
-            span_tags.insert(SpanTagKey::Description, truncated.into());
+            span_tags.insert(SpanTagKey::Description, truncated);
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(span_status) = span.status.value() {
-        span_tags.insert(SpanTagKey::Status, span_status.to_string().into());
+        span_tags.insert(SpanTagKey::Status, span_status.to_string());
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span(span) {
-        span_tags.insert(SpanTagKey::StatusCode, status_code.into());
+        span_tags.insert(SpanTagKey::StatusCode, status_code);
     }
 
     span_tags
@@ -1274,9 +1353,8 @@
                         .value()
                         .and_then(|e| e.spans.value())
                         .and_then(|spans| spans[<span class="number">0</span>].value())
-                        .and_then(|s| s.data.value())
+                        .and_then(|s| s.sentry_tags.value())
                         .and_then(|d| d.get(<span class="string">&quot;transaction.method&quot;</span>))
-                        .and_then(|v| v.value())
                         .and_then(|v| v.as_str())
                         .unwrap()
                 );

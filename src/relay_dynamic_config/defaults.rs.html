@@ -169,7 +169,7 @@
             condition: span_op_conditions.clone(),
             tags: <span class="macro">vec!</span>[TagSpec {
                 key: <span class="string">&quot;transaction&quot;</span>.into(),
-                field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.data.transaction&quot;</span>.into()),
+                field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.sentry_tags.transaction&quot;</span>.into()),
                 value: <span class="prelude-val">None</span>,
                 condition: <span class="prelude-val">None</span>,
             }],
@@ -187,24 +187,24 @@
         TagMapping {
             metrics: <span class="macro">vec!</span>[LazyGlob::new(<span class="string">&quot;d:spans/exclusive_time*@millisecond&quot;</span>.into())],
             tags: [
-                <span class="string">&quot;environment&quot;</span>,
-                <span class="string">&quot;http.status_code&quot;</span>,
-                <span class="string">&quot;span.action&quot;</span>,
-                <span class="string">&quot;span.category&quot;</span>,
-                <span class="string">&quot;span.description&quot;</span>,
-                <span class="string">&quot;span.domain&quot;</span>,
-                <span class="string">&quot;span.group&quot;</span>,
-                <span class="string">&quot;span.module&quot;</span>,
-                <span class="string">&quot;span.op&quot;</span>,
-                <span class="string">&quot;span.status_code&quot;</span>,
-                <span class="string">&quot;span.status&quot;</span>,
-                <span class="string">&quot;span.system&quot;</span>,
-                <span class="string">&quot;transaction.method&quot;</span>,
-                <span class="string">&quot;transaction.op&quot;</span>,
+                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;environment&quot;</span>),
+                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;http.status_code&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;action&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;category&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;description&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;domain&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;group&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;module&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;op&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;status_code&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;status&quot;</span>),
+                (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;system&quot;</span>),
+                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;transaction.method&quot;</span>),
+                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;transaction.op&quot;</span>),
             ]
-            .map(|key| TagSpec {
-                key: key.into(),
-                field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.data.{}&quot;</span>, key.replace(<span class="string">&#39;.&#39;</span>, <span class="string">&quot;\\.&quot;</span>))),
+            .map(|(prefix, key)| TagSpec {
+                key: <span class="macro">format!</span>(<span class="string">&quot;{prefix}{key}&quot;</span>),
+                field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.sentry_tags.{}&quot;</span>, key)),
                 value: <span class="prelude-val">None</span>,
                 condition: <span class="prelude-val">None</span>,
             })
@@ -215,9 +215,9 @@
             tags: [<span class="string">&quot;release&quot;</span>, <span class="string">&quot;device.class&quot;</span>] <span class="comment">// TODO: sentry PR for static strings
                 </span>.map(|key| TagSpec {
                     key: key.into(),
-                    field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.data.{}&quot;</span>, key.replace(<span class="string">&#39;.&#39;</span>, <span class="string">&quot;\\.&quot;</span>))),
+                    field: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;span.sentry_tags.{}&quot;</span>, key)),
                     value: <span class="prelude-val">None</span>,
-                    condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">&quot;span.data.mobile&quot;</span>, <span class="bool-val">true</span>)),
+                    condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">&quot;span.sentry_tags.mobile&quot;</span>, <span class="string">&quot;true&quot;</span>)),
                 })
                 .into(),
         },
