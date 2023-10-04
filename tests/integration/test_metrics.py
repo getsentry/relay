@@ -784,7 +784,7 @@ def test_transaction_metrics_count_per_root_project(
 )
 def test_transaction_metrics_extraction_external_relays(
     mini_sentry,
-    relay_with_processing,
+    relay,
     send_extracted_header,
     expect_extracted_header,
     expect_metrics_extraction,
@@ -806,7 +806,7 @@ def test_transaction_metrics_extraction_external_relays(
     timestamp = datetime.now(tz=timezone.utc)
     tx["timestamp"] = timestamp.isoformat()
 
-    external = relay_with_processing(mini_sentry, options=TEST_CONFIG)
+    external = relay(mini_sentry, options=TEST_CONFIG)
 
     trace_info = {
         "trace_id": tx["contexts"]["trace"]["trace_id"],
