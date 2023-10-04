@@ -4286,6 +4286,62 @@
 <a href="#4286" id="4286">4286</a>
 <a href="#4287" id="4287">4287</a>
 <a href="#4288" id="4288">4288</a>
+<a href="#4289" id="4289">4289</a>
+<a href="#4290" id="4290">4290</a>
+<a href="#4291" id="4291">4291</a>
+<a href="#4292" id="4292">4292</a>
+<a href="#4293" id="4293">4293</a>
+<a href="#4294" id="4294">4294</a>
+<a href="#4295" id="4295">4295</a>
+<a href="#4296" id="4296">4296</a>
+<a href="#4297" id="4297">4297</a>
+<a href="#4298" id="4298">4298</a>
+<a href="#4299" id="4299">4299</a>
+<a href="#4300" id="4300">4300</a>
+<a href="#4301" id="4301">4301</a>
+<a href="#4302" id="4302">4302</a>
+<a href="#4303" id="4303">4303</a>
+<a href="#4304" id="4304">4304</a>
+<a href="#4305" id="4305">4305</a>
+<a href="#4306" id="4306">4306</a>
+<a href="#4307" id="4307">4307</a>
+<a href="#4308" id="4308">4308</a>
+<a href="#4309" id="4309">4309</a>
+<a href="#4310" id="4310">4310</a>
+<a href="#4311" id="4311">4311</a>
+<a href="#4312" id="4312">4312</a>
+<a href="#4313" id="4313">4313</a>
+<a href="#4314" id="4314">4314</a>
+<a href="#4315" id="4315">4315</a>
+<a href="#4316" id="4316">4316</a>
+<a href="#4317" id="4317">4317</a>
+<a href="#4318" id="4318">4318</a>
+<a href="#4319" id="4319">4319</a>
+<a href="#4320" id="4320">4320</a>
+<a href="#4321" id="4321">4321</a>
+<a href="#4322" id="4322">4322</a>
+<a href="#4323" id="4323">4323</a>
+<a href="#4324" id="4324">4324</a>
+<a href="#4325" id="4325">4325</a>
+<a href="#4326" id="4326">4326</a>
+<a href="#4327" id="4327">4327</a>
+<a href="#4328" id="4328">4328</a>
+<a href="#4329" id="4329">4329</a>
+<a href="#4330" id="4330">4330</a>
+<a href="#4331" id="4331">4331</a>
+<a href="#4332" id="4332">4332</a>
+<a href="#4333" id="4333">4333</a>
+<a href="#4334" id="4334">4334</a>
+<a href="#4335" id="4335">4335</a>
+<a href="#4336" id="4336">4336</a>
+<a href="#4337" id="4337">4337</a>
+<a href="#4338" id="4338">4338</a>
+<a href="#4339" id="4339">4339</a>
+<a href="#4340" id="4340">4340</a>
+<a href="#4341" id="4341">4341</a>
+<a href="#4342" id="4342">4342</a>
+<a href="#4343" id="4343">4343</a>
+<a href="#4344" id="4344">4344</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6580,6 +6636,13 @@
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>add_span = |span: Annotated&lt;Span&gt;| {
+            <span class="kw">let </span>span = <span class="kw">match </span><span class="self">self</span>.validate_span(span) {
+                <span class="prelude-val">Ok</span>(span) =&gt; span,
+                <span class="prelude-val">Err</span>(e) =&gt; {
+                    <span class="macro">relay_log::error!</span>(<span class="string">&quot;Invalid span: {e}&quot;</span>);
+                    <span class="kw">return</span>;
+                }
+            };
             <span class="kw">let </span>span = <span class="kw">match </span>span.to_json() {
                 <span class="prelude-val">Ok</span>(span) =&gt; span,
                 <span class="prelude-val">Err</span>(e) =&gt; {
@@ -6646,6 +6709,55 @@
             );
             add_span(transaction_span.into());
         }
+    }
+
+    <span class="doccomment">/// Helper for [`Self::extract_spans`].
+    ///
+    /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span><span class="kw">fn </span>validate_span(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>span: Annotated&lt;Span&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Annotated&lt;Span&gt;, anyhow::Error&gt; {
+        <span class="kw">let </span>inner = span
+            .value_mut()
+            .as_mut()
+            .ok_or(<span class="macro">anyhow::anyhow!</span>(<span class="string">&quot;empty span&quot;</span>))<span class="question-mark">?</span>;
+        <span class="kw">let </span>Span {
+            <span class="kw-2">ref </span>exclusive_time,
+            <span class="kw-2">ref mut </span>tags,
+            <span class="kw-2">ref mut </span>sentry_tags,
+            ..
+        } = inner;
+        <span class="comment">// The following required fields are already validated by the `TransactionsProcessor`:
+        // - `timestamp`
+        // - `start_timestamp`
+        // - `trace_id`
+        // - `span_id`
+        //
+        // `is_segment` is set by `extract_span`.
+        </span>exclusive_time
+            .value()
+            .ok_or(<span class="macro">anyhow::anyhow!</span>(<span class="string">&quot;missing exclusive_time&quot;</span>))<span class="question-mark">?</span>;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_tags) = sentry_tags.value_mut() {
+            sentry_tags.retain(|key, value| <span class="kw">match </span>value.value() {
+                <span class="prelude-val">Some</span>(s) =&gt; {
+                    <span class="kw">match </span>key.as_str() {
+                        <span class="string">&quot;group&quot; </span>=&gt; {
+                            <span class="comment">// Only allow up to 16-char hex strings in group.
+                            </span>s.len() &lt;= <span class="number">16 </span>&amp;&amp; s.chars().all(|c| c.is_ascii_hexdigit())
+                        }
+                        <span class="string">&quot;status_code&quot; </span>=&gt; s.parse::&lt;u16&gt;().is_ok(),
+                        <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
+                    }
+                }
+                <span class="comment">// Drop empty string values.
+                </span><span class="prelude-val">None </span>=&gt; <span class="bool-val">false</span>,
+            });
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = tags.value_mut() {
+            tags.retain(|<span class="kw">_</span>, value| !value.value().is_empty())
+        }
+
+        <span class="prelude-val">Ok</span>(span)
     }
 
     <span class="doccomment">/// Computes the sampling decision on the incoming event

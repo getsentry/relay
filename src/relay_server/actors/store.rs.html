@@ -1272,6 +1272,22 @@
 <a href="#1272" id="1272">1272</a>
 <a href="#1273" id="1273">1273</a>
 <a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
+<a href="#1278" id="1278">1278</a>
+<a href="#1279" id="1279">1279</a>
+<a href="#1280" id="1280">1280</a>
+<a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
+<a href="#1288" id="1288">1288</a>
+<a href="#1289" id="1289">1289</a>
+<a href="#1290" id="1290">1290</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1294,6 +1310,7 @@
 <span class="kw">use </span>relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>serde::ser::Error;
 <span class="kw">use </span>serde::Serialize;
+<span class="kw">use </span>serde_json::value::RawValue;
 <span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -1480,6 +1497,7 @@
                     scoping.project_id,
                     event_id,
                     start_time,
+                    retention,
                     item,
                 )<span class="question-mark">?</span>,
                 <span class="kw">_ </span>=&gt; {}
@@ -2012,10 +2030,11 @@
         project_id: ProjectId,
         event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
         start_time: Instant,
+        retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
-        <span class="comment">// Bit unfortunate that we need to parse again here, but it&#39;s the same for sessions.
-        </span><span class="kw">let </span>span: serde_json::Value = <span class="kw">match </span>serde_json::from_slice(<span class="kw-2">&amp;</span>item.payload()) {
+        <span class="kw">let </span>payload = item.payload();
+        <span class="kw">let </span>span = <span class="kw">match </span>serde_json::from_slice(<span class="kw-2">&amp;</span>payload) {
             <span class="prelude-val">Ok</span>(span) =&gt; span,
             <span class="prelude-val">Err</span>(error) =&gt; {
                 <span class="macro">relay_log::error!</span>(
@@ -2025,14 +2044,19 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
         };
-        <span class="kw">let </span>message = KafkaMessage::Span(SpanKafkaMessage {
-            project_id,
+        <span class="kw">let </span>message = SpanKafkaMessage {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            span,
             event_id,
-        });
-
-        <span class="self">self</span>.produce(KafkaTopic::Spans, organization_id, message)<span class="question-mark">?</span>;
+            organization_id,
+            project_id,
+            retention_days,
+            span,
+        };
+        <span class="self">self</span>.produce(
+            KafkaTopic::Spans,
+            organization_id,
+            KafkaMessage::Span(message),
+        )<span class="question-mark">?</span>;
 
         <span class="macro">metric!</span>(
             counter(RelayCounters::ProcessingMessageProduced) += <span class="number">1</span>,
@@ -2300,25 +2324,30 @@
 }
 
 <span class="attr">#[derive(Debug, Serialize)]
-</span><span class="kw">struct </span>SpanKafkaMessage {
-    <span class="doccomment">/// Raw span data. See [`relay_event_schema::protocol::Span`] for schema.
-    </span>span: serde_json::Value,
-    <span class="doccomment">/// Time at which the span was received by Relay.
+</span><span class="kw">struct </span>SpanKafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="doccomment">/// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
     </span>start_time: u64,
-    <span class="doccomment">/// The project id for the current span.
-    </span>project_id: ProjectId,
-    <span class="doccomment">/// The event id for the current span.
-    ///
-    /// Once spans are truly standalone, this field will be omitted.
+    <span class="doccomment">/// The ID of the transaction event associated to this span, if any.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
+    <span class="doccomment">/// The numeric ID of the organization.
+    </span>organization_id: u64,
+    <span class="doccomment">/// The numeric ID of the project.
+    </span>project_id: ProjectId,
+    <span class="doccomment">/// Number of days until these data should be deleted.
+    </span>retention_days: u16,
+    <span class="doccomment">/// Fields from the original span payload.
+    /// See [`relay-event-schema::protocol::span::Span`] for schema.
+    ///
+    /// By using a [`RawValue`] here, we can embed the span&#39;s JSON without additional parsing.
+    </span>span: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>RawValue,
 }
 
 <span class="doccomment">/// An enum over all possible ingest messages.
 </span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>, rename_all = <span class="string">&quot;snake_case&quot;</span>)]
 #[allow(clippy::large_enum_variant)]
-</span><span class="kw">enum </span>KafkaMessage {
+</span><span class="kw">enum </span>KafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt; {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
@@ -2334,10 +2363,10 @@
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage),
+    Span(SpanKafkaMessage&lt;<span class="lifetime">&#39;a</span>&gt;),
 }
 
-<span class="kw">impl </span>Message <span class="kw">for </span>KafkaMessage {
+<span class="kw">impl </span>Message <span class="kw">for </span>KafkaMessage&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             KafkaMessage::Event(<span class="kw">_</span>) =&gt; <span class="string">&quot;event&quot;</span>,
@@ -2396,6 +2425,9 @@
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) =&gt; {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
+            KafkaMessage::Span(message) =&gt; {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             <span class="kw">_ </span>=&gt; rmp_serde::to_vec_named(<span class="kw-2">&amp;</span><span class="self">self</span>).map_err(ClientError::InvalidMsgPack),
