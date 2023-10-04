@@ -631,9 +631,12 @@ def test_transaction_metrics(
         transactions_consumer.assert_empty()
     else:
         event, _ = transactions_consumer.get_event()
-        # there is some rounding error while serializing/deserializing
-        # timestamps... haven't investigated too closely
-        span_time = 9.910107
+        if with_external_relay:
+            # there is some rounding error while serializing/deserializing
+            # timestamps... haven't investigated too closely
+            span_time = 9.910107
+        else:
+            span_time = 9.910106
 
         assert event["breakdowns"] == {
             "span_ops": {
