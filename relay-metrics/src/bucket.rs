@@ -475,7 +475,7 @@ fn parse_timestamp(string: &str) -> Option<UnixTimestamp> {
 /// <name>[@unit]:<value>[:<value>...]|<type>|#<tag_key>:<tag_value>,<tag>|T<timestamp>
 /// ```
 ///
-/// See the field documentation on [`Bucket`] for more information on the components. An example
+/// See the [field documentation](Bucket#fields) for more information on the components. An example
 /// submission looks like this:
 ///
 /// ```text
@@ -528,6 +528,9 @@ pub struct Bucket {
     /// In statsd, timestamps are part of the `|`-separated list following values. Timestamps start
     /// with with the literal character `'T'` followed by the UNIX timestamp.
     ///
+    /// The timestamp must be a positive integer in decimal notation representing the value of the
+    /// UNIX timestamp.
+    ///
     /// # Example
     ///
     /// ```text
@@ -555,6 +558,14 @@ pub struct Bucket {
     ///
     /// MRIs are sent in a more relaxed format: `[<namespace/]name[@unit]`. The value type is not
     /// part of the metric name and namespaces are optional.
+    ///
+    /// Namespaces and units must consist of ASCII characters and match the regular expression
+    /// `/[\w]+/`. The name component of MRIs consist of unicode characters and must match the
+    /// regular expression `/[\w][\w\d_-.]+/`.
+    ///
+    /// Per convention, dots separate metric names into components, where the leading components are
+    /// considered namespaces and the final component is the name of the metric within its
+    /// namespace.
     ///
     /// # Examples
     ///
@@ -603,6 +614,10 @@ pub struct Bucket {
     /// Tags are preceded with a hash `#` and specified in a comma (`,`) separated list. Each tag
     /// can either be a tag name, or a `name:value` combination. Tags are optional and can be
     /// omitted.
+    ///
+    /// Tag keys are restricted to ASCII characters and must match the regular expression
+    /// `/[a-zA-Z0-9_/.-]+/`. Tag values can contain unicode characters and must match the regular
+    /// expression `/[\w\d_:/@.{}\[\]$-]+/`.
     ///
     /// # Example
     ///
