@@ -2397,8 +2397,8 @@ impl EnvelopeProcessorService {
             sentry_tags.retain(|key, value| match value.value() {
                 Some(s) => {
                     if key == "group" {
-                        // Only allow 16-char hex strings in group.
-                        s.len() == 16 && s.chars().all(|c| c.is_ascii_hexdigit())
+                        // Only allow up to 16-char hex strings in group.
+                        s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
                     } else {
                         true
                     }
