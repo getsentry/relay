@@ -560,8 +560,8 @@ pub struct Bucket {
     /// part of the metric name and namespaces are optional.
     ///
     /// Namespaces and units must consist of ASCII characters and match the regular expression
-    /// `/[\w]+/`. The name component of MRIs consist of unicode characters and must match the
-    /// regular expression `/[\w][\w\d_-.]+/`.
+    /// `/\w+/`. The name component of MRIs consist of unicode characters and must match the
+    /// regular expression `/\w[\w\d_-.]+/`. Note that the name must begin with a letter.
     ///
     /// Per convention, dots separate metric names into components, where the leading components are
     /// considered namespaces and the final component is the name of the metric within its
