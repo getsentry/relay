@@ -77,6 +77,7 @@
 <a href="#77" id="77">77</a>
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.
 //!
 //! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
@@ -86,8 +87,9 @@
 //!
 //! # Protocol
 //!
-//! Clients submit metrics in a [text-based protocol](Bucket) based on StatsD. A sample submission
-//! looks like this:
+//! Clients submit metrics in a [text-based protocol](Bucket) based on StatsD. See the [field
+//! documentation](Bucket#fields) on `Bucket` for more information on the components. A sample
+//! submission looks like this:
 //!
 //! ```text
 </span><span class="attr">#![doc = <span class="macro">include_str!</span>(<span class="string">&quot;../tests/fixtures/buckets.statsd.txt&quot;</span>)]
