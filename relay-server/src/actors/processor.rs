@@ -2266,8 +2266,10 @@ impl EnvelopeProcessorService {
             .unwrap_or_default();
         op == "http.client"
             || op.starts_with("db")
-                && !(op.contains("clickhouse") || op.contains("mongodb") || op.contains("redis"))
-            || op.contains("compiler")
+                && !(op.contains("clickhouse")
+                    || op.contains("mongodb")
+                    || op.contains("redis")
+                    || op.contains("compiler"))
                 && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
     }
 
