@@ -2396,11 +2396,13 @@ impl EnvelopeProcessorService {
         if let Some(sentry_tags) = sentry_tags.value_mut() {
             sentry_tags.retain(|key, value| match value.value() {
                 Some(s) => {
-                    if key == "group" {
-                        // Only allow up to 16-char hex strings in group.
-                        s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
-                    } else {
-                        true
+                    match key.as_str() {
+                        "group" => {
+                            // Only allow up to 16-char hex strings in group.
+                            s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
+                        }
+                        "status_code" => s.parse::<u16>().is_ok(),
+                        _ => true,
                     }
                 }
                 // Drop empty string values.
@@ -2408,7 +2410,7 @@ impl EnvelopeProcessorService {
             });
         }
         if let Some(tags) = tags.value_mut() {
-            tags.retain(|_, value| !value.is_empty())
+            tags.retain(|_, value| !value.value().is_empty())
         }
 
         Ok(span)
