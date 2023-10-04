@@ -1272,10 +1272,6 @@ def test_spans(
                 "transaction": "hi",
                 "transaction.op": "hi",
             },
-            "sentry_tags": {
-                "transaction": "hi",
-                "transaction.op": "hi",
-            },
             "description": "hi",
             "exclusive_time": 2000.0,
             "is_segment": True,
