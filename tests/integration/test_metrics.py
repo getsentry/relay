@@ -685,7 +685,7 @@ def test_transaction_metrics(
         **common,
         "name": "d:transactions/breakdowns.span_ops.ops.react.mount@millisecond",
         "type": "d",
-        "value": [9.910107, 9.910107],
+        "value": [9.910106, 9.910106],
     }
     assert metrics["c:transactions/count_per_root_project@none"] == {
         "timestamp": int(timestamp.timestamp()),
