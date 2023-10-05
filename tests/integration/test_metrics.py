@@ -777,23 +777,10 @@ def test_transaction_metrics_count_per_root_project(
     }
 
 
-@pytest.mark.parametrize(
-    "send_extracted_header,expect_extracted_header,expect_metrics_extraction",
-    [(False, True, True), (True, True, False)],
-    ids=["must extract metrics", "mustn't extract metrics"],
-)
 def test_transaction_metrics_extraction_external_relays(
     mini_sentry,
     relay,
-    send_extracted_header,
-    expect_extracted_header,
-    expect_metrics_extraction,
 ):
-    if send_extracted_header:
-        item_headers = {"metrics_extracted": True}
-    else:
-        item_headers = None
-
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
@@ -813,46 +800,18 @@ def test_transaction_metrics_extraction_external_relays(
         "public_key": mini_sentry.get_dsn_public_key(project_id),
         "transaction": "root_transaction",
     }
-    external.send_transaction(project_id, tx, item_headers, trace_info)
+    external.send_transaction(project_id, tx, None, trace_info)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
     tx_item = envelope.items[0]
 
-    if expect_extracted_header:
-        assert tx_item.headers["metrics_extracted"] is True
-    else:
-        assert "metrics_extracted" not in tx_item.headers
+    assert "metrics_extracted" not in tx_item.headers
 
     tx_item_body = json.loads(tx_item.get_bytes().decode())
     assert (
         tx_item_body["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
     )
-
-    if expect_metrics_extraction:
-        metrics_envelope = mini_sentry.captured_events.get(timeout=3)
-        assert len(metrics_envelope.items) == 1
-        m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(m_item_body) == 3
-        m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
-        assert (
-            m_item_body_sorted[2]["name"] == "d:transactions/duration_light@millisecond"
-        )
-        assert (
-            m_item_body_sorted[2]["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
-        assert (
-            m_item_body_sorted[1]["tags"]["transaction"]
-            == "/organizations/:orgId/performance/:eventSlug/"
-        )
-        assert (
-            m_item_body_sorted[0]["name"]
-            == "c:transactions/count_per_root_project@none"
-        )
-        assert m_item_body_sorted[0]["tags"]["transaction"] == "root_transaction"
-        assert m_item_body_sorted[0]["value"] == 1.0
 
     assert mini_sentry.captured_events.empty()
 
@@ -1228,6 +1187,7 @@ def test_span_metrics(
 def test_generic_metric_extraction(mini_sentry, relay):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID)
+
     config = mini_sentry.project_configs[PROJECT_ID]["config"]
     config["metricExtraction"] = {
         "version": 1,
@@ -1240,36 +1200,35 @@ def test_generic_metric_extraction(mini_sentry, relay):
             }
         ],
     }
-    config["transactionMetrics"] = {"version": 1}
-    config["dynamicSampling"] = {
-        "rules": [],
-        "rulesV2": [
-            {
-                "id": 1,
-                "samplingValue": {"type": "sampleRate", "value": 0.0},
-                "type": "transaction",
-                "condition": {"op": "and", "inner": []},
-            }
-        ],
-    }
+
     transaction = generate_transaction_item()
     timestamp = datetime.now(tz=timezone.utc)
     transaction["timestamp"] = timestamp.isoformat()
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    # Explicitly test a chain of Relays
+    relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
+
     envelope = mini_sentry.captured_events.get(timeout=3)
+    assert envelope.items[0].headers.get("type") == "transaction"
+    assert envelope.items[0].headers.get("metrics_extracted") is True
+
     envelope = mini_sentry.captured_events.get(timeout=3)
     item = envelope.items[0]
+    assert item.headers.get("type") == "metric_buckets"
     metrics = json.loads(item.get_bytes().decode())
-    assert {
-        "timestamp": int(timestamp.timestamp()),
-        "width": 1,
-        "name": "c:transactions/on_demand@none",
-        "type": "c",
-        "value": 1.0,
-        "tags": {"query_hash": "c91c2e4d"},
-    } in metrics
+
+    assert metrics == [
+        {
+            "timestamp": int(timestamp.timestamp()),
+            "width": 1,
+            "name": "c:transactions/on_demand@none",
+            "type": "c",
+            "value": 1.0,
+            "tags": {"query_hash": "c91c2e4d"},
+        }
+    ]
 
 
 def test_span_metrics_secondary_aggregator(
