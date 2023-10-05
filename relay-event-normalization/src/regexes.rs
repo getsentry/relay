@@ -70,7 +70,7 @@ pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
         (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
         # Version strings.
         (?P<version>(v[0-9]+(?:\.[0-9]+)*)) |
-        # Hexadecimal strings with more than 5 digits
+        # Hexadecimal strings with more than 5 digits.
         (?P<hex>[a-f0-9]{5}[a-f0-9]+) |
         # Integer IDs with more than one digit.
         (?P<int>\d\d+)

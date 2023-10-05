@@ -161,7 +161,7 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
 }
 
 fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
-    // Remove query parameters
+    // Remove query parameters.
     if let Some(pos) = string.find('?') {
         string = &string[..pos];
     }
