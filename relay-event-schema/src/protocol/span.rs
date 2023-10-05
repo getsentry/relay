@@ -4,8 +4,8 @@ use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Event, JsonLenientString, OperationType, OriginType, SpanId, SpanStatus, Timestamp,
-    TraceContext, TraceId,
+    Event, EventId, JsonLenientString, OperationType, OriginType, ProfileContext, SpanId,
+    SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -63,6 +63,9 @@ pub struct Span {
     #[metastructure(max_chars = "enumlike", allow_chars = "a-zA-Z0-9_.")]
     pub origin: Annotated<OriginType>,
 
+    /// ID of a profile that can be associated with the span.
+    pub profile_id: Annotated<EventId>,
+
     /// Arbitrary additional data on a span, like `extra` on the top-level event.
     #[metastructure(pii = "true")]
     pub data: Annotated<Object<Value>>,
@@ -94,6 +97,10 @@ impl From<&Event> for Span {
             span.trace_id = trace_context.trace_id;
             span.segment_id = span.span_id.clone(); // a transaction is a segment
             span.status = trace_context.status;
+        }
+
+        if let Some(profile_context) = event.context::<ProfileContext>() {
+            span.profile_id = profile_context.profile_id.clone();
         }
 
         span

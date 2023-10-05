@@ -2340,6 +2340,11 @@ impl EnvelopeProcessorService {
                 let mut new_span = inner_span.clone();
                 new_span.segment_id = transaction_span.segment_id.clone();
                 new_span.is_segment = Annotated::new(false);
+
+                // If a profile is associated with the transaction, also associate it with its
+                // child spans.
+                new_span.profile_id = transaction_span.profile_id.clone();
+
                 add_span(Annotated::new(new_span));
             }
         }
