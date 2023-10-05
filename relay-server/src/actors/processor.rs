@@ -1664,13 +1664,13 @@ impl EnvelopeProcessorService {
             ItemType::Security => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
-            ItemType::Nel => false, // TODO?
 
             // These should be removed conditionally:
             ItemType::UnrealReport => self.inner.config.processing_enabled(),
 
             // These may be forwarded to upstream / store:
             ItemType::Attachment => false,
+            ItemType::Nel => false,
             ItemType::UserReport => false,
 
             // Aggregate data is never considered as part of deduplication
