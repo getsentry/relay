@@ -126,7 +126,7 @@ impl ItemType {
     /// Returns the event item type corresponding to the given `EventType`.
     pub fn from_event_type(event_type: EventType) -> Self {
         match event_type {
-            EventType::Default | EventType::Error => ItemType::Event,
+            EventType::Default | EventType::Error | EventType::Nel => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security

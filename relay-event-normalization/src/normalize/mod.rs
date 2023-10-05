@@ -264,6 +264,8 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectCt
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
+        } else if event.nel.value().is_some() {
+            EventType::Nel
         } else {
             EventType::Default
         }

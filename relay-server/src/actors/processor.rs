@@ -1496,10 +1496,7 @@ impl EnvelopeProcessorService {
         _meta: &RequestMeta,
     ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
-        let mut event = Event {
-            ty: Annotated::from(EventType::Error),
-            ..Default::default()
-        };
+        let mut event = Event::default();
 
         let data = &item.payload();
 
