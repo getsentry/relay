@@ -59,6 +59,12 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                 // be low-risk to start adding the description.
                 Some(description.to_owned())
             }
+            ("app", _) => {
+                // `app.*` has static descriptions, like `Cold Start`
+                // or `Pre Runtime Init`.
+                // They are low-cardinality.
+                Some(description.to_owned())
+            }
             ("file", _) => scrub_file(description),
             _ => None,
         });
