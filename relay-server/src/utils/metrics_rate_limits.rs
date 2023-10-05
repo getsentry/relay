@@ -1,7 +1,7 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
@@ -55,17 +55,22 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     return None;
                 }
 
-                if mri.name == "duration" {
-                    // The "duration" metric is extracted exactly once for every processed
-                    // transaction, so we can use it to count the number of transactions.
-                    let count = metric.value.len();
-                    let has_profile = metric.tag(PROFILE_TAG) == Some("true");
-                    Some((count, has_profile))
-                } else {
+                let usage = true; // TODO: Feature flag
+                let count = match &metric.value {
+                    // The "usage" counter directly tracks the number of processed transactions.
+                    BucketValue::Counter(count) if usage && mri.name == "usage" => *count as usize,
+
+                    // Fallback to the legacy "duration" metric, which is extracted exactly once for
+                    // every processed transaction and was originally used to count transactions.
+                    BucketValue::Distribution(dist) if mri.name == "duration" => dist.len(),
+
                     // For any other metric in the transaction namespace, we check the limit with
                     // quantity=0 so transactions are not double counted against the quota.
-                    Some((0, false))
-                }
+                    _ => return Some((0, false)),
+                };
+
+                let has_profile = metric.tag(PROFILE_TAG) == Some("true");
+                Some((count, has_profile))
             })
             .collect();
 
