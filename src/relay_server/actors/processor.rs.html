@@ -4342,6 +4342,9 @@
 <a href="#4342" id="4342">4342</a>
 <a href="#4343" id="4343">4343</a>
 <a href="#4344" id="4344">4344</a>
+<a href="#4345" id="4345">4345</a>
+<a href="#4346" id="4346">4346</a>
+<a href="#4347" id="4347">4347</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6610,7 +6613,10 @@
             .unwrap_or_default();
         op == <span class="string">&quot;http.client&quot;
             </span>|| op.starts_with(<span class="string">&quot;db&quot;</span>)
-                &amp;&amp; !(op.contains(<span class="string">&quot;clickhouse&quot;</span>) || op.contains(<span class="string">&quot;mongodb&quot;</span>) || op.contains(<span class="string">&quot;redis&quot;</span>))
+                &amp;&amp; !(op.contains(<span class="string">&quot;clickhouse&quot;</span>)
+                    || op.contains(<span class="string">&quot;mongodb&quot;</span>)
+                    || op.contains(<span class="string">&quot;redis&quot;</span>)
+                    || op.contains(<span class="string">&quot;compiler&quot;</span>))
                 &amp;&amp; !(op == <span class="string">&quot;db.sql.query&quot; </span>&amp;&amp; (description.contains(<span class="string">r#&quot;&quot;$&quot;#</span>) || system == <span class="string">&quot;mongodb&quot;</span>))
     }
 
