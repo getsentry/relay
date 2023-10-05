@@ -1454,6 +1454,7 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         "hpkp",
         "expectct",
         "expectstaple",
+        "nel",
         "transaction",
         "default"
       ]
