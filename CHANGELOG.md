@@ -22,6 +22,7 @@
 - Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
 - Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
 - Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
+- Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 
 ## 23.9.1
 
