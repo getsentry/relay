@@ -927,7 +927,7 @@ mod tests {
                         "http.status_code":"200",
                         "mobile":true,
                         "release":"sentrydemos.ios.EmpowerPlant@0.0.8+1",
-                        "span.op":"ui.load",
+                        "span.op":"app.start.cold",
                         "span.status":"ok",
                         "transaction":"EmpowerPlantViewController",
                         "transaction.op":"ui.load",
