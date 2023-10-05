@@ -2265,12 +2265,14 @@ impl EnvelopeProcessorService {
             .and_then(|system| system.as_str())
             .unwrap_or_default();
         op == "http.client"
+            || op.starts_with("app.")
+            || op.starts_with("ui.load")
             || op.starts_with("db")
                 && !(op.contains("clickhouse")
                     || op.contains("mongodb")
                     || op.contains("redis")
                     || op.contains("compiler"))
-                && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
+                && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb"))
     }
 
     #[cfg(feature = "processing")]

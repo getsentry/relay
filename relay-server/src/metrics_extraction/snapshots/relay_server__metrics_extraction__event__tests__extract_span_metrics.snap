@@ -1075,4 +1075,82 @@ expression: metrics
             "transaction.op": "myop",
         },
     },
+    Bucket {
+        timestamp: UnixTimestamp(1695255152),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                15833.532095,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.description": "viewDidLoad",
+            "span.group": "247104252ec2b753",
+            "span.op": "ui.load",
+            "span.status": "ok",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255152),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                15833.532095,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.description": "viewDidLoad",
+            "span.group": "247104252ec2b753",
+            "span.op": "ui.load",
+            "span.status": "ok",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255136),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                1668.516159,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.category": "app",
+            "span.op": "app.start.cold",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1695255136),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                1668.516159,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.category": "app",
+            "span.op": "app.start.cold",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
 ]
