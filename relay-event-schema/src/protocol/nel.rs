@@ -152,23 +152,20 @@ impl Nel {
         let raw_report: NelReportRaw = serde_json::from_slice::<NelReportRaw>(data)?;
 
         event.logentry = Annotated::new(LogEntry::from({
-            let mut output = String::new();
-
             if raw_report.body.ty.as_deref().unwrap_or("") == "http.error" {
-                output = format!(
+                format!(
                     "{} / {} ({})",
                     raw_report.body.phase.as_deref().unwrap_or(""),
                     raw_report.body.ty.as_deref().unwrap_or(""),
                     raw_report.body.status_code.unwrap_or(0)
-                );
+                )
             } else {
-                output = format!(
+                format!(
                     "{} / {}",
                     raw_report.body.phase.as_deref().unwrap_or(""),
                     raw_report.body.ty.as_deref().unwrap_or("")
-                );
+                )
             }
-            output
         }));
         event.request = Annotated::new(raw_report.get_request());
         event.logger = Annotated::from("nel".to_string());
