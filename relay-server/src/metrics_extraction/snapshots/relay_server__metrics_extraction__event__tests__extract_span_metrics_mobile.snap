@@ -26,6 +26,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             status: ~,
             tags: ~,
             origin: ~,
+            profile_id: ~,
             data: {
                 "device.class": String(
                     "1",
