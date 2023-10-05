@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added new endpoint for NEL (Network Error Logging) reports ingestion. ([#2421](https://github.com/getsentry/relay/pull/2421))
+
 ## 0.8.31
 
 - Add `Reservoir` variant to `SamplingRule`. ([#2550](https://github.com/getsentry/relay/pull/2550))
