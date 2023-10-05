@@ -66,9 +66,9 @@ pub static REDIS_COMMAND_REGEX: Lazy<Regex> =
 pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r"(?xi)
-        (?P<query>\?.*) |
         # UUIDs.
         (?P<uuid>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}) |
+        # Version strings.
         (?P<version>(v[0-9]+(?:\.[0-9]+)*)) |
         # Hexadecimal strings with more than 5 digits
         (?P<hex>[a-f0-9]{5}[a-f0-9]+) |

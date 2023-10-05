@@ -160,7 +160,11 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
     Some(scrubbed)
 }
 
-fn scrub_resource_identifiers(string: &str) -> Option<String> {
+fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
+    // Remove query parameters
+    if let Some(pos) = string.find('?') {
+        string = &string[..pos];
+    }
     match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
         Cow::Borrowed(_) => None,
         Cow::Owned(scrubbed) => Some(scrubbed),
@@ -453,14 +457,21 @@ mod tests {
         resource_query_params,
         "/organization-avatar/123/?s=120",
         "resource.img",
-        "/organization-avatar/*/*"
+        "/organization-avatar/*/"
     );
 
     span_description_test!(
         resource_query_params2,
-        "https://data.domain.com/data/guide.gif/foo?jzb=3f535634H467g5-2f256f&ct=1234567890&v=2.203.0_prod",
+        "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://data.domain.com/data/guide.gif/foo*"
+        "https://data.domain.com/data/guide*.gif"
+    );
+
+    span_description_test!(
+        resource_query_params,
+        "https://data.domain.com/data/guide.gif",
+        "resource.img",
+        "https://data.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
