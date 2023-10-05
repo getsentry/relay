@@ -118,7 +118,13 @@ fn scrub_file(description: &str) -> Option<String> {
         Some((filename, _)) => filename,
         _ => description,
     };
-    Some(Path::new(filename).extension()?.to_str()?.into_owned())
+    match Path::new(filename).extension() {
+        Some(extension) => {
+            let ext = extension.to_str()?;
+            Some(format!("*.{ext}"))
+        }
+        _ => Some("*".to_owned()),
+    }
 }
 
 fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
@@ -490,14 +496,21 @@ mod tests {
         span_description_file_write_keep_extension_only,
         "data.data (42 KB)",
         "file.write",
-        "data"
+        "*.data"
     );
 
     span_description_test!(
         span_description_file_read_keep_extension_only,
         "Info.plist",
         "file.read",
-        "plist"
+        "*.plist"
+    );
+
+    span_description_test!(
+        span_description_fil_no_extension,
+        "somefilenamewithnoextension",
+        "file.read",
+        "*"
     );
 
     #[test]
