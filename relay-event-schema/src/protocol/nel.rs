@@ -10,6 +10,7 @@ use crate::protocol::{
     AsPair, Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
     Timestamp,
 };
+#[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 use thiserror::Error;
