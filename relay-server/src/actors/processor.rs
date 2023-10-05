@@ -1078,7 +1078,6 @@ impl EnvelopeProcessorService {
 
     /// Remove profiles from the envelope if they can not be parsed
     fn filter_profiles(&self, state: &mut ProcessEnvelopeState) {
-        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         let transaction_count: usize = state
             .managed_envelope
             .envelope()
@@ -1088,27 +1087,23 @@ impl EnvelopeProcessorService {
         let mut found_profile = false;
         state.managed_envelope.retain_items(|item| match item.ty() {
             // Drop profile without a transaction in the same envelope.
-            ItemType::Profile => {
-                if !profiling_enabled || transaction_count == 0 {
-                    return ItemAction::DropSilently;
-                }
-                if !found_profile {
-                    match relay_profiling::parse_metadata(&item.payload()) {
-                        Ok(_) => {
-                            found_profile = true;
-                            ItemAction::Keep
-                        }
-                        Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        ))),
+            ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
+            // First profile found in the envelope, we'll keep it if metadata are valid.
+            ItemType::Profile if !found_profile => {
+                match relay_profiling::parse_metadata(&item.payload()) {
+                    Ok(_) => {
+                        found_profile = true;
+                        ItemAction::Keep
                     }
-                } else {
-                    // We found a second profile, drop it.
-                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                        relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-                    )))
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
+            // We found another profile, we'll drop it.
+            ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+            ))),
             _ => ItemAction::Keep,
         });
         state.has_profile = found_profile;
