@@ -11,8 +11,8 @@ use relay_metrics::{Bucket, DurationUnit};
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
-    TransactionMeasurementTags, TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
+    TransactionDurationTags, TransactionMeasurementTags, TransactionMetric, UsageTags,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -117,13 +117,10 @@ fn track_transaction_name_stats(event: &Event) {
 }
 
 /// These are the tags that are added to extracted low cardinality metrics.
-fn extract_light_transaction_tags(event: &Event) -> CommonTags {
-    let mut tags = BTreeMap::new();
-    if let Some(transaction_name) = get_transaction_name(event) {
-        tags.insert(CommonTag::Transaction, transaction_name);
+fn extract_light_transaction_tags(event: &Event) -> LightTransactionTags {
+    LightTransactionTags {
+        transaction: get_transaction_name(event),
     }
-
-    CommonTags(tags)
 }
 
 /// These are the tags that are added to all extracted metrics.
@@ -322,11 +319,22 @@ impl TransactionExtractor<'_> {
             }
         }
 
+        // Internal usage counter
+        metrics.project_metrics.push(
+            TransactionMetric::Usage {
+                tags: UsageTags {
+                    has_profile: self.has_profile,
+                },
+            }
+            .into_metric(timestamp),
+        );
+
         // Duration
+        let duration = relay_common::time::chrono_to_positive_millis(end - start);
         metrics.project_metrics.push(
             TransactionMetric::Duration {
                 unit: DurationUnit::MilliSecond,
-                value: relay_common::time::chrono_to_positive_millis(end - start),
+                value: duration,
                 tags: TransactionDurationTags {
                     has_profile: self.has_profile,
                     universal_tags: tags.clone(),
@@ -339,11 +347,8 @@ impl TransactionExtractor<'_> {
         metrics.project_metrics.push(
             TransactionMetric::DurationLight {
                 unit: DurationUnit::MilliSecond,
-                value: relay_common::time::chrono_to_positive_millis(end - start),
-                tags: TransactionDurationTags {
-                    has_profile: self.has_profile,
-                    universal_tags: light_tags.clone(),
-                },
+                value: duration,
+                tags: light_tags,
             }
             .into_metric(timestamp),
         );
@@ -367,7 +372,6 @@ impl TransactionExtractor<'_> {
         // Count the transaction towards the root
         metrics.sampling_metrics.push(
             TransactionMetric::CountPerRootProject {
-                value: 1.0,
                 tags: root_counter_tags,
             }
             .into_metric(timestamp),
