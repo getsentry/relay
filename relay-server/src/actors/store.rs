@@ -20,6 +20,7 @@ use relay_statsd::metric;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::ser::Error;
 use serde::Serialize;
+use serde_json::value::RawValue;
 use uuid::Uuid;
 
 use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
@@ -206,6 +207,7 @@ impl StoreService {
                     scoping.project_id,
                     event_id,
                     start_time,
+                    retention,
                     item,
                 )?,
                 _ => {}
@@ -738,10 +740,11 @@ impl StoreService {
         project_id: ProjectId,
         event_id: Option<EventId>,
         start_time: Instant,
+        retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
-        // Bit unfortunate that we need to parse again here, but it's the same for sessions.
-        let span: serde_json::Value = match serde_json::from_slice(&item.payload()) {
+        let payload = item.payload();
+        let span = match serde_json::from_slice(&payload) {
             Ok(span) => span,
             Err(error) => {
                 relay_log::error!(
@@ -751,14 +754,19 @@ impl StoreService {
                 return Ok(());
             }
         };
-        let message = KafkaMessage::Span(SpanKafkaMessage {
-            project_id,
+        let message = SpanKafkaMessage {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
-            span,
             event_id,
-        });
-
-        self.produce(KafkaTopic::Spans, organization_id, message)?;
+            organization_id,
+            project_id,
+            retention_days,
+            span,
+        };
+        self.produce(
+            KafkaTopic::Spans,
+            organization_id,
+            KafkaMessage::Span(message),
+        )?;
 
         metric!(
             counter(RelayCounters::ProcessingMessageProduced) += 1,
@@ -1026,25 +1034,30 @@ struct CheckInKafkaMessage {
 }
 
 #[derive(Debug, Serialize)]
-struct SpanKafkaMessage {
-    /// Raw span data. See [`relay_event_schema::protocol::Span`] for schema.
-    span: serde_json::Value,
-    /// Time at which the span was received by Relay.
+struct SpanKafkaMessage<'a> {
+    /// Time at which the event was received by Relay. Not to be confused with `start_timestamp_ms`.
     start_time: u64,
-    /// The project id for the current span.
-    project_id: ProjectId,
-    /// The event id for the current span.
-    ///
-    /// Once spans are truly standalone, this field will be omitted.
+    /// The ID of the transaction event associated to this span, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     event_id: Option<EventId>,
+    /// The numeric ID of the organization.
+    organization_id: u64,
+    /// The numeric ID of the project.
+    project_id: ProjectId,
+    /// Number of days until these data should be deleted.
+    retention_days: u16,
+    /// Fields from the original span payload.
+    /// See [`relay-event-schema::protocol::span::Span`] for schema.
+    ///
+    /// By using a [`RawValue`] here, we can embed the span's JSON without additional parsing.
+    span: &'a RawValue,
 }
 
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[allow(clippy::large_enum_variant)]
-enum KafkaMessage {
+enum KafkaMessage<'a> {
     Event(EventKafkaMessage),
     Attachment(AttachmentKafkaMessage),
     AttachmentChunk(AttachmentChunkKafkaMessage),
@@ -1060,10 +1073,10 @@ enum KafkaMessage {
     ReplayEvent(ReplayEventKafkaMessage),
     ReplayRecordingNotChunked(ReplayRecordingNotChunkedKafkaMessage),
     CheckIn(CheckInKafkaMessage),
-    Span(SpanKafkaMessage),
+    Span(SpanKafkaMessage<'a>),
 }
 
-impl Message for KafkaMessage {
+impl Message for KafkaMessage<'_> {
     fn variant(&self) -> &'static str {
         match self {
             KafkaMessage::Event(_) => "event",
@@ -1122,6 +1135,9 @@ impl Message for KafkaMessage {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             KafkaMessage::ReplayEvent(message) => {
+                serde_json::to_vec(message).map_err(ClientError::InvalidJson)
+            }
+            KafkaMessage::Span(message) => {
                 serde_json::to_vec(message).map_err(ClientError::InvalidJson)
             }
             _ => rmp_serde::to_vec_named(&self).map_err(ClientError::InvalidMsgPack),

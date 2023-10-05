@@ -7,7 +7,7 @@ use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
 use crate::project::ProjectConfig;
 
 /// A list of `span.op` patterns that indicate databases that should be skipped.
-const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*"];
+const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*compiler*"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -54,7 +54,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             condition: span_op_conditions.clone(),
             tags: vec![TagSpec {
                 key: "transaction".into(),
-                field: Some("span.data.transaction".into()),
+                field: Some("span.sentry_tags.transaction".into()),
                 value: None,
                 condition: None,
             }],
@@ -72,37 +72,44 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: [
-                "environment",
-                "http.status_code",
-                "span.action",
-                "span.category",
-                "span.description",
-                "span.domain",
-                "span.group",
-                "span.module",
-                "span.op",
-                "span.status_code",
-                "span.status",
-                "span.system",
-                "transaction.method",
-                "transaction.op",
+                ("", "environment"),
+                ("", "http.status_code"),
+                ("span.", "action"),
+                ("span.", "category"),
+                ("span.", "description"),
+                ("span.", "domain"),
+                ("span.", "group"),
+                ("span.", "module"),
+                ("span.", "op"),
+                ("span.", "status_code"),
+                ("span.", "system"),
+                ("", "transaction.method"),
+                ("", "transaction.op"),
             ]
-            .map(|key| TagSpec {
-                key: key.into(),
-                field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
                 value: None,
                 condition: None,
             })
-            .into(),
+            .into_iter()
+            // Tags taken directly from the span payload:
+            .chain(std::iter::once(TagSpec {
+                key: "span.status".into(),
+                field: Some("span.status".into()),
+                value: None,
+                condition: None,
+            }))
+            .collect(),
         },
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: ["release", "device.class"] // TODO: sentry PR for static strings
                 .map(|key| TagSpec {
                     key: key.into(),
-                    field: Some(format!("span.data.{}", key.replace('.', "\\."))),
+                    field: Some(format!("span.sentry_tags.{}", key)),
                     value: None,
-                    condition: Some(RuleCondition::eq("span.data.mobile", true)),
+                    condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
                 })
                 .into(),
         },

@@ -2306,7 +2306,10 @@ impl EnvelopeProcessorService {
             .unwrap_or_default();
         op == "http.client"
             || op.starts_with("db")
-                && !(op.contains("clickhouse") || op.contains("mongodb") || op.contains("redis"))
+                && !(op.contains("clickhouse")
+                    || op.contains("mongodb")
+                    || op.contains("redis")
+                    || op.contains("compiler"))
                 && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
     }
 
@@ -2332,6 +2335,13 @@ impl EnvelopeProcessorService {
         };
 
         let mut add_span = |span: Annotated<Span>| {
+            let span = match self.validate_span(span) {
+                Ok(span) => span,
+                Err(e) => {
+                    relay_log::error!("Invalid span: {e}");
+                    return;
+                }
+            };
             let span = match span.to_json() {
                 Ok(span) => span,
                 Err(e) => {
@@ -2377,6 +2387,15 @@ impl EnvelopeProcessorService {
         if all_modules_enabled {
             // Extract tags to add to this span as well
             let shared_tags = span::tag_extraction::extract_shared_tags(event);
+            transaction_span.sentry_tags = Annotated::new(
+                shared_tags
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                    .collect(),
+            );
+            // Double write to `span.data` for now. This can be removed once all users of these fields
+            // have switched to `sentry_tags`.
             let data = transaction_span
                 .data
                 .value_mut()
@@ -2385,10 +2404,59 @@ impl EnvelopeProcessorService {
                 shared_tags
                     .clone()
                     .into_iter()
-                    .map(|(k, v)| (k.to_string(), Annotated::new(v))),
+                    .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
             );
             add_span(transaction_span.into());
         }
+    }
+
+    /// Helper for [`Self::extract_spans`].
+    ///
+    /// We do not extract spans with missing fields if those fields are required on the Kafka topic.
+    #[cfg(feature = "processing")]
+    fn validate_span(&self, mut span: Annotated<Span>) -> Result<Annotated<Span>, anyhow::Error> {
+        let inner = span
+            .value_mut()
+            .as_mut()
+            .ok_or(anyhow::anyhow!("empty span"))?;
+        let Span {
+            ref exclusive_time,
+            ref mut tags,
+            ref mut sentry_tags,
+            ..
+        } = inner;
+        // The following required fields are already validated by the `TransactionsProcessor`:
+        // - `timestamp`
+        // - `start_timestamp`
+        // - `trace_id`
+        // - `span_id`
+        //
+        // `is_segment` is set by `extract_span`.
+        exclusive_time
+            .value()
+            .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
+
+        if let Some(sentry_tags) = sentry_tags.value_mut() {
+            sentry_tags.retain(|key, value| match value.value() {
+                Some(s) => {
+                    match key.as_str() {
+                        "group" => {
+                            // Only allow up to 16-char hex strings in group.
+                            s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
+                        }
+                        "status_code" => s.parse::<u16>().is_ok(),
+                        _ => true,
+                    }
+                }
+                // Drop empty string values.
+                None => false,
+            });
+        }
+        if let Some(tags) = tags.value_mut() {
+            tags.retain(|_, value| !value.value().is_empty())
+        }
+
+        Ok(span)
     }
 
     /// Computes the sampling decision on the incoming event

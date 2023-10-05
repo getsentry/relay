@@ -30,8 +30,8 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "device.class": String(
                     "1",
                 ),
-                "mobile": Bool(
-                    true,
+                "mobile": String(
+                    "true",
                 ),
                 "release": String(
                     "1.2.3",
@@ -45,6 +45,14 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction.method": String(
                     "GET",
                 ),
+            },
+            sentry_tags: {
+                "device.class": "1",
+                "mobile": "true",
+                "op": "default",
+                "release": "1.2.3",
+                "transaction": "gEt /api/:version/users/",
+                "transaction.method": "GET",
             },
             other: {},
         },
