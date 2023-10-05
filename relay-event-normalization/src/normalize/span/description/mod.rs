@@ -4,6 +4,7 @@ pub use sql::parse_query;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use itertools::Itertools;
 use relay_event_schema::processor::{self, ProcessingResult};
@@ -58,6 +59,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                 // be low-risk to start adding the description.
                 Some(description.to_owned())
             }
+            ("file", _) => scrub_file(description),
             _ => None,
         });
 
@@ -109,6 +111,17 @@ fn scrub_http(string: &str) -> Option<String> {
     };
 
     Some(scrubbed)
+}
+
+fn scrub_file(description: &str) -> Option<String> {
+    let filename = match description.split_once(' ') {
+        Some((filename, _)) => filename,
+        _ => description,
+    };
+    match Path::new(filename).extension() {
+        Some(extension) => extension.to_os_string().into_string().ok(),
+        _ => None,
+    }
 }
 
 fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
@@ -474,6 +487,20 @@ mod tests {
         "ListAppViewController",
         "ui.load",
         "ListAppViewController"
+    );
+
+    span_description_test!(
+        span_description_file_write_keep_extension_only,
+        "data.data (42 KB)",
+        "file.write",
+        "data"
+    );
+
+    span_description_test!(
+        span_description_file_read_keep_extension_only,
+        "Info.plist",
+        "file.read",
+        "plist"
     );
 
     #[test]
