@@ -9,6 +9,9 @@ use crate::project::ProjectConfig;
 /// A list of `span.op` patterns that indicate databases that should be skipped.
 const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*compiler*"];
 
+/// A list of span.op` patterns we want to enable for mobile.
+const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -41,7 +44,8 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         let condition = RuleCondition::eq("span.op", "http.client")
             | (RuleCondition::glob("span.op", "db*")
                 & !RuleCondition::glob("span.op", DISABLED_DATABASES)
-                & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo));
+                & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo))
+            | RuleCondition::glob("span.op", MOBILE_OPS);
 
         Some(condition)
     };
