@@ -118,10 +118,7 @@ fn scrub_file(description: &str) -> Option<String> {
         Some((filename, _)) => filename,
         _ => description,
     };
-    match Path::new(filename).extension() {
-        Some(extension) => extension.to_os_string().into_string().ok(),
-        _ => None,
-    }
+    Some(Path::new(filename).extension()?.to_str()?.into_owned())
 }
 
 fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
