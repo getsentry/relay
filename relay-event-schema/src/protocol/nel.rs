@@ -1,5 +1,8 @@
 //! Contains definitions for the Network Error Logging (NEL) interface.
-
+//!
+//! NEL is a browser feature that allows reporting of failed network requests from the client side.
+//! W3C Editor's Draft: https://w3c.github.io/network-error-logging/
+//! MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging
 use std::ops::Sub;
 
 use chrono::{DateTime, Duration, Utc};
@@ -200,8 +203,8 @@ impl Nel {
 
         // Set the timestamp on the event when it actually occured.
         let now: DateTime<Utc> = Utc::now();
-        let even_time = now.sub(Duration::milliseconds(raw_report.age.unwrap_or_default()));
-        event.timestamp = Annotated::new(Timestamp::from(even_time));
+        let event_time = now.sub(Duration::milliseconds(raw_report.age.unwrap_or_default()));
+        event.timestamp = Annotated::new(Timestamp::from(event_time));
 
         event.nel = Annotated::from(raw_report.into_protocol());
 
