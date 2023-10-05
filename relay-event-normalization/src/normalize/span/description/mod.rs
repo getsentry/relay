@@ -166,8 +166,14 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
         string = &string[..pos];
     }
     match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
-        Cow::Borrowed(_) => None,
         Cow::Owned(scrubbed) => Some(scrubbed),
+        Cow::Borrowed(string) => {
+            // No IDs scrubbed, but we still want to set something.
+            let url = Url::parse(string).ok()?;
+            let extension = url.path().rsplit_once('.')?.1;
+            let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
+            Some(format!("{domain}/*.{extension}"))
+        }
     }
 }
 
@@ -468,10 +474,10 @@ mod tests {
     );
 
     span_description_test!(
-        resource_query_params,
+        resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "https://data.domain.com/data/guide*.gif"
+        "*.domain.com/*.gif"
     );
 
     span_description_test!(
