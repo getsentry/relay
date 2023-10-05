@@ -209,4 +209,91 @@ impl Nel {
     }
 }
 
-// TODO: tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+    use relay_protocol::assert_annotated_snapshot;
+
+    #[test]
+    fn test_nel_basic() {
+        let json = r#"{
+            "age": 31042,
+            "body": {
+                "elapsed_time": 0,
+                "method": "GET",
+                "phase": "connection",
+                "protocol": "http/1.1",
+                "referrer": "",
+                "sampling_fraction": 1.0,
+                "server_ip": "127.0.0.1",
+                "status_code": 0,
+                "type": "tcp.refused"
+            },
+            "type": "network-error",
+            "url": "http://example.com/",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+        }"#;
+
+        let mut event = Event::default();
+        Nel::apply_to_event(json.as_bytes(), &mut event).unwrap();
+
+        // mock timestamp because it is actually dynamic and depend on current time and "age" field
+        event.timestamp =
+            Annotated::new(Utc.with_ymd_and_hms(2023, 10, 5, 0, 0, 0).unwrap().into());
+
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        {
+          "logentry": {
+            "formatted": "connection / tcp.refused"
+          },
+          "logger": "nel",
+          "timestamp": 1696464000.0,
+          "request": {
+            "url": "http://example.com/",
+            "headers": [
+              [
+                "User-Agent",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+              ]
+            ]
+          },
+          "tags": [
+            [
+              "method",
+              "GET"
+            ],
+            [
+              "protocol",
+              "http/1.1"
+            ],
+            [
+              "status_code",
+              "0"
+            ],
+            [
+              "server_ip",
+              "127.0.0.1"
+            ]
+          ],
+          "nel": {
+            "age": 31042,
+            "type": "network-error",
+            "url": "http://example.com/",
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+            "body": {
+              "elapsed_time": 0,
+              "method": "GET",
+              "phase": "connection",
+              "protocol": "http/1.1",
+              "referrer": "",
+              "sampling_fraction": 1.0,
+              "server_ip": "127.0.0.1",
+              "status_code": 0,
+              "type": "tcp.refused"
+            }
+          }
+        }
+        "###);
+    }
+}
