@@ -539,7 +539,7 @@ def test_session_metrics_processing(
         (True, "transaction", True),
         (True, "transaction", False),
         (True, "trace", False),
-        (True, False, True),
+        (False, False, True),
         (True, False, False),
         (False, "transaction", False),
         (False, False, False),
