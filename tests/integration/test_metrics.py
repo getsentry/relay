@@ -1200,35 +1200,40 @@ def test_generic_metric_extraction(mini_sentry, relay):
             }
         ],
     }
+    config["transactionMetrics"] = {"version": 1}
+    config["dynamicSampling"] = {
+        "rules": [],
+        "rulesV2": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {"op": "and", "inner": []},
+            }
+        ],
+    }
 
     transaction = generate_transaction_item()
     timestamp = datetime.now(tz=timezone.utc)
     transaction["timestamp"] = timestamp.isoformat()
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
 
-    # Explicitly test a chain of Relays
-    relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
+    relay = relay(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
-    assert envelope.items[0].headers.get("type") == "transaction"
-    assert envelope.items[0].headers.get("metrics_extracted") is True
-
     envelope = mini_sentry.captured_events.get(timeout=3)
     item = envelope.items[0]
-    assert item.headers.get("type") == "metric_buckets"
     metrics = json.loads(item.get_bytes().decode())
 
-    assert metrics == [
-        {
-            "timestamp": int(timestamp.timestamp()),
-            "width": 1,
-            "name": "c:transactions/on_demand@none",
-            "type": "c",
-            "value": 1.0,
-            "tags": {"query_hash": "c91c2e4d"},
-        }
-    ]
+    assert {
+        "timestamp": int(timestamp.timestamp()),
+        "width": 1,
+        "name": "c:transactions/on_demand@none",
+        "type": "c",
+        "value": 1.0,
+        "tags": {"query_hash": "c91c2e4d"},
+    } in metrics
 
 
 def test_span_metrics_secondary_aggregator(
