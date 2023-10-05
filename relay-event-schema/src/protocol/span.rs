@@ -148,6 +148,7 @@ impl Getter for Span {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
+    use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -206,5 +207,54 @@ mod tests {
         assert_eq!(span.get_value("span.data"), None);
         assert_eq!(span.get_value("span.data."), None);
         assert_eq!(span.get_value("span.data.x"), None);
+    }
+
+    #[test]
+    fn span_from_event() {
+        let event = Annotated::<Event>::from_json(
+            r#"{
+                "contexts": {
+                    "profile": {"profile_id": "a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab"},
+                    "trace": {
+                        "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                        "span_id": "FA90FDEAD5F74052",
+                        "type": "trace"
+                    }
+                }
+            }"#,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        assert_debug_snapshot!(Span::from(&event), @r###"
+        Span {
+            timestamp: ~,
+            start_timestamp: ~,
+            exclusive_time: ~,
+            description: ~,
+            op: ~,
+            span_id: SpanId(
+                "fa90fdead5f74052",
+            ),
+            parent_span_id: ~,
+            trace_id: TraceId(
+                "4c79f60c11214eb38604f4ae0781bfb2",
+            ),
+            segment_id: SpanId(
+                "fa90fdead5f74052",
+            ),
+            is_segment: true,
+            status: ~,
+            tags: ~,
+            origin: ~,
+            profile_id: EventId(
+                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
+            ),
+            data: ~,
+            sentry_tags: ~,
+            other: {},
+        }
+        "###);
     }
 }
