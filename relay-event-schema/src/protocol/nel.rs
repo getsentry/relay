@@ -1,8 +1,8 @@
 //! Contains definitions for the Network Error Logging (NEL) interface.
 //!
 //! NEL is a browser feature that allows reporting of failed network requests from the client side.
-//! W3C Editor's Draft: https://w3c.github.io/network-error-logging/
-//! MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging
+//! W3C Editor's Draft: <https://w3c.github.io/network-error-logging/>
+//! MDN: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging>
 use std::ops::Sub;
 
 use chrono::{DateTime, Duration, Utc};
