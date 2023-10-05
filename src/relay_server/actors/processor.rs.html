@@ -4347,6 +4347,11 @@
 <a href="#4347" id="4347">4347</a>
 <a href="#4348" id="4348">4348</a>
 <a href="#4349" id="4349">4349</a>
+<a href="#4350" id="4350">4350</a>
+<a href="#4351" id="4351">4351</a>
+<a href="#4352" id="4352">4352</a>
+<a href="#4353" id="4353">4353</a>
+<a href="#4354" id="4354">4354</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6691,6 +6696,11 @@
                 </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
                 new_span.segment_id = transaction_span.segment_id.clone();
                 new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
+
+                <span class="comment">// If a profile is associated with the transaction, also associate it with its
+                // child spans.
+                </span>new_span.profile_id = transaction_span.profile_id.clone();
+
                 add_span(Annotated::new(new_span));
             }
         }

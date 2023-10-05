@@ -201,14 +201,71 @@
 <a href="#201" id="201">201</a>
 <a href="#202" id="202">202</a>
 <a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    Event, JsonLenientString, OperationType, OriginType, SpanId, SpanStatus, Timestamp,
-    TraceContext, TraceId,
+    Event, EventId, JsonLenientString, OperationType, OriginType, ProfileContext, SpanId,
+    SpanStatus, Timestamp, TraceContext, TraceId,
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -266,6 +323,9 @@
     </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;enumlike&quot;</span>, allow_chars = <span class="string">&quot;a-zA-Z0-9_.&quot;</span>)]
     </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
 
+    <span class="doccomment">/// ID of a profile that can be associated with the span.
+    </span><span class="kw">pub </span>profile_id: Annotated&lt;EventId&gt;,
+
     <span class="doccomment">/// Arbitrary additional data on a span, like `extra` on the top-level event.
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;Object&lt;Value&gt;&gt;,
@@ -297,6 +357,10 @@
             span.trace_id = trace_context.trace_id;
             span.segment_id = span.span_id.clone(); <span class="comment">// a transaction is a segment
             </span>span.status = trace_context.status;
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(profile_context) = event.context::&lt;ProfileContext&gt;() {
+            span.profile_id = profile_context.profile_id.clone();
         }
 
         span
@@ -344,6 +408,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>chrono::{TimeZone, Utc};
+    <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -402,6 +467,55 @@
         <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data&quot;</span>), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.&quot;</span>), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(span.get_value(<span class="string">&quot;span.data.x&quot;</span>), <span class="prelude-val">None</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>span_from_event() {
+        <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(
+            <span class="string">r#&quot;{
+                &quot;contexts&quot;: {
+                    &quot;profile&quot;: {&quot;profile_id&quot;: &quot;a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaab&quot;},
+                    &quot;trace&quot;: {
+                        &quot;trace_id&quot;: &quot;4C79F60C11214EB38604F4AE0781BFB2&quot;,
+                        &quot;span_id&quot;: &quot;FA90FDEAD5F74052&quot;,
+                        &quot;type&quot;: &quot;trace&quot;
+                    }
+                }
+            }&quot;#</span>,
+        )
+        .unwrap()
+        .into_value()
+        .unwrap();
+
+        <span class="macro">assert_debug_snapshot!</span>(Span::from(<span class="kw-2">&amp;</span>event), @<span class="string">r###&quot;
+        Span {
+            timestamp: ~,
+            start_timestamp: ~,
+            exclusive_time: ~,
+            description: ~,
+            op: ~,
+            span_id: SpanId(
+                &quot;fa90fdead5f74052&quot;,
+            ),
+            parent_span_id: ~,
+            trace_id: TraceId(
+                &quot;4c79f60c11214eb38604f4ae0781bfb2&quot;,
+            ),
+            segment_id: SpanId(
+                &quot;fa90fdead5f74052&quot;,
+            ),
+            is_segment: true,
+            status: ~,
+            tags: ~,
+            origin: ~,
+            profile_id: EventId(
+                a0aaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab,
+            ),
+            data: ~,
+            sentry_tags: ~,
+            other: {},
+        }
+        &quot;###</span>);
     }
 }
 </code></pre></div></section></main></body></html>
