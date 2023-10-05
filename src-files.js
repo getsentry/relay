@@ -1,4 +1,4 @@
-var sourcesIndex = JSON.parse('{\
+var srcIndex = JSON.parse('{\
 "document_metrics":["",[],["main.rs"]],\
 "document_pii":["",[],["item_collector.rs","main.rs","pii_finder.rs"]],\
 "generate_schema":["",[],["main.rs"]],\
@@ -39,4 +39,4 @@ var sourcesIndex = JSON.parse('{\
 "relay_ua":["",[],["lib.rs"]],\
 "scrub_minidump":["",[],["main.rs"]]\
 }');
-createSourceSidebar();
+createSrcSidebar();
