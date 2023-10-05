@@ -551,6 +551,7 @@ mod tests {
                 status: ~,
                 tags: ~,
                 origin: ~,
+                profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
                 other: {},
