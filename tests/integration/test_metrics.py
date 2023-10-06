@@ -777,10 +777,7 @@ def test_transaction_metrics_count_per_root_project(
     }
 
 
-def test_transaction_metrics_extraction_external_relays(
-    mini_sentry,
-    relay,
-):
+def test_transaction_metrics_extraction_external_relays(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
