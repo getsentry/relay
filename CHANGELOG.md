@@ -22,6 +22,7 @@
 - Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
 - Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
 - Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
+- Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571))
 
 ## 23.9.1
 
