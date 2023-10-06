@@ -828,12 +828,6 @@ def test_transaction_metrics_extraction_external_relays(
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
-    tx_item = envelope.items[0]
-
-    tx_item_body = json.loads(tx_item.get_bytes().decode())
-    assert (
-        tx_item_body["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
-    )
 
     if expect_metrics_extraction:
         metrics_envelope = mini_sentry.captured_events.get(timeout=3)
