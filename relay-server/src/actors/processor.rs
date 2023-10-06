@@ -2594,7 +2594,7 @@ impl EnvelopeProcessorService {
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
-        let agg = self
+        let transaction_aggregator_config = self
             .inner
             .config
             .aggregator_config_for(MetricNamespace::Transactions);
@@ -2609,9 +2609,10 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                transaction_range: Some(agg.timestamp_range()),
+                transaction_range: Some(transaction_aggregator_config.timestamp_range()),
                 max_name_and_unit_len: Some(
-                    agg.max_name_length
+                    transaction_aggregator_config
+                        .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
