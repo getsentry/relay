@@ -896,6 +896,51 @@ mod tests {
                     "data": {
                         "db.system": "redis"
                     }
+                },
+                {
+                    "data": {
+                        "device.class": "2",
+                        "environment": "production",
+                        "http.response.status_code": "200",
+                        "mobile": true,
+                        "release": "sentrydemos.ios.EmpowerPlant@0.0.8+1",
+                        "span.op": "ui.load",
+                        "span.status": "ok",
+                        "transaction": "EmpowerPlantViewController",
+                        "transaction.op": "ui.load",
+                        "user": "id:FADC011D-28AA-40B7-8CA8-839A2AD05168"
+                    },
+                    "description": "viewDidLoad",
+                    "exclusive_time": 15101.696732,
+                    "op": "ui.load",
+                    "parent_span_id": "6ebd1cdbb9424b88",
+                    "span_id": "8cfaf7f29ac345b8",
+                    "start_timestamp": 1695255136.239635,
+                    "status": "ok",
+                    "timestamp": 1695255152.073167,
+                    "trace_id": "2dc90ee797b94299ba5ad82b816fc9f8"
+                },
+                {
+                    "data": {
+                        "device.class": "2",
+                        "environment": "production",
+                        "http.response.status_code": "200",
+                        "mobile": true,
+                        "release": "sentrydemos.ios.EmpowerPlant@0.0.8+1",
+                        "span.op": "app.start.cold",
+                        "span.status": "ok",
+                        "transaction": "EmpowerPlantViewController",
+                        "transaction.op": "ui.load",
+                        "user": "id:FADC011D-28AA-40B7-8CA8-839A2AD05168"
+                    },
+                    "description": "Cold Start",
+                    "exclusive_time": 0.0,
+                    "op": "app.start.cold",
+                    "parent_span_id": "6ebd1cdbb9424b88",
+                    "span_id": "0e989cd370034c76",
+                    "start_timestamp": 1695255134.469436,
+                    "timestamp": 1695255136.137952,
+                    "trace_id": "2dc90ee797b94299ba5ad82b816fc9f8"
                 }
             ]
         }

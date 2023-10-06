@@ -5,6 +5,7 @@
 **Features**:
 
 - Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
+- Accept spans needed for the mobile Starfish module. ([#2570](https://github.com/getsentry/relay/pull/2570))
 
 **Bug Fixes**:
 
@@ -22,6 +23,7 @@
 - Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
 - Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
 - Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
+- Add `profile_id` to spans. ([#2569](https://github.com/getsentry/relay/pull/2569))
 - Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571))
 
 ## 23.9.1
