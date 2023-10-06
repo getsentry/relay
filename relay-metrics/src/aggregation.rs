@@ -19,7 +19,9 @@ use tokio::time::Instant;
 
 use crate::bucket::{Bucket, BucketValue, DistributionValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
-use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+use crate::statsd::{
+    metric_name_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers,
+};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -1039,8 +1041,13 @@ impl AggregatorService {
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
+            let tag = metric_name_tag(&self.name);
             if let Err(error) = self.merge(project_key, bucket) {
-                relay_log::error!(tags.aggregator = self.name, error = &error as &dyn Error);
+                relay_log::error!(
+                    tags.aggregator = self.name,
+                    tags.metric_name = tag,
+                    error = &error as &dyn Error
+                );
             }
         }
 

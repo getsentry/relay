@@ -4,8 +4,8 @@ use std::fmt::Display;
 
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    Bucket, BucketValue, CounterType, DistributionType, DurationUnit, MetricNamespace,
-    MetricResourceIdentifier, MetricUnit,
+    Bucket, BucketValue, DistributionType, DurationUnit, MetricNamespace, MetricResourceIdentifier,
+    MetricUnit,
 };
 
 use crate::metrics_extraction::IntoMetric;
@@ -27,15 +27,17 @@ pub enum TransactionMetric {
     DurationLight {
         unit: DurationUnit,
         value: DistributionType,
-        tags: TransactionDurationTags,
+        tags: LightTransactionTags,
     },
+    /// An internal counter metric that tracks transaction usage.
+    ///
+    /// This metric does not have any of the common tags for the performance product, but instead
+    /// carries internal information for accounting purposes.
+    Usage { tags: UsageTags },
     /// An internal counter metric used to compute dynamic sampling biases.
     ///
     /// See '<https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40>'.
-    CountPerRootProject {
-        value: CounterType,
-        tags: TransactionCPRTags,
-    },
+    CountPerRootProject { tags: TransactionCPRTags },
     /// A metric created from [`relay_event_schema::protocol::Breakdowns`].
     Breakdown {
         name: String,
@@ -56,37 +58,43 @@ impl IntoMetric for TransactionMetric {
         let namespace = MetricNamespace::Transactions;
 
         let (name, value, unit, tags) = match self {
-            TransactionMetric::User { value, tags } => (
+            Self::User { value, tags } => (
                 Cow::Borrowed("user"),
                 BucketValue::set_from_str(&value),
                 MetricUnit::None,
                 tags.into(),
             ),
-            TransactionMetric::Duration { unit, value, tags } => (
+            Self::Duration { unit, value, tags } => (
                 Cow::Borrowed("duration"),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
-            TransactionMetric::DurationLight { unit, value, tags } => (
+            Self::DurationLight { unit, value, tags } => (
                 Cow::Borrowed("duration_light"),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
-            TransactionMetric::CountPerRootProject { value, tags } => (
-                Cow::Borrowed("count_per_root_project"),
-                BucketValue::counter(value),
+            Self::Usage { tags } => (
+                Cow::Borrowed("usage"),
+                BucketValue::counter(1.0),
                 MetricUnit::None,
                 tags.into(),
             ),
-            TransactionMetric::Breakdown { name, value, tags } => (
+            Self::CountPerRootProject { tags } => (
+                Cow::Borrowed("count_per_root_project"),
+                BucketValue::counter(1.0),
+                MetricUnit::None,
+                tags.into(),
+            ),
+            Self::Breakdown { name, value, tags } => (
                 Cow::Owned(format!("breakdowns.{name}")),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 tags.into(),
             ),
-            TransactionMetric::Measurement {
+            Self::Measurement {
                 name,
                 value,
                 unit,
@@ -125,6 +133,36 @@ pub struct TransactionDurationTags {
 impl From<TransactionDurationTags> for BTreeMap<String, String> {
     fn from(tags: TransactionDurationTags) -> Self {
         let mut map: BTreeMap<String, String> = tags.universal_tags.into();
+        if tags.has_profile {
+            map.insert("has_profile".to_string(), "true".to_string());
+        }
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub struct LightTransactionTags {
+    pub transaction: Option<String>,
+}
+
+impl From<LightTransactionTags> for BTreeMap<String, String> {
+    fn from(tags: LightTransactionTags) -> Self {
+        let mut map = BTreeMap::new();
+        if let Some(transaction) = tags.transaction {
+            map.insert(CommonTag::Transaction.to_string(), transaction);
+        }
+        map
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+pub struct UsageTags {
+    pub has_profile: bool,
+}
+
+impl From<UsageTags> for BTreeMap<String, String> {
+    fn from(tags: UsageTags) -> Self {
+        let mut map = BTreeMap::new();
         if tags.has_profile {
             map.insert("has_profile".to_string(), "true".to_string());
         }

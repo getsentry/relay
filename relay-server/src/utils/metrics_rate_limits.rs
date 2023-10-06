@@ -1,7 +1,7 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 use chrono::{DateTime, Utc};
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 use relay_system::Addr;
 
@@ -38,7 +38,12 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
     /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
-    pub fn create(buckets: Vec<Bucket>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<Bucket>> {
+    pub fn create(
+        buckets: Vec<Bucket>,
+        quotas: Q,
+        scoping: Scoping,
+        usage: bool,
+    ) -> Result<Self, Vec<Bucket>> {
         let counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
@@ -55,17 +60,23 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     return None;
                 }
 
-                if mri.name == "duration" {
-                    // The "duration" metric is extracted exactly once for every processed
-                    // transaction, so we can use it to count the number of transactions.
-                    let count = metric.value.len();
-                    let has_profile = metric.tag(PROFILE_TAG) == Some("true");
-                    Some((count, has_profile))
-                } else {
+                let count = match &metric.value {
+                    // The "usage" counter directly tracks the number of processed transactions.
+                    BucketValue::Counter(c) if usage && mri.name == "usage" => *c as usize,
+
+                    // Fallback to the legacy "duration" metric, which is extracted exactly once for
+                    // every processed transaction and was originally used to count transactions.
+                    BucketValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
+
                     // For any other metric in the transaction namespace, we check the limit with
                     // quantity=0 so transactions are not double counted against the quota.
-                    Some((0, false))
-                }
+                    _ => 0,
+                };
+
+                let has_profile = matches!(mri.name, "usage" | "duration")
+                    && metric.tag(PROFILE_TAG) == Some("true");
+
+                Some((count, has_profile))
             })
             .collect();
 
@@ -269,6 +280,22 @@ mod tests {
                 value: BucketValue::distribution(456.0),
             },
             Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
@@ -297,6 +324,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            true,
         )
         .unwrap();
 
@@ -340,6 +368,22 @@ mod tests {
                 value: BucketValue::distribution(456.0),
             },
             Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
@@ -368,6 +412,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            true,
         )
         .unwrap();
 
@@ -375,12 +420,14 @@ mod tests {
         let metrics = limiter.into_metrics();
 
         // All metrics have been preserved:
-        assert_eq!(metrics.len(), 3);
+        assert_eq!(metrics.len(), 5);
 
         // Profile tag has been removed:
         assert!(metrics[0].tags.is_empty());
         assert!(metrics[1].tags.is_empty());
-        assert!(!metrics[2].tags.is_empty());
+        assert!(metrics[2].tags.is_empty());
+        assert!(metrics[3].tags.is_empty());
+        assert!(!metrics[4].tags.is_empty()); // unrelated metric still has it
 
         rx.close();
 

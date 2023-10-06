@@ -2594,6 +2594,11 @@ impl EnvelopeProcessorService {
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
+        let transaction_aggregator_config = self
+            .inner
+            .config
+            .aggregator_config_for(MetricNamespace::Transactions);
+
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -2604,16 +2609,9 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                transaction_range: Some(
-                    self.inner
-                        .config
-                        .aggregator_config_for(MetricNamespace::Transactions)
-                        .timestamp_range(),
-                ),
+                transaction_range: Some(transaction_aggregator_config.timestamp_range()),
                 max_name_and_unit_len: Some(
-                    self.inner
-                        .config
-                        .aggregator_config()
+                    transaction_aggregator_config
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),

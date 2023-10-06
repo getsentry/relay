@@ -4,7 +4,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
@@ -513,7 +513,12 @@ impl Project {
             return metrics;
         };
 
-        match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
+        let usage = match state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+
+        match MetricsLimiter::create(metrics, &state.config.quotas, scoping, usage) {
             Ok(mut limiter) => {
                 limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
                 limiter.into_metrics()
@@ -892,7 +897,12 @@ impl Project {
 
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
-        let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
+        let usage = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, usage) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
