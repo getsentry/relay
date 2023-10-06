@@ -1243,6 +1243,7 @@ expression: metrics
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "span.status": "ok",
+            "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
         },
