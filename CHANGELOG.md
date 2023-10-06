@@ -24,6 +24,7 @@
 - Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
 - Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
 - Add `profile_id` to spans. ([#2569](https://github.com/getsentry/relay/pull/2569))
+- Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
 
 ## 23.9.1
 
