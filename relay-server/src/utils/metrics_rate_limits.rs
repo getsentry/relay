@@ -38,7 +38,12 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
     /// Create a new limiter instance.
     ///
     /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
-    pub fn create(buckets: Vec<Bucket>, quotas: Q, scoping: Scoping) -> Result<Self, Vec<Bucket>> {
+    pub fn create(
+        buckets: Vec<Bucket>,
+        quotas: Q,
+        scoping: Scoping,
+        usage: bool,
+    ) -> Result<Self, Vec<Bucket>> {
         let counts: Vec<_> = buckets
             .iter()
             .map(|metric| {
@@ -55,7 +60,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                     return None;
                 }
 
-                let usage = true; // TODO: Feature flag
                 let count = match &metric.value {
                     // The "usage" counter directly tracks the number of processed transactions.
                     BucketValue::Counter(count) if usage && mri.name == "usage" => *count as usize,
@@ -302,6 +306,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            true,
         )
         .unwrap();
 
@@ -373,6 +378,7 @@ mod tests {
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
             },
+            true,
         )
         .unwrap();
 

@@ -131,6 +131,11 @@ impl TransactionMetricsConfig {
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= TRANSACTION_EXTRACT_VERSION
     }
+
+    /// Returns `true` if usage should be tracked through a dedicated metric.
+    pub fn usage_metric(&self) -> bool {
+        self.version >= 3
+    }
 }
 
 /// Configuration for generic extraction of metrics from all data categories.
