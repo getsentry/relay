@@ -6,6 +6,7 @@
 
 - Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
 - Accept spans needed for the mobile Starfish module. ([#2570](https://github.com/getsentry/relay/pull/2570))
+- Add additional tags for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
 
 **Bug Fixes**:
 
