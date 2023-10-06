@@ -62,11 +62,11 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 
                 let count = match &metric.value {
                     // The "usage" counter directly tracks the number of processed transactions.
-                    BucketValue::Counter(count) if usage && mri.name == "usage" => *count as usize,
+                    BucketValue::Counter(c) if usage && mri.name == "usage" => *c as usize,
 
                     // Fallback to the legacy "duration" metric, which is extracted exactly once for
                     // every processed transaction and was originally used to count transactions.
-                    BucketValue::Distribution(dist) if mri.name == "duration" => dist.len(),
+                    BucketValue::Distribution(d) if !usage && mri.name == "duration" => d.len(),
 
                     // For any other metric in the transaction namespace, we check the limit with
                     // quantity=0 so transactions are not double counted against the quota.
