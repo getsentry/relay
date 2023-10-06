@@ -4,6 +4,7 @@ pub use sql::parse_query;
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use itertools::Itertools;
 use relay_event_schema::processor::{self, ProcessingResult};
@@ -58,6 +59,13 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                 // be low-risk to start adding the description.
                 Some(description.to_owned())
             }
+            ("app", _) => {
+                // `app.*` has static descriptions, like `Cold Start`
+                // or `Pre Runtime Init`.
+                // They are low-cardinality.
+                Some(description.to_owned())
+            }
+            ("file", _) => scrub_file(description),
             _ => None,
         });
 
@@ -91,6 +99,10 @@ fn scrub_http(string: &str) -> Option<String> {
         return None;
     };
 
+    if url.starts_with("data:image/") {
+        return Some(format!("{method} data:image/*"));
+    }
+
     let scrubbed = match Url::parse(url) {
         Ok(url) => {
             let host = url.host().map(|h| h.to_string())?;
@@ -105,6 +117,20 @@ fn scrub_http(string: &str) -> Option<String> {
     };
 
     Some(scrubbed)
+}
+
+fn scrub_file(description: &str) -> Option<String> {
+    let filename = match description.split_once(' ') {
+        Some((filename, _)) => filename,
+        _ => description,
+    };
+    match Path::new(filename).extension() {
+        Some(extension) => {
+            let ext = extension.to_str()?;
+            Some(format!("*.{ext}"))
+        }
+        _ => Some("*".to_owned()),
+    }
 }
 
 fn normalize_domain(domain: &str, port: Option<u16>) -> Option<String> {
@@ -368,6 +394,13 @@ mod tests {
     );
 
     span_description_test!(
+        span_description_scrub_data_images,
+        "GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah",
+        "http.client",
+        "GET data:image/*"
+    );
+
+    span_description_test!(
         span_description_scrub_only_dblike_on_db_ops,
         "SELECT count() FROM table WHERE id IN (%s, %s)",
         "http.client",
@@ -463,6 +496,27 @@ mod tests {
         "ListAppViewController",
         "ui.load",
         "ListAppViewController"
+    );
+
+    span_description_test!(
+        span_description_file_write_keep_extension_only,
+        "data.data (42 KB)",
+        "file.write",
+        "*.data"
+    );
+
+    span_description_test!(
+        span_description_file_read_keep_extension_only,
+        "Info.plist",
+        "file.read",
+        "*.plist"
+    );
+
+    span_description_test!(
+        span_description_fil_no_extension,
+        "somefilenamewithnoextension",
+        "file.read",
+        "*"
     );
 
     #[test]
