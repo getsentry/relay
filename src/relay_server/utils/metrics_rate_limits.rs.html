@@ -397,10 +397,57 @@
 <a href="#397" id="397">397</a>
 <a href="#398" id="398">398</a>
 <a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace, MetricResourceIdentifier};
+<span class="kw">use </span>relay_metrics::{Bucket, BucketValue, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span>relay_quotas::{DataCategory, ItemScoping, Quota, RateLimits, Scoping};
 <span class="kw">use </span>relay_system::Addr;
 
@@ -437,7 +484,12 @@
     <span class="doccomment">/// Create a new limiter instance.
     ///
     /// Returns Ok if `metrics` contain transaction metrics, `metrics` otherwise.
-    </span><span class="kw">pub fn </span>create(buckets: Vec&lt;Bucket&gt;, quotas: Q, scoping: Scoping) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;Bucket&gt;&gt; {
+    </span><span class="kw">pub fn </span>create(
+        buckets: Vec&lt;Bucket&gt;,
+        quotas: Q,
+        scoping: Scoping,
+        usage: bool,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;Bucket&gt;&gt; {
         <span class="kw">let </span>counts: Vec&lt;<span class="kw">_</span>&gt; = buckets
             .iter()
             .map(|metric| {
@@ -454,17 +506,23 @@
                     <span class="kw">return </span><span class="prelude-val">None</span>;
                 }
 
-                <span class="kw">if </span>mri.name == <span class="string">&quot;duration&quot; </span>{
-                    <span class="comment">// The &quot;duration&quot; metric is extracted exactly once for every processed
-                    // transaction, so we can use it to count the number of transactions.
-                    </span><span class="kw">let </span>count = metric.value.len();
-                    <span class="kw">let </span>has_profile = metric.tag(PROFILE_TAG) == <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>);
-                    <span class="prelude-val">Some</span>((count, has_profile))
-                } <span class="kw">else </span>{
+                <span class="kw">let </span>count = <span class="kw">match </span><span class="kw-2">&amp;</span>metric.value {
+                    <span class="comment">// The &quot;usage&quot; counter directly tracks the number of processed transactions.
+                    </span>BucketValue::Counter(c) <span class="kw">if </span>usage &amp;&amp; mri.name == <span class="string">&quot;usage&quot; </span>=&gt; <span class="kw-2">*</span>c <span class="kw">as </span>usize,
+
+                    <span class="comment">// Fallback to the legacy &quot;duration&quot; metric, which is extracted exactly once for
+                    // every processed transaction and was originally used to count transactions.
+                    </span>BucketValue::Distribution(d) <span class="kw">if </span>!usage &amp;&amp; mri.name == <span class="string">&quot;duration&quot; </span>=&gt; d.len(),
+
                     <span class="comment">// For any other metric in the transaction namespace, we check the limit with
                     // quantity=0 so transactions are not double counted against the quota.
-                    </span><span class="prelude-val">Some</span>((<span class="number">0</span>, <span class="bool-val">false</span>))
-                }
+                    </span><span class="kw">_ </span>=&gt; <span class="number">0</span>,
+                };
+
+                <span class="kw">let </span>has_profile = <span class="macro">matches!</span>(mri.name, <span class="string">&quot;usage&quot; </span>| <span class="string">&quot;duration&quot;</span>)
+                    &amp;&amp; metric.tag(PROFILE_TAG) == <span class="prelude-val">Some</span>(<span class="string">&quot;true&quot;</span>);
+
+                <span class="prelude-val">Some</span>((count, has_profile))
             })
             .collect();
 
@@ -668,6 +726,22 @@
                 value: BucketValue::distribution(<span class="number">456.0</span>),
             },
             Bucket {
+                <span class="comment">// transaction without profile
+                </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
+                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(<span class="number">1.0</span>),
+            },
+            Bucket {
+                <span class="comment">// transaction with profile
+                </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
+                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
+                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                value: BucketValue::counter(<span class="number">1.0</span>),
+            },
+            Bucket {
                 <span class="comment">// unrelated metric
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
@@ -696,6 +770,7 @@
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
+            <span class="bool-val">true</span>,
         )
         .unwrap();
 
@@ -739,6 +814,22 @@
                 value: BucketValue::distribution(<span class="number">456.0</span>),
             },
             Bucket {
+                <span class="comment">// transaction without profile
+                </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
+                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(<span class="number">1.0</span>),
+            },
+            Bucket {
+                <span class="comment">// transaction with profile
+                </span>timestamp: UnixTimestamp::now(),
+                width: <span class="number">0</span>,
+                name: <span class="string">&quot;c:transactions/usage@none&quot;</span>.to_string(),
+                tags: [(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string())].into(),
+                value: BucketValue::counter(<span class="number">1.0</span>),
+            },
+            Bucket {
                 <span class="comment">// unrelated metric
                 </span>timestamp: UnixTimestamp::now(),
                 width: <span class="number">0</span>,
@@ -767,6 +858,7 @@
                 project_key: ProjectKey::parse(<span class="string">&quot;a94ae32be2584e0bbd7a4cbb95971fee&quot;</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
             },
+            <span class="bool-val">true</span>,
         )
         .unwrap();
 
@@ -774,14 +866,16 @@
         <span class="kw">let </span>metrics = limiter.into_metrics();
 
         <span class="comment">// All metrics have been preserved:
-        </span><span class="macro">assert_eq!</span>(metrics.len(), <span class="number">3</span>);
+        </span><span class="macro">assert_eq!</span>(metrics.len(), <span class="number">5</span>);
 
         <span class="comment">// Profile tag has been removed:
         </span><span class="macro">assert!</span>(metrics[<span class="number">0</span>].tags.is_empty());
         <span class="macro">assert!</span>(metrics[<span class="number">1</span>].tags.is_empty());
-        <span class="macro">assert!</span>(!metrics[<span class="number">2</span>].tags.is_empty());
+        <span class="macro">assert!</span>(metrics[<span class="number">2</span>].tags.is_empty());
+        <span class="macro">assert!</span>(metrics[<span class="number">3</span>].tags.is_empty());
+        <span class="macro">assert!</span>(!metrics[<span class="number">4</span>].tags.is_empty()); <span class="comment">// unrelated metric still has it
 
-        rx.close();
+        </span>rx.close();
 
         <span class="kw">let </span>outcomes: Vec&lt;<span class="kw">_</span>&gt; = (<span class="number">0</span>..)
             .map(|<span class="kw">_</span>| rx.blocking_recv())

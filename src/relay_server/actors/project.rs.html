@@ -1108,13 +1108,23 @@
 <a href="#1108" id="1108">1108</a>
 <a href="#1109" id="1109">1109</a>
 <a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+<span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 <span class="kw">use </span>relay_filter::matches_any_origin;
 <span class="kw">use </span>relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 <span class="kw">use </span>relay_quotas::{Quota, RateLimits, Scoping};
@@ -1623,7 +1633,12 @@
             <span class="kw">return </span>metrics;
         };
 
-        <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping) {
+        <span class="kw">let </span>usage = <span class="kw">match </span>state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        };
+
+        <span class="kw">match </span>MetricsLimiter::create(metrics, <span class="kw-2">&amp;</span>state.config.quotas, scoping, usage) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>limiter) =&gt; {
                 limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.rate_limits), outcome_aggregator);
                 limiter.into_metrics()
@@ -2002,7 +2017,12 @@
 
         <span class="comment">// Check rate limits if necessary:
         </span><span class="kw">let </span>quotas = project_state.config.quotas.clone();
-        <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping) {
+        <span class="kw">let </span>usage = <span class="kw">match </span>project_state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        };
+
+        <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping, usage) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
                 <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
                 <span class="attr">#[allow(unused_variables)]

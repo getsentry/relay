@@ -228,14 +228,52 @@
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
 <a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_metrics::{
-    Bucket, BucketValue, CounterType, DistributionType, DurationUnit, MetricNamespace,
-    MetricResourceIdentifier, MetricUnit,
+    Bucket, BucketValue, DistributionType, DurationUnit, MetricNamespace, MetricResourceIdentifier,
+    MetricUnit,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
@@ -257,15 +295,17 @@
     </span>DurationLight {
         unit: DurationUnit,
         value: DistributionType,
-        tags: TransactionDurationTags,
+        tags: LightTransactionTags,
     },
+    <span class="doccomment">/// An internal counter metric that tracks transaction usage.
+    ///
+    /// This metric does not have any of the common tags for the performance product, but instead
+    /// carries internal information for accounting purposes.
+    </span>Usage { tags: UsageTags },
     <span class="doccomment">/// An internal counter metric used to compute dynamic sampling biases.
     ///
     /// See &#39;&lt;https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40&gt;&#39;.
-    </span>CountPerRootProject {
-        value: CounterType,
-        tags: TransactionCPRTags,
-    },
+    </span>CountPerRootProject { tags: TransactionCPRTags },
     <span class="doccomment">/// A metric created from [`relay_event_schema::protocol::Breakdowns`].
     </span>Breakdown {
         name: String,
@@ -286,37 +326,43 @@
         <span class="kw">let </span>namespace = MetricNamespace::Transactions;
 
         <span class="kw">let </span>(name, value, unit, tags) = <span class="kw">match </span><span class="self">self </span>{
-            TransactionMetric::User { value, tags } =&gt; (
+            <span class="self">Self</span>::User { value, tags } =&gt; (
                 Cow::Borrowed(<span class="string">&quot;user&quot;</span>),
                 BucketValue::set_from_str(<span class="kw-2">&amp;</span>value),
                 MetricUnit::None,
                 tags.into(),
             ),
-            TransactionMetric::Duration { unit, value, tags } =&gt; (
+            <span class="self">Self</span>::Duration { unit, value, tags } =&gt; (
                 Cow::Borrowed(<span class="string">&quot;duration&quot;</span>),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
-            TransactionMetric::DurationLight { unit, value, tags } =&gt; (
+            <span class="self">Self</span>::DurationLight { unit, value, tags } =&gt; (
                 Cow::Borrowed(<span class="string">&quot;duration_light&quot;</span>),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
-            TransactionMetric::CountPerRootProject { value, tags } =&gt; (
-                Cow::Borrowed(<span class="string">&quot;count_per_root_project&quot;</span>),
-                BucketValue::counter(value),
+            <span class="self">Self</span>::Usage { tags } =&gt; (
+                Cow::Borrowed(<span class="string">&quot;usage&quot;</span>),
+                BucketValue::counter(<span class="number">1.0</span>),
                 MetricUnit::None,
                 tags.into(),
             ),
-            TransactionMetric::Breakdown { name, value, tags } =&gt; (
+            <span class="self">Self</span>::CountPerRootProject { tags } =&gt; (
+                Cow::Borrowed(<span class="string">&quot;count_per_root_project&quot;</span>),
+                BucketValue::counter(<span class="number">1.0</span>),
+                MetricUnit::None,
+                tags.into(),
+            ),
+            <span class="self">Self</span>::Breakdown { name, value, tags } =&gt; (
                 Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;breakdowns.{name}&quot;</span>)),
                 BucketValue::distribution(value),
                 MetricUnit::Duration(DurationUnit::MilliSecond),
                 tags.into(),
             ),
-            TransactionMetric::Measurement {
+            <span class="self">Self</span>::Measurement {
                 name,
                 value,
                 unit,
@@ -355,6 +401,36 @@
 <span class="kw">impl </span>From&lt;TransactionDurationTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
     <span class="kw">fn </span>from(tags: TransactionDurationTags) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>map: BTreeMap&lt;String, String&gt; = tags.universal_tags.into();
+        <span class="kw">if </span>tags.has_profile {
+            map.insert(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string());
+        }
+        map
+    }
+}
+
+<span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+</span><span class="kw">pub struct </span>LightTransactionTags {
+    <span class="kw">pub </span>transaction: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
+<span class="kw">impl </span>From&lt;LightTransactionTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
+    <span class="kw">fn </span>from(tags: LightTransactionTags) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = tags.transaction {
+            map.insert(CommonTag::Transaction.to_string(), transaction);
+        }
+        map
+    }
+}
+
+<span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
+</span><span class="kw">pub struct </span>UsageTags {
+    <span class="kw">pub </span>has_profile: bool,
+}
+
+<span class="kw">impl </span>From&lt;UsageTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
+    <span class="kw">fn </span>from(tags: UsageTags) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
         <span class="kw">if </span>tags.has_profile {
             map.insert(<span class="string">&quot;has_profile&quot;</span>.to_string(), <span class="string">&quot;true&quot;</span>.to_string());
         }
