@@ -459,7 +459,7 @@
         .start();
 
         <span class="kw">let </span>aggregator = relay_metrics::RouterService::new(
-            config.aggregator_config().clone(),
+            config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )

@@ -4350,8 +4350,6 @@
 <a href="#4350" id="4350">4350</a>
 <a href="#4351" id="4351">4351</a>
 <a href="#4352" id="4352">4352</a>
-<a href="#4353" id="4353">4353</a>
-<a href="#4354" id="4354">4354</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6948,6 +6946,11 @@
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
+        <span class="kw">let </span>transaction_aggregator_config = <span class="self">self
+            </span>.inner
+            .config
+            .aggregator_config_for(MetricNamespace::Transactions);
+
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
             <span class="kw">let </span>config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -6958,16 +6961,9 @@
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
-                transaction_range: <span class="prelude-val">Some</span>(
-                    <span class="self">self</span>.inner
-                        .config
-                        .aggregator_config_for(MetricNamespace::Transactions)
-                        .timestamp_range(),
-                ),
+                transaction_range: <span class="prelude-val">Some</span>(transaction_aggregator_config.timestamp_range()),
                 max_name_and_unit_len: <span class="prelude-val">Some</span>(
-                    <span class="self">self</span>.inner
-                        .config
-                        .aggregator_config()
+                    transaction_aggregator_config
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),

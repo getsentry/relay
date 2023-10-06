@@ -2209,6 +2209,13 @@
 <a href="#2209" id="2209">2209</a>
 <a href="#2210" id="2210">2210</a>
 <a href="#2211" id="2211">2211</a>
+<a href="#2212" id="2212">2212</a>
+<a href="#2213" id="2213">2213</a>
+<a href="#2214" id="2214">2214</a>
+<a href="#2215" id="2215">2215</a>
+<a href="#2216" id="2216">2216</a>
+<a href="#2217" id="2217">2217</a>
+<a href="#2218" id="2218">2218</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2230,7 +2237,9 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::bucket::{Bucket, BucketValue, DistributionValue};
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{<span class="self">self</span>, MetricNamespace, MetricResourceIdentifier};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{
+    metric_name_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers,
+};
 
 <span class="doccomment">/// Interval for the flush cycle of the [`AggregatorService`].
 </span><span class="kw">const </span>FLUSH_INTERVAL: Duration = Duration::from_millis(<span class="number">100</span>);
@@ -3250,8 +3259,13 @@
         </span>I: IntoIterator&lt;Item = Bucket&gt;,
     {
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
+            <span class="kw">let </span>tag = metric_name_tag(<span class="kw-2">&amp;</span><span class="self">self</span>.name);
             <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.merge(project_key, bucket) {
-                <span class="macro">relay_log::error!</span>(tags.aggregator = <span class="self">self</span>.name, error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error);
+                <span class="macro">relay_log::error!</span>(
+                    tags.aggregator = <span class="self">self</span>.name,
+                    tags.metric_name = tag,
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error
+                );
             }
         }
 

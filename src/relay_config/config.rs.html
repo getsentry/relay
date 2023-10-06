@@ -4088,8 +4088,8 @@
         <span class="self">self</span>.values.processing.max_rate_limit.map(u32::into)
     }
 
-    <span class="doccomment">/// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
-    </span><span class="kw">pub fn </span>aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorConfig {
+    <span class="doccomment">/// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
+    </span><span class="kw">pub fn </span>default_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorConfig {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
     }
 
