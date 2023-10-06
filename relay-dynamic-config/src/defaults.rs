@@ -125,7 +125,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 ("", "http.response_transfer_size"),
                 ("", "resource.render_blocking_status"),
                 ("", "transaction"),
-                ("", "type"),
                 ("span.", "domain"),
             ]
             .map(|(prefix, key)| TagSpec {
