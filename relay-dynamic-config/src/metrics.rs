@@ -78,8 +78,11 @@ pub struct CustomMeasurementConfig {
 
 /// Maximum supported version of metrics extraction from transactions.
 ///
-/// The version is an integer scalar, incremented by one on each new version.
-const TRANSACTION_EXTRACT_VERSION: u16 = 2;
+/// The version is an integer scalar, incremented by one on each new version:
+///  - 1: Initial version.
+///  - 2: Moves `acceptTransactionNames` to global config.
+///  - 3: Emit a `usage` metric and use it for rate limiting.
+const TRANSACTION_EXTRACT_VERSION: u16 = 3;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -127,6 +130,11 @@ impl TransactionMetricsConfig {
     /// Returns `true` if metrics extraction is enabled and compatible with this Relay.
     pub fn is_enabled(&self) -> bool {
         self.version > 0 && self.version <= TRANSACTION_EXTRACT_VERSION
+    }
+
+    /// Returns `true` if usage should be tracked through a dedicated metric.
+    pub fn usage_metric(&self) -> bool {
+        self.version >= 3
     }
 }
 
