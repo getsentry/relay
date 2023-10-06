@@ -49,12 +49,17 @@ async fn handle(
         serde_json::from_slice(&params.body).map_err(BadStoreRequest::InvalidJson)?;
 
     // Iterate only if the body contains the list of the items.
-    for item in items.as_array().into_iter().flatten() {
+    let handlers = items.as_array().into_iter().flatten().map(|item| {
         let mut envelope = Envelope::from_request(Some(EventId::new()), params.meta.clone());
         let mut report_item = Item::new(ItemType::Nel);
         report_item.set_payload(ContentType::Json, item.to_owned().to_string());
         envelope.add_item(report_item);
-        common::handle_envelope(&state, envelope).await?;
+        common::handle_envelope(&state, envelope)
+    });
+
+    // Check the results of the handled envelopes.
+    for handle_result in futures::future::join_all(handlers).await {
+        handle_result?;
     }
 
     Ok(().into_response())

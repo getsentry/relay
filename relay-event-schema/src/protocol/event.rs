@@ -14,9 +14,9 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, Nel, OsContext, RelayInfo, Request,
-    ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext,
-    TransactionInfo, User, Values,
+    LenientString, Level, LogEntry, Measurements, Metrics, NetworkReport, OsContext, RelayInfo,
+    Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
+    TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -450,7 +450,7 @@ pub struct Event {
 
     /// NEL (Network Error Logging) reports.
     #[metastructure(omit_from_schema)] // we only document error events for now
-    pub nel: Annotated<Nel>,
+    pub nel: Annotated<NetworkReport>,
 
     /// HPKP (security) reports.
     #[metastructure(pii = "true", legacy_alias = "sentry.interfaces.Hpkp")]

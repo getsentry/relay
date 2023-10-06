@@ -31,7 +31,7 @@ use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, Nel, NelError, OtelContext, RelayInfo, Replay,
+    IpAddr, LenientString, Metrics, NetworkReport, OtelContext, RelayInfo, Replay, ReportError,
     SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
     Timestamp, TraceContext, UserReport, Values,
 };
@@ -121,7 +121,7 @@ pub enum ProcessingError {
     InvalidSecurityReport(#[source] serde_json::Error),
 
     #[error("invalid nel report")]
-    InvalidNelReport(#[source] NelError),
+    InvalidNelReport(#[source] ReportError),
 
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
@@ -1500,7 +1500,7 @@ impl EnvelopeProcessorService {
 
         let data = &item.payload();
 
-        let apply_result = Nel::apply_to_event(data, &mut event);
+        let apply_result = NetworkReport::apply_to_event(data, &mut event);
 
         if let Err(json_error) = apply_result {
             // logged in extract_event

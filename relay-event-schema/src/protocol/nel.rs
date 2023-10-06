@@ -3,7 +3,6 @@
 //! NEL is a browser feature that allows reporting of failed network requests from the client side.
 //! W3C Editor's Draft: <https://w3c.github.io/network-error-logging/>
 //! MDN: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging>
-use std::ops::Sub;
 
 use chrono::{DateTime, Duration, Utc};
 
@@ -19,7 +18,7 @@ use thiserror::Error;
 
 /// The NEL parsing errors.
 #[derive(Debug, Error)]
-pub enum NelError {
+pub enum ReportError {
     /// Unexpected format.
     #[error("unexpected format")]
     InvalidNel,
@@ -31,7 +30,7 @@ pub enum NelError {
 /// Generated network error report (NEL).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct NelBody {
+pub struct Body {
     /// The elapsed number of milliseconds between the start of the resource
     /// fetch and when it was completed or aborted by the user agent.
     pub elapsed_time: Annotated<u64>,
@@ -63,7 +62,7 @@ pub struct NelBody {
 /// See <https://w3c.github.io/network-error-logging/>
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Nel {
+pub struct NetworkReport {
     /// The age of the report since it got collected and before it got sent.
     pub age: Annotated<i64>,
     /// The type of the report.
@@ -75,10 +74,10 @@ pub struct Nel {
     /// The User-Agent HTTP header.
     pub user_agent: Annotated<String>,
     /// The body of the NEL report.
-    pub body: Annotated<NelBody>,
+    pub body: Annotated<Body>,
 }
 
-impl Nel {
+impl NetworkReport {
     fn get_request(&self) -> Request {
         let headers = match self.user_agent.value() {
             Some(ref user_agent) if !user_agent.is_empty() => {
@@ -95,9 +94,9 @@ impl Nel {
             ..Request::default()
         }
     }
-    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), NelError> {
-        let mut nel: Annotated<Nel> =
-            Annotated::from_json_bytes(data).map_err(NelError::InvalidJson)?;
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), ReportError> {
+        let mut nel: Annotated<NetworkReport> =
+            Annotated::from_json_bytes(data).map_err(ReportError::InvalidJson)?;
 
         if let Some(nel) = nel.value_mut() {
             if let Some(body) = nel.body.value() {
@@ -151,8 +150,11 @@ impl Nel {
 
             // Set the timestamp on the event when it actually occured.
             let now: DateTime<Utc> = Utc::now();
-            let event_time = now.sub(Duration::milliseconds(*nel.age.value().unwrap_or(&0)));
-            event.timestamp = Annotated::new(Timestamp::from(event_time));
+            if let Some(event_time) =
+                now.checked_sub_signed(Duration::milliseconds(*nel.age.value().unwrap_or(&0)))
+            {
+                event.timestamp = Annotated::new(Timestamp::from(event_time));
+            }
         }
         event.nel = nel;
         Ok(())
@@ -186,7 +188,7 @@ mod tests {
         }"#;
 
         let mut event = Event::default();
-        Nel::apply_to_event(json.as_bytes(), &mut event).unwrap();
+        NetworkReport::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
         // mock timestamp because it is actually dynamic and depend on current time and "age" field
         event.timestamp =
