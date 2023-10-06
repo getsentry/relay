@@ -580,6 +580,38 @@
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
 <a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>sql;
 <span class="kw">pub use </span>sql::parse_query;
@@ -764,10 +796,20 @@
     <span class="prelude-val">Some</span>(scrubbed)
 }
 
-<span class="kw">fn </span>scrub_resource_identifiers(string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<span class="kw">fn </span>scrub_resource_identifiers(<span class="kw-2">mut </span>string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+    <span class="comment">// Remove query parameters.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(pos) = string.find(<span class="string">&#39;?&#39;</span>) {
+        string = <span class="kw-2">&amp;</span>string[..pos];
+    }
     <span class="kw">match </span>RESOURCE_NORMALIZER_REGEX.replace_all(string, <span class="string">&quot;$pre*$post&quot;</span>) {
-        Cow::Borrowed(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         Cow::Owned(scrubbed) =&gt; <span class="prelude-val">Some</span>(scrubbed),
+        Cow::Borrowed(string) =&gt; {
+            <span class="comment">// No IDs scrubbed, but we still want to set something.
+            </span><span class="kw">let </span>url = Url::parse(string).ok()<span class="question-mark">?</span>;
+            <span class="kw">let </span>extension = url.path().rsplit_once(<span class="string">&#39;.&#39;</span>)<span class="question-mark">?</span>.<span class="number">1</span>;
+            <span class="kw">let </span>domain = normalize_domain(<span class="kw-2">&amp;</span>url.host()<span class="question-mark">?</span>.to_string(), url.port())<span class="question-mark">?</span>;
+            <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;{domain}/*.{extension}&quot;</span>))
+        }
     }
 }
 
@@ -910,171 +952,193 @@
         };
     }
 
-    <span class="macro">span_description_test!</span>(span_description_scrub_empty, <span class="string">&quot;&quot;</span>, <span class="string">&quot;http.client&quot;</span>, <span class="string">&quot;&quot;</span>);
+    <span class="macro">span_description_test!</span>(empty, <span class="string">&quot;&quot;</span>, <span class="string">&quot;http.client&quot;</span>, <span class="string">&quot;&quot;</span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_only_domain,
+        only_domain,
         <span class="string">&quot;GET http://service.io&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET http://service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_only_urllike_on_http_ops,
+        only_urllike_on_http_ops,
         <span class="string">&quot;GET https://www.service.io/resources/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_path_ids_end,
+        path_ids_end,
         <span class="string">&quot;GET https://www.service.io/resources/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_path_ids_middle,
+        path_ids_middle,
         <span class="string">&quot;GET https://www.service.io/resources/01234/details&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_path_multiple_ids,
+        path_multiple_ids,
         <span class="string">&quot;GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET https://*.service.io&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_path_md5_hashes,
+        path_md5_hashes,
         <span class="string">&quot;GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_path_sha_hashes,
+        path_sha_hashes,
         <span class="string">&quot;GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_hex,
+        hex,
         <span class="string">&quot;GET /shop/de/f43/beef/3D6/my-beef&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_path_uuids,
+        path_uuids,
         <span class="string">&quot;GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_data_images,
+        data_images,
         <span class="string">&quot;GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;GET data:image/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_only_dblike_on_db_ops,
+        only_dblike_on_db_ops,
         <span class="string">&quot;SELECT count() FROM table WHERE id IN (%s, %s)&quot;</span>,
         <span class="string">&quot;http.client&quot;</span>,
         <span class="string">&quot;&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_cache,
+        cache,
         <span class="string">&quot;GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper&quot;</span>,
         <span class="string">&quot;cache.get_item&quot;</span>,
         <span class="string">&quot;GET *&quot;
     </span>);
 
-    <span class="macro">span_description_test!</span>(
-        span_description_scrub_redis_set,
-        <span class="string">&quot;SET mykey myvalue&quot;</span>,
-        <span class="string">&quot;db.redis&quot;</span>,
-        <span class="string">&quot;SET *&quot;
-    </span>);
+    <span class="macro">span_description_test!</span>(redis_set, <span class="string">&quot;SET mykey myvalue&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;SET *&quot;</span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_redis_set_quoted,
+        redis_set_quoted,
         <span class="string">r#&quot;SET mykey &#39;multi: part, value&#39;&quot;#</span>,
         <span class="string">&quot;db.redis&quot;</span>,
         <span class="string">&quot;SET *&quot;
     </span>);
 
-    <span class="macro">span_description_test!</span>(
-        span_description_scrub_redis_whitespace,
-        <span class="string">&quot; GET  asdf:123&quot;</span>,
-        <span class="string">&quot;db.redis&quot;</span>,
-        <span class="string">&quot;GET *&quot;
-    </span>);
+    <span class="macro">span_description_test!</span>(redis_whitespace, <span class="string">&quot; GET  asdf:123&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;GET *&quot;</span>);
+
+    <span class="macro">span_description_test!</span>(redis_no_args, <span class="string">&quot;EXEC&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;EXEC&quot;</span>);
+
+    <span class="macro">span_description_test!</span>(redis_invalid, <span class="string">&quot;What a beautiful day!&quot;</span>, <span class="string">&quot;db.redis&quot;</span>, <span class="string">&quot;*&quot;</span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_redis_no_args,
-        <span class="string">&quot;EXEC&quot;</span>,
-        <span class="string">&quot;db.redis&quot;</span>,
-        <span class="string">&quot;EXEC&quot;
-    </span>);
-
-    <span class="macro">span_description_test!</span>(
-        span_description_scrub_redis_invalid,
-        <span class="string">&quot;What a beautiful day!&quot;</span>,
-        <span class="string">&quot;db.redis&quot;</span>,
-        <span class="string">&quot;*&quot;
-    </span>);
-
-    <span class="macro">span_description_test!</span>(
-        span_description_scrub_redis_long_command,
+        redis_long_command,
         <span class="string">&quot;ACL SETUSER jane&quot;</span>,
         <span class="string">&quot;db.redis&quot;</span>,
         <span class="string">&quot;ACL SETUSER *&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_nothing_cache,
+        nothing_cache,
         <span class="string">&quot;abc-dontscrubme-meneither:stillno:ohplsstop&quot;</span>,
         <span class="string">&quot;cache.get_item&quot;</span>,
         <span class="string">&quot;*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_resource_script,
+        resource_script,
         <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.js-*.map&quot;
+        <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.chunk.js-*.map&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_resource_script_numeric_filename,
+        resource_script_numeric_filename,
         <span class="string">&quot;https://example.com/static/chunks/09876543211234567890&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
         <span class="string">&quot;https://example.com/static/chunks/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_resource_css,
+        resource_css,
         <span class="string">&quot;https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
         <span class="string">&quot;https://example.com/assets/dark_high_contrast-*.css&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_nothing_in_resource,
-        <span class="string">&quot;https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js&quot;</span>,
+        integer_in_resource,
+        <span class="string">&quot;https://example.com/assets/this_is-a_good_resource-123-scrub_me.js&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;&quot;
+        <span class="string">&quot;https://example.com/assets/this_is-a_good_resource-*-scrub_me.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
-        span_description_scrub_ui_load,
+        resource_query_params,
+        <span class="string">&quot;/organization-avatar/123/?s=120&quot;</span>,
+        <span class="string">&quot;resource.img&quot;</span>,
+        <span class="string">&quot;/organization-avatar/*/&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_query_params2,
+        <span class="string">&quot;https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod&quot;</span>,
+        <span class="string">&quot;resource.img&quot;</span>,
+        <span class="string">&quot;https://data.domain.com/data/guide*.gif&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_no_ids,
+        <span class="string">&quot;https://data.domain.com/data/guide.gif&quot;</span>,
+        <span class="string">&quot;resource.img&quot;</span>,
+        <span class="string">&quot;*.domain.com/*.gif&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_webpack,
+        <span class="string">&quot;https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js&quot;</span>,
+        <span class="string">&quot;resource.js&quot;</span>,
+        <span class="string">&quot;https://domain.com/path/to/app-*.*.js&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_vite,
+        <span class="string">&quot;webroot/assets/Profile-73f6525d.js&quot;</span>,
+        <span class="string">&quot;resource.js&quot;</span>,
+        <span class="string">&quot;webroot/assets/Profile-*.js&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_vite_css,
+        <span class="string">&quot;webroot/assets/Shop-1aff80f7.css&quot;</span>,
+        <span class="string">&quot;resource.css&quot;</span>,
+        <span class="string">&quot;webroot/assets/Shop-*.css&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        ui_load,
         <span class="string">&quot;ListAppViewController&quot;</span>,
         <span class="string">&quot;ui.load&quot;</span>,
         <span class="string">&quot;ListAppViewController&quot;
