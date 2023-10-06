@@ -6,7 +6,6 @@
 use std::ops::Sub;
 
 use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
@@ -29,78 +28,6 @@ pub enum NelError {
     InvalidJson(#[from] serde_json::Error),
 }
 
-/// Inner (useful) part of a NEL report.
-///
-/// See `Nel` for meaning of fields.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-struct NelBodyRaw {
-    elapsed_time: Option<u64>,
-    method: Option<String>,
-    phase: Option<String>,
-    protocol: Option<String>,
-    referrer: Option<String>,
-    sampling_fraction: Option<f64>,
-    server_ip: Option<String>,
-    status_code: Option<u64>,
-    #[serde(rename = "type")]
-    ty: Option<String>,
-}
-
-/// Defines external, RFC-defined schema we accept, while `Nel` defines our own schema.
-///
-/// See `Nel` for meaning of fields.
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-struct NelReportRaw {
-    age: Option<i64>,
-    #[serde(rename = "type")]
-    ty: Option<String>, // always "network-error"
-    url: Option<String>,
-    user_agent: Option<String>,
-    body: NelBodyRaw,
-}
-
-impl NelReportRaw {
-    fn into_protocol(self) -> Nel {
-        let body = NelBody {
-            elapsed_time: Annotated::from(self.body.elapsed_time),
-            method: Annotated::from(self.body.method),
-            phase: Annotated::from(self.body.phase),
-            protocol: Annotated::from(self.body.protocol),
-            referrer: Annotated::from(self.body.referrer),
-            sampling_fraction: Annotated::from(self.body.sampling_fraction),
-            server_ip: Annotated::from(self.body.server_ip),
-            status_code: Annotated::from(self.body.status_code),
-            ty: Annotated::from(self.body.ty),
-        };
-
-        Nel {
-            age: Annotated::from(self.age),
-            ty: Annotated::from(self.ty),
-            url: Annotated::from(self.url),
-            user_agent: Annotated::from(self.user_agent),
-            body: Annotated::from(body),
-        }
-    }
-
-    fn get_request(&self) -> Request {
-        let headers = match self.user_agent {
-            Some(ref user_agent) if !user_agent.is_empty() => {
-                Annotated::new(Headers(PairList(vec![Annotated::new((
-                    Annotated::new(HeaderName::new("User-Agent")),
-                    Annotated::new(HeaderValue::new(user_agent.clone())),
-                ))])))
-            }
-            Some(_) | None => Annotated::empty(),
-        };
-
-        Request {
-            url: Annotated::from(self.url.clone()),
-            headers,
-            ..Request::default()
-        }
-    }
-}
-
 /// Generated network error report (NEL).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
@@ -121,7 +48,7 @@ pub struct NelBody {
     /// The IP address of the server where the site is hosted.
     pub server_ip: Annotated<String>,
     /// HTTP status code.
-    pub status_code: Annotated<u64>,
+    pub status_code: Annotated<i64>,
     /// If request failed, the type of its network error. If request succeeded, "ok".
     #[metastructure(field = "type")]
     pub ty: Annotated<String>,
@@ -152,62 +79,81 @@ pub struct Nel {
 }
 
 impl Nel {
-    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), NelError> {
-        let raw_report: NelReportRaw = serde_json::from_slice::<NelReportRaw>(data)?;
-
-        event.logentry = Annotated::new(LogEntry::from({
-            if raw_report.body.ty.as_deref().unwrap_or("") == "http.error" {
-                format!(
-                    "{} / {} ({})",
-                    raw_report.body.phase.as_deref().unwrap_or(""),
-                    raw_report.body.ty.as_deref().unwrap_or(""),
-                    raw_report.body.status_code.unwrap_or(0)
-                )
-            } else {
-                format!(
-                    "{} / {}",
-                    raw_report.body.phase.as_deref().unwrap_or(""),
-                    raw_report.body.ty.as_deref().unwrap_or("")
-                )
+    fn get_request(&self) -> Request {
+        let headers = match self.user_agent.value() {
+            Some(ref user_agent) if !user_agent.is_empty() => {
+                Annotated::new(Headers(PairList(vec![Annotated::new((
+                    Annotated::new(HeaderName::new("User-Agent")),
+                    Annotated::new(HeaderValue::new(user_agent)),
+                ))])))
             }
-        }));
-        event.request = Annotated::new(raw_report.get_request());
-        event.logger = Annotated::from("nel".to_string());
-
-        // Exrtact common tags.
-        let tags = event.tags.get_or_insert_with(Tags::default);
-        if let Some(ref method) = raw_report.body.method {
-            tags.push(Annotated::new(TagEntry::from_pair((
-                Annotated::new("method".to_string()),
-                Annotated::new(method.to_string()),
-            ))));
+            Some(_) | None => Annotated::empty(),
+        };
+        Request {
+            url: self.url.clone(),
+            headers,
+            ..Request::default()
         }
-        if let Some(ref protocol) = raw_report.body.protocol {
-            tags.push(Annotated::new(TagEntry::from_pair((
-                Annotated::new("protocol".to_string()),
-                Annotated::new(protocol.to_string()),
-            ))));
-        }
-        if let Some(ref status_code) = raw_report.body.status_code {
-            tags.push(Annotated::new(TagEntry::from_pair((
-                Annotated::new("status_code".to_string()),
-                Annotated::new(status_code.to_string()),
-            ))));
-        }
-        if let Some(ref server_ip) = raw_report.body.server_ip {
-            tags.push(Annotated::new(TagEntry::from_pair((
-                Annotated::new("server_ip".to_string()),
-                Annotated::new(server_ip.to_string()),
-            ))));
-        }
+    }
+    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), NelError> {
+        let mut nel: Annotated<Nel> =
+            Annotated::from_json_bytes(data).map_err(NelError::InvalidJson)?;
 
-        // Set the timestamp on the event when it actually occured.
-        let now: DateTime<Utc> = Utc::now();
-        let event_time = now.sub(Duration::milliseconds(raw_report.age.unwrap_or_default()));
-        event.timestamp = Annotated::new(Timestamp::from(event_time));
+        if let Some(nel) = nel.value_mut() {
+            let body = nel.body.value();
+            event.logentry = Annotated::new(LogEntry::from({
+                if nel.ty.value().map_or("", |v| v.as_str()) == "http.error" {
+                    format!(
+                        "{} / {} ({})",
+                        body.map_or("", |b| b.phase.as_str().unwrap_or("")),
+                        body.map_or("", |b| b.ty.as_str().unwrap_or("")),
+                        body.map_or(&0, |b| b.status_code.value().unwrap_or(&0))
+                    )
+                } else {
+                    format!(
+                        "{} / {}",
+                        body.map_or("", |b| b.phase.as_str().unwrap_or("")),
+                        body.map_or("", |b| b.ty.as_str().unwrap_or("")),
+                    )
+                }
+            }));
 
-        event.nel = Annotated::from(raw_report.into_protocol());
+            event.request = Annotated::new(nel.get_request());
+            event.logger = Annotated::from("nel".to_string());
 
+            // Exrtact common tags.
+            let tags = event.tags.get_or_insert_with(Tags::default);
+            if let Some(ref method) = body.and_then(|b| b.method.value()) {
+                tags.push(Annotated::new(TagEntry::from_pair((
+                    Annotated::new("method".to_string()),
+                    Annotated::new(method.to_string()),
+                ))));
+            }
+            if let Some(ref protocol) = body.and_then(|b| b.protocol.value()) {
+                tags.push(Annotated::new(TagEntry::from_pair((
+                    Annotated::new("protocol".to_string()),
+                    Annotated::new(protocol.to_string()),
+                ))));
+            }
+            if let Some(ref status_code) = body.and_then(|b| b.status_code.value()) {
+                tags.push(Annotated::new(TagEntry::from_pair((
+                    Annotated::new("status_code".to_string()),
+                    Annotated::new(status_code.to_string()),
+                ))));
+            }
+            if let Some(ref server_ip) = body.and_then(|b| b.server_ip.value()) {
+                tags.push(Annotated::new(TagEntry::from_pair((
+                    Annotated::new("server_ip".to_string()),
+                    Annotated::new(server_ip.to_string()),
+                ))));
+            }
+
+            // Set the timestamp on the event when it actually occured.
+            let now: DateTime<Utc> = Utc::now();
+            let event_time = now.sub(Duration::milliseconds(*nel.age.value().unwrap_or(&0)));
+            event.timestamp = Annotated::new(Timestamp::from(event_time));
+        }
+        event.nel = nel;
         Ok(())
     }
 }
