@@ -778,14 +778,15 @@ def test_transaction_metrics_count_per_root_project(
 
 
 @pytest.mark.parametrize(
-    "send_extracted_header,expect_metrics_extraction",
-    [(False, True), (True, False)],
+    "send_extracted_header,expect_extracted_header,expect_metrics_extraction",
+    [(False, True, True), (True, True, False)],
     ids=["must extract metrics", "mustn't extract metrics"],
 )
 def test_transaction_metrics_extraction_external_relays(
     mini_sentry,
     relay,
     send_extracted_header,
+    expect_extracted_header,
     expect_metrics_extraction,
 ):
     if send_extracted_header:
@@ -829,6 +830,11 @@ def test_transaction_metrics_extraction_external_relays(
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
     tx_item = envelope.items[0]
+
+    if expect_extracted_header:
+        assert tx_item.headers["metrics_extracted"] is True
+    else:
+        assert "metrics_extracted" not in tx_item.headers
 
     tx_item_body = json.loads(tx_item.get_bytes().decode())
     assert (
