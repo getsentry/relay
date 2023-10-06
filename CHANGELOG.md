@@ -5,7 +5,7 @@
 **Features**:
 
 - Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
-- Added new endpoint for NEL (Network Error Logging) reports ingestion. ([#2421](https://github.com/getsentry/relay/pull/2421))
+- Added support for NEL (Network Error Logging) reports ingestion. ([#2421](https://github.com/getsentry/relay/pull/2421))
 
 **Bug Fixes**:
 

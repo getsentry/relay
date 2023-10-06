@@ -1755,7 +1755,7 @@ impl EnvelopeProcessorService {
             relay_log::trace!("processing nel report");
             self.event_from_nel_report(item, envelope.meta())
                 .map_err(|error| {
-                    relay_log::error!(error = &error as &dyn Error, "failed to extract nel report");
+                    relay_log::error!(error = &error as &dyn Error, "failed to extract NEL report");
                     error
                 })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {

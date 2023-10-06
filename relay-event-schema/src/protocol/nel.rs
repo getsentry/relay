@@ -20,7 +20,7 @@ use thiserror::Error;
 /// The NEL parsing errors.
 #[derive(Debug, Error)]
 pub enum NelError {
-    /// Unexpected format
+    /// Unexpected format.
     #[error("unexpected format")]
     InvalidNel,
     /// Incoming Json is unparsable.

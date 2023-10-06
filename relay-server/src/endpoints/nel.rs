@@ -1,4 +1,7 @@
-//! Endpoints for Network Error Logging reports.
+//! Endpoint for Network Error Logging (NEL) reports.
+//!
+//! It split list of incoming events from the envelope into separate envelope with 1 item inside.
+//! Which later get failed by the service infrastructure. 
 
 use axum::extract::{DefaultBodyLimit, FromRequest};
 use axum::http::StatusCode;
