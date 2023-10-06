@@ -70,10 +70,12 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 
                     // For any other metric in the transaction namespace, we check the limit with
                     // quantity=0 so transactions are not double counted against the quota.
-                    _ => return Some((0, false)),
+                    _ => 0,
                 };
 
-                let has_profile = metric.tag(PROFILE_TAG) == Some("true");
+                let has_profile = matches!(mri.name, "usage" | "duration")
+                    && metric.tag(PROFILE_TAG) == Some("true");
+
                 Some((count, has_profile))
             })
             .collect();
@@ -278,6 +280,22 @@ mod tests {
                 value: BucketValue::distribution(456.0),
             },
             Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
@@ -350,6 +368,22 @@ mod tests {
                 value: BucketValue::distribution(456.0),
             },
             Bucket {
+                // transaction without profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: Default::default(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
+                // transaction with profile
+                timestamp: UnixTimestamp::now(),
+                width: 0,
+                name: "c:transactions/usage@none".to_string(),
+                tags: [("has_profile".to_string(), "true".to_string())].into(),
+                value: BucketValue::counter(1.0),
+            },
+            Bucket {
                 // unrelated metric
                 timestamp: UnixTimestamp::now(),
                 width: 0,
@@ -386,12 +420,14 @@ mod tests {
         let metrics = limiter.into_metrics();
 
         // All metrics have been preserved:
-        assert_eq!(metrics.len(), 3);
+        assert_eq!(metrics.len(), 5);
 
         // Profile tag has been removed:
         assert!(metrics[0].tags.is_empty());
         assert!(metrics[1].tags.is_empty());
-        assert!(!metrics[2].tags.is_empty());
+        assert!(metrics[2].tags.is_empty());
+        assert!(metrics[3].tags.is_empty());
+        assert!(!metrics[4].tags.is_empty()); // unrelated metric still has it
 
         rx.close();
 

@@ -1028,8 +1028,8 @@ def test_transaction_name_too_long(
 
     metrics = metrics_consumer.get_metrics()
     for metric, _ in metrics:
-        if metric["name"] != "c:transactions/count_per_root_project@none":
-            assert metric["tags"].get("transaction") == expected_transaction_name
+        if "transaction" in metric["tags"]:
+            assert metric["tags"]["transaction"] == expected_transaction_name
 
 
 @pytest.mark.skip(reason="flake")
@@ -1130,10 +1130,11 @@ def test_limit_custom_measurements(
 
     # Expect exactly 5 metrics:
     # (transaction.duration, transaction.duration_light, transactions.count_per_root_project, 1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 5)
+    metrics = metrics_by_name(metrics_consumer, 6)
     metrics.pop("headers")
 
     assert metrics.keys() == {
+        "c:transactions/usage@none",
         "d:transactions/duration@millisecond",
         "d:transactions/duration_light@millisecond",
         "c:transactions/count_per_root_project@none",
