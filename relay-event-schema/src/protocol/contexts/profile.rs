@@ -51,7 +51,7 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    fn test_trace_context_roundtrip() {
+    fn roundtrip() {
         let json = r#"{
   "profile_id": "4c79f60c11214eb38604f4ae0781bfb2",
   "type": "profile"
@@ -67,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn test_trace_context_normalization() {
+    fn normalization() {
         let json = r#"{
   "profile_id": "4C79F60C11214EB38604F4AE0781BFB2",
   "type": "profile"

@@ -2302,12 +2302,14 @@ impl EnvelopeProcessorService {
             .and_then(|system| system.as_str())
             .unwrap_or_default();
         op == "http.client"
+            || op.starts_with("app.")
+            || op.starts_with("ui.load")
             || op.starts_with("db")
                 && !(op.contains("clickhouse")
                     || op.contains("mongodb")
                     || op.contains("redis")
                     || op.contains("compiler"))
-                && !(op == "db.sql.query" && (description.contains(r#""$"#) || system == "mongodb"))
+                && !(op == "db.sql.query" && (description.contains("\"$") || system == "mongodb"))
     }
 
     #[cfg(feature = "processing")]
@@ -2377,6 +2379,11 @@ impl EnvelopeProcessorService {
                 let mut new_span = inner_span.clone();
                 new_span.segment_id = transaction_span.segment_id.clone();
                 new_span.is_segment = Annotated::new(false);
+
+                // If a profile is associated with the transaction, also associate it with its
+                // child spans.
+                new_span.profile_id = transaction_span.profile_id.clone();
+
                 add_span(Annotated::new(new_span));
             }
         }
