@@ -777,6 +777,93 @@ def test_transaction_metrics_count_per_root_project(
     }
 
 
+@pytest.mark.parametrize(
+    "send_extracted_header,expect_extracted_header,expect_metrics_extraction",
+    [(False, True, True), (True, True, False)],
+    ids=["must extract metrics", "mustn't extract metrics"],
+)
+def foobar(
+    mini_sentry,
+    relay,
+    send_extracted_header,
+    expect_extracted_header,
+    expect_metrics_extraction,
+):
+    if send_extracted_header:
+        item_headers = {"metrics_extracted": True}
+    else:
+        item_headers = None
+
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": 1,
+    }
+    config["transactionMetrics"] = {"version": 1}
+    config["dynamicSampling"] = {
+        "rules": [],
+        "rulesV2": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {"op": "and", "inner": []},
+            }
+        ],
+    }
+
+    tx = generate_transaction_item()
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    tx["timestamp"] = timestamp.isoformat()
+
+    external = relay(mini_sentry, options=TEST_CONFIG)
+
+    trace_info = {
+        "trace_id": tx["contexts"]["trace"]["trace_id"],
+        "public_key": mini_sentry.get_dsn_public_key(project_id),
+        "transaction": "root_transaction",
+    }
+    external.send_transaction(project_id, tx, item_headers, trace_info)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    tx_item = envelope.items[0]
+
+    tx_item_body = json.loads(tx_item.get_bytes().decode())
+    assert (
+        tx_item_body["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
+    )
+
+    if expect_metrics_extraction:
+        metrics_envelope = mini_sentry.captured_events.get(timeout=3)
+        assert len(metrics_envelope.items) == 1
+        m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
+        assert len(m_item_body) == 3
+        m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
+        assert (
+            m_item_body_sorted[2]["name"] == "d:transactions/duration_light@millisecond"
+        )
+        assert (
+            m_item_body_sorted[2]["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
+        assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
+        assert (
+            m_item_body_sorted[1]["tags"]["transaction"]
+            == "/organizations/:orgId/performance/:eventSlug/"
+        )
+        assert (
+            m_item_body_sorted[0]["name"]
+            == "c:transactions/count_per_root_project@none"
+        )
+        assert m_item_body_sorted[0]["tags"]["transaction"] == "root_transaction"
+        assert m_item_body_sorted[0]["value"] == 1.0
+
+    assert mini_sentry.captured_events.empty()
+
+
 def test_transaction_metrics_extraction_external_relays(mini_sentry, relay):
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
