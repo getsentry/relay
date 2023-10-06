@@ -100,52 +100,53 @@ impl Nel {
             Annotated::from_json_bytes(data).map_err(NelError::InvalidJson)?;
 
         if let Some(nel) = nel.value_mut() {
-            let body = nel.body.value();
-            event.logentry = Annotated::new(LogEntry::from({
-                if nel.ty.value().map_or("", |v| v.as_str()) == "http.error" {
-                    format!(
-                        "{} / {} ({})",
-                        body.map_or("", |b| b.phase.as_str().unwrap_or("")),
-                        body.map_or("", |b| b.ty.as_str().unwrap_or("")),
-                        body.map_or(&0, |b| b.status_code.value().unwrap_or(&0))
-                    )
-                } else {
-                    format!(
-                        "{} / {}",
-                        body.map_or("", |b| b.phase.as_str().unwrap_or("")),
-                        body.map_or("", |b| b.ty.as_str().unwrap_or("")),
-                    )
+            if let Some(body) = nel.body.value() {
+                event.logentry = Annotated::new(LogEntry::from({
+                    if nel.ty.value().map_or("", |v| v.as_str()) == "http.error" {
+                        format!(
+                            "{} / {} ({})",
+                            body.phase.as_str().unwrap_or(""),
+                            body.ty.as_str().unwrap_or(""),
+                            body.status_code.value().unwrap_or(&0)
+                        )
+                    } else {
+                        format!(
+                            "{} / {}",
+                            body.phase.as_str().unwrap_or(""),
+                            body.ty.as_str().unwrap_or(""),
+                        )
+                    }
+                }));
+
+                event.request = Annotated::new(nel.get_request());
+                event.logger = Annotated::from("nel".to_string());
+
+                // Exrtact common tags.
+                let tags = event.tags.get_or_insert_with(Tags::default);
+                if let Some(ref method) = body.method.value() {
+                    tags.push(Annotated::new(TagEntry::from_pair((
+                        Annotated::new("method".to_string()),
+                        Annotated::new(method.to_string()),
+                    ))));
                 }
-            }));
-
-            event.request = Annotated::new(nel.get_request());
-            event.logger = Annotated::from("nel".to_string());
-
-            // Exrtact common tags.
-            let tags = event.tags.get_or_insert_with(Tags::default);
-            if let Some(ref method) = body.and_then(|b| b.method.value()) {
-                tags.push(Annotated::new(TagEntry::from_pair((
-                    Annotated::new("method".to_string()),
-                    Annotated::new(method.to_string()),
-                ))));
-            }
-            if let Some(ref protocol) = body.and_then(|b| b.protocol.value()) {
-                tags.push(Annotated::new(TagEntry::from_pair((
-                    Annotated::new("protocol".to_string()),
-                    Annotated::new(protocol.to_string()),
-                ))));
-            }
-            if let Some(ref status_code) = body.and_then(|b| b.status_code.value()) {
-                tags.push(Annotated::new(TagEntry::from_pair((
-                    Annotated::new("status_code".to_string()),
-                    Annotated::new(status_code.to_string()),
-                ))));
-            }
-            if let Some(ref server_ip) = body.and_then(|b| b.server_ip.value()) {
-                tags.push(Annotated::new(TagEntry::from_pair((
-                    Annotated::new("server_ip".to_string()),
-                    Annotated::new(server_ip.to_string()),
-                ))));
+                if let Some(ref protocol) = body.protocol.value() {
+                    tags.push(Annotated::new(TagEntry::from_pair((
+                        Annotated::new("protocol".to_string()),
+                        Annotated::new(protocol.to_string()),
+                    ))));
+                }
+                if let Some(ref status_code) = body.status_code.value() {
+                    tags.push(Annotated::new(TagEntry::from_pair((
+                        Annotated::new("status_code".to_string()),
+                        Annotated::new(status_code.to_string()),
+                    ))));
+                }
+                if let Some(ref server_ip) = body.server_ip.value() {
+                    tags.push(Annotated::new(TagEntry::from_pair((
+                        Annotated::new("server_ip".to_string()),
+                        Annotated::new(server_ip.to_string()),
+                    ))));
+                }
             }
 
             // Set the timestamp on the event when it actually occured.
