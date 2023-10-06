@@ -7,8 +7,9 @@
 //!
 //! # Protocol
 //!
-//! Clients submit metrics in a [text-based protocol](Bucket) based on StatsD. A sample submission
-//! looks like this:
+//! Clients submit metrics in a [text-based protocol](Bucket) based on StatsD. See the [field
+//! documentation](Bucket#fields) on `Bucket` for more information on the components. A sample
+//! submission looks like this:
 //!
 //! ```text
 #![doc = include_str!("../tests/fixtures/buckets.statsd.txt")]

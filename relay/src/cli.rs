@@ -279,22 +279,6 @@ pub fn init_config<P: AsRef<Path>>(config_path: P, _matches: &ArgMatches) -> Res
             utils::prompt_value("upstream", &mut mincfg.relay.upstream)?;
             utils::prompt_value("listen interface", &mut mincfg.relay.host)?;
             utils::prompt_value("listen port", &mut mincfg.relay.port)?;
-
-            if Confirm::with_theme(get_theme())
-                .with_prompt("do you want listen to TLS")
-                .interact()?
-            {
-                let mut port = mincfg.relay.port.saturating_add(443);
-                utils::prompt_value("tls port", &mut port)?;
-                mincfg.relay.tls_port = Some(port);
-                mincfg.relay.tls_identity_path =
-                    Some(PathBuf::from(utils::prompt_value_no_default::<String>(
-                        "path to your DER-encoded PKCS #12 archive",
-                    )?));
-                mincfg.relay.tls_identity_password = Some(
-                    utils::prompt_value_no_default::<String>("password for your PKCS #12 archive")?,
-                );
-            }
         }
 
         // TODO: Enable this once logging to Sentry is more useful.
