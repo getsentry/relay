@@ -1220,7 +1220,13 @@ def test_generic_metric_extraction(mini_sentry, relay):
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     envelope = mini_sentry.captured_events.get(timeout=3)
+
+    for item in envelope.items:
+        # Transaction items should be sampled and not among the envelope items.
+        assert item.headers.get("type") != "transaction"
+
     item = envelope.items[0]
+    assert item.headers.get("type") == "metric_buckets"
     metrics = json.loads(item.get_bytes().decode())
 
     assert {
