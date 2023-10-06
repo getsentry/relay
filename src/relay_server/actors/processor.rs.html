@@ -4350,6 +4350,8 @@
 <a href="#4350" id="4350">4350</a>
 <a href="#4351" id="4351">4351</a>
 <a href="#4352" id="4352">4352</a>
+<a href="#4353" id="4353">4353</a>
+<a href="#4354" id="4354">4354</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -5440,24 +5442,22 @@
         state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             <span class="comment">// Drop profile without a transaction in the same envelope.
             </span>ItemType::Profile <span class="kw">if </span>transaction_count == <span class="number">0 </span>=&gt; ItemAction::DropSilently,
-            ItemType::Profile =&gt; {
-                <span class="kw">if </span>!found_profile {
-                    <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload()) {
-                        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                            found_profile = <span class="bool-val">true</span>;
-                            ItemAction::Keep
-                        }
-                        <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        ))),
+            <span class="comment">// First profile found in the envelope, we&#39;ll keep it if metadata are valid.
+            </span>ItemType::Profile <span class="kw">if </span>!found_profile =&gt; {
+                <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload()) {
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
+                        found_profile = <span class="bool-val">true</span>;
+                        ItemAction::Keep
                     }
-                } <span class="kw">else </span>{
-                    <span class="comment">// We found a second profile, drop it.
-                    </span>ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                        relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-                    )))
+                    <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
+            <span class="comment">// We found another profile, we&#39;ll drop it.
+            </span>ItemType::Profile =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+            ))),
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
         state.has_profile = found_profile;
@@ -5491,9 +5491,13 @@
     <span class="doccomment">/// Process profiles and set the profile ID in the profile context on the transaction if successful
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span><span class="kw">fn </span>process_profiles(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) {
+        <span class="kw">let </span>profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         <span class="kw">let </span><span class="kw-2">mut </span>found_profile_id = <span class="prelude-val">None</span>;
         state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             ItemType::Profile =&gt; {
+                <span class="kw">if </span>!profiling_enabled {
+                    <span class="kw">return </span>ItemAction::DropSilently;
+                }
                 <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload(), state.event.value()) {
                     <span class="prelude-val">Ok</span>((profile_id, payload)) =&gt; {
                         <span class="kw">if </span>payload.len() &lt;= <span class="self">self</span>.inner.config.max_profile_size() {

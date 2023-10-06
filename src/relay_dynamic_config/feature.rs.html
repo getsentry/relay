@@ -121,6 +121,9 @@
     <span class="doccomment">/// Enable extracting spans for all modules.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-all-modules&quot;</span>)]
     </span>SpanMetricsExtractionAllModules,
+    <span class="doccomment">/// Enable processing profiles
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
+    </span>Profiling,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]
@@ -128,9 +131,6 @@
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-normalize&quot;</span>)]
     </span>Deprecated2,
-    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
-    </span>Deprecated3,
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:extract-standalone-spans&quot;</span>)]
     </span>Deprecated4,
