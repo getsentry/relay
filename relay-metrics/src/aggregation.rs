@@ -1,5 +1,5 @@
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, BinaryHeap, HashMap};
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::hash::Hasher;
 use std::iter::{FromIterator, FusedIterator};
@@ -20,7 +20,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue, DistributionValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::AggMod::AggregatorData;
+use crate::temp_module_agg::Aggregator;
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -476,8 +476,9 @@ enum AggregatorState {
     ShuttingDown,
 }
 
+/// Keeps track of metrics for projects.
 #[derive(Default)]
-struct CostTracker {
+pub struct CostTracker {
     total_cost: usize,
     cost_per_project_key: HashMap<ProjectKey, usize>,
 }
@@ -692,7 +693,7 @@ impl MergeBuckets {
 
 /// Aggregator service interface.
 #[derive(Debug)]
-pub enum Aggregator {
+pub enum AggregatorManager {
     /// The health check message which makes sure that the service can accept the requests now.
     AcceptsMetrics(AcceptsMetrics, Sender<bool>),
     /// Merge the buckets.
@@ -703,16 +704,16 @@ pub enum Aggregator {
     BucketCountInquiry(BucketCountInquiry, Sender<usize>),
 }
 
-impl Interface for Aggregator {}
+impl Interface for AggregatorManager {}
 
-impl FromMessage<AcceptsMetrics> for Aggregator {
+impl FromMessage<AcceptsMetrics> for AggregatorManager {
     type Response = AsyncResponse<bool>;
     fn from_message(message: AcceptsMetrics, sender: Sender<bool>) -> Self {
         Self::AcceptsMetrics(message, sender)
     }
 }
 
-impl FromMessage<MergeBuckets> for Aggregator {
+impl FromMessage<MergeBuckets> for AggregatorManager {
     type Response = NoResponse;
     fn from_message(message: MergeBuckets, _: ()) -> Self {
         Self::MergeBuckets(message)
@@ -720,7 +721,7 @@ impl FromMessage<MergeBuckets> for Aggregator {
 }
 
 #[cfg(test)]
-impl FromMessage<BucketCountInquiry> for Aggregator {
+impl FromMessage<BucketCountInquiry> for AggregatorManager {
     type Response = AsyncResponse<usize>;
     fn from_message(message: BucketCountInquiry, sender: Sender<usize>) -> Self {
         Self::BucketCountInquiry(message, sender)
@@ -759,15 +760,17 @@ impl FromMessage<BucketCountInquiry> for Aggregator {
 ///
 /// Receivers must implement a handler for the [`FlushBuckets`] message.
 pub struct AggregatorService {
-    aggregator: AggregatorData,
+    aggregator: Aggregator,
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
 }
 
-pub mod AggMod {
+/// Temporary - just for the service not to have access to the private functions
+pub mod temp_module_agg {
     use super::*;
 
-    pub struct AggregatorData {
+    /// foobar
+    pub struct Aggregator {
         name: String,
         config: AggregatorConfig,
         buckets: HashMap<BucketKey, QueuedBucket>,
@@ -775,36 +778,110 @@ pub mod AggMod {
     }
 
     // Data
-    impl AggregatorData {
+    impl Aggregator {
+        /// Returns the name of the aggregator.
         pub fn name(&self) -> &str {
             self.name.as_str()
         }
 
+        /// Returns the config of the aggregator.
         pub fn config(&self) -> &AggregatorConfig {
             &self.config
         }
 
-        pub fn bucket_qty(&self) -> usize {
-            self.buckets.len()
-        }
-
+        /// Returns the hashmap of the buckets of the aggregator.
         pub fn buckets(&self) -> &HashMap<BucketKey, QueuedBucket> {
             &self.buckets
         }
 
+        /// Returns the total cost.
         pub fn total_cost(&self) -> usize {
             self.cost_tracker.total_cost
         }
 
+        /// Subtracts the cost associate dwith a project.
         pub fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
             self.cost_tracker.subtract_cost(project_key, cost)
         }
 
-        pub fn retain<F>(&mut self, f: F)
-        where
-            F: FnMut(&BucketKey, &mut QueuedBucket) -> bool,
-        {
-            self.buckets.retain(f)
+        /// Returns the cost tracker of the aggregator.
+        pub fn cost_tracker(&self) -> &CostTracker {
+            &self.cost_tracker
+        }
+
+        /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
+        ///
+        /// Note that this function is primarily intended for tests.
+        pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<HashedBucket>> {
+            relay_statsd::metric!(
+                gauge(MetricGauges::Buckets) = self.buckets().len() as u64,
+                aggregator = &self.name,
+            );
+
+            // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
+            // assuming that this gives us more than enough data points.
+            relay_statsd::metric!(
+                gauge(MetricGauges::BucketsCost) = self.total_cost() as u64,
+                aggregator = &self.name,
+            );
+
+            let mut buckets = HashMap::<ProjectKey, Vec<HashedBucket>>::new();
+            let mut stats = HashMap::new();
+
+            relay_statsd::metric!(
+                timer(MetricTimers::BucketsScanDuration),
+                aggregator = &self.name,
+                {
+                    let bucket_interval = self.config().bucket_interval;
+                    let cost_tracker = &mut self.cost_tracker;
+                    // binary heap ?
+                    self.buckets.retain(|key, entry| {
+                        if force || entry.elapsed() {
+                            // Take the value and leave a placeholder behind. It'll be removed right after.
+                            let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                            cost_tracker.subtract_cost(key.project_key, key.cost());
+                            cost_tracker.subtract_cost(key.project_key, value.cost());
+
+                            let (bucket_count, item_count) = stats
+                                .entry((value.ty(), key.namespace()))
+                                .or_insert((0usize, 0usize));
+                            *bucket_count += 1;
+                            *item_count += value.len();
+
+                            let bucket = Bucket {
+                                timestamp: key.timestamp,
+                                width: bucket_interval,
+                                name: key.metric_name.clone(),
+                                value,
+                                tags: key.tags.clone(),
+                            };
+
+                            buckets
+                                .entry(key.project_key)
+                                .or_default()
+                                .push(HashedBucket {
+                                    hashed_key: key.hash64(),
+                                    bucket,
+                                });
+
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+            );
+
+            for ((ty, namespace), (bucket_count, item_count)) in stats.into_iter() {
+                relay_statsd::metric!(
+                    gauge(MetricGauges::AvgBucketSize) = item_count as f64 / bucket_count as f64,
+                    metric_type = ty.as_str(),
+                    namespace = namespace.as_str(),
+                    aggregator = self.name(),
+                );
+            }
+
+            buckets
         }
 
         /// Validates the metric name and its tags are correct.
@@ -1123,13 +1200,6 @@ pub mod AggMod {
             );
         }
 
-        pub fn handle_accepts_metrics(&self, sender: Sender<bool>) {
-            let result = !self
-                .cost_tracker
-                .totals_cost_exceeded(self.config.max_total_bucket_bytes);
-            sender.send(result);
-        }
-
         /// Create a new aggregator and connect it to `receiver`.
         ///
         /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
@@ -1170,10 +1240,18 @@ impl AggregatorService {
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
         Self {
-            aggregator: AggregatorData::named(name, config),
+            aggregator: Aggregator::named(name, config),
             receiver,
             state: AggregatorState::Running,
         }
+    }
+
+    fn handle_accepts_metrics(&self, sender: Sender<bool>) {
+        let result = !self
+            .aggregator
+            .cost_tracker()
+            .totals_cost_exceeded(self.aggregator.config().max_total_bucket_bytes);
+        sender.send(result);
     }
 
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
@@ -1182,7 +1260,8 @@ impl AggregatorService {
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush(&mut self) {
-        let flush_buckets = self.pop_flush_buckets();
+        let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
+        let flush_buckets = self.aggregator.pop_flush_buckets(force_flush);
 
         if flush_buckets.is_empty() {
             return;
@@ -1195,7 +1274,7 @@ impl AggregatorService {
             let bucket_count = project_buckets.len() as u64;
             relay_statsd::metric!(
                 histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
-                aggregator = &self.aggregator.name(),
+                aggregator = self.aggregator.name(),
             );
             total_bucket_count += bucket_count;
 
@@ -1217,7 +1296,7 @@ impl AggregatorService {
         }
         relay_statsd::metric!(
             histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
-            aggregator = &self.aggregator.name(),
+            aggregator = self.aggregator.name(),
         );
     }
 
@@ -1235,12 +1314,14 @@ impl AggregatorService {
         }
     }
 
-    fn handle_message(&mut self, msg: Aggregator) {
+    fn handle_message(&mut self, msg: AggregatorManager) {
         match msg {
-            Aggregator::AcceptsMetrics(_, sender) => self.aggregator.handle_accepts_metrics(sender),
-            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+            AggregatorManager::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
+            AggregatorManager::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, sender) => sender.send(self.aggregator.bucket_qty()),
+            AggregatorManager::BucketCountInquiry(_, sender) => {
+                sender.send(self.aggregator.buckets().len())
+            }
         }
     }
 
@@ -1248,83 +1329,6 @@ impl AggregatorService {
         if message.timeout.is_some() {
             self.state = AggregatorState::ShuttingDown;
         }
-    }
-
-    /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
-    ///
-    /// Note that this function is primarily intended for tests.
-    pub fn pop_flush_buckets(&mut self) -> HashMap<ProjectKey, Vec<HashedBucket>> {
-        relay_statsd::metric!(
-            gauge(MetricGauges::Buckets) = self.aggregator.bucket_qty() as u64,
-            aggregator = &self.aggregator.name(),
-        );
-
-        // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
-        // assuming that this gives us more than enough data points.
-        relay_statsd::metric!(
-            gauge(MetricGauges::BucketsCost) = self.aggregator.total_cost() as u64,
-            aggregator = &self.aggregator.name(),
-        );
-
-        let mut buckets = HashMap::<ProjectKey, Vec<HashedBucket>>::new();
-
-        let force = matches!(&self.state, AggregatorState::ShuttingDown);
-
-        let mut stats = HashMap::new();
-
-        relay_statsd::metric!(
-            timer(MetricTimers::BucketsScanDuration),
-            aggregator = &self.aggregator.name(),
-            {
-                let bucket_interval = self.aggregator.config().bucket_interval;
-                // binary heap ?
-                self.aggregator.retain(|key, entry| {
-                    if force || entry.elapsed() {
-                        // Take the value and leave a placeholder behind. It'll be removed right after.
-                        let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                        //self.aggregator.subtract_cost(key.project_key, key.cost());
-                        //self.aggregator.subtract_cost(key.project_key, value.cost());
-
-                        let (bucket_count, item_count) = stats
-                            .entry((value.ty(), key.namespace()))
-                            .or_insert((0usize, 0usize));
-                        *bucket_count += 1;
-                        *item_count += value.len();
-
-                        let bucket = Bucket {
-                            timestamp: key.timestamp,
-                            width: bucket_interval,
-                            name: key.metric_name.clone(),
-                            value,
-                            tags: key.tags.clone(),
-                        };
-
-                        buckets
-                            .entry(key.project_key)
-                            .or_default()
-                            .push(HashedBucket {
-                                hashed_key: key.hash64(),
-                                bucket,
-                            });
-
-                        false
-                    } else {
-                        true
-                    }
-                });
-            }
-        );
-
-        for ((ty, namespace), (bucket_count, item_count)) in stats.into_iter() {
-            relay_statsd::metric!(
-                gauge(MetricGauges::AvgBucketSize) = item_count as f64 / bucket_count as f64,
-                metric_type = ty.as_str(),
-                namespace = namespace.as_str(),
-                aggregator = self.aggregator.name(),
-            );
-        }
-
-        buckets
     }
 }
 
@@ -1339,7 +1343,7 @@ impl fmt::Debug for AggregatorService {
 }
 
 impl Service for AggregatorService {
-    type Interface = Aggregator;
+    type Interface = AggregatorManager;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
@@ -1365,7 +1369,7 @@ impl Service for AggregatorService {
 
 impl Drop for AggregatorService {
     fn drop(&mut self) {
-        let remaining_buckets = self.aggregator.bucket_qty();
+        let remaining_buckets = self.aggregator.buckets().len();
         if remaining_buckets > 0 {
             relay_log::error!(
                 tags.aggregator = self.aggregator.name(),

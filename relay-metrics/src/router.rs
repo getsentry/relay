@@ -8,8 +8,8 @@ use relay_system::{Addr, NoResponse, Recipient, Service};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AcceptsMetrics, Aggregator, AggregatorConfig, AggregatorService, FlushBuckets, MergeBuckets,
-    MetricNamespace, MetricResourceIdentifier,
+    AcceptsMetrics, AggregatorConfig, AggregatorManager, AggregatorService, FlushBuckets,
+    MergeBuckets, MetricNamespace, MetricResourceIdentifier,
 };
 
 /// Contains an [`AggregatorConfig`] for a specific scope.
@@ -77,7 +77,7 @@ impl RouterService {
 }
 
 impl Service for RouterService {
-    type Interface = Aggregator;
+    type Interface = AggregatorManager;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
@@ -102,8 +102,8 @@ impl Service for RouterService {
 
 /// Helper struct that holds the [`Addr`]s of started aggregators.
 struct StartedRouter {
-    default_aggregator: Addr<Aggregator>,
-    secondary_aggregators: BTreeMap<MetricNamespace, Addr<Aggregator>>,
+    default_aggregator: Addr<AggregatorManager>,
+    secondary_aggregators: BTreeMap<MetricNamespace, Addr<AggregatorManager>>,
 }
 
 impl StartedRouter {
@@ -118,9 +118,9 @@ impl StartedRouter {
         }
     }
 
-    fn handle_message(&mut self, msg: Aggregator) {
+    fn handle_message(&mut self, msg: AggregatorManager) {
         match msg {
-            Aggregator::AcceptsMetrics(_, sender) => {
+            AggregatorManager::AcceptsMetrics(_, sender) => {
                 let requests: Vec<_> = Some(self.default_aggregator.send(AcceptsMetrics))
                     .into_iter()
                     .chain(
@@ -137,9 +137,9 @@ impl StartedRouter {
                     sender.send(accepts);
                 });
             }
-            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+            AggregatorManager::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
+            AggregatorManager::BucketCountInquiry(_, _sender) => (), // not supported
         }
     }
 

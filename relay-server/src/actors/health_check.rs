@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
-use relay_metrics::{AcceptsMetrics, Aggregator};
+use relay_metrics::{AcceptsMetrics, AggregatorManager};
 use relay_statsd::metric;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 
@@ -40,7 +40,7 @@ impl FromMessage<IsHealthy> for HealthCheck {
 pub struct HealthCheckService {
     is_shutting_down: AtomicBool,
     config: Arc<Config>,
-    aggregator: Addr<Aggregator>,
+    aggregator: Addr<AggregatorManager>,
     upstream_relay: Addr<UpstreamRelay>,
     project_cache: Addr<ProjectCache>,
 }
@@ -51,7 +51,7 @@ impl HealthCheckService {
     /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(
         config: Arc<Config>,
-        aggregator: Addr<Aggregator>,
+        aggregator: Addr<AggregatorManager>,
         upstream_relay: Addr<UpstreamRelay>,
         project_cache: Addr<ProjectCache>,
     ) -> Self {
