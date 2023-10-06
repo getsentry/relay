@@ -42,15 +42,19 @@ pub enum SpanTagKey {
     DeviceClass,
 
     // Specific to spans
-    Description,
-    Group,
-    SpanOp,
-    Category,
-    Module,
     Action,
+    Category,
+    Description,
     Domain,
-    System,
+    Group,
+    HttpDecodedResponseBodyLength,
+    HttpResponseContentLength,
+    HttpResponseTransferSize,
+    Module,
+    ResourceRenderBlockingStatus,
+    SpanOp,
     StatusCode,
+    System,
 }
 
 impl SpanTagKey {
@@ -70,15 +74,19 @@ impl SpanTagKey {
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
 
-            SpanTagKey::Description => "span.description",
-            SpanTagKey::Group => "span.group",
-            SpanTagKey::SpanOp => "span.op",
-            SpanTagKey::Category => "span.category",
-            SpanTagKey::Module => "span.module",
             SpanTagKey::Action => "span.action",
+            SpanTagKey::Category => "span.category",
+            SpanTagKey::Description => "span.description",
             SpanTagKey::Domain => "span.domain",
-            SpanTagKey::System => "span.system",
+            SpanTagKey::Group => "span.group",
+            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
+            SpanTagKey::HttpResponseContentLength => "http.response_content_length",
+            SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
+            SpanTagKey::Module => "span.module",
+            SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
+            SpanTagKey::SpanOp => "span.op",
             SpanTagKey::StatusCode => "span.status_code",
+            SpanTagKey::System => "span.system",
         }
     }
 
@@ -97,15 +105,19 @@ impl SpanTagKey {
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
 
-            SpanTagKey::Description => "description",
-            SpanTagKey::Group => "group",
-            SpanTagKey::SpanOp => "op",
-            SpanTagKey::Category => "category",
-            SpanTagKey::Module => "module",
             SpanTagKey::Action => "action",
+            SpanTagKey::Category => "category",
+            SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
-            SpanTagKey::System => "system",
+            SpanTagKey::Group => "group",
+            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
+            SpanTagKey::HttpResponseContentLength => "http.response_content_length",
+            SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
+            SpanTagKey::Module => "module",
+            SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
+            SpanTagKey::SpanOp => "op",
             SpanTagKey::StatusCode => "status_code",
+            SpanTagKey::System => "system",
         }
     }
 }
@@ -299,7 +311,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             span_tags.insert(SpanTagKey::Action, act);
         }
 
-        let domain = if span_op == "http.client" {
+        let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
             scrubbed_description
                 .and_then(|d| d.split_once(' '))
@@ -339,6 +351,56 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
+        }
+
+        if span_op.starts_with("resource.") {
+            if let Some(http_response_content_length) = span
+                .data
+                .value()
+                .and_then(|data| data.get("http.response_content_length"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::HttpResponseContentLength,
+                    http_response_content_length.to_owned(),
+                );
+            }
+
+            if let Some(http_decoded_response_body_length) = span
+                .data
+                .value()
+                .and_then(|data| data.get("http.decoded_response_body_length"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::HttpDecodedResponseBodyLength,
+                    http_decoded_response_body_length.to_owned(),
+                );
+            }
+
+            if let Some(http_response_transfer_size) = span
+                .data
+                .value()
+                .and_then(|data| data.get("http.response_transfer_size"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::HttpResponseTransferSize,
+                    http_response_transfer_size.to_owned(),
+                );
+            }
+
+            if let Some(resource_render_blocking_status) = span
+                .data
+                .value()
+                .and_then(|data| data.get("resource.render_blocking_status"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::ResourceRenderBlockingStatus,
+                    resource_render_blocking_status.to_owned(),
+                );
+            }
         }
     }
 

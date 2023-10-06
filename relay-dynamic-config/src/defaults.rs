@@ -117,6 +117,25 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 })
                 .into(),
         },
+        TagMapping {
+            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
+            tags: [
+                ("", "http.decoded_response_body_length"),
+                ("", "http.response_content_length"),
+                ("", "http.response_transfer_size"),
+                ("", "resource.render_blocking_status"),
+                ("", "transaction"),
+                ("", "type"),
+                ("span.", "domain"),
+            ]
+            .map(|(prefix, key)| TagSpec {
+                key: format!("{prefix}{key}"),
+                field: Some(format!("span.sentry_tags.{}", key)),
+                value: None,
+                condition: Some(RuleCondition::glob("span.op", "resource.*")),
+            })
+            .into(),
+        },
     ]);
 
     config._span_metrics_extended = true;
