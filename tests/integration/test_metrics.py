@@ -651,7 +651,7 @@ def test_transaction_metrics(
 
         return
 
-    metrics = metrics_by_name(metrics_consumer, 6)
+    metrics = metrics_by_name(metrics_consumer, 7)
     common = {
         "timestamp": int(timestamp.timestamp()),
         "org_id": 1,
@@ -662,6 +662,14 @@ def test_transaction_metrics(
             "platform": "other",
             "transaction.status": "unknown",
         },
+    }
+
+    assert metrics["c:transactions/usage@none"] == {
+        **common,
+        "name": "c:transactions/usage@none",
+        "type": "c",
+        "value": 2.0,
+        "tags": {},
     }
 
     metrics["d:transactions/measurements.foo@none"]["value"].sort()
@@ -832,27 +840,27 @@ def test_transaction_metrics_extraction_external_relays(
     if expect_metrics_extraction:
         metrics_envelope = mini_sentry.captured_events.get(timeout=3)
         assert len(metrics_envelope.items) == 1
-        m_item_body = json.loads(metrics_envelope.items[0].get_bytes().decode())
-        assert len(m_item_body) == 3
-        m_item_body_sorted = sorted(m_item_body, key=lambda x: x["name"])
+
+        payload = json.loads(metrics_envelope.items[0].get_bytes().decode())
+        assert len(payload) == 4
+
+        by_name = {m["name"]: m for m in payload}
+        light_metric = by_name["d:transactions/duration_light@millisecond"]
         assert (
-            m_item_body_sorted[2]["name"] == "d:transactions/duration_light@millisecond"
-        )
-        assert (
-            m_item_body_sorted[2]["tags"]["transaction"]
+            light_metric["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
-        assert m_item_body_sorted[1]["name"] == "d:transactions/duration@millisecond"
+        duration_metric = by_name["d:transactions/duration@millisecond"]
         assert (
-            m_item_body_sorted[1]["tags"]["transaction"]
+            duration_metric["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
-        assert (
-            m_item_body_sorted[0]["name"]
-            == "c:transactions/count_per_root_project@none"
-        )
-        assert m_item_body_sorted[0]["tags"]["transaction"] == "root_transaction"
-        assert m_item_body_sorted[0]["value"] == 1.0
+        count_metric = by_name["c:transactions/count_per_root_project@none"]
+        assert count_metric["tags"]["transaction"] == "root_transaction"
+        assert count_metric["value"] == 1.0
+        usage_metric = by_name["c:transactions/usage@none"]
+        assert not usage_metric.get("tags")  # empty or missing
+        assert usage_metric["value"] == 1.0
 
     assert mini_sentry.captured_events.empty()
 
@@ -897,26 +905,21 @@ def test_transaction_metrics_extraction_processing_relays(
     tx_consumer.assert_empty()
 
     if expect_metrics_extraction:
-        metrics = metrics_by_name(metrics_consumer, 3, timeout=3)
+        metrics = metrics_by_name(metrics_consumer, 4, timeout=3)
+        metric_usage = metrics["c:transactions/usage@none"]
+        assert metric_usage["tags"] == {}
+        assert metric_usage["value"] == 1.0
         metric_duration = metrics["d:transactions/duration@millisecond"]
-        assert metric_duration["name"] == "d:transactions/duration@millisecond"
         assert (
             metric_duration["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         metric_duration_light = metrics["d:transactions/duration_light@millisecond"]
         assert (
-            metric_duration_light["name"] == "d:transactions/duration_light@millisecond"
-        )
-        assert (
             metric_duration_light["tags"]["transaction"]
             == "/organizations/:orgId/performance/:eventSlug/"
         )
         metric_count_per_project = metrics["c:transactions/count_per_root_project@none"]
-        assert (
-            metric_count_per_project["name"]
-            == "c:transactions/count_per_root_project@none"
-        )
         assert metric_count_per_project["value"] == 1.0
 
     metrics_consumer.assert_empty()
@@ -1025,8 +1028,8 @@ def test_transaction_name_too_long(
 
     metrics = metrics_consumer.get_metrics()
     for metric, _ in metrics:
-        if metric["name"] != "c:transactions/count_per_root_project@none":
-            assert metric["tags"].get("transaction") == expected_transaction_name
+        if "transaction" in metric["tags"]:
+            assert metric["tags"]["transaction"] == expected_transaction_name
 
 
 @pytest.mark.skip(reason="flake")
@@ -1127,10 +1130,11 @@ def test_limit_custom_measurements(
 
     # Expect exactly 5 metrics:
     # (transaction.duration, transaction.duration_light, transactions.count_per_root_project, 1 builtin, 1 custom)
-    metrics = metrics_by_name(metrics_consumer, 5)
+    metrics = metrics_by_name(metrics_consumer, 6)
     metrics.pop("headers")
 
     assert metrics.keys() == {
+        "c:transactions/usage@none",
         "d:transactions/duration@millisecond",
         "d:transactions/duration_light@millisecond",
         "c:transactions/count_per_root_project@none",

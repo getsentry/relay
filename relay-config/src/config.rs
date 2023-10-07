@@ -2001,8 +2001,8 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
-    pub fn aggregator_config(&self) -> &AggregatorConfig {
+    /// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
+    pub fn default_aggregator_config(&self) -> &AggregatorConfig {
         &self.values.aggregator
     }
 
