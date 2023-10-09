@@ -16,7 +16,7 @@ pub enum FilterStatKey {
     ReleaseVersion,
 
     /// Filtered by error message.
-    ErrorMessage,
+    ErrorMessage(String),
 
     /// Filtered by browser extension.
     BrowserExtensions,
@@ -55,7 +55,7 @@ impl FilterStatKey {
         match self {
             FilterStatKey::IpAddress => "ip-address",
             FilterStatKey::ReleaseVersion => "release-version",
-            FilterStatKey::ErrorMessage => "error-message",
+            FilterStatKey::ErrorMessage(name) => format!("error-message@{name}"),
             FilterStatKey::BrowserExtensions => "browser-extensions",
             FilterStatKey::LegacyBrowsers => "legacy-browsers",
             FilterStatKey::Localhost => "localhost",
@@ -79,7 +79,6 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
         Ok(match value {
             "ip-address" => FilterStatKey::IpAddress,
             "release-version" => FilterStatKey::ReleaseVersion,
-            "error-message" => FilterStatKey::ErrorMessage,
             "browser-extensions" => FilterStatKey::BrowserExtensions,
             "legacy-browsers" => FilterStatKey::LegacyBrowsers,
             "localhost" => FilterStatKey::Localhost,
@@ -87,7 +86,10 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
             "invalid-csp" => FilterStatKey::InvalidCsp,
             "filtered-transaction" => FilterStatKey::FilteredTransactions,
             other => {
-                return Err(other);
+                match value.strip_prefix("error-message@") {
+                    Some(name) => FilterStatKey::ErrorMessage(name.to_string()),
+                    None => Err(other)
+                }
             }
         })
     }

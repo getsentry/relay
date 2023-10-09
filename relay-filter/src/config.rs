@@ -1,7 +1,7 @@
 //! Config structs for all filters.
 
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::convert::Infallible;
 use std::str::FromStr;
 
@@ -130,10 +130,19 @@ impl CspFilterConfig {
 
 /// Configuration for the error messages filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ErrorMessagesFiltersConfig {
+    /// List of filters that are matching error messages.
+    pub error_messages: Vec<ErrorMessagesFilterConfig>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ErrorMessagesFilterConfig {
+    /// Name that uniquely identifies the filter that corresponds to the `patterns`.
+    pub name: String,
     /// List of error message patterns that will be filtered.
     pub patterns: GlobPatterns,
 }
+
 
 /// Configuration for transaction name filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

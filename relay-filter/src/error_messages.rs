@@ -8,10 +8,10 @@ use std::borrow::Cow;
 use relay_common::glob3::GlobPatterns;
 use relay_event_schema::protocol::Event;
 
-use crate::{ErrorMessagesFilterConfig, FilterStatKey};
+use crate::{ErrorMessagesFilterConfig, ErrorMessagesFiltersConfig, FilterStatKey};
 
 /// Checks events by patterns in their error messages.
-pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
+pub fn  matches(event: &Event, patterns: &GlobPatterns) -> bool {
     if let Some(logentry) = event.logentry.value() {
         if let Some(message) = logentry.formatted.value() {
             if patterns.is_match(message.as_ref()) {
@@ -48,13 +48,16 @@ pub fn matches(event: &Event, patterns: &GlobPatterns) -> bool {
 /// Filters events by patterns in their error messages.
 pub fn should_filter(
     event: &Event,
-    config: &ErrorMessagesFilterConfig,
+    config: &ErrorMessagesFiltersConfig,
 ) -> Result<(), FilterStatKey> {
-    if matches(event, &config.patterns) {
-        Err(FilterStatKey::ErrorMessage)
-    } else {
-        Ok(())
+    // We run the matching in a FIFO fashion.
+    for inner_config in config.error_messages {
+        if matches(event, &inner_config.patterns) {
+            return Err(FilterStatKey::ErrorMessage(inner_config.name))
+        }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
