@@ -4,7 +4,10 @@ use std::fmt;
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{Aggregator, AggregatorConfig, Bucket, BucketValue, DistributionValue};
+use relay_metrics::{
+    aggregator::{Aggregator, AggregatorConfig},
+    Bucket, BucketValue, DistributionValue,
+};
 
 /// Struct representing a testcase for which insert + flush are timed.
 struct MetricInput {

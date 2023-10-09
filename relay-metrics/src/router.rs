@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregatorservice::{AggregatorService, FlushBuckets};
 use crate::{
-    AcceptsMetrics, AggregatorConfig, AggregatorManager, MergeBuckets, MetricNamespace,
+    aggregator::AggregatorConfig, AcceptsMetrics, Aggregator, MergeBuckets, MetricNamespace,
     MetricResourceIdentifier,
 };
 
@@ -78,7 +78,7 @@ impl RouterService {
 }
 
 impl Service for RouterService {
-    type Interface = AggregatorManager;
+    type Interface = Aggregator;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
@@ -103,8 +103,8 @@ impl Service for RouterService {
 
 /// Helper struct that holds the [`Addr`]s of started aggregators.
 struct StartedRouter {
-    default_aggregator: Addr<AggregatorManager>,
-    secondary_aggregators: BTreeMap<MetricNamespace, Addr<AggregatorManager>>,
+    default_aggregator: Addr<Aggregator>,
+    secondary_aggregators: BTreeMap<MetricNamespace, Addr<Aggregator>>,
 }
 
 impl StartedRouter {
@@ -119,9 +119,9 @@ impl StartedRouter {
         }
     }
 
-    fn handle_message(&mut self, msg: AggregatorManager) {
+    fn handle_message(&mut self, msg: Aggregator) {
         match msg {
-            AggregatorManager::AcceptsMetrics(_, sender) => {
+            Aggregator::AcceptsMetrics(_, sender) => {
                 let requests: Vec<_> = Some(self.default_aggregator.send(AcceptsMetrics))
                     .into_iter()
                     .chain(
@@ -138,9 +138,9 @@ impl StartedRouter {
                     sender.send(accepts);
                 });
             }
-            AggregatorManager::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
-            AggregatorManager::BucketCountInquiry(_, _sender) => (), // not supported
+            Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
         }
     }
 

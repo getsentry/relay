@@ -9,7 +9,6 @@ use std::{fmt, mem};
 use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::{MonotonicResult, UnixTimestamp};
-use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
@@ -470,80 +469,6 @@ impl fmt::Debug for CostTracker {
                 &BTreeMap::from_iter(self.cost_per_project_key.iter()),
             )
             .finish()
-    }
-}
-
-/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
-#[derive(Debug)]
-pub struct AcceptsMetrics;
-
-/// Used only for testing the `AggregatorService`.
-#[cfg(test)]
-#[derive(Debug)]
-pub struct BucketCountInquiry;
-
-/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
-#[derive(Debug)]
-pub struct MergeBuckets {
-    pub(crate) project_key: ProjectKey,
-    pub(crate) buckets: Vec<Bucket>,
-}
-
-impl MergeBuckets {
-    /// Creates a new message containing a list of [`Bucket`]s.
-    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
-        Self {
-            project_key,
-            buckets,
-        }
-    }
-
-    /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
-
-    /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
-    /// message itself.
-    pub fn buckets(self) -> Vec<Bucket> {
-        self.buckets
-    }
-}
-
-/// Aggregator service interface.
-#[derive(Debug)]
-pub enum AggregatorManager {
-    /// The health check message which makes sure that the service can accept the requests now.
-    AcceptsMetrics(AcceptsMetrics, Sender<bool>),
-    /// Merge the buckets.
-    MergeBuckets(MergeBuckets),
-
-    /// Message is used only for tests to get the current number of buckets in `AggregatorService`.
-    #[cfg(test)]
-    BucketCountInquiry(BucketCountInquiry, Sender<usize>),
-}
-
-impl Interface for AggregatorManager {}
-
-impl FromMessage<AcceptsMetrics> for AggregatorManager {
-    type Response = AsyncResponse<bool>;
-    fn from_message(message: AcceptsMetrics, sender: Sender<bool>) -> Self {
-        Self::AcceptsMetrics(message, sender)
-    }
-}
-
-impl FromMessage<MergeBuckets> for AggregatorManager {
-    type Response = NoResponse;
-    fn from_message(message: MergeBuckets, _: ()) -> Self {
-        Self::MergeBuckets(message)
-    }
-}
-
-#[cfg(test)]
-impl FromMessage<BucketCountInquiry> for AggregatorManager {
-    type Response = AsyncResponse<usize>;
-    fn from_message(message: BucketCountInquiry, sender: Sender<usize>) -> Self {
-        Self::BucketCountInquiry(message, sender)
     }
 }
 

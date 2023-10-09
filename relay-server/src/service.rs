@@ -7,7 +7,7 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use relay_aws_extension::AwsExtension;
 use relay_config::Config;
-use relay_metrics::AggregatorManager;
+use relay_metrics::Aggregator;
 use relay_redis::RedisPool;
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
@@ -45,7 +45,7 @@ pub enum ServiceError {
 
 #[derive(Clone)]
 pub struct Registry {
-    pub aggregator: Addr<AggregatorManager>,
+    pub aggregator: Addr<Aggregator>,
     pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,

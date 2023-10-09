@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{self, AggregatorManager, FlushBuckets, MergeBuckets};
+use relay_metrics::{self, Aggregator, FlushBuckets, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -405,7 +405,7 @@ struct UpdateProjectState {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
-    pub aggregator: Addr<AggregatorManager>,
+    pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub envelope_manager: Addr<EnvelopeManager>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -417,7 +417,7 @@ pub struct Services {
 impl Services {
     /// Creates new [`Services`] context.
     pub fn new(
-        aggregator: Addr<AggregatorManager>,
+        aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,

@@ -6,9 +6,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{
-    AggregatorManager, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
-};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
@@ -562,7 +560,7 @@ impl Project {
     /// The buckets will be keyed underneath this project key.
     pub fn merge_buckets(
         &mut self,
-        aggregator: Addr<AggregatorManager>,
+        aggregator: Addr<Aggregator>,
         outcome_aggregator: Addr<TrackOutcome>,
         buckets: Vec<Bucket>,
     ) {

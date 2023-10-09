@@ -8,7 +8,7 @@ use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, HttpEncoding};
 use relay_event_schema::protocol::ClientReport;
-use relay_metrics::{AggregatorManager, Bucket, MergeBuckets};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets};
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse};
@@ -196,7 +196,7 @@ impl FromMessage<SendMetrics> for EnvelopeManager {
 #[derive(Debug)]
 pub struct EnvelopeManagerService {
     config: Arc<Config>,
-    aggregator: Addr<AggregatorManager>,
+    aggregator: Addr<Aggregator>,
     enveloper_processor: Addr<EnvelopeProcessor>,
     project_cache: Addr<ProjectCache>,
     test_store: Addr<TestStore>,
@@ -209,7 +209,7 @@ impl EnvelopeManagerService {
     /// Creates a new instance of the [`EnvelopeManager`] service.
     pub fn new(
         config: Arc<Config>,
-        aggregator: Addr<AggregatorManager>,
+        aggregator: Addr<Aggregator>,
         enveloper_processor: Addr<EnvelopeProcessor>,
         project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,

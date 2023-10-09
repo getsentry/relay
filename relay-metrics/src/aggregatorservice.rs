@@ -3,14 +3,15 @@ use std::iter::FusedIterator;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
-use relay_system::{Controller, NoResponse, Recipient, Sender, Service, Shutdown};
+use relay_system::{
+    AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
+    Shutdown,
+};
 
+use crate::aggregator;
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms};
-use crate::{
-    tags_cost, Aggregator, AggregatorConfig, AggregatorManager, BucketValue, DistributionValue,
-    MergeBuckets,
-};
+use crate::{aggregator::AggregatorConfig, BucketValue, DistributionValue};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -22,6 +23,52 @@ const BUCKET_SPLIT_FACTOR: usize = 32;
 
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
+
+/// Aggregator service interface.
+#[derive(Debug)]
+pub enum Aggregator {
+    /// The health check message which makes sure that the service can accept the requests now.
+    AcceptsMetrics(AcceptsMetrics, Sender<bool>),
+    /// Merge the buckets.
+    MergeBuckets(MergeBuckets),
+
+    /// Message is used only for tests to get the current number of buckets in `AggregatorService`.
+    #[cfg(test)]
+    BucketCountInquiry(BucketCountInquiry, Sender<usize>),
+}
+
+impl Interface for Aggregator {}
+
+impl FromMessage<AcceptsMetrics> for Aggregator {
+    type Response = AsyncResponse<bool>;
+    fn from_message(message: AcceptsMetrics, sender: Sender<bool>) -> Self {
+        Self::AcceptsMetrics(message, sender)
+    }
+}
+
+impl FromMessage<MergeBuckets> for Aggregator {
+    type Response = NoResponse;
+    fn from_message(message: MergeBuckets, _: ()) -> Self {
+        Self::MergeBuckets(message)
+    }
+}
+
+#[cfg(test)]
+impl FromMessage<BucketCountInquiry> for Aggregator {
+    type Response = AsyncResponse<usize>;
+    fn from_message(message: BucketCountInquiry, sender: Sender<usize>) -> Self {
+        Self::BucketCountInquiry(message, sender)
+    }
+}
+
+/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
+#[derive(Debug)]
+pub struct AcceptsMetrics;
+
+/// Used only for testing the `AggregatorService`.
+#[cfg(test)]
+#[derive(Debug)]
+pub struct BucketCountInquiry;
 
 /// A message containing a vector of buckets to be flushed.
 ///
@@ -55,7 +102,7 @@ enum AggregatorState {
 ///
 /// Receivers must implement a handler for the [`FlushBuckets`] message.
 pub struct AggregatorService {
-    aggregator: Aggregator,
+    aggregator: aggregator::Aggregator,
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
 }
@@ -79,7 +126,7 @@ impl AggregatorService {
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
         Self {
-            aggregator: Aggregator::named(name, config),
+            aggregator: aggregator::Aggregator::named(name, config),
             receiver,
             state: AggregatorState::Running,
         }
@@ -182,12 +229,12 @@ impl AggregatorService {
         }
     }
 
-    fn handle_message(&mut self, msg: AggregatorManager) {
+    fn handle_message(&mut self, msg: Aggregator) {
         match msg {
-            AggregatorManager::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
-            AggregatorManager::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+            Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
+            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
-            AggregatorManager::BucketCountInquiry(_, sender) => {
+            Aggregator::BucketCountInquiry(_, sender) => {
                 sender.send(self.aggregator.bucket_count())
             }
         }
@@ -201,7 +248,7 @@ impl AggregatorService {
 }
 
 impl Service for AggregatorService {
-    type Interface = AggregatorManager;
+    type Interface = Aggregator;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
@@ -376,7 +423,7 @@ fn split_at(mut bucket: Bucket, size: usize) -> (Option<Bucket>, Option<Bucket>)
 /// Note that this does not match the exact size of the serialized payload. Instead, the size is
 /// approximated through tags and a static overhead.
 fn estimate_base_size(bucket: &Bucket) -> usize {
-    50 + bucket.name.len() + tags_cost(&bucket.tags)
+    50 + bucket.name.len() + aggregator::tags_cost(&bucket.tags)
 }
 
 /// Estimates the number of bytes needed to serialize the bucket.
@@ -386,6 +433,34 @@ fn estimate_base_size(bucket: &Bucket) -> usize {
 /// values.
 fn estimate_size(bucket: &Bucket) -> usize {
     estimate_base_size(bucket) + bucket.value.len() * AVG_VALUE_SIZE
+}
+
+/// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
+#[derive(Debug)]
+pub struct MergeBuckets {
+    pub(crate) project_key: ProjectKey,
+    pub(crate) buckets: Vec<Bucket>,
+}
+
+impl MergeBuckets {
+    /// Creates a new message containing a list of [`Bucket`]s.
+    pub fn new(project_key: ProjectKey, buckets: Vec<Bucket>) -> Self {
+        Self {
+            project_key,
+            buckets,
+        }
+    }
+
+    /// Returns the `ProjectKey` for the the current `MergeBuckets` message.
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+
+    /// Returns the list of the buckets in the current `MergeBuckets` message, consuming the
+    /// message itself.
+    pub fn buckets(self) -> Vec<Bucket> {
+        self.buckets
+    }
 }
 
 #[cfg(test)]
