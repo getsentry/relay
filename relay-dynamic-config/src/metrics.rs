@@ -81,7 +81,10 @@ pub struct CustomMeasurementConfig {
 /// The version is an integer scalar, incremented by one on each new version:
 ///  - 1: Initial version.
 ///  - 2: Moves `acceptTransactionNames` to global config.
-///  - 3: Emit a `usage` metric and use it for rate limiting.
+///  - 3:
+///      - Emit a `usage` metric and use it for rate limiting.
+///      - Delay metrics extraction for indexed transactions.
+
 const TRANSACTION_EXTRACT_VERSION: u16 = 3;
 
 /// Deprecated. Defines whether URL transactions should be considered low cardinality.
