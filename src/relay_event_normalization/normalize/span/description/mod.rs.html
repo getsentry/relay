@@ -612,6 +612,15 @@
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
 <a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>sql;
 <span class="kw">pub use </span>sql::parse_query;
@@ -797,8 +806,10 @@
 }
 
 <span class="kw">fn </span>scrub_resource_identifiers(<span class="kw-2">mut </span>string: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-    <span class="comment">// Remove query parameters.
+    <span class="comment">// Remove query parameters or the fragment.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(pos) = string.find(<span class="string">&#39;?&#39;</span>) {
+        string = <span class="kw-2">&amp;</span>string[..pos];
+    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(pos) = string.find(<span class="string">&#39;#&#39;</span>) {
         string = <span class="kw-2">&amp;</span>string[..pos];
     }
     <span class="kw">match </span>RESOURCE_NORMALIZER_REGEX.replace_all(string, <span class="string">&quot;$pre*$post&quot;</span>) {
@@ -1163,6 +1174,13 @@
         <span class="string">&quot;somefilenamewithnoextension&quot;</span>,
         <span class="string">&quot;file.read&quot;</span>,
         <span class="string">&quot;*&quot;
+    </span>);
+
+    <span class="macro">span_description_test!</span>(
+        resource_url_with_fragment,
+        <span class="string">&quot;https://data.domain.com/data/guide123.gif#url=someotherurl&quot;</span>,
+        <span class="string">&quot;resource.img&quot;</span>,
+        <span class="string">&quot;https://data.domain.com/data/guide*.gif&quot;
     </span>);
 
     <span class="attr">#[test]
