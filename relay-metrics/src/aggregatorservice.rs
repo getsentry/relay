@@ -49,7 +49,7 @@ pub struct AggregatorService {
 }
 
 impl AggregatorService {
-    /// Create a new aggregator and connect it to `receiver`.
+    /// Create a new aggregator service and connect it to `receiver`.
     ///
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.

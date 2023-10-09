@@ -1136,10 +1136,7 @@ impl Aggregator {
         );
     }
 
-    /// Create a new aggregator and connect it to `receiver`.
-    ///
-    /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
-    /// the given `config`.
+    /// Create a new aggregator.
     pub fn new(config: AggregatorConfig) -> Self {
         Self::named("default".to_owned(), config)
     }
@@ -1158,7 +1155,7 @@ impl Aggregator {
 impl fmt::Debug for Aggregator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(std::any::type_name::<Self>())
-            .field("config", &self.config())
+            .field("config", &self.config)
             .field("buckets", &self.buckets)
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
             .finish()
