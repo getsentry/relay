@@ -150,9 +150,8 @@ enum AggregateMetricsErrorKind {
     ProjectLimitExceeded,
 }
 
-/// A key that represents a bucket.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct BucketKey {
+struct BucketKey {
     project_key: ProjectKey,
     timestamp: UnixTimestamp,
     metric_name: String,
@@ -420,7 +419,7 @@ impl Default for AggregatorConfig {
 ///
 /// [`BinaryHeap`]: std::collections::BinaryHeap
 #[derive(Debug)]
-pub struct QueuedBucket {
+struct QueuedBucket {
     flush_at: Instant,
     value: BucketValue,
 }
@@ -742,9 +741,9 @@ impl Aggregator {
         &self.config
     }
 
-    /// Returns the hashmap of the buckets of the aggregator.
-    pub fn buckets(&self) -> &HashMap<BucketKey, QueuedBucket> {
-        &self.buckets
+    /// Returns the number of buckets in the aggregator.
+    pub fn bucket_qty(&self) -> usize {
+        self.buckets.len()
     }
 
     /// Returns the total cost.
@@ -767,7 +766,7 @@ impl Aggregator {
     /// Note that this function is primarily intended for tests.
     pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<HashedBucket>> {
         relay_statsd::metric!(
-            gauge(MetricGauges::Buckets) = self.buckets().len() as u64,
+            gauge(MetricGauges::Buckets) = self.bucket_qty() as u64,
             aggregator = &self.name,
         );
 
@@ -1165,6 +1164,16 @@ impl Aggregator {
             buckets: HashMap::new(),
             cost_tracker: CostTracker::default(),
         }
+    }
+}
+
+impl fmt::Debug for Aggregator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct(std::any::type_name::<Self>())
+            .field("config", &self.config())
+            .field("buckets", &self.buckets)
+            .field("receiver", &format_args!("Recipient<FlushBuckets>"))
+            .finish()
     }
 }
 

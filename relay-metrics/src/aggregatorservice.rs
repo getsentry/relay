@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::fmt;
 use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
@@ -149,7 +148,7 @@ impl AggregatorService {
             AggregatorManager::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
             AggregatorManager::BucketCountInquiry(_, sender) => {
-                sender.send(self.aggregator.buckets().len())
+                sender.send(self.aggregator.bucket_qty())
             }
         }
     }
@@ -158,16 +157,6 @@ impl AggregatorService {
         if message.timeout.is_some() {
             self.state = AggregatorState::ShuttingDown;
         }
-    }
-}
-
-impl fmt::Debug for AggregatorService {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct(std::any::type_name::<Self>())
-            .field("config", &self.aggregator.config())
-            .field("buckets", &self.aggregator.buckets())
-            .field("receiver", &format_args!("Recipient<FlushBuckets>"))
-            .finish()
     }
 }
 
@@ -198,7 +187,7 @@ impl Service for AggregatorService {
 
 impl Drop for AggregatorService {
     fn drop(&mut self) {
-        let remaining_buckets = self.aggregator.buckets().len();
+        let remaining_buckets = self.aggregator.bucket_qty();
         if remaining_buckets > 0 {
             relay_log::error!(
                 tags.aggregator = self.aggregator.name(),
