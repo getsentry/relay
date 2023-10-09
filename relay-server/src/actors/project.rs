@@ -388,6 +388,7 @@ pub struct Project {
     backoff: RetryBackoff,
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
+    last_envelope_seen: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
@@ -404,6 +405,7 @@ impl Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
+            last_envelope_seen: Instant::now(),
             project_key: key,
             config,
             state: None,
@@ -486,6 +488,11 @@ impl Project {
     /// The last time the project state was updated
     pub fn last_updated_at(&self) -> Instant {
         self.last_updated_at
+    }
+
+    /// The last time when this project was used for the incoming envelope.
+    pub fn last_envelope_seen_at(&self) -> Instant {
+        self.last_envelope_seen
     }
 
     /// Refresh the update time of the project in order to delay eviction.
@@ -813,6 +820,10 @@ impl Project {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
 
+        // On every incoming envelopes, which belongs to this project, update when the last it was
+        // seen.
+        self.last_envelope_seen = envelope.start_time().into();
+
         if let Some(ref state) = state {
             scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
@@ -1020,7 +1031,7 @@ mod tests {
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it's the first attemt, we get Duration of 0.
+        //   it's the first attempt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
