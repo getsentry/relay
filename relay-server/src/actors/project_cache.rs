@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::sync::Arc;
 
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{self, Aggregator, FlushBuckets, InsertMetrics, MergeBuckets};
+use relay_metrics::{self, Aggregator, FlushBuckets, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -196,8 +196,8 @@ pub struct SpoolHealth;
 /// information.
 ///
 /// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
-/// inspect contents of envelopes for ingestion, as well as [`InsertMetrics`] and [`MergeBuckets`]
-/// to aggregate metrics associated with a project.
+/// inspect contents of envelopes for ingestion, as well as [`MergeBuckets`] to aggregate metrics
+/// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
 pub enum ProjectCache {
@@ -210,7 +210,6 @@ pub enum ProjectCache {
     ),
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
-    InsertMetrics(InsertMetrics),
     MergeBuckets(MergeBuckets),
     FlushBuckets(FlushBuckets),
     UpdateBufferIndex(UpdateBufferIndex),
@@ -278,14 +277,6 @@ impl FromMessage<UpdateRateLimits> for ProjectCache {
 
     fn from_message(message: UpdateRateLimits, _: ()) -> Self {
         Self::UpdateRateLimits(message)
-    }
-}
-
-impl FromMessage<InsertMetrics> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: InsertMetrics, _: ()) -> Self {
-        Self::InsertMetrics(message)
     }
 }
 
@@ -374,7 +365,7 @@ impl ProjectSource {
                     .map_err(|_| ())?;
 
             let state_opt = match state_fetch_result {
-                Ok(x) => x.map(ProjectState::sanitize).map(Arc::new),
+                Ok(state) => state.map(ProjectState::sanitize).map(Arc::new),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
@@ -689,6 +680,8 @@ impl ProjectCacheBroker {
             ..
         }) = project.check_envelope(managed_envelope, self.services.outcome_aggregator.clone())
         {
+            let reservoir_counters = project.reservoir_counters();
+
             let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
                 .and_then(|p| p.valid_state());
@@ -697,6 +690,7 @@ impl ProjectCacheBroker {
                 envelope: managed_envelope,
                 project_state: own_project_state.clone(),
                 sampling_project_state: None,
+                reservoir_counters,
             };
 
             if let Some(sampling_state) = sampling_state {
@@ -760,14 +754,6 @@ impl ProjectCacheBroker {
             .merge_rate_limits(message.rate_limits);
     }
 
-    fn handle_insert_metrics(&mut self, message: InsertMetrics) {
-        let aggregator = self.services.aggregator.clone();
-        let outcome_aggregator = self.services.outcome_aggregator.clone();
-        // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
-        self.get_or_create_project(message.project_key())
-            .insert_metrics(aggregator, outcome_aggregator, message.metrics());
-    }
-
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
@@ -802,7 +788,6 @@ impl ProjectCacheBroker {
             }
             ProjectCache::ValidateEnvelope(message) => self.handle_validate_envelope(message),
             ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
-            ProjectCache::InsertMetrics(message) => self.handle_insert_metrics(message),
             ProjectCache::MergeBuckets(message) => self.handle_merge_buckets(message),
             ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
             ProjectCache::UpdateBufferIndex(message) => self.handle_buffer_index(message),
@@ -939,8 +924,8 @@ impl FetchOptionalProjectState {
 mod tests {
     use std::time::Duration;
 
-    use relay_common::Uuid;
     use relay_test::mock_service;
+    use uuid::Uuid;
 
     use crate::testutils::empty_envelope;
 

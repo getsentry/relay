@@ -184,8 +184,10 @@ fn usetree_to_paths(use_tree: &UseTree, module_path: &str) -> Vec<String> {
         .collect()
 }
 
-/// Flattens a usetree. For example: use relay_general::protocol::{Foo, Bar,
-/// Baz} into [relay_general::protocol::Foo, relay_general::protocol::Bar, relay_general::protocol::Baz]
+/// Flattens a usetree.
+///
+/// For example: `use protocol::{Foo, Bar, Baz}` into `[protocol::Foo, protocol::Bar,
+/// protocol::Baz]`.
 fn flatten_use_tree(mut leading_path: syn::Path, use_tree: &UseTree) -> Vec<String> {
     match use_tree {
         UseTree::Path(use_path) => {
@@ -268,7 +270,8 @@ fn add_file_stem_to_module_path(
 }
 
 /// Takes in the path to a Rust file and returns the path as you'd refer to it in a use-statement.
-/// e.g. "/Users/tor/prog/rust/relay/relay-general/src/protocol/types.rs" -> "relay_general::protocol"
+///
+/// e.g. `"relay/relay-event_schema/src/protocol/types.rs"` -> `"relay_event_schema::protocol"`.
 fn module_name_from_file(file_path: &Path) -> anyhow::Result<String> {
     let mut module_path = file_path
         .parent()

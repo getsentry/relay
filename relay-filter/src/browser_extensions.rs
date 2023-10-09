@@ -2,7 +2,7 @@
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_general::protocol::{Event, Exception};
+use relay_event_schema::protocol::{Event, Exception};
 
 use crate::{FilterConfig, FilterStatKey};
 
@@ -59,6 +59,7 @@ static EXTENSION_EXC_SOURCES: Lazy<Regex> = Lazy::new(|| {
         ^chrome(-extension)?://|                        # Chrome extensions
         ^moz-extension://|                              # Firefox extensions
         ^safari(-web)?-extension://|                    # Safari extensions
+        webkit-masked-url|                              # Safari extensions
         127\.0\.0\.1:4001/isrunning|                    # Cacaoweb
         webappstoolbarba\.texthelp\.com/|               # Other
         metrics\.itunes\.apple\.com\.edgesuite\.net/|
@@ -129,8 +130,10 @@ fn get_exception_source(event: &Event) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use relay_general::protocol::{Frame, JsonLenientString, RawStacktrace, Stacktrace, Values};
-    use relay_general::types::Annotated;
+    use relay_event_schema::protocol::{
+        Frame, JsonLenientString, RawStacktrace, Stacktrace, Values,
+    };
+    use relay_protocol::Annotated;
 
     use super::*;
 
@@ -217,6 +220,7 @@ mod tests {
             "webappstoolbarba.texthelp.com/",
             "http://metrics.itunes.apple.com.edgesuite.net/itunespreview/itunes/browser:firefo",
             "https://fscr.kaspersky-labs.com/B-9B72-7B7/main.js",
+            "webkit-masked-url:",
         ];
 
         for source_name in &sources {

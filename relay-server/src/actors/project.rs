@@ -2,12 +2,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{Aggregator, Bucket, InsertMetrics, MergeBuckets, Metric, MetricsContainer};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
+use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
 use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
@@ -331,12 +332,13 @@ impl ProjectState {
 
     /// Validates data in this project state and removes values that are partially invalid.
     pub fn sanitize(mut self) -> Self {
-        self.config.quotas.retain(Quota::is_valid);
+        self.config.sanitize();
         self
     }
 
+    /// Returns `true` if the given feature is enabled for this project.
     pub fn has_feature(&self, feature: Feature) -> bool {
-        self.config.features.0.contains(&feature)
+        self.config.features.has(feature)
     }
 }
 
@@ -392,6 +394,7 @@ pub struct Project {
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
+    reservoir_counters: ReservoirCounters,
 }
 
 impl Project {
@@ -407,6 +410,7 @@ impl Project {
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
+            reservoir_counters: Arc::default(),
         }
     }
 
@@ -417,6 +421,27 @@ impl Project {
         } else {
             // Projects without state go back to the original state of allowing metrics.
             true
+        }
+    }
+
+    /// Returns the [`ReservoirCounters`] for the project.
+    pub fn reservoir_counters(&self) -> ReservoirCounters {
+        self.reservoir_counters.clone()
+    }
+
+    /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
+    fn remove_expired_reservoir_rules(&self) {
+        let Some(config) = self
+            .state
+            .as_ref()
+            .and_then(|state| state.config.dynamic_sampling.as_ref())
+        else {
+            return;
+        };
+
+        // Using try_lock to not slow down the project cache service.
+        if let Ok(mut guard) = self.reservoir_counters.try_lock() {
+            guard.retain(|key, _| config.rules_v2.iter().any(|rule| rule.id == *key));
         }
     }
 
@@ -470,26 +495,64 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
-    /// Applies cached rate limits to the given metrics or metrics buckets.
+    /// Removes metrics that should not be ingested.
     ///
-    /// This only applies the rate limits currently stored on the project.
-    fn rate_limit_metrics<T: MetricsContainer>(
+    ///  - Removes metrics from unsupported or disabled use cases.
+    ///  - Applies **cached** rate limits to the given metrics or metrics buckets.
+    fn rate_limit_metrics(
         &self,
-        metrics: Vec<T>,
+        mut metrics: Vec<Bucket>,
         outcome_aggregator: Addr<TrackOutcome>,
-    ) -> Vec<T> {
-        match (&self.state, self.scoping()) {
-            (Some(state), Some(scoping)) => {
-                match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
-                    Ok(mut limiter) => {
-                        limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
-                        limiter.into_metrics()
-                    }
-                    Err(metrics) => metrics,
-                }
-            }
-            _ => metrics,
+    ) -> Vec<Bucket> {
+        self.filter_metrics(&mut metrics);
+        if metrics.is_empty() {
+            return metrics;
         }
+
+        let (Some(state), Some(scoping)) = (&self.state, self.scoping()) else {
+            return metrics;
+        };
+
+        let usage = match state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+
+        match MetricsLimiter::create(metrics, &state.config.quotas, scoping, usage) {
+            Ok(mut limiter) => {
+                limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
+                limiter.into_metrics()
+            }
+            Err(metrics) => metrics,
+        }
+    }
+
+    /// Remove metric buckets that are not allowed to be ingested.
+    fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
+        let Some(state) = &self.state else {
+            return;
+        };
+
+        metrics.retain(|metric| {
+            let Ok(mri) = MetricResourceIdentifier::parse(&metric.name) else {
+                relay_log::trace!(mri = metric.name, "dropping metrics with invalid MRI");
+                return false;
+            };
+
+            let verdict = match mri.namespace {
+                MetricNamespace::Sessions => true,
+                MetricNamespace::Transactions => true,
+                MetricNamespace::Spans => state.has_feature(Feature::SpanMetricsExtraction),
+                MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
+                MetricNamespace::Unsupported => false,
+            };
+
+            if !verdict {
+                relay_log::trace!(mri = metric.name, "dropping metric in disabled namespace");
+            }
+
+            verdict
+        });
     }
 
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
@@ -506,23 +569,8 @@ impl Project {
             if !buckets.is_empty() {
                 aggregator.send(MergeBuckets::new(self.project_key, buckets));
             }
-        }
-    }
-
-    /// Inserts given [metrics](Metric) into the metrics aggregator.
-    ///
-    /// The metrics will be keyed underneath this project key.
-    pub fn insert_metrics(
-        &mut self,
-        aggregator: Addr<Aggregator>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        metrics: Vec<Metric>,
-    ) {
-        if self.metrics_allowed() {
-            let metrics = self.rate_limit_metrics(metrics, outcome_aggregator);
-            if !metrics.is_empty() {
-                aggregator.send(InsertMetrics::new(self.project_key, metrics));
-            }
+        } else {
+            relay_log::debug!("dropping metric buckets, project disabled");
         }
     }
 
@@ -723,6 +771,9 @@ impl Project {
         // Flush all waiting recipients.
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(state);
+
+        // Check if the new sampling config got rid of any reservoir rules we have counters for.
+        self.remove_expired_reservoir_rules();
     }
 
     /// Creates `Scoping` for this project if the state is loaded.
@@ -803,7 +854,7 @@ impl Project {
         &mut self,
         services: Services,
         partition_key: Option<u64>,
-        buckets: Vec<Bucket>,
+        mut buckets: Vec<Bucket>,
     ) {
         let Services {
             aggregator,
@@ -827,7 +878,10 @@ impl Project {
         };
 
         let Some(scoping) = self.scoping() else {
-            relay_log::trace!("there is no scoping: merging back {} buckets", buckets.len());
+            relay_log::trace!(
+                "there is no scoping: merging back {} buckets",
+                buckets.len()
+            );
             aggregator.send(MergeBuckets::new(self.project_key, buckets));
             return;
         };
@@ -837,9 +891,18 @@ impl Project {
             return;
         }
 
+        // Re-run feature flag checks since the project might not have been loaded when the buckets
+        // were initially ingested, or feature flags have changed in the meanwhile.
+        self.filter_metrics(&mut buckets);
+
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
-        let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
+        let usage = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, usage) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
@@ -876,12 +939,12 @@ impl Project {
 mod tests {
     use std::sync::Arc;
 
-    use relay_common::{ProjectId, ProjectKey, UnixTimestamp};
-    use relay_metrics::{Bucket, BucketValue, Metric, MetricValue};
+    use relay_common::time::UnixTimestamp;
+    use relay_metrics::BucketValue;
     use relay_test::mock_service;
     use serde_json::json;
 
-    use super::{Config, Project, ProjectState, StateChannel};
+    use super::*;
 
     #[test]
     fn get_state_expired() {
@@ -981,10 +1044,11 @@ mod tests {
         project
     }
 
-    fn create_transaction_metric() -> Metric {
-        Metric {
+    fn create_transaction_metric() -> Bucket {
+        Bucket {
             name: "d:transactions/foo".to_string(),
-            value: MetricValue::Counter(1.0),
+            width: 0,
+            value: BucketValue::counter(1.0),
             timestamp: UnixTimestamp::now(),
             tags: Default::default(),
         }

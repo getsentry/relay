@@ -1,10 +1,9 @@
 use std::fmt::{self, Write};
 
-use relay_common::DataCategory;
 use relay_dynamic_config::{ErrorBoundary, ProjectConfig};
 use relay_quotas::{
-    DataCategories, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits, ReasonCode,
-    Scoping,
+    DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
+    ReasonCode, Scoping,
 };
 use relay_system::Addr;
 
@@ -99,7 +98,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Attachment => None,
         ItemType::Session => None,
         ItemType::Sessions => None,
-        ItemType::Metrics => None,
+        ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
@@ -290,7 +289,7 @@ impl Enforcement {
         envelope: &Envelope,
         scoping: &Scoping,
     ) -> impl Iterator<Item = TrackOutcome> {
-        let timestamp = relay_common::instant_to_date_time(envelope.meta().start_time());
+        let timestamp = relay_common::time::instant_to_date_time(envelope.meta().start_time());
         let scoping = *scoping;
         let event_id = envelope.event_id();
         let remote_addr = envelope.meta().remote_addr();
@@ -645,7 +644,7 @@ impl<F> fmt::Debug for EnvelopeLimiter<'_, F> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use relay_common::{ProjectId, ProjectKey};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_dynamic_config::TransactionMetricsConfig;
     use relay_quotas::{ItemScoping, RetryAfter};
     use smallvec::smallvec;

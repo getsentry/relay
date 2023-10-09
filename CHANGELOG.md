@@ -1,5 +1,74 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
+- Accept spans needed for the mobile Starfish module. ([#2570](https://github.com/getsentry/relay/pull/2570))
+
+**Bug Fixes**:
+
+- Remove profile_id from context when no profile is in the envelope. ([#2523](https://github.com/getsentry/relay/pull/2523))
+- Fix reporting of Relay's crashes to Sentry. The `crash-handler` feature did not enable the crash reporter and uploads of crashes were broken. ([#2532](https://github.com/getsentry/relay/pull/2532))
+- Use correct field to pick SQL parser for span normalization. ([#2536](https://github.com/getsentry/relay/pull/2536))
+- Prevent stack overflow on SQL serialization. ([#2538](https://github.com/getsentry/relay/pull/2538))
+
+**Internal**:
+
+- Exclude more spans fron metrics extraction. ([#2522](https://github.com/getsentry/relay/pull/2522)), [#2525](https://github.com/getsentry/relay/pull/2525), [#2545](https://github.com/getsentry/relay/pull/2545), [#2566](https://github.com/getsentry/relay/pull/2566))
+- Remove filtering for Android events with missing close events. ([#2524](https://github.com/getsentry/relay/pull/2524))
+- Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
+- Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
+- Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
+- Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
+- Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
+- Add `profile_id` to spans. ([#2569](https://github.com/getsentry/relay/pull/2569))
+- Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571))
+- Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
+
+## 23.9.1
+
+- No documented changes.
+
+## 23.9.0
+
+**Features**:
+
+- Add `view_names` to `AppContext` ([#2344](https://github.com/getsentry/relay/pull/2344))
+- Tag keys in error events and transaction events can now be up to `200` ASCII characters long. Before, tag keys were limited to 32 characters. ([#2453](https://github.com/getsentry/relay/pull/2453))
+- The Crons monitor check-in APIs have learned to accept JSON via POST. This allows for monitor upserts by specifying the `monitor_config` in the JSON body. ([#2448](https://github.com/getsentry/relay/pull/2448))
+- Add an experimental web interface for local Relay deployments. ([#2422](https://github.com/getsentry/relay/pull/2422))
+
+**Bug Fixes**:
+
+- Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
+- Fixes the `TraceContext.status` not being defaulted to `unknown` before the new metrics extraction pipeline. ([#2436](https://github.com/getsentry/relay/pull/2436))
+- Support on-demand metrics for alerts and widgets in external Relays. ([#2440](https://github.com/getsentry/relay/pull/2440))
+- Prevent sporadic data loss in `EnvelopeProcessorService`. ([#2454](https://github.com/getsentry/relay/pull/2454))
+- Prevent panic when android trace contains invalid start time. ([#2457](https://github.com/getsentry/relay/pull/2457))
+
+**Internal**:
+
+- Use static global configuration if file is provided and not in managed mode. ([#2458](https://github.com/getsentry/relay/pull/2458))
+- Add `MeasurementsConfig` to `GlobalConfig` and implement merging logic with project config. ([#2415](https://github.com/getsentry/relay/pull/2415))
+- Support ingestion of custom metrics when the `organizations:custom-metrics` feature flag is enabled. ([#2443](https://github.com/getsentry/relay/pull/2443))
+- Merge span metrics and standalone spans extraction options. ([#2447](https://github.com/getsentry/relay/pull/2447))
+- Support parsing aggregated metric buckets directly from statsd payloads. ([#2468](https://github.com/getsentry/relay/pull/2468), [#2472](https://github.com/getsentry/relay/pull/2472))
+- Improve performance when ingesting distribution metrics with a large number of data points. ([#2483](https://github.com/getsentry/relay/pull/2483))
+- Improve documentation for metrics bucketing. ([#2503](https://github.com/getsentry/relay/pull/2503))
+- Rename the envelope item type for StatsD payloads to "statsd". ([#2470](https://github.com/getsentry/relay/pull/2470))
+- Add a nanojoule unit for profile measurements. ([#2478](https://github.com/getsentry/relay/pull/2478))
+- Add a timestamp field to report profile's start time on Android. ([#2486](https://github.com/getsentry/relay/pull/2486))
+- Filter span metrics extraction based on features. ([#2511](https://github.com/getsentry/relay/pull/2511), [#2520](https://github.com/getsentry/relay/pull/2520))
+- Extract shared tags on the segment. ([#2512](https://github.com/getsentry/relay/pull/2512))
+
+## 23.8.0
+
+**Features**:
+
+- Add `Cross-Origin-Resource-Policy` HTTP header to responses. ([#2394](https://github.com/getsentry/relay/pull/2394))
+
 ## 23.7.2
 
 **Features**:
@@ -12,6 +81,7 @@
 
 **Internal**:
 
+- Add new service for fetching global configs. ([#2320](https://github.com/getsentry/relay/pull/2320))
 - Feature-flagged extraction & publishing of spans from transactions. ([#2350](https://github.com/getsentry/relay/pull/2350))
 
 ## 23.7.1
@@ -89,7 +159,7 @@
 - Use different error message for empty strings in schema processing. ([#2151](https://github.com/getsentry/relay/pull/2151))
 - Filter irrelevant webkit-issues. ([#2088](https://github.com/getsentry/relay/pull/2088))
 
-- Relay now supports a simplified cron check-in API.  ([#2153](https://github.com/getsentry/relay/pull/2153))
+- Relay now supports a simplified cron check-in API. ([#2153](https://github.com/getsentry/relay/pull/2153))
 
 ## 23.5.1
 

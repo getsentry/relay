@@ -1,9 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use relay_common::{ProjectId, ProjectKey};
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+#[doc(inline)]
+pub use relay_base_schema::data_category::DataCategory;
 
 /// Data scoping information.
 ///
@@ -85,9 +88,6 @@ impl ItemScoping<'_> {
     }
 }
 
-#[doc(inline)]
-pub use relay_common::DataCategory;
-
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CategoryUnit {
@@ -109,6 +109,7 @@ impl CategoryUnit {
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
             | DataCategory::Span
+            | DataCategory::MonitorSeat
             | DataCategory::Monitor => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),

@@ -26,7 +26,7 @@ pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
 /// use std::time::Duration;
 ///
 /// let duration = Duration::from_nanos(2_125_000);
-/// let millis = relay_common::duration_to_millis(duration);
+/// let millis = relay_common::time::duration_to_millis(duration);
 /// assert_eq!(millis, 2.125);
 /// ```
 pub fn duration_to_millis(duration: Duration) -> f64 {
@@ -44,7 +44,7 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// use chrono::Duration;
 ///
 /// let duration = Duration::nanoseconds(2_125_000);
-/// let millis = relay_common::chrono_to_positive_millis(duration);
+/// let millis = relay_common::time::chrono_to_positive_millis(duration);
 /// assert_eq!(millis, 2.125);
 /// ```
 ///
@@ -54,7 +54,7 @@ pub fn duration_to_millis(duration: Duration) -> f64 {
 /// use chrono::Duration;
 ///
 /// let duration = Duration::nanoseconds(-2_125_000);
-/// let millis = relay_common::chrono_to_positive_millis(duration);
+/// let millis = relay_common::time::chrono_to_positive_millis(duration);
 /// assert_eq!(millis, 0.0);
 /// ```
 pub fn chrono_to_positive_millis(duration: chrono::Duration) -> f64 {
@@ -130,7 +130,8 @@ impl UnixTimestamp {
 
     /// Returns the timestamp as chrono datetime.
     pub fn as_datetime(self) -> Option<DateTime<Utc>> {
-        NaiveDateTime::from_timestamp_opt(self.0 as i64, 0).map(|n| DateTime::from_utc(n, Utc))
+        NaiveDateTime::from_timestamp_opt(self.0 as i64, 0)
+            .map(|n| DateTime::from_naive_utc_and_offset(n, Utc))
     }
 
     /// Converts the UNIX timestamp into an `Instant` based on the current system timestamp.
@@ -145,7 +146,7 @@ impl UnixTimestamp {
     ///
     /// ```
     /// use std::time::{Duration, Instant};
-    /// use relay_common::{MonotonicResult, UnixTimestamp};
+    /// use relay_common::time::{MonotonicResult, UnixTimestamp};
     ///
     /// let timestamp = UnixTimestamp::now();
     /// if let MonotonicResult::Instant(instant) = timestamp.to_instant() {

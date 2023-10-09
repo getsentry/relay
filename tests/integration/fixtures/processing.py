@@ -51,7 +51,7 @@ def processing_config(get_topic_name):
                 "outcomes": get_topic_name("outcomes"),
                 "sessions": get_topic_name("sessions"),
                 "metrics": metrics_topic,
-                "metrics_transactions": metrics_topic,
+                "metrics_generic": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
                 "monitors": get_topic_name("monitors"),
@@ -183,15 +183,6 @@ class ConsumerBase:
         assert rv.value() == message, rv.value()
 
 
-class MsgPackConsumer(ConsumerBase):
-    def get_message(self, timeout=None):
-        message = self.poll(timeout)
-        assert message is not None
-        assert message.error() is None
-
-        return msgpack.unpackb(message.value(), raw=False, use_list=False)
-
-
 @pytest.fixture
 def outcomes_consumer(kafka_consumer):
     return lambda timeout=None, topic=None: OutcomesConsumer(
@@ -315,9 +306,7 @@ def monitors_consumer(kafka_consumer):
 
 @pytest.fixture
 def spans_consumer(kafka_consumer):
-    return lambda timeout=None: MsgPackConsumer(
-        timeout=timeout, *kafka_consumer("spans")
-    )
+    return lambda timeout=None: SpansConsumer(timeout=timeout, *kafka_consumer("spans"))
 
 
 class MetricsConsumer(ConsumerBase):
@@ -437,3 +426,12 @@ class MonitorsConsumer(ConsumerBase):
         wrapper = msgpack.unpackb(message.value(), raw=False, use_list=False)
         assert wrapper["type"] == "check_in"
         return json.loads(wrapper["payload"].decode("utf8")), wrapper
+
+
+class SpansConsumer(ConsumerBase):
+    def get_span(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        return json.loads(message.value())

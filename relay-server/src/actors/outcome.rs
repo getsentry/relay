@@ -16,14 +16,15 @@ use std::{fmt, mem};
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
-use relay_common::{DataCategory, ProjectId, UnixTimestamp};
+use relay_base_schema::project::ProjectId;
+use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
+use relay_event_schema::protocol::{ClientReport, DiscardedEvent, EventId};
 use relay_filter::FilterStatKey;
-use relay_general::protocol::{ClientReport, DiscardedEvent, EventId};
 #[cfg(feature = "processing")]
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic};
-use relay_quotas::{ReasonCode, Scoping};
-use relay_sampling::MatchedRuleIds;
+use relay_quotas::{DataCategory, ReasonCode, Scoping};
+use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
@@ -705,8 +706,8 @@ struct KafkaOutcomesProducer {
 impl KafkaOutcomesProducer {
     /// Creates and connects the Kafka producers.
     ///
-    /// If the given Kafka configuration parameters are invalid, or an error happens during
-    /// connecting during the broker, an error is returned.
+    /// If the given Kafka configuration parameters are invalid, or an error
+    /// happens while connecting to the broker, an error is returned.
     pub fn create(config: &Config) -> anyhow::Result<Self> {
         let mut client_builder = KafkaClient::builder();
 
@@ -800,7 +801,7 @@ impl OutcomeBroker {
         // Here we create a fake EventId, when we don't have the real one, so that we can
         // create a kafka message key that spreads the events nicely over all the
         // kafka consumer groups.
-        let key = message.event_id.unwrap_or_else(EventId::new).0;
+        let key = message.event_id.unwrap_or_default().0;
 
         // Dispatch to the correct topic and cluster based on the kind of outcome.
         let topic = if message.is_billing() {

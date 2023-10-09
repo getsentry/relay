@@ -1310,10 +1310,11 @@ def test_profile_outcomes_invalid(
 
     if not metrics_already_extracted:
         # Make sure the profile will not be counted as accepted:
-        metric = metrics_by_name(metrics_consumer, 2)[
-            "d:transactions/duration@millisecond"
-        ]
-        assert "has_profile" not in metric["tags"]
+        metrics = metrics_by_name(metrics_consumer, 4)
+        assert (
+            "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
+        )
+        assert "has_profile" not in metrics["c:transactions/usage@none"]["tags"]
 
 
 def test_profile_outcomes_too_many(
@@ -1399,9 +1400,11 @@ def test_profile_outcomes_too_many(
     assert outcomes == expected_outcomes, outcomes
 
     # Make sure one profile will not be counted as accepted
-    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
-    assert metric["tags"]["has_profile"] == "true"
-    assert len(metric["value"]) == 1
+    metrics = metrics_by_name(metrics_consumer, 4)
+    assert (
+        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
+    )
+    assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
 
 
 def test_profile_outcomes_data_invalid(
@@ -1484,9 +1487,11 @@ def test_profile_outcomes_data_invalid(
     assert outcomes == expected_outcomes, outcomes
 
     # Because invalid data is detected _after_ metrics extraction, there is still a metric:
-    metric = metrics_by_name(metrics_consumer, 2)["d:transactions/duration@millisecond"]
-    assert metric["tags"]["has_profile"] == "true"
-    assert len(metric["value"]) == 1
+    metrics = metrics_by_name(metrics_consumer, 4)
+    assert (
+        metrics["d:transactions/duration@millisecond"]["tags"]["has_profile"] == "true"
+    )
+    assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
 
 
 @pytest.mark.parametrize("metrics_already_extracted", [False, True])

@@ -28,6 +28,8 @@ pub enum MeasurementUnit {
     Hertz,
     Byte,
     Percent,
+    #[serde(alias = "nj")]
+    Nanojoule,
 }
 
 #[cfg(test)]

@@ -1,7 +1,5 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
-use crate::BucketValue;
-
 /// Set metrics for Relay Metrics.
 pub enum MetricSets {
     /// Count the number of unique buckets created.
@@ -15,7 +13,7 @@ pub enum MetricSets {
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric for which the bucket was created.
     UniqueBucketsCreated,
 }
 
@@ -29,25 +27,18 @@ impl SetMetric for MetricSets {
 
 /// Counter metrics for Relay Metrics.
 pub enum MetricCounters {
-    /// Incremented for every metric that is inserted.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_type`: The type of the metric (e.g. `"counter"`).
-    InsertMetric,
-
     /// Incremented every time two buckets or two metrics are merged.
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric.
     MergeHit,
 
     /// Incremented every time a bucket is created.
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    ///  - `metric_name`: A low-cardinality representation of the metric name (see [`metric_name_tag`]).
+    ///  - `namespace`: The namespace of the metric.
     MergeMiss,
 
     /// Incremented every time a bucket is dropped.
@@ -62,7 +53,6 @@ pub enum MetricCounters {
 impl CounterMetric for MetricCounters {
     fn name(&self) -> &'static str {
         match *self {
-            Self::InsertMetric => "metrics.insert",
             Self::MergeHit => "metrics.buckets.merge.hit",
             Self::MergeMiss => "metrics.buckets.merge.miss",
             Self::BucketsDropped => "metrics.buckets.dropped",
@@ -180,8 +170,8 @@ pub enum MetricGauges {
     /// The average number of elements in a bucket when flushed.
     ///
     /// This metric is tagged with:
-    ///  - `metric_type`: "counter", "distribution", "gauge" or "set".
-    ///  - `metric_name`: Low-cardinality name of the metric.
+    ///  - `metric_type`: "c", "d", "g" or "s".
+    ///  - `namespace`: The namespace of the metric.
     AvgBucketSize,
 }
 
@@ -229,14 +219,4 @@ pub(crate) fn metric_name_tag(value: &str) -> &'static str {
     }
 
     "other"
-}
-
-/// Returns the metric type for use as a tag key on statsd metrics.
-pub(crate) fn metric_type_tag(value: &BucketValue) -> &'static str {
-    match value {
-        BucketValue::Counter(_) => "counter",
-        BucketValue::Distribution(_) => "distribution",
-        BucketValue::Set(_) => "set",
-        BucketValue::Gauge(_) => "gauge",
-    }
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use relay_common::ProjectKey;
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_redis::{RedisError, RedisPool};
 use relay_statsd::metric;
@@ -59,7 +59,7 @@ impl RedisProjectSource {
         command.arg(format!("{prefix}:{key}"));
 
         let raw_response_opt: Option<Vec<u8>> = command
-            .query(&mut self.redis.client()?.connection())
+            .query(&mut self.redis.client()?.connection()?)
             .map_err(RedisError::Redis)?;
 
         let response = match raw_response_opt {

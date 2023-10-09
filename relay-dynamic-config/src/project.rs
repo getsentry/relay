@@ -1,21 +1,23 @@
 use std::collections::BTreeSet;
 
 use relay_auth::PublicKey;
-use relay_filter::FiltersConfig;
-use relay_general::pii::{DataScrubbingConfig, PiiConfig};
-use relay_general::store::{
+use relay_base_schema::spans::SpanAttribute;
+use relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, SpanDescriptionRule, TransactionNameRule,
 };
-use relay_general::types::SpanAttribute;
+use relay_filter::FiltersConfig;
+use relay_pii::{DataScrubbingConfig, PiiConfig};
 use relay_quotas::Quota;
 use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::defaults;
+use crate::error_boundary::ErrorBoundary;
+use crate::feature::FeatureSet;
 use crate::metrics::{
-    MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
+    self, MetricExtractionConfig, SessionMetricsConfig, TaggingRule, TransactionMetricsConfig,
 };
-use crate::{ErrorBoundary, FeatureSet};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +48,7 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic_sampling: Option<SamplingConfig>,
     /// Configuration for measurements.
+    /// NOTE: do not access directly, use [`relay_event_normalization::DynamicMeasurementsConfig`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub measurements: Option<MeasurementsConfig>,
     /// Configuration for operation breakdown. Will be emitted only if present.
@@ -78,6 +81,16 @@ pub struct ProjectConfig {
     /// Span description renaming rules.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
+}
+
+impl ProjectConfig {
+    /// Validates fields in this project config and removes values that are partially invalid.
+    pub fn sanitize(&mut self) {
+        self.quotas.retain(Quota::is_valid);
+
+        metrics::convert_conditional_tagging(self);
+        defaults::add_span_metrics(self);
+    }
 }
 
 impl Default for ProjectConfig {
@@ -134,6 +147,8 @@ pub struct LimitedProjectConfig {
     pub session_metrics: SessionMetricsConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_metrics: Option<ErrorBoundary<TransactionMetricsConfig>>,
+    #[serde(default, skip_serializing_if = "skip_metrics_extraction")]
+    pub metric_extraction: ErrorBoundary<MetricExtractionConfig>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub metric_conditional_tagging: Vec<TaggingRule>,
     #[serde(skip_serializing_if = "BTreeSet::is_empty")]

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.31
+
+- Add `Reservoir` variant to `SamplingRule`. ([#2550](https://github.com/getsentry/relay/pull/2550))
+- Remove dynamic sampling ABI. ([#2515](https://github.com/getsentry/relay/pull/2515))
+- Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
+
+## 0.8.30
+
+- Filter out exceptions originating in Safari extensions. ([#2408](https://github.com/getsentry/relay/pull/2408))
+- Add a `DataCategory` for monitor seats (crons). ([#2480](https://github.com/getsentry/relay/pull/2480))
+- Expose global config normalization function. ([#2498](https://github.com/getsentry/relay/pull/2498))
+
+## 0.8.29
+
+- Add rudimentary Mypy setup. ([#2384](https://github.com/getsentry/relay/pull/2384))
+
 ## 0.8.28
 
 This release requires Python 3.8 or later.

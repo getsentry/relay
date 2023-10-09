@@ -6,7 +6,7 @@ import uuid
 import socket
 import threading
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from requests.exceptions import HTTPError
 from flask import abort, Response
@@ -429,7 +429,9 @@ def test_processing_quotas(
     elif event_type == "error":
         transform = make_error
     else:
-        transform = lambda e: e
+
+        def transform(e):
+            return e
 
     for i in range(5):
         # send using the first dsn
@@ -678,11 +680,13 @@ def test_rate_limit_metrics_buckets(
     )
 
 
+@pytest.mark.parametrize("extraction_version", [1, 3])
 def test_processing_quota_transaction_indexing(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
     transactions_consumer,
+    extraction_version,
 ):
     relay = relay_with_processing(
         {
@@ -722,7 +726,7 @@ def test_processing_quota_transaction_indexing(
         },
     ]
     projectconfig["config"]["transactionMetrics"] = {
-        "version": 1,
+        "version": extraction_version,
     }
 
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))
@@ -776,7 +780,12 @@ def test_events_buffered_before_auth(relay, mini_sentry):
 
 def test_events_are_retried(relay, mini_sentry):
     # keep max backoff as short as the configuration allows (1 sec)
-    relay_options = {"http": {"max_retry_interval": 1}}
+    relay_options = {
+        "http": {
+            "max_retry_interval": 1,
+            "retry_delay": 0,
+        }
+    }
     relay = relay(mini_sentry, relay_options)
 
     project_id = 42
@@ -832,6 +841,7 @@ def test_failed_network_requests_trigger_health_check(relay, mini_sentry):
             "max_retry_interval": 1,
             "auth_interval": 1000,
             "outage_grace_period": 1,
+            "retry_delay": 0,
         }
     }
     relay = relay(mini_sentry, relay_options)
@@ -1098,6 +1108,7 @@ def test_buffer_events_during_outage(relay, mini_sentry):
             "max_retry_interval": 1,
             "auth_interval": 1000,
             "outage_grace_period": 1,
+            "retry_delay": 0,
         }
     }
     relay = relay(mini_sentry, relay_options)
@@ -1188,35 +1199,97 @@ def test_spans(
 
     relay = relay_with_processing()
     project_id = 42
-    project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["features"] = ["projects:extract-standalone-spans"]
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "projects:span-metrics-extraction-all-modules",
+    ]
 
-    event = make_transaction({})
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(seconds=1)
+    start = end - timedelta(milliseconds=500)
     event["spans"] = [
         {
             "description": "GET /api/0/organizations/?member=1",
             "op": "http",
             "parent_span_id": "aaaaaaaaaaaaaaaa",
             "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": 1000,
-            "timestamp": 3000,
+            "start_timestamp": start.isoformat(),
+            "timestamp": end.isoformat(),
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
         },
     ]
 
     relay.send_event(project_id, event)
 
-    msg = spans_consumer.get_message()
-    assert msg["type"] == "span"
-    span = msg["span"]
-    assert span == {
-        "description": "GET /api/0/organizations/?member=1",
-        "op": "http",
-        "parent_span_id": "aaaaaaaaaaaaaaaa",
-        "span_id": "bbbbbbbbbbbbbbbb",
-        "start_timestamp": 1000.0,
-        "timestamp": 3000.0,
-        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+    child_span = spans_consumer.get_span()
+    del child_span["start_time"]
+    assert child_span == {
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "organization_id": 1,
+        "retention_days": 90,
+        "span": {
+            "data": {
+                "description.scrubbed": "GET *",
+                "span.category": "http",
+                "span.description": "GET *",
+                "span.group": "37e3d9fab1ae9162",
+                "span.module": "http",
+                "span.op": "http",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "description": "GET /api/0/organizations/?member=1",
+            "exclusive_time": 500.0,
+            "is_segment": False,
+            "op": "http",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "segment_id": "968cff94913ebb07",
+            "sentry_tags": {
+                "category": "http",
+                "description": "GET *",
+                "group": "37e3d9fab1ae9162",
+                "module": "http",
+                "op": "http",
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.timestamp(),
+            "timestamp": end.timestamp(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    }
+
+    transaction_span = spans_consumer.get_span()
+    del transaction_span["start_time"]
+    assert transaction_span == {
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "project_id": 42,
+        "organization_id": 1,
+        "retention_days": 90,
+        "span": {
+            "data": {
+                "transaction": "hi",
+                "transaction.op": "hi",
+            },
+            "description": "hi",
+            "exclusive_time": 2000.0,
+            "is_segment": True,
+            "op": "hi",
+            "segment_id": "968cff94913ebb07",
+            "sentry_tags": {"transaction": "hi", "transaction.op": "hi"},
+            "span_id": "968cff94913ebb07",
+            "start_timestamp": datetime.fromisoformat(event["start_timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "status": "unknown",
+            "timestamp": datetime.fromisoformat(event["timestamp"])
+            .replace(tzinfo=timezone.utc)
+            .timestamp(),
+            "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+        },
     }
 
     spans_consumer.assert_empty()

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use anyhow::{format_err, Context, Result};
 use clap::Parser;
-use relay_general::pii::{PiiAttachmentsProcessor, PiiConfig};
+use relay_pii::{PiiAttachmentsProcessor, PiiConfig};
 
 /// Apply data scrubbing (PII) rules on a minidump file.
 ///
@@ -44,7 +44,7 @@ struct Cli {
 impl Cli {
     fn load_pii_config(&self) -> Result<PiiConfig> {
         let json = fs::read_to_string(&self.config).with_context(|| "failed to read PII config")?;
-        let config = PiiConfig::from_json(&json).with_context(|| "failed to parse PII config")?;
+        let config = serde_json::from_str(&json).with_context(|| "failed to parse PII config")?;
         Ok(config)
     }
 
