@@ -480,6 +480,11 @@ pub struct Event {
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub breakdowns: Annotated<Breakdowns>,
 
+    /// Information about attempts to scrape a JS source or sourcemap file from the web.
+    /// This field is populated by sentry.
+    #[metastructure(omit_from_schema)] // not part of external schema
+    pub scraping_attempts: Annotated<Value>,
+
     /// Internal ingestion and processing metrics.
     ///
     /// This value should not be ingested and will be overwritten by the store normalizer.
@@ -967,6 +972,19 @@ mod tests {
         );
         assert_eq!(None, event.extra_at("c.e"));
         assert_eq!(None, event.extra_at("c.f"));
+    }
+
+    #[test]
+    fn test_scrape_attempts() {
+        let json = serde_json::json!({
+            "scraping_attempts": [
+                {"status": "not_attempted", "url": "http://example.com/embedded.js"},
+                {"status": "not_attempted", "url": "http://example.com/embedded.js.map"},
+            ]
+        });
+
+        let event = Event::from_value(json.into());
+        assert!(!event.value().unwrap().scraping_attempts.meta().has_errors());
     }
 
     #[test]
