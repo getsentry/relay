@@ -11,8 +11,8 @@ use relay_metrics::{Bucket, DurationUnit};
 
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
-    CommonTag, CommonTags, ExtractMetricsError, TransactionCPRTags, TransactionDurationTags,
-    TransactionMeasurementTags, TransactionMetric,
+    CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
+    TransactionDurationTags, TransactionMeasurementTags, TransactionMetric, UsageTags,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -117,13 +117,10 @@ fn track_transaction_name_stats(event: &Event) {
 }
 
 /// These are the tags that are added to extracted low cardinality metrics.
-fn extract_light_transaction_tags(event: &Event) -> CommonTags {
-    let mut tags = BTreeMap::new();
-    if let Some(transaction_name) = get_transaction_name(event) {
-        tags.insert(CommonTag::Transaction, transaction_name);
+fn extract_light_transaction_tags(event: &Event) -> LightTransactionTags {
+    LightTransactionTags {
+        transaction: get_transaction_name(event),
     }
-
-    CommonTags(tags)
 }
 
 /// These are the tags that are added to all extracted metrics.
@@ -322,13 +319,24 @@ impl TransactionExtractor<'_> {
             }
         }
 
+        // Internal usage counter
+        metrics.project_metrics.push(
+            TransactionMetric::Usage {
+                tags: UsageTags {
+                    has_profile: self.has_profile,
+                },
+            }
+            .into_metric(timestamp),
+        );
+
         // Duration
+        let duration = relay_common::time::chrono_to_positive_millis(end - start);
         metrics.project_metrics.push(
             TransactionMetric::Duration {
                 unit: DurationUnit::MilliSecond,
-                value: relay_common::time::chrono_to_positive_millis(end - start),
+                value: duration,
                 tags: TransactionDurationTags {
-                    has_profile: self.has_profile,
+                    has_profile: self.has_profile, // TODO: Stop producing this in v3
                     universal_tags: tags.clone(),
                 },
             }
@@ -339,11 +347,8 @@ impl TransactionExtractor<'_> {
         metrics.project_metrics.push(
             TransactionMetric::DurationLight {
                 unit: DurationUnit::MilliSecond,
-                value: relay_common::time::chrono_to_positive_millis(end - start),
-                tags: TransactionDurationTags {
-                    has_profile: self.has_profile,
-                    universal_tags: light_tags.clone(),
-                },
+                value: duration,
+                tags: light_tags,
             }
             .into_metric(timestamp),
         );
@@ -367,7 +372,6 @@ impl TransactionExtractor<'_> {
         // Count the transaction towards the root
         metrics.sampling_metrics.push(
             TransactionMetric::CountPerRootProject {
-                value: 1.0,
                 tags: root_counter_tags,
             }
             .into_metric(timestamp),
@@ -551,6 +555,7 @@ mod tests {
                 status: ~,
                 tags: ~,
                 origin: ~,
+                profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
                 other: {},
@@ -632,6 +637,15 @@ mod tests {
                     "transaction.op": "mYOp",
                     "transaction.status": "ok",
                 },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
@@ -788,6 +802,15 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
@@ -890,6 +913,15 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
@@ -950,9 +982,12 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        assert_eq!(extracted.project_metrics.len(), 2);
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
 
-        let duration_metric = &extracted.project_metrics[0];
         assert_eq!(duration_metric.name, "d:transactions/duration@millisecond");
         assert_eq!(duration_metric.value, BucketValue::distribution(59000.0));
 
@@ -1068,6 +1103,15 @@ mod tests {
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
                 width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
                 name: "d:transactions/duration@millisecond",
                 value: Distribution(
                     [
@@ -1119,14 +1163,14 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
-            extracted.project_metrics[0].name,
-            "d:transactions/duration@millisecond"
-        );
-        assert_eq!(
-            extracted.project_metrics[0].tags,
+            duration_metric.tags,
             BTreeMap::from([("platform".to_string(), "other".to_string())])
         );
     }
@@ -1158,14 +1202,14 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 2);
         assert_eq!(
-            extracted.project_metrics[0].name,
-            "d:transactions/duration@millisecond"
-        );
-        assert_eq!(
-            extracted.project_metrics[0].tags,
+            duration_metric.tags,
             BTreeMap::from([
                 ("transaction.status".to_string(), "ok".to_string()),
                 ("platform".to_string(), "other".to_string())
@@ -1226,25 +1270,45 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-
-        assert_eq!(extracted.project_metrics.len(), 2);
-        assert_eq!(
-            extracted.project_metrics[0].name,
-            "d:transactions/duration@millisecond"
-        );
-        assert_eq!(
-            extracted.project_metrics[0].tags,
-            BTreeMap::from([
-                ("transaction.status".to_string(), "ok".to_string()),
-                ("platform".to_string(), "other".to_string()),
-                ("http.status_code".to_string(), "200".to_string())
-            ])
-        );
-        assert_eq!(
-            extracted.project_metrics[1].name,
-            "d:transactions/duration_light@millisecond"
-        );
-        assert_eq!(extracted.project_metrics[1].tags, BTreeMap::from([]));
+        insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
+        [
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {
+                    "http.status_code": "200",
+                    "platform": "other",
+                    "transaction.status": "ok",
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: "d:transactions/duration_light@millisecond",
+                value: Distribution(
+                    [
+                        59000.0,
+                    ],
+                ),
+                tags: {},
+            },
+        ]
+        "###);
     }
 
     /// Helper function to check if the transaction name is set correctly
@@ -1265,12 +1329,13 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let duration_metric = extracted
+            .project_metrics
+            .iter()
+            .find(|m| m.name == "d:transactions/duration@millisecond")
+            .unwrap();
 
-        assert_eq!(extracted.project_metrics.len(), 2);
-        extracted.project_metrics[0]
-            .tags
-            .get("transaction")
-            .cloned()
+        duration_metric.tags.get("transaction").cloned()
     }
 
     #[test]
@@ -1580,6 +1645,7 @@ mod tests {
             "d:transactions/measurements.frames_total@none",
             "d:transactions/measurements.stall_percentage@ratio",
             "d:transactions/measurements.stall_total_time@millisecond",
+            "c:transactions/usage@none",
             "d:transactions/duration@millisecond",
             "d:transactions/duration_light@millisecond",
         ]
@@ -1709,6 +1775,15 @@ mod tests {
                     "measurement_rating": "good",
                     "platform": "javascript",
                 },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420402),
+                width: 0,
+                name: "c:transactions/usage@none",
+                value: Counter(
+                    1.0,
+                ),
+                tags: {},
             },
             Bucket {
                 timestamp: UnixTimestamp(1619420402),
