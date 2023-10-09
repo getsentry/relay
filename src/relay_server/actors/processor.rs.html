@@ -4352,6 +4352,12 @@
 <a href="#4352" id="4352">4352</a>
 <a href="#4353" id="4353">4353</a>
 <a href="#4354" id="4354">4354</a>
+<a href="#4355" id="4355">4355</a>
+<a href="#4356" id="4356">4356</a>
+<a href="#4357" id="4357">4357</a>
+<a href="#4358" id="4358">4358</a>
+<a href="#4359" id="4359">4359</a>
+<a href="#4360" id="4360">4360</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -7043,7 +7049,13 @@
             <span class="self">self</span>.normalize_dsc(state);
             <span class="self">self</span>.filter_event(state)<span class="question-mark">?</span>;
             <span class="self">self</span>.run_dynamic_sampling(state);
-            <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
+
+            <span class="comment">// We avoid extracting metrics if we are not sampling the event while in non-processing
+            // relays, in order to synchronize rate limits on indexed and processed transactions.
+            </span><span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+                <span class="self">self</span>.extract_metrics(state)<span class="question-mark">?</span>;
+            }
+
             <span class="self">self</span>.sample_envelope(state)<span class="question-mark">?</span>;
 
             <span class="macro">if_processing!</span>({

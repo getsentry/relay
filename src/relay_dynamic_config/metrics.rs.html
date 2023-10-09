@@ -440,6 +440,8 @@
 <a href="#440" id="440">440</a>
 <a href="#441" id="441">441</a>
 <a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -523,7 +525,9 @@
 /// The version is an integer scalar, incremented by one on each new version:
 ///  - 1: Initial version.
 ///  - 2: Moves `acceptTransactionNames` to global config.
-///  - 3: Emit a `usage` metric and use it for rate limiting.
+///  - 3:
+///      - Emit a `usage` metric and use it for rate limiting.
+///      - Delay metrics extraction for indexed transactions.
 </span><span class="kw">const </span>TRANSACTION_EXTRACT_VERSION: u16 = <span class="number">3</span>;
 
 <span class="doccomment">/// Deprecated. Defines whether URL transactions should be considered low cardinality.
