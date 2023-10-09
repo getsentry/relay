@@ -122,6 +122,36 @@ impl SpanTagKey {
     }
 }
 
+/// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
+/// delay the browser from rendering page content to the screen.
+///
+/// See https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming/renderBlockingStatus.
+enum RenderBlockingStatus {
+    Blocking,
+    NonBlocking,
+}
+
+impl<'a> TryFrom<&'a str> for RenderBlockingStatus {
+    type Error = &'a str;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        Ok(match value {
+            "blocking" => Self::Blocking,
+            "non-blocking" => Self::NonBlocking,
+            other => return Err(other),
+        })
+    }
+}
+
+impl std::fmt::Display for RenderBlockingStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Blocking => "blocking",
+            Self::NonBlocking => "non-blocking",
+        })
+    }
+}
+
 /// Configuration for span tag extraction.
 pub(crate) struct Config {
     /// The maximum allowed size of tag values in bytes. Longer values will be cropped.
@@ -396,10 +426,11 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                 .and_then(|data| data.get("resource.render_blocking_status"))
                 .and_then(|value| value.as_str())
             {
-                span_tags.insert(
-                    SpanTagKey::ResourceRenderBlockingStatus,
-                    resource_render_blocking_status.to_owned(),
-                );
+                // Validate that it's a valid status:
+                if let Ok(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
+                {
+                    span_tags.insert(SpanTagKey::ResourceRenderBlockingStatus, status.to_string());
+                }
             }
         }
     }
