@@ -1243,9 +1243,85 @@ expression: metrics
             "span.group": "022f81fdf31228bf",
             "span.op": "resource.script",
             "span.status": "ok",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.category": "resource",
+            "span.description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCi*z*KuljsgCAD6hyWCyOYZM.css",
+            "span.group": "fd1c98edd40299a3",
+            "span.op": "resource.link",
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.category": "resource",
+            "span.description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCi*z*KuljsgCAD6hyWCyOYZM.css",
+            "span.group": "fd1c98edd40299a3",
+            "span.op": "resource.link",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_content_length@none",
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCi*z*KuljsgCAD6hyWCyOYZM.css",
+            "span.group": "fd1c98edd40299a3",
+            "span.op": "resource.link",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_transfer_size@none",
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCi*z*KuljsgCAD6hyWCyOYZM.css",
+            "span.group": "fd1c98edd40299a3",
+            "span.op": "resource.link",
+            "transaction": "gEt /api/:version/users/",
         },
     },
 ]

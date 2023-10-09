@@ -160,15 +160,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                 value: None,
                 condition: None,
             })
-            .into_iter()
-            // Tags taken directly from the span payload:
-            .chain(std::iter::once(TagSpec {
-                key: "span.status".into(),
-                field: Some("span.status".into()),
-                value: None,
-                condition: None,
-            }))
-            .collect(),
+            .into(),
         },
     ]);
 
