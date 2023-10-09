@@ -202,7 +202,7 @@ pub enum ShiftKey {
     Bucket,
 }
 
-/// Parameters used by the [`AggregatorService`].
+/// Parameters used by the [`Aggregator`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AggregatorConfig {
@@ -466,7 +466,6 @@ pub struct HashedBucket {
     bucket: Bucket,
 }
 
-/// Keeps track of metrics for projects.
 #[derive(Default)]
 struct CostTracker {
     total_cost: usize,
@@ -746,16 +745,6 @@ impl Aggregator {
         self.buckets.len()
     }
 
-    /// Returns the total cost.
-    pub fn total_cost(&self) -> usize {
-        self.cost_tracker.total_cost
-    }
-
-    /// Subtracts the cost associate dwith a project.
-    pub fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
-        self.cost_tracker.subtract_cost(project_key, cost)
-    }
-
     /// Returns `true` if the cost trackers value is larger than the given max cost.
     pub fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
         self.cost_tracker.totals_cost_exceeded(max_total_cost)
@@ -773,7 +762,7 @@ impl Aggregator {
         // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
         // assuming that this gives us more than enough data points.
         relay_statsd::metric!(
-            gauge(MetricGauges::BucketsCost) = self.total_cost() as u64,
+            gauge(MetricGauges::BucketsCost) = self.cost_tracker.total_cost as u64,
             aggregator = &self.name,
         );
 
