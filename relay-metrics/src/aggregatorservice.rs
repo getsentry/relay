@@ -77,6 +77,7 @@ impl AggregatorService {
         let result = !self
             .aggregator
             .totals_cost_exceeded(self.aggregator.config().max_total_bucket_bytes);
+
         sender.send(result);
     }
 

@@ -473,7 +473,6 @@ struct CostTracker {
 }
 
 impl CostTracker {
-    /// Returns `true` if the cost trackers value is larger than the given max cost.
     fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
         if let Some(max_total_cost) = max_total_cost {
             if self.total_cost >= max_total_cost {
