@@ -804,10 +804,7 @@ def test_transaction_metrics_extraction_external_relays(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
-    config["transactionMetrics"] = {
-        "version": 1,
-    }
-    config["transactionMetrics"] = {"version": 1}
+    config["transactionMetrics"] = {"version": 3}
     config["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
@@ -1245,7 +1242,7 @@ def test_generic_metric_extraction(mini_sentry, relay):
             }
         ],
     }
-    config["transactionMetrics"] = {"version": 1}
+    config["transactionMetrics"] = {"version": 3}
     config["dynamicSampling"] = {
         "rules": [],
         "rulesV2": [
@@ -1263,7 +1260,7 @@ def test_generic_metric_extraction(mini_sentry, relay):
     transaction["timestamp"] = timestamp.isoformat()
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
 
-    relay = relay(mini_sentry, options=TEST_CONFIG)
+    relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
     envelope = mini_sentry.captured_events.get(timeout=3)

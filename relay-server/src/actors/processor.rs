@@ -2690,12 +2690,9 @@ impl EnvelopeProcessorService {
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
 
-            let is_processing =
-                cfg!(feature = "processing") && self.inner.config.processing_enabled();
-
-            // We avoid extracting metrics if not sampling on pops, in order to synchronize
-            // rate limits on indexed and processed transactions.
-            if is_processing || state.sampling_result.should_drop() {
+            // We avoid extracting metrics if we are not sampling the event while in non-processing
+            // relays, in order to synchronize rate limits on indexed and processed transactions.
+            if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
                 self.extract_metrics(state)?;
             }
 
