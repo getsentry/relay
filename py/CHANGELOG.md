@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+
 ## 0.8.31
 
 - Add `Reservoir` variant to `SamplingRule`. ([#2550](https://github.com/getsentry/relay/pull/2550))
