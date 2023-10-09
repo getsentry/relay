@@ -565,13 +565,14 @@ impl fmt::Debug for CostTracker {
 /// Since this uses an approximate function to estimate the size of buckets, the actual serialized
 /// payload may exceed the size. The estimation function is built in a way to guarantee the same
 /// order of magnitude.
-struct CappedBucketIter<T: Iterator<Item = Bucket>> {
+pub struct CappedBucketIter<T: Iterator<Item = Bucket>> {
     buckets: T,
     next_bucket: Option<Bucket>,
     max_flush_bytes: usize,
 }
 
 impl<T: Iterator<Item = Bucket>> CappedBucketIter<T> {
+    /// Creates a new `CappedBucketIter`.
     pub fn new(mut buckets: T, max_flush_bytes: usize) -> Self {
         let next_bucket = buckets.next();
 
@@ -740,7 +741,7 @@ impl Aggregator {
     }
 
     /// Returns the number of buckets in the aggregator.
-    pub fn bucket_qty(&self) -> usize {
+    pub fn bucket_count(&self) -> usize {
         self.buckets.len()
     }
 
@@ -754,7 +755,7 @@ impl Aggregator {
     /// Note that this function is primarily intended for tests.
     pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<HashedBucket>> {
         relay_statsd::metric!(
-            gauge(MetricGauges::Buckets) = self.bucket_qty() as u64,
+            gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
             aggregator = &self.name,
         );
 
@@ -1109,31 +1110,6 @@ impl Aggregator {
             );
         }
         partitions
-    }
-
-    /// Split the provided buckets into batches and process each batch with the given function.
-    ///
-    /// For each batch, log a histogram metric.
-    pub fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
-    where
-        F: FnMut(Vec<Bucket>),
-    {
-        let capped_batches =
-            CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-        let num_batches = capped_batches
-            .map(|batch| {
-                relay_statsd::metric!(
-                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                    aggregator = &self.name,
-                );
-                process(batch);
-            })
-            .count();
-
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
-            aggregator = &self.name,
-        );
     }
 
     /// Create a new aggregator.

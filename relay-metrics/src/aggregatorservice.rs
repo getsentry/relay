@@ -6,7 +6,7 @@ use relay_system::{Controller, NoResponse, Recipient, Sender, Service, Shutdown}
 
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms};
-use crate::{Aggregator, AggregatorConfig, AggregatorManager, MergeBuckets};
+use crate::{Aggregator, AggregatorConfig, AggregatorManager, CappedBucketIter, MergeBuckets};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -81,6 +81,33 @@ impl AggregatorService {
         sender.send(result);
     }
 
+    /// Split the provided buckets into batches and process each batch with the given function.
+    ///
+    /// For each batch, log a histogram metric.
+    fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
+    where
+        F: FnMut(Vec<Bucket>),
+    {
+        let capped_batches = CappedBucketIter::new(
+            buckets.into_iter(),
+            self.aggregator.config().max_flush_bytes,
+        );
+        let num_batches = capped_batches
+            .map(|batch| {
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                    aggregator = self.aggregator.name(),
+                );
+                process(batch);
+            })
+            .count();
+
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+            aggregator = self.aggregator.name(),
+        );
+    }
+
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
     /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
     /// and we require another re-try.
@@ -112,7 +139,7 @@ impl AggregatorService {
                 .aggregator
                 .partition_buckets(project_buckets, num_partitions);
             for (partition_key, buckets) in partitioned_buckets {
-                self.aggregator.process_batches(buckets, |batch| {
+                self.process_batches(buckets, |batch| {
                     if let Some(ref receiver) = self.receiver {
                         receiver.send(FlushBuckets {
                             project_key,
@@ -149,7 +176,7 @@ impl AggregatorService {
             AggregatorManager::MergeBuckets(msg) => self.handle_merge_buckets(msg),
             #[cfg(test)]
             AggregatorManager::BucketCountInquiry(_, sender) => {
-                sender.send(self.aggregator.bucket_qty())
+                sender.send(self.aggregator.bucket_count())
             }
         }
     }
@@ -188,7 +215,7 @@ impl Service for AggregatorService {
 
 impl Drop for AggregatorService {
     fn drop(&mut self) {
-        let remaining_buckets = self.aggregator.bucket_qty();
+        let remaining_buckets = self.aggregator.bucket_count();
         if remaining_buckets > 0 {
             relay_log::error!(
                 tags.aggregator = self.aggregator.name(),
