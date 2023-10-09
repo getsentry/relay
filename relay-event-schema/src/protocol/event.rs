@@ -483,7 +483,7 @@ pub struct Event {
     /// Information about attempts to scrape a JS source or sourcemap file from the web.
     /// This field is populated by sentry.
     #[metastructure(omit_from_schema)] // not part of external schema
-    pub scraping_attempts: Annotated<Array<Value>>,
+    pub scraping_attempts: Annotated<Value>,
 
     /// Internal ingestion and processing metrics.
     ///
