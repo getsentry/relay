@@ -1085,6 +1085,24 @@
 <a href="#1085" id="1085">1085</a>
 <a href="#1086" id="1086">1086</a>
 <a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1566,6 +1584,11 @@
     </span><span class="attr">#[metastructure(skip_serialization = <span class="string">&quot;empty&quot;</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>breakdowns: Annotated&lt;Breakdowns&gt;,
+
+    <span class="doccomment">/// Information about attempts to scrape a JS source or sourcemap file from the web.
+    /// This field is populated by sentry.
+    </span><span class="attr">#[metastructure(omit_from_schema)] </span><span class="comment">// not part of external schema
+    </span><span class="kw">pub </span>scraping_attempts: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// Internal ingestion and processing metrics.
     ///
@@ -2054,6 +2077,19 @@
         );
         <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">&quot;c.e&quot;</span>));
         <span class="macro">assert_eq!</span>(<span class="prelude-val">None</span>, event.extra_at(<span class="string">&quot;c.f&quot;</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_scrape_attempts() {
+        <span class="kw">let </span>json = <span class="macro">serde_json::json!</span>({
+            <span class="string">&quot;scraping_attempts&quot;</span>: [
+                {<span class="string">&quot;status&quot;</span>: <span class="string">&quot;not_attempted&quot;</span>, <span class="string">&quot;url&quot;</span>: <span class="string">&quot;http://example.com/embedded.js&quot;</span>},
+                {<span class="string">&quot;status&quot;</span>: <span class="string">&quot;not_attempted&quot;</span>, <span class="string">&quot;url&quot;</span>: <span class="string">&quot;http://example.com/embedded.js.map&quot;</span>},
+            ]
+        });
+
+        <span class="kw">let </span>event = Event::from_value(json.into());
+        <span class="macro">assert!</span>(!event.value().unwrap().scraping_attempts.meta().has_errors());
     }
 
     <span class="attr">#[test]
