@@ -7,9 +7,10 @@ use itertools::Itertools;
 use relay_system::{Addr, NoResponse, Recipient, Service};
 use serde::{Deserialize, Serialize};
 
+use crate::aggregatorservice::{AggregatorService, FlushBuckets};
 use crate::{
-    AcceptsMetrics, AggregatorConfig, AggregatorManager, AggregatorService, FlushBuckets,
-    MergeBuckets, MetricNamespace, MetricResourceIdentifier,
+    AcceptsMetrics, AggregatorConfig, AggregatorManager, MergeBuckets, MetricNamespace,
+    MetricResourceIdentifier,
 };
 
 /// Contains an [`AggregatorConfig`] for a specific scope.

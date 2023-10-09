@@ -9,10 +9,7 @@ use std::{fmt, mem};
 use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::{MonotonicResult, UnixTimestamp};
-use relay_system::{
-    AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
-    Shutdown,
-};
+use relay_system::{AsyncResponse, FromMessage, Interface, NoResponse, Sender};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
@@ -20,10 +17,6 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue, DistributionValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::temp_module_agg::Aggregator;
-
-/// Interval for the flush cycle of the [`AggregatorService`].
-const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
@@ -155,6 +148,7 @@ enum AggregateMetricsErrorKind {
     ProjectLimitExceeded,
 }
 
+/// A key that represents a bucket.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BucketKey {
     project_key: ProjectKey,
@@ -471,11 +465,6 @@ pub struct HashedBucket {
     bucket: Bucket,
 }
 
-enum AggregatorState {
-    Running,
-    ShuttingDown,
-}
-
 /// Keeps track of metrics for projects.
 #[derive(Default)]
 pub struct CostTracker {
@@ -484,7 +473,8 @@ pub struct CostTracker {
 }
 
 impl CostTracker {
-    fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
+    /// Returns `true` if the cost trackers value is larger than the given max cost.
+    pub fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
         if let Some(max_total_cost) = max_total_cost {
             if self.total_cost >= max_total_cost {
                 return true;
@@ -647,22 +637,6 @@ pub struct AcceptsMetrics;
 #[derive(Debug)]
 pub struct BucketCountInquiry;
 
-/// A message containing a vector of buckets to be flushed.
-///
-/// Handlers must respond to this message with a `Result`:
-/// - If flushing has succeeded or the buckets should be dropped for any reason, respond with `Ok`.
-/// - If flushing fails and should be retried at a later time, respond with `Err` containing the
-///   failed buckets. They will be merged back into the aggregator and flushed at a later time.
-#[derive(Clone, Debug)]
-pub struct FlushBuckets {
-    /// The project key.
-    pub project_key: ProjectKey,
-    /// The logical partition to send this batch to.
-    pub partition_key: Option<u64>,
-    /// The buckets to be flushed.
-    pub buckets: Vec<Bucket>,
-}
-
 /// A message containing a list of [`Bucket`]s to be inserted into the aggregator.
 #[derive(Debug)]
 pub struct MergeBuckets {
@@ -728,720 +702,454 @@ impl FromMessage<BucketCountInquiry> for AggregatorManager {
     }
 }
 
-/// A collector of [`Bucket`] submissions.
-///
-/// # Aggregation
-///
-/// Each metric is dispatched into the a [`Bucket`] depending on its project key (DSN), name, type,
-/// unit, tags and timestamp. The bucket timestamp is rounded to the precision declared by the
-/// `bucket_interval` field on the [AggregatorConfig] configuration.
-///
-/// Each bucket stores the accumulated value of submitted metrics:
-///
-/// - `Counter`: Sum of values.
-/// - `Distribution`: A list of values.
-/// - `Set`: A unique set of hashed values.
-/// - `Gauge`: A summary of the reported values, see [`GaugeValue`](crate::GaugeValue).
-///
-/// # Conflicts
-///
-/// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
-/// to send metrics of different types and units under the same name. For example, sending a metric
-/// once as set and once as distribution will result in two actual metrics being recorded.
-///
-/// # Flushing
-///
-/// Buckets are flushed to a receiver after their time window and a grace period have passed.
-/// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which
-/// are flushed after a shorter debounce delay. See [`AggregatorConfig`] for configuration options.
-///
-/// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that
-/// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.
-///
-/// Receivers must implement a handler for the [`FlushBuckets`] message.
-pub struct AggregatorService {
-    aggregator: Aggregator,
-    state: AggregatorState,
-    receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+/// foobar
+pub struct Aggregator {
+    name: String,
+    config: AggregatorConfig,
+    buckets: HashMap<BucketKey, QueuedBucket>,
+    cost_tracker: CostTracker,
 }
 
-/// Temporary - just for the service not to have access to the private functions
-pub mod temp_module_agg {
-    use super::*;
-
-    /// foobar
-    pub struct Aggregator {
-        name: String,
-        config: AggregatorConfig,
-        buckets: HashMap<BucketKey, QueuedBucket>,
-        cost_tracker: CostTracker,
+// Data
+impl Aggregator {
+    /// Returns the name of the aggregator.
+    pub fn name(&self) -> &str {
+        self.name.as_str()
     }
 
-    // Data
-    impl Aggregator {
-        /// Returns the name of the aggregator.
-        pub fn name(&self) -> &str {
-            self.name.as_str()
-        }
+    /// Returns the config of the aggregator.
+    pub fn config(&self) -> &AggregatorConfig {
+        &self.config
+    }
 
-        /// Returns the config of the aggregator.
-        pub fn config(&self) -> &AggregatorConfig {
-            &self.config
-        }
+    /// Returns the hashmap of the buckets of the aggregator.
+    pub fn buckets(&self) -> &HashMap<BucketKey, QueuedBucket> {
+        &self.buckets
+    }
 
-        /// Returns the hashmap of the buckets of the aggregator.
-        pub fn buckets(&self) -> &HashMap<BucketKey, QueuedBucket> {
-            &self.buckets
-        }
+    /// Returns the total cost.
+    pub fn total_cost(&self) -> usize {
+        self.cost_tracker.total_cost
+    }
 
-        /// Returns the total cost.
-        pub fn total_cost(&self) -> usize {
-            self.cost_tracker.total_cost
-        }
+    /// Subtracts the cost associate dwith a project.
+    pub fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
+        self.cost_tracker.subtract_cost(project_key, cost)
+    }
 
-        /// Subtracts the cost associate dwith a project.
-        pub fn subtract_cost(&mut self, project_key: ProjectKey, cost: usize) {
-            self.cost_tracker.subtract_cost(project_key, cost)
-        }
+    /// Returns the cost tracker of the aggregator.
+    pub fn cost_tracker(&self) -> &CostTracker {
+        &self.cost_tracker
+    }
 
-        /// Returns the cost tracker of the aggregator.
-        pub fn cost_tracker(&self) -> &CostTracker {
-            &self.cost_tracker
-        }
+    /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
+    ///
+    /// Note that this function is primarily intended for tests.
+    pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<HashedBucket>> {
+        relay_statsd::metric!(
+            gauge(MetricGauges::Buckets) = self.buckets().len() as u64,
+            aggregator = &self.name,
+        );
 
-        /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
-        ///
-        /// Note that this function is primarily intended for tests.
-        pub fn pop_flush_buckets(&mut self, force: bool) -> HashMap<ProjectKey, Vec<HashedBucket>> {
-            relay_statsd::metric!(
-                gauge(MetricGauges::Buckets) = self.buckets().len() as u64,
-                aggregator = &self.name,
-            );
+        // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
+        // assuming that this gives us more than enough data points.
+        relay_statsd::metric!(
+            gauge(MetricGauges::BucketsCost) = self.total_cost() as u64,
+            aggregator = &self.name,
+        );
 
-            // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
-            // assuming that this gives us more than enough data points.
-            relay_statsd::metric!(
-                gauge(MetricGauges::BucketsCost) = self.total_cost() as u64,
-                aggregator = &self.name,
-            );
+        let mut buckets = HashMap::<ProjectKey, Vec<HashedBucket>>::new();
+        let mut stats = HashMap::new();
 
-            let mut buckets = HashMap::<ProjectKey, Vec<HashedBucket>>::new();
-            let mut stats = HashMap::new();
-
-            relay_statsd::metric!(
-                timer(MetricTimers::BucketsScanDuration),
-                aggregator = &self.name,
-                {
-                    let bucket_interval = self.config().bucket_interval;
-                    let cost_tracker = &mut self.cost_tracker;
-                    // binary heap ?
-                    self.buckets.retain(|key, entry| {
-                        if force || entry.elapsed() {
-                            // Take the value and leave a placeholder behind. It'll be removed right after.
-                            let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
-                            cost_tracker.subtract_cost(key.project_key, key.cost());
-                            cost_tracker.subtract_cost(key.project_key, value.cost());
-
-                            let (bucket_count, item_count) = stats
-                                .entry((value.ty(), key.namespace()))
-                                .or_insert((0usize, 0usize));
-                            *bucket_count += 1;
-                            *item_count += value.len();
-
-                            let bucket = Bucket {
-                                timestamp: key.timestamp,
-                                width: bucket_interval,
-                                name: key.metric_name.clone(),
-                                value,
-                                tags: key.tags.clone(),
-                            };
-
-                            buckets
-                                .entry(key.project_key)
-                                .or_default()
-                                .push(HashedBucket {
-                                    hashed_key: key.hash64(),
-                                    bucket,
-                                });
-
-                            false
-                        } else {
-                            true
-                        }
-                    });
-                }
-            );
-
-            for ((ty, namespace), (bucket_count, item_count)) in stats.into_iter() {
-                relay_statsd::metric!(
-                    gauge(MetricGauges::AvgBucketSize) = item_count as f64 / bucket_count as f64,
-                    metric_type = ty.as_str(),
-                    namespace = namespace.as_str(),
-                    aggregator = self.name(),
-                );
-            }
-
-            buckets
-        }
-
-        /// Validates the metric name and its tags are correct.
-        ///
-        /// Returns `Err` if the metric should be dropped.
-        fn validate_bucket_key(
-            mut key: BucketKey,
-            aggregator_config: &AggregatorConfig,
-        ) -> Result<BucketKey, AggregateMetricsError> {
-            key = Self::validate_metric_name(key, aggregator_config)?;
-            key = Self::validate_metric_tags(key, aggregator_config);
-            Ok(key)
-        }
-
-        /// Removes invalid characters from metric names.
-        ///
-        /// Returns `Err` if the metric must be dropped.
-        fn validate_metric_name(
-            mut key: BucketKey,
-            aggregator_config: &AggregatorConfig,
-        ) -> Result<BucketKey, AggregateMetricsError> {
-            let metric_name_length = key.metric_name.len();
-            if metric_name_length > aggregator_config.max_name_length {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra(
-                        "bucket.project_key",
-                        key.project_key.as_str().to_owned().into(),
-                    );
-                    scope.set_extra(
-                        "bucket.metric_name.length",
-                        metric_name_length.to_string().into(),
-                    );
-                    scope.set_extra(
-                        "aggregator_config.max_name_length",
-                        aggregator_config.max_name_length.to_string().into(),
-                    );
-                });
-                return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
-            }
-
-            if let Err(err) = Self::normalize_metric_name(&mut key) {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra(
-                        "bucket.project_key",
-                        key.project_key.as_str().to_owned().into(),
-                    );
-                    scope.set_extra("bucket.metric_name", key.metric_name.into());
-                });
-                return Err(err);
-            }
-
-            Ok(key)
-        }
-
-        fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
-            key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
-                Ok(mri) => {
-                    if matches!(mri.namespace, MetricNamespace::Unsupported) {
-                        relay_log::debug!("invalid metric namespace {:?}", &key.metric_name);
-                        return Err(
-                            AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into(),
-                        );
-                    }
-
-                    let mut metric_name = mri.to_string();
-                    // do this so cost tracking still works accurately.
-                    metric_name.shrink_to_fit();
-                    metric_name
-                }
-                Err(_) => {
-                    relay_log::debug!("invalid metric name {:?}", &key.metric_name);
-                    return Err(AggregateMetricsErrorKind::InvalidCharacters(
-                        key.metric_name.clone(),
-                    )
-                    .into());
-                }
-            };
-
-            Ok(())
-        }
-
-        /// Removes tags with invalid characters in the key, and validates tag values.
-        ///
-        /// Tag values are validated with `protocol::validate_tag_value`.
-        fn validate_metric_tags(
-            mut key: BucketKey,
-            aggregator_config: &AggregatorConfig,
-        ) -> BucketKey {
-            let proj_key = key.project_key.as_str();
-            key.tags.retain(|tag_key, tag_value| {
-                if tag_key.len() > aggregator_config.max_tag_key_length {
-                    relay_log::configure_scope(|scope| {
-                        scope.set_extra("bucket.project_key", proj_key.to_owned().into());
-                        scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
-                        scope.set_extra(
-                            "aggregator_config.max_tag_key_length",
-                            aggregator_config.max_tag_key_length.to_string().into(),
-                        );
-                    });
-                    relay_log::debug!("Invalid metric tag key");
-                    return false;
-                }
-                if bytecount::num_chars(tag_value.as_bytes())
-                    > aggregator_config.max_tag_value_length
-                {
-                    relay_log::configure_scope(|scope| {
-                        scope.set_extra("bucket.project_key", proj_key.to_owned().into());
-                        scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
-                        scope.set_extra(
-                            "aggregator_config.max_tag_value_length",
-                            aggregator_config.max_tag_value_length.to_string().into(),
-                        );
-                    });
-                    relay_log::debug!("Invalid metric tag value");
-                    return false;
-                }
-
-                if protocol::is_valid_tag_key(tag_key) {
-                    true
-                } else {
-                    relay_log::debug!("invalid metric tag key {tag_key:?}");
-                    false
-                }
-            });
-            for (_, tag_value) in key.tags.iter_mut() {
-                protocol::validate_tag_value(tag_value);
-            }
-            key
-        }
-
-        // Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
-        // Logs a statsd metric for invalid timestamps.
-        fn get_bucket_timestamp(
-            &self,
-            timestamp: UnixTimestamp,
-            bucket_width: u64,
-        ) -> Result<UnixTimestamp, AggregateMetricsError> {
-            let res = self.config.get_bucket_timestamp(timestamp, bucket_width);
-            if let Err(AggregateMetricsError {
-                kind: AggregateMetricsErrorKind::InvalidTimestamp(ts),
-            }) = res
+        relay_statsd::metric!(
+            timer(MetricTimers::BucketsScanDuration),
+            aggregator = &self.name,
             {
-                let delta = (ts.as_secs() as i64) - (UnixTimestamp::now().as_secs() as i64);
-                relay_statsd::metric!(
-                    histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64,
-                    aggregator = &self.name,
-                );
+                let bucket_interval = self.config().bucket_interval;
+                let cost_tracker = &mut self.cost_tracker;
+                // binary heap ?
+                self.buckets.retain(|key, entry| {
+                    if force || entry.elapsed() {
+                        // Take the value and leave a placeholder behind. It'll be removed right after.
+                        let value = mem::replace(&mut entry.value, BucketValue::Counter(0.0));
+                        cost_tracker.subtract_cost(key.project_key, key.cost());
+                        cost_tracker.subtract_cost(key.project_key, value.cost());
+
+                        let (bucket_count, item_count) = stats
+                            .entry((value.ty(), key.namespace()))
+                            .or_insert((0usize, 0usize));
+                        *bucket_count += 1;
+                        *item_count += value.len();
+
+                        let bucket = Bucket {
+                            timestamp: key.timestamp,
+                            width: bucket_interval,
+                            name: key.metric_name.clone(),
+                            value,
+                            tags: key.tags.clone(),
+                        };
+
+                        buckets
+                            .entry(key.project_key)
+                            .or_default()
+                            .push(HashedBucket {
+                                hashed_key: key.hash64(),
+                                bucket,
+                            });
+
+                        false
+                    } else {
+                        true
+                    }
+                });
             }
+        );
 
-            res
-        }
-
-        /// Merge a preaggregated bucket into this aggregator.
-        ///
-        /// If no bucket exists for the given bucket key, a new bucket will be created.
-        pub fn merge(
-            &mut self,
-            project_key: ProjectKey,
-            bucket: Bucket,
-        ) -> Result<(), AggregateMetricsError> {
-            let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
-            let key = BucketKey {
-                project_key,
-                timestamp,
-                metric_name: bucket.name,
-                tags: bucket.tags,
-            };
-            let key = Self::validate_bucket_key(key, &self.config)?;
-
-            // XXX: This is not a great implementation of cost enforcement.
-            //
-            // * it takes two lookups of the project key in the cost tracker to merge a bucket: once in
-            //   `check_limits_exceeded` and once in `add_cost`.
-            //
-            // * the limits are not actually enforced consistently
-            //
-            //   A bucket can be merged that exceeds the cost limit, and only the next bucket will be
-            //   limited because the limit is now reached. This implementation was chosen because it's
-            //   currently not possible to determine cost accurately upfront: The bucket values have to
-            //   be merged together to figure out how costly the merge was. Changing that would force
-            //   us to unravel a lot of abstractions that we have already built.
-            //
-            //   As a result of that, it is possible to exceed the bucket cost limit significantly
-            //   until we have guaranteed upper bounds on the cost of a single bucket (which we
-            //   currently don't, because a metric can have arbitrary amount of tag values).
-            //
-            //   Another consequence is that a MergeValue that adds zero cost (such as an existing
-            //   counter bucket being incremented) is currently rejected even though it doesn't have to
-            //   be.
-            //
-            // The flipside of this approach is however that there's more optimization potential: If
-            // the limit is already exceeded, we could implement an optimization that drops envelope
-            // items before they are parsed, as we can be sure that the new metric bucket will be
-            // rejected in the aggregator regardless of whether it is merged into existing buckets,
-            // whether it is just a counter, etc.
-            self.cost_tracker.check_limits_exceeded(
-                project_key,
-                self.config.max_total_bucket_bytes,
-                self.config.max_project_key_bucket_bytes,
-            )?;
-
-            let added_cost;
-            match self.buckets.entry(key) {
-                Entry::Occupied(mut entry) => {
-                    relay_statsd::metric!(
-                        counter(MetricCounters::MergeHit) += 1,
-                        aggregator = &self.name,
-                        namespace = entry.key().namespace().as_str(),
-                    );
-                    let bucket_value = &mut entry.get_mut().value;
-                    let cost_before = bucket_value.cost();
-                    bucket_value
-                        .merge(bucket.value)
-                        .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
-                    let cost_after = bucket_value.cost();
-                    added_cost = cost_after.saturating_sub(cost_before);
-                }
-                Entry::Vacant(entry) => {
-                    relay_statsd::metric!(
-                        counter(MetricCounters::MergeMiss) += 1,
-                        aggregator = &self.name,
-                        namespace = entry.key().namespace().as_str(),
-                    );
-                    relay_statsd::metric!(
-                        set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
-                        aggregator = &self.name,
-                        namespace = entry.key().namespace().as_str(),
-                    );
-
-                    let flush_at = self.config.get_flush_time(entry.key());
-                    let value = bucket.value;
-                    added_cost = entry.key().cost() + value.cost();
-                    entry.insert(QueuedBucket::new(flush_at, value));
-                }
-            }
-
-            self.cost_tracker.add_cost(project_key, added_cost);
-
-            Ok(())
-        }
-
-        /// Merges all given `buckets` into this aggregator.
-        ///
-        /// Buckets that do not exist yet will be created.
-        pub fn merge_all<I>(
-            &mut self,
-            project_key: ProjectKey,
-            buckets: I,
-        ) -> Result<(), AggregateMetricsError>
-        where
-            I: IntoIterator<Item = Bucket>,
-        {
-            for bucket in buckets.into_iter() {
-                if let Err(error) = self.merge(project_key, bucket) {
-                    relay_log::error!(tags.aggregator = self.name, error = &error as &dyn Error);
-                }
-            }
-
-            Ok(())
-        }
-
-        /// Split buckets into N logical partitions, determined by the bucket key.
-        pub fn partition_buckets(
-            &self,
-            buckets: Vec<HashedBucket>,
-            flush_partitions: Option<u64>,
-        ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
-            let flush_partitions = match flush_partitions {
-                None => {
-                    return BTreeMap::from([(
-                        None,
-                        buckets.into_iter().map(|x| x.bucket).collect(),
-                    )]);
-                }
-                Some(x) => x.max(1), // handle 0,
-            };
-            let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
-            for bucket in buckets {
-                let partition_key = bucket.hashed_key % flush_partitions;
-                partitions
-                    .entry(Some(partition_key))
-                    .or_default()
-                    .push(bucket.bucket);
-
-                // Log the distribution of buckets over partition key
-                relay_statsd::metric!(
-                    histogram(MetricHistograms::PartitionKeys) = partition_key as f64,
-                    aggregator = &self.name,
-                );
-            }
-            partitions
-        }
-
-        /// Split the provided buckets into batches and process each batch with the given function.
-        ///
-        /// For each batch, log a histogram metric.
-        pub fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
-        where
-            F: FnMut(Vec<Bucket>),
-        {
-            let capped_batches =
-                CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
-            let num_batches = capped_batches
-                .map(|batch| {
-                    relay_statsd::metric!(
-                        histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                        aggregator = &self.name,
-                    );
-                    process(batch);
-                })
-                .count();
-
+        for ((ty, namespace), (bucket_count, item_count)) in stats.into_iter() {
             relay_statsd::metric!(
-                histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+                gauge(MetricGauges::AvgBucketSize) = item_count as f64 / bucket_count as f64,
+                metric_type = ty.as_str(),
+                namespace = namespace.as_str(),
+                aggregator = self.name(),
+            );
+        }
+
+        buckets
+    }
+
+    /// Validates the metric name and its tags are correct.
+    ///
+    /// Returns `Err` if the metric should be dropped.
+    fn validate_bucket_key(
+        mut key: BucketKey,
+        aggregator_config: &AggregatorConfig,
+    ) -> Result<BucketKey, AggregateMetricsError> {
+        key = Self::validate_metric_name(key, aggregator_config)?;
+        key = Self::validate_metric_tags(key, aggregator_config);
+        Ok(key)
+    }
+
+    /// Removes invalid characters from metric names.
+    ///
+    /// Returns `Err` if the metric must be dropped.
+    fn validate_metric_name(
+        mut key: BucketKey,
+        aggregator_config: &AggregatorConfig,
+    ) -> Result<BucketKey, AggregateMetricsError> {
+        let metric_name_length = key.metric_name.len();
+        if metric_name_length > aggregator_config.max_name_length {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra(
+                    "bucket.project_key",
+                    key.project_key.as_str().to_owned().into(),
+                );
+                scope.set_extra(
+                    "bucket.metric_name.length",
+                    metric_name_length.to_string().into(),
+                );
+                scope.set_extra(
+                    "aggregator_config.max_name_length",
+                    aggregator_config.max_name_length.to_string().into(),
+                );
+            });
+            return Err(AggregateMetricsErrorKind::InvalidStringLength(key.metric_name).into());
+        }
+
+        if let Err(err) = Self::normalize_metric_name(&mut key) {
+            relay_log::configure_scope(|scope| {
+                scope.set_extra(
+                    "bucket.project_key",
+                    key.project_key.as_str().to_owned().into(),
+                );
+                scope.set_extra("bucket.metric_name", key.metric_name.into());
+            });
+            return Err(err);
+        }
+
+        Ok(key)
+    }
+
+    fn normalize_metric_name(key: &mut BucketKey) -> Result<(), AggregateMetricsError> {
+        key.metric_name = match MetricResourceIdentifier::parse(&key.metric_name) {
+            Ok(mri) => {
+                if matches!(mri.namespace, MetricNamespace::Unsupported) {
+                    relay_log::debug!("invalid metric namespace {:?}", &key.metric_name);
+                    return Err(
+                        AggregateMetricsErrorKind::UnsupportedNamespace(mri.namespace).into(),
+                    );
+                }
+
+                let mut metric_name = mri.to_string();
+                // do this so cost tracking still works accurately.
+                metric_name.shrink_to_fit();
+                metric_name
+            }
+            Err(_) => {
+                relay_log::debug!("invalid metric name {:?}", &key.metric_name);
+                return Err(
+                    AggregateMetricsErrorKind::InvalidCharacters(key.metric_name.clone()).into(),
+                );
+            }
+        };
+
+        Ok(())
+    }
+
+    /// Removes tags with invalid characters in the key, and validates tag values.
+    ///
+    /// Tag values are validated with `protocol::validate_tag_value`.
+    fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig) -> BucketKey {
+        let proj_key = key.project_key.as_str();
+        key.tags.retain(|tag_key, tag_value| {
+            if tag_key.len() > aggregator_config.max_tag_key_length {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                    scope.set_extra("bucket.metric.tag_key", tag_key.to_owned().into());
+                    scope.set_extra(
+                        "aggregator_config.max_tag_key_length",
+                        aggregator_config.max_tag_key_length.to_string().into(),
+                    );
+                });
+                relay_log::debug!("Invalid metric tag key");
+                return false;
+            }
+            if bytecount::num_chars(tag_value.as_bytes()) > aggregator_config.max_tag_value_length {
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("bucket.project_key", proj_key.to_owned().into());
+                    scope.set_extra("bucket.metric.tag_value", tag_value.to_owned().into());
+                    scope.set_extra(
+                        "aggregator_config.max_tag_value_length",
+                        aggregator_config.max_tag_value_length.to_string().into(),
+                    );
+                });
+                relay_log::debug!("Invalid metric tag value");
+                return false;
+            }
+
+            if protocol::is_valid_tag_key(tag_key) {
+                true
+            } else {
+                relay_log::debug!("invalid metric tag key {tag_key:?}");
+                false
+            }
+        });
+        for (_, tag_value) in key.tags.iter_mut() {
+            protocol::validate_tag_value(tag_value);
+        }
+        key
+    }
+
+    // Wrapper for [`AggregatorConfig::get_bucket_timestamp`].
+    // Logs a statsd metric for invalid timestamps.
+    fn get_bucket_timestamp(
+        &self,
+        timestamp: UnixTimestamp,
+        bucket_width: u64,
+    ) -> Result<UnixTimestamp, AggregateMetricsError> {
+        let res = self.config.get_bucket_timestamp(timestamp, bucket_width);
+        if let Err(AggregateMetricsError {
+            kind: AggregateMetricsErrorKind::InvalidTimestamp(ts),
+        }) = res
+        {
+            let delta = (ts.as_secs() as i64) - (UnixTimestamp::now().as_secs() as i64);
+            relay_statsd::metric!(
+                histogram(MetricHistograms::InvalidBucketTimestamp) = delta as f64,
                 aggregator = &self.name,
             );
         }
 
-        /// Create a new aggregator and connect it to `receiver`.
-        ///
-        /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
-        /// the given `config`.
-        pub fn new(config: AggregatorConfig) -> Self {
-            Self::named("default".to_owned(), config)
-        }
+        res
+    }
 
-        /// Like [`Self::new`], but with a provided name.
-        pub(crate) fn named(name: String, config: AggregatorConfig) -> Self {
-            Self {
-                name,
-                config,
-                buckets: HashMap::new(),
-                cost_tracker: CostTracker::default(),
+    /// Merge a preaggregated bucket into this aggregator.
+    ///
+    /// If no bucket exists for the given bucket key, a new bucket will be created.
+    pub fn merge(
+        &mut self,
+        project_key: ProjectKey,
+        bucket: Bucket,
+    ) -> Result<(), AggregateMetricsError> {
+        let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
+        let key = BucketKey {
+            project_key,
+            timestamp,
+            metric_name: bucket.name,
+            tags: bucket.tags,
+        };
+        let key = Self::validate_bucket_key(key, &self.config)?;
+
+        // XXX: This is not a great implementation of cost enforcement.
+        //
+        // * it takes two lookups of the project key in the cost tracker to merge a bucket: once in
+        //   `check_limits_exceeded` and once in `add_cost`.
+        //
+        // * the limits are not actually enforced consistently
+        //
+        //   A bucket can be merged that exceeds the cost limit, and only the next bucket will be
+        //   limited because the limit is now reached. This implementation was chosen because it's
+        //   currently not possible to determine cost accurately upfront: The bucket values have to
+        //   be merged together to figure out how costly the merge was. Changing that would force
+        //   us to unravel a lot of abstractions that we have already built.
+        //
+        //   As a result of that, it is possible to exceed the bucket cost limit significantly
+        //   until we have guaranteed upper bounds on the cost of a single bucket (which we
+        //   currently don't, because a metric can have arbitrary amount of tag values).
+        //
+        //   Another consequence is that a MergeValue that adds zero cost (such as an existing
+        //   counter bucket being incremented) is currently rejected even though it doesn't have to
+        //   be.
+        //
+        // The flipside of this approach is however that there's more optimization potential: If
+        // the limit is already exceeded, we could implement an optimization that drops envelope
+        // items before they are parsed, as we can be sure that the new metric bucket will be
+        // rejected in the aggregator regardless of whether it is merged into existing buckets,
+        // whether it is just a counter, etc.
+        self.cost_tracker.check_limits_exceeded(
+            project_key,
+            self.config.max_total_bucket_bytes,
+            self.config.max_project_key_bucket_bytes,
+        )?;
+
+        let added_cost;
+        match self.buckets.entry(key) {
+            Entry::Occupied(mut entry) => {
+                relay_statsd::metric!(
+                    counter(MetricCounters::MergeHit) += 1,
+                    aggregator = &self.name,
+                    namespace = entry.key().namespace().as_str(),
+                );
+                let bucket_value = &mut entry.get_mut().value;
+                let cost_before = bucket_value.cost();
+                bucket_value
+                    .merge(bucket.value)
+                    .map_err(|_| AggregateMetricsErrorKind::InvalidTypes)?;
+                let cost_after = bucket_value.cost();
+                added_cost = cost_after.saturating_sub(cost_before);
+            }
+            Entry::Vacant(entry) => {
+                relay_statsd::metric!(
+                    counter(MetricCounters::MergeMiss) += 1,
+                    aggregator = &self.name,
+                    namespace = entry.key().namespace().as_str(),
+                );
+                relay_statsd::metric!(
+                    set(MetricSets::UniqueBucketsCreated) = entry.key().hash64() as i64, // 2-complement
+                    aggregator = &self.name,
+                    namespace = entry.key().namespace().as_str(),
+                );
+
+                let flush_at = self.config.get_flush_time(entry.key());
+                let value = bucket.value;
+                added_cost = entry.key().cost() + value.cost();
+                entry.insert(QueuedBucket::new(flush_at, value));
             }
         }
-    }
-}
 
-// Service
-impl AggregatorService {
+        self.cost_tracker.add_cost(project_key, added_cost);
+
+        Ok(())
+    }
+
+    /// Merges all given `buckets` into this aggregator.
+    ///
+    /// Buckets that do not exist yet will be created.
+    pub fn merge_all<I>(
+        &mut self,
+        project_key: ProjectKey,
+        buckets: I,
+    ) -> Result<(), AggregateMetricsError>
+    where
+        I: IntoIterator<Item = Bucket>,
+    {
+        for bucket in buckets.into_iter() {
+            if let Err(error) = self.merge(project_key, bucket) {
+                relay_log::error!(tags.aggregator = self.name, error = &error as &dyn Error);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Split buckets into N logical partitions, determined by the bucket key.
+    pub fn partition_buckets(
+        &self,
+        buckets: Vec<HashedBucket>,
+        flush_partitions: Option<u64>,
+    ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
+        let flush_partitions = match flush_partitions {
+            None => {
+                return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
+            }
+            Some(x) => x.max(1), // handle 0,
+        };
+        let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
+        for bucket in buckets {
+            let partition_key = bucket.hashed_key % flush_partitions;
+            partitions
+                .entry(Some(partition_key))
+                .or_default()
+                .push(bucket.bucket);
+
+            // Log the distribution of buckets over partition key
+            relay_statsd::metric!(
+                histogram(MetricHistograms::PartitionKeys) = partition_key as f64,
+                aggregator = &self.name,
+            );
+        }
+        partitions
+    }
+
+    /// Split the provided buckets into batches and process each batch with the given function.
+    ///
+    /// For each batch, log a histogram metric.
+    pub fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
+    where
+        F: FnMut(Vec<Bucket>),
+    {
+        let capped_batches =
+            CappedBucketIter::new(buckets.into_iter(), self.config.max_flush_bytes);
+        let num_batches = capped_batches
+            .map(|batch| {
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                    aggregator = &self.name,
+                );
+                process(batch);
+            })
+            .count();
+
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+            aggregator = &self.name,
+        );
+    }
+
     /// Create a new aggregator and connect it to `receiver`.
     ///
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
-    pub fn new(
-        config: AggregatorConfig,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
-    ) -> Self {
-        Self::named("default".to_owned(), config, receiver)
+    pub fn new(config: AggregatorConfig) -> Self {
+        Self::named("default".to_owned(), config)
     }
 
     /// Like [`Self::new`], but with a provided name.
-    pub(crate) fn named(
-        name: String,
-        config: AggregatorConfig,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
-    ) -> Self {
+    pub(crate) fn named(name: String, config: AggregatorConfig) -> Self {
         Self {
-            aggregator: Aggregator::named(name, config),
-            receiver,
-            state: AggregatorState::Running,
-        }
-    }
-
-    fn handle_accepts_metrics(&self, sender: Sender<bool>) {
-        let result = !self
-            .aggregator
-            .cost_tracker()
-            .totals_cost_exceeded(self.aggregator.config().max_total_bucket_bytes);
-        sender.send(result);
-    }
-
-    /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
-    /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
-    /// and we require another re-try.
-    ///
-    /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self) {
-        let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-        let flush_buckets = self.aggregator.pop_flush_buckets(force_flush);
-
-        if flush_buckets.is_empty() {
-            return;
-        }
-
-        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
-
-        let mut total_bucket_count = 0u64;
-        for (project_key, project_buckets) in flush_buckets.into_iter() {
-            let bucket_count = project_buckets.len() as u64;
-            relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
-                aggregator = self.aggregator.name(),
-            );
-            total_bucket_count += bucket_count;
-
-            let num_partitions = self.aggregator.config().flush_partitions;
-            let partitioned_buckets = self
-                .aggregator
-                .partition_buckets(project_buckets, num_partitions);
-            for (partition_key, buckets) in partitioned_buckets {
-                self.aggregator.process_batches(buckets, |batch| {
-                    if let Some(ref receiver) = self.receiver {
-                        receiver.send(FlushBuckets {
-                            project_key,
-                            partition_key,
-                            buckets: batch,
-                        });
-                    }
-                });
-            }
-        }
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
-            aggregator = self.aggregator.name(),
-        );
-    }
-
-    fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
-        let MergeBuckets {
-            project_key,
-            buckets,
-        } = msg;
-        if let Err(err) = self.aggregator.merge_all(project_key, buckets) {
-            relay_log::error!(
-                tags.aggregator = &self.aggregator.name(),
-                error = &err as &dyn Error,
-                "failed to merge buckets"
-            );
-        }
-    }
-
-    fn handle_message(&mut self, msg: AggregatorManager) {
-        match msg {
-            AggregatorManager::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
-            AggregatorManager::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-            #[cfg(test)]
-            AggregatorManager::BucketCountInquiry(_, sender) => {
-                sender.send(self.aggregator.buckets().len())
-            }
-        }
-    }
-
-    fn handle_shutdown(&mut self, message: Shutdown) {
-        if message.timeout.is_some() {
-            self.state = AggregatorState::ShuttingDown;
+            name,
+            config,
+            buckets: HashMap::new(),
+            cost_tracker: CostTracker::default(),
         }
     }
 }
 
-impl fmt::Debug for AggregatorService {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct(std::any::type_name::<Self>())
-            .field("config", &self.aggregator.config())
-            .field("buckets", &self.aggregator.buckets())
-            .field("receiver", &format_args!("Recipient<FlushBuckets>"))
-            .finish()
-    }
-}
-
-impl Service for AggregatorService {
-    type Interface = AggregatorManager;
-
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
-            let mut shutdown = Controller::shutdown_handle();
-
-            // Note that currently this loop never exits and will run till the tokio runtime shuts
-            // down. This is about to change with the refactoring for the shutdown process.
-            loop {
-                tokio::select! {
-                    biased;
-
-                    _ = ticker.tick() => self.try_flush(),
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
-
-                    else => break,
-                }
-            }
-        });
-    }
-}
-
-impl Drop for AggregatorService {
-    fn drop(&mut self) {
-        let remaining_buckets = self.aggregator.buckets().len();
-        if remaining_buckets > 0 {
-            relay_log::error!(
-                tags.aggregator = self.aggregator.name(),
-                "metrics aggregator dropping {remaining_buckets} buckets"
-            );
-            relay_statsd::metric!(
-                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64,
-                aggregator = self.aggregator.name(),
-            );
-        }
-    }
-}
-
-/*
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::sync::{Arc, RwLock};
 
     use similar_asserts::assert_eq;
 
     use super::*;
     use crate::{dist, GaugeValue};
-
-    #[derive(Default)]
-    struct ReceivedData {
-        buckets: Vec<Bucket>,
-    }
-
-    struct TestInterface(FlushBuckets);
-
-    impl Interface for TestInterface {}
-
-    impl FromMessage<FlushBuckets> for TestInterface {
-        type Response = NoResponse;
-
-        fn from_message(message: FlushBuckets, _: ()) -> Self {
-            Self(message)
-        }
-    }
-
-    #[derive(Clone, Default)]
-    struct TestReceiver {
-        data: Arc<RwLock<ReceivedData>>,
-        reject_all: bool,
-    }
-
-    impl TestReceiver {
-        fn add_buckets(&self, buckets: Vec<Bucket>) {
-            self.data.write().unwrap().buckets.extend(buckets);
-        }
-
-        fn bucket_count(&self) -> usize {
-            self.data.read().unwrap().buckets.len()
-        }
-    }
-
-    impl Service for TestReceiver {
-        type Interface = TestInterface;
-
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                while let Some(message) = rx.recv().await {
-                    let buckets = message.0.buckets;
-                    relay_log::debug!(?buckets, "received buckets");
-                    if !self.reject_all {
-                        self.add_buckets(buckets);
-                    }
-                }
-            });
-        }
-    }
 
     fn test_config() -> AggregatorConfig {
         AggregatorConfig {
@@ -1468,6 +1176,42 @@ mod tests {
             value: BucketValue::counter(42.),
             tags: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn test_aggregator_merge_counters() {
+        relay_test::setup();
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let mut aggregator = Aggregator::new(test_config());
+
+        let bucket1 = some_bucket();
+
+        let mut bucket2 = bucket1.clone();
+        bucket2.value = BucketValue::counter(43.);
+        aggregator.merge(project_key, bucket1).unwrap();
+        aggregator.merge(project_key, bucket2).unwrap();
+
+        let buckets: Vec<_> = aggregator
+            .buckets
+            .iter()
+            .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
+            .collect();
+
+        insta::assert_debug_snapshot!(buckets, @r#"
+        [
+            (
+                BucketKey {
+                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
+                    timestamp: UnixTimestamp(999994711),
+                    metric_name: "c:transactions/foo@none",
+                    tags: {},
+                },
+                Counter(
+                    85.0,
+                ),
+            ),
+        ]
+        "#);
     }
 
     #[test]
@@ -1520,43 +1264,6 @@ mod tests {
     }
 
     #[test]
-    fn test_aggregator_merge_counters() {
-        relay_test::setup();
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = AggregatorService::new(test_config(), None);
-
-        let bucket1 = some_bucket();
-
-        let mut bucket2 = bucket1.clone();
-        bucket2.value = BucketValue::counter(43.);
-        aggregator.aggregator.merge(project_key, bucket1).unwrap();
-        aggregator.aggregator.merge(project_key, bucket2).unwrap();
-
-        let buckets: Vec<_> = aggregator
-            .aggregator
-            .buckets
-            .iter()
-            .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
-            .collect();
-
-        insta::assert_debug_snapshot!(buckets, @r#"
-        [
-            (
-                BucketKey {
-                    project_key: ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"),
-                    timestamp: UnixTimestamp(999994711),
-                    metric_name: "c:transactions/foo@none",
-                    tags: {},
-                },
-                Counter(
-                    85.0,
-                ),
-            ),
-        ]
-        "#);
-    }
-
-    #[test]
     fn test_aggregator_merge_timestamps() {
         relay_test::setup();
         let config = AggregatorConfig {
@@ -1564,7 +1271,7 @@ mod tests {
             ..test_config()
         };
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = AggregatorService::new(config, None);
+        let mut aggregator = Aggregator::new(config);
 
         let bucket1 = some_bucket();
 
@@ -1573,12 +1280,11 @@ mod tests {
 
         let mut bucket3 = bucket1.clone();
         bucket3.timestamp = UnixTimestamp::from_secs(999994721);
-        aggregator.aggregator.merge(project_key, bucket1).unwrap();
-        aggregator.aggregator.merge(project_key, bucket2).unwrap();
-        aggregator.aggregator.merge(project_key, bucket3).unwrap();
+        aggregator.merge(project_key, bucket1).unwrap();
+        aggregator.merge(project_key, bucket2).unwrap();
+        aggregator.merge(project_key, bucket3).unwrap();
 
         let mut buckets: Vec<_> = aggregator
-            .aggregator
             .buckets
             .iter()
             .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
@@ -1625,7 +1331,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let mut aggregator = Aggregator::new(config);
 
         // It's OK to have same metric with different projects:
         aggregator.merge(project_key1, some_bucket()).unwrap();
@@ -1707,7 +1413,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
-        let mut aggregator = AggregatorService::new(test_config(), None);
+        let mut aggregator = Aggregator::new(test_config());
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let bucket = Bucket {
@@ -1762,7 +1468,7 @@ mod tests {
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
-        aggregator.pop_flush_buckets();
+        aggregator.pop_flush_buckets(false);
         assert_eq!(aggregator.cost_tracker.total_cost, 0);
     }
 
@@ -1836,78 +1542,6 @@ mod tests {
         }
 
         assert!(iter.next().is_none());
-    }
-
-    #[tokio::test]
-    async fn test_flush_bucket() {
-        relay_test::setup();
-        tokio::time::pause();
-
-        let receiver = TestReceiver::default();
-        let recipient = receiver.clone().start().recipient();
-
-        let config = AggregatorConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            ..Default::default()
-        };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
-
-        let mut bucket = some_bucket();
-        bucket.timestamp = UnixTimestamp::now();
-
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            buckets: vec![bucket],
-        });
-
-        let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
-        // Let's check the number of buckets in the aggregator just after sending a
-        // message.
-        assert_eq!(buckets_count, 1);
-
-        // Wait until flush delay has passed. It is up to 2s: 1s for the current bucket
-        // and 1s for the flush shift. Adding 100ms buffer.
-        tokio::time::sleep(Duration::from_millis(2100)).await;
-        // receiver must have 1 bucket flushed
-        assert_eq!(receiver.bucket_count(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_merge_back() {
-        relay_test::setup();
-        tokio::time::pause();
-
-        // Create a receiver which accepts nothing:
-        let receiver = TestReceiver {
-            reject_all: true,
-            ..TestReceiver::default()
-        };
-        let recipient = receiver.clone().start().recipient();
-
-        let config = AggregatorConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            ..Default::default()
-        };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
-
-        let mut bucket = some_bucket();
-        bucket.timestamp = UnixTimestamp::now();
-
-        aggregator.send(MergeBuckets {
-            project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            buckets: vec![bucket],
-        });
-
-        assert_eq!(receiver.bucket_count(), 0);
-
-        tokio::time::sleep(Duration::from_millis(1100)).await;
-        let bucket_count = aggregator.send(BucketCountInquiry).await.unwrap();
-        assert_eq!(bucket_count, 1);
-        assert_eq!(receiver.bucket_count(), 0);
     }
 
     #[test]
@@ -2020,7 +1654,7 @@ mod tests {
         let aggregator_config = test_config();
 
         let mut bucket_key =
-            AggregatorService::validate_bucket_key(bucket_key, &aggregator_config).unwrap();
+            Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap();
 
         assert_eq!(bucket_key.tags.len(), 1);
         assert_eq!(
@@ -2030,7 +1664,7 @@ mod tests {
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
         bucket_key.metric_name = "hergus\0bergus".to_owned();
-        AggregatorService::validate_bucket_key(bucket_key, &aggregator_config).unwrap_err();
+        Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap_err();
     }
 
     #[test]
@@ -2045,7 +1679,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".to_owned(),
             tags: BTreeMap::new(),
         };
-        assert!(AggregatorService::validate_bucket_key(short_metric, &aggregator_config).is_ok());
+        assert!(Aggregator::validate_bucket_key(short_metric, &aggregator_config).is_ok());
 
         let long_metric = BucketKey {
             project_key,
@@ -2053,7 +1687,7 @@ mod tests {
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
             tags: BTreeMap::new(),
         };
-        let validation = AggregatorService::validate_bucket_key(long_metric, &aggregator_config);
+        let validation = Aggregator::validate_bucket_key(long_metric, &aggregator_config);
 
         assert!(matches!(
             validation.unwrap_err(),
@@ -2069,8 +1703,7 @@ mod tests {
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
         };
         let validation =
-            AggregatorService::validate_bucket_key(short_metric_long_tag_key, &aggregator_config)
-                .unwrap();
+            Aggregator::validate_bucket_key(short_metric_long_tag_key, &aggregator_config).unwrap();
         assert_eq!(validation.tags.len(), 0);
 
         let short_metric_long_tag_value = BucketKey {
@@ -2080,7 +1713,7 @@ mod tests {
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
         };
         let validation =
-            AggregatorService::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
+            Aggregator::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
                 .unwrap();
         assert_eq!(validation.tags.len(), 0);
     }
@@ -2099,8 +1732,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".to_owned(),
             tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
         };
-        let validated_bucket =
-            AggregatorService::validate_metric_tags(short_metric, &aggregator_config);
+        let validated_bucket = Aggregator::validate_metric_tags(short_metric, &aggregator_config);
         assert_eq!(validated_bucket.tags["foo"], tag_value);
     }
 
@@ -2119,7 +1751,7 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let mut aggregator = Aggregator::new(config);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.merge(project_key, bucket.clone()).unwrap();
@@ -2145,7 +1777,7 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let mut aggregator = Aggregator::new(config);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         aggregator.merge(project_key, bucket.clone()).unwrap();
@@ -2153,84 +1785,6 @@ mod tests {
             aggregator.merge(project_key, bucket).unwrap_err().kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
         );
-    }
-
-    #[must_use]
-    fn run_test_bucket_partitioning(flush_partitions: Option<u64>) -> Vec<String> {
-        let config = AggregatorConfig {
-            max_flush_bytes: 1000,
-            flush_partitions,
-            ..test_config()
-        };
-
-        let bucket1 = Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
-            width: 0,
-            name: "c:transactions/foo".to_owned(),
-            value: BucketValue::counter(42.),
-            tags: BTreeMap::new(),
-        };
-
-        let bucket2 = Bucket {
-            timestamp: UnixTimestamp::from_secs(999994711),
-            width: 0,
-            name: "c:transactions/bar".to_owned(),
-            value: BucketValue::counter(43.),
-            tags: BTreeMap::new(),
-        };
-
-        let mut aggregator = AggregatorService::new(config, None);
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-        let captures = relay_statsd::with_capturing_test_client(|| {
-            aggregator.merge(project_key, bucket1).ok();
-            aggregator.merge(project_key, bucket2).ok();
-            aggregator.try_flush();
-        });
-        captures
-            .into_iter()
-            .filter(|x| {
-                [
-                    "metrics.buckets.batches_per_partition",
-                    "metrics.buckets.per_batch",
-                    "metrics.buckets.partition_keys",
-                ]
-                .contains(&x.split_once(':').unwrap().0)
-            })
-            .collect::<Vec<_>>()
-    }
-
-    #[test]
-    fn test_bucket_partitioning_dummy() {
-        let output = run_test_bucket_partitioning(None);
-        insta::assert_debug_snapshot!(output, @r#"
-        [
-            "metrics.buckets.per_batch:2|h|#aggregator:default",
-            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
-        ]
-        "#);
-    }
-
-    #[test]
-    fn test_bucket_partitioning_128() {
-        let output = run_test_bucket_partitioning(Some(128));
-        // Because buckets are stored in a HashMap, we do not know in what order the buckets will
-        // be processed, so we need to convert them to a set:
-        let (partition_keys, tail) = output.split_at(2);
-        insta::assert_debug_snapshot!(BTreeSet::from_iter(partition_keys), @r#"
-        {
-            "metrics.buckets.partition_keys:59|h|#aggregator:default",
-            "metrics.buckets.partition_keys:62|h|#aggregator:default",
-        }
-        "#);
-
-        insta::assert_debug_snapshot!(tail, @r#"
-        [
-            "metrics.buckets.per_batch:1|h|#aggregator:default",
-            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
-            "metrics.buckets.per_batch:1|h|#aggregator:default",
-            "metrics.buckets.batches_per_partition:1|h|#aggregator:default",
-        ]
-        "#);
     }
 
     fn test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {
@@ -2286,4 +1840,3 @@ mod tests {
         assert!(matches!(parsed.shift_key, ShiftKey::Bucket));
     }
 }
-*/

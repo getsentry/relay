@@ -68,13 +68,15 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-mod aggregation;
+mod aggregator;
+mod aggregatorservice;
 mod bucket;
 mod protocol;
 mod router;
 mod statsd;
 
-pub use aggregation::*;
+pub use aggregator::*;
+pub use aggregatorservice::*;
 pub use bucket::*;
 pub use protocol::*;
 pub use router::*;
