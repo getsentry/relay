@@ -467,14 +467,14 @@ pub struct HashedBucket {
 
 /// Keeps track of metrics for projects.
 #[derive(Default)]
-pub struct CostTracker {
+struct CostTracker {
     total_cost: usize,
     cost_per_project_key: HashMap<ProjectKey, usize>,
 }
 
 impl CostTracker {
     /// Returns `true` if the cost trackers value is larger than the given max cost.
-    pub fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
+    fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
         if let Some(max_total_cost) = max_total_cost {
             if self.total_cost >= max_total_cost {
                 return true;
@@ -702,7 +702,26 @@ impl FromMessage<BucketCountInquiry> for AggregatorManager {
     }
 }
 
-/// foobar
+/// A collector of [`Bucket`] submissions.
+///
+/// # Aggregation
+///
+/// Each metric is dispatched into the a [`Bucket`] depending on its project key (DSN), name, type,
+/// unit, tags and timestamp. The bucket timestamp is rounded to the precision declared by the
+/// `bucket_interval` field on the [AggregatorConfig] configuration.
+///
+/// Each bucket stores the accumulated value of submitted metrics:
+///
+/// - `Counter`: Sum of values.
+/// - `Distribution`: A list of values.
+/// - `Set`: A unique set of hashed values.
+/// - `Gauge`: A summary of the reported values, see [`GaugeValue`](crate::GaugeValue).
+///
+/// # Conflicts
+///
+/// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
+/// to send metrics of different types and units under the same name. For example, sending a metric
+/// once as set and once as distribution will result in two actual metrics being recorded.
 pub struct Aggregator {
     name: String,
     config: AggregatorConfig,
@@ -710,7 +729,6 @@ pub struct Aggregator {
     cost_tracker: CostTracker,
 }
 
-// Data
 impl Aggregator {
     /// Returns the name of the aggregator.
     pub fn name(&self) -> &str {
@@ -737,9 +755,9 @@ impl Aggregator {
         self.cost_tracker.subtract_cost(project_key, cost)
     }
 
-    /// Returns the cost tracker of the aggregator.
-    pub fn cost_tracker(&self) -> &CostTracker {
-        &self.cost_tracker
+    /// Returns `true` if the cost trackers value is larger than the given max cost.
+    pub fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
+        self.cost_tracker.totals_cost_exceeded(max_total_cost)
     }
 
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.

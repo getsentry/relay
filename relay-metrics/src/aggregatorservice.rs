@@ -33,28 +33,7 @@ enum AggregatorState {
     ShuttingDown,
 }
 
-/// A collector of [`Bucket`] submissions.
-///
-/// # Aggregation
-///
-/// Each metric is dispatched into the a [`Bucket`] depending on its project key (DSN), name, type,
-/// unit, tags and timestamp. The bucket timestamp is rounded to the precision declared by the
-/// `bucket_interval` field on the [AggregatorConfig] configuration.
-///
-/// Each bucket stores the accumulated value of submitted metrics:
-///
-/// - `Counter`: Sum of values.
-/// - `Distribution`: A list of values.
-/// - `Set`: A unique set of hashed values.
-/// - `Gauge`: A summary of the reported values, see [`GaugeValue`](crate::GaugeValue).
-///
-/// # Conflicts
-///
-/// Metrics are uniquely identified by the combination of their name, type and unit. It is allowed
-/// to send metrics of different types and units under the same name. For example, sending a metric
-/// once as set and once as distribution will result in two actual metrics being recorded.
-///
-/// # Flushing
+/// A service for aggregationg metric buckets.
 ///
 /// Buckets are flushed to a receiver after their time window and a grace period have passed.
 /// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which
@@ -98,7 +77,6 @@ impl AggregatorService {
     fn handle_accepts_metrics(&self, sender: Sender<bool>) {
         let result = !self
             .aggregator
-            .cost_tracker()
             .totals_cost_exceeded(self.aggregator.config().max_total_bucket_bytes);
         sender.send(result);
     }
@@ -109,8 +87,10 @@ impl AggregatorService {
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush(&mut self) {
-        let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-        let flush_buckets = self.aggregator.pop_flush_buckets(force_flush);
+        let flush_buckets = {
+            let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
+            self.aggregator.pop_flush_buckets(force_flush)
+        };
 
         if flush_buckets.is_empty() {
             return;
