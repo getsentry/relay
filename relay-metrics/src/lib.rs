@@ -75,7 +75,9 @@ mod protocol;
 mod router;
 mod statsd;
 
+// only public for benchmarks.
 pub use aggregator::*;
+
 pub use aggregatorservice::*;
 pub use bucket::*;
 pub use protocol::*;
