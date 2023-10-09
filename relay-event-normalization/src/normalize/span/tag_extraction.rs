@@ -125,7 +125,7 @@ impl SpanTagKey {
 /// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
 /// delay the browser from rendering page content to the screen.
 ///
-/// See https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming/renderBlockingStatus.
+/// See <https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming/renderBlockingStatus>.
 enum RenderBlockingStatus {
     Blocking,
     NonBlocking,
