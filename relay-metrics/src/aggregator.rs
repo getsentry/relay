@@ -1490,7 +1490,7 @@ mod tests {
     fn test_aggregator_cost_enforcement_project() {
         relay_test::setup();
         let mut config = test_config();
-        config.max_total_bucket_bytes = Some(1);
+        config.aggregator.max_project_key_bucket_bytes = Some(1);
 
         let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
@@ -1500,15 +1500,13 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = Aggregator::new(test_config().aggregator);
+        let mut aggregator = Aggregator::new(config.aggregator);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator
-            .merge(project_key, bucket.clone(), config.max_total_bucket_bytes)
-            .unwrap();
+        aggregator.merge(project_key, bucket.clone(), None).unwrap();
         assert_eq!(
             aggregator
-                .merge(project_key, bucket, config.max_total_bucket_bytes)
+                .merge(project_key, bucket, None)
                 .unwrap_err()
                 .kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
