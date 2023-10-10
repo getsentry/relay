@@ -7,11 +7,12 @@ use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
     Shutdown,
 };
+use serde::{Deserialize, Serialize};
 
-use crate::aggregator;
+use crate::aggregator::{self, AggregatorConfig};
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms};
-use crate::{aggregator::AggregatorServiceConfig, BucketValue, DistributionValue};
+use crate::{BucketValue, DistributionValue};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -23,6 +24,48 @@ const BUCKET_SPLIT_FACTOR: usize = 32;
 
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
+
+/// Parameters used by the [`AggregatorService`](crate::AggregatorService).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
+pub struct AggregatorServiceConfig {
+    /// Parameters used by the [`Aggregator`].
+    #[serde(flatten)]
+    pub aggregator: AggregatorConfig,
+    /// The approximate maximum number of bytes submitted within one flush cycle.
+    ///
+    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
+    /// the cumulative length of their keys, and the number of raw values. Since final serialization
+    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// left to hard limits.
+    pub max_flush_bytes: usize,
+
+    /// Maximum amount of bytes used for metrics aggregation.
+    ///
+    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
+    /// This is only an approximation and does not take into account things such as pre-allocation
+    /// in hashmaps.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_total_bucket_bytes: Option<usize>,
+
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    pub flush_partitions: Option<u64>,
+}
+
+impl Default for AggregatorServiceConfig {
+    fn default() -> Self {
+        Self {
+            max_flush_bytes: 5_000_000, // 5 MB
+            flush_partitions: None,
+            max_total_bucket_bytes: None,
+            aggregator: AggregatorConfig::default(),
+        }
+    }
+}
 
 /// Aggregator service interface.
 #[derive(Debug)]

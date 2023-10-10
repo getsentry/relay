@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregatorservice::{AggregatorService, FlushBuckets};
 use crate::{
-    aggregator::AggregatorServiceConfig, AcceptsMetrics, Aggregator, MergeBuckets, MetricNamespace,
+    AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace,
     MetricResourceIdentifier,
 };
 

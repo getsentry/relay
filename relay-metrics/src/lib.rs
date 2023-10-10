@@ -77,7 +77,6 @@ mod protocol;
 mod router;
 mod statsd;
 
-pub use aggregator::AggregatorServiceConfig;
 pub use aggregatorservice::*;
 pub use bucket::*;
 pub use protocol::*;

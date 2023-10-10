@@ -15,7 +15,7 @@ use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
 use relay_metrics::{
-    aggregator::AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
+    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
 };
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
