@@ -95,7 +95,7 @@ enum AggregatorState {
 ///
 /// Buckets are flushed to a receiver after their time window and a grace period have passed.
 /// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which
-/// are flushed after a shorter debounce delay. See [`AggregatorConfig`] for configuration options.
+/// are flushed after a shorter debounce delay. See [`AggregatorServiceConfig`] for configuration options.
 ///
 /// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that
 /// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.
