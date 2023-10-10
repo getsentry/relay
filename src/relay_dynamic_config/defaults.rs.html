@@ -170,6 +170,15 @@
 <a href="#170" id="170">170</a>
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_sampling::condition::RuleCondition;
@@ -202,6 +211,8 @@
         <span class="kw">return</span>;
     }
 
+    <span class="kw">let </span>resource_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;resource.*&quot;</span>);
+
     <span class="comment">// Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
     </span><span class="kw">let </span>span_op_conditions = <span class="kw">if </span>project_config
@@ -213,14 +224,21 @@
         <span class="kw">let </span>is_mongo = RuleCondition::eq(<span class="string">&quot;span.system&quot;</span>, <span class="string">&quot;mongodb&quot;</span>)
             | RuleCondition::glob(<span class="string">&quot;span.description&quot;</span>, <span class="string">&quot;*\&quot;$*&quot;</span>);
 
-        RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;http.client&quot;</span>)
+        <span class="kw">let </span><span class="kw-2">mut </span>conditions = RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;http.client&quot;</span>)
             | (RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db*&quot;</span>)
                 &amp; !RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, DISABLED_DATABASES)
                 &amp; !(RuleCondition::eq(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;db.sql.query&quot;</span>) &amp; is_mongo))
-            | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, MOBILE_OPS)
-    };
+            | RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, MOBILE_OPS);
 
-    <span class="kw">let </span>resource_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;resource.*&quot;</span>);
+        <span class="kw">if </span>project_config
+            .features
+            .has(Feature::SpanMetricsExtractionResource)
+        {
+            conditions = conditions | resource_condition.clone();
+        }
+
+        conditions
+    };
 
     config.metrics.extend([
         MetricSpec {

@@ -94,6 +94,9 @@
 <a href="#94" id="94">94</a>
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -124,6 +127,9 @@
     <span class="doccomment">/// Enable processing profiles
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
     </span>Profiling,
+    <span class="doccomment">/// Enable extracting resource spans.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-resource&quot;</span>)]
+    </span>SpanMetricsExtractionResource,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]
