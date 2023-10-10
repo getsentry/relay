@@ -34,6 +34,14 @@ use crate::protocol::{
     ClientSdkInfo, Contexts, EventId, LenientString, Request, Tags, Timestamp, User,
 };
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
+pub enum ReplayType {
+    Session,
+    Error,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_replay", value_type = "Replay")]
@@ -82,7 +90,7 @@ pub struct Replay {
     ///   "replay_type": "session"
     /// }
     /// ```
-    pub replay_type: Annotated<String>,
+    pub replay_type: Annotated<ReplayType>,
 
     /// Segment identifier.
     ///
@@ -134,10 +142,12 @@ pub struct Replay {
     pub urls: Annotated<Array<String>>,
 
     /// A list of error-ids discovered during the lifetime of the segment.
-    pub error_ids: Annotated<Array<String>>,
+    #[metastructure(bag_size = "medium")]
+    pub error_ids: Annotated<Array<EventId>>,
 
     /// A list of trace-ids discovered during the lifetime of the segment.
-    pub trace_ids: Annotated<Array<String>>,
+    #[metastructure(bag_size = "medium")]
+    pub trace_ids: Annotated<Array<EventId>>,
 
     /// Contexts describing the environment (e.g. device, os or browser).
     #[metastructure(skip_serialization = "empty")]
