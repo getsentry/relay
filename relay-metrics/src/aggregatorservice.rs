@@ -468,8 +468,6 @@ impl MergeBuckets {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
 
@@ -479,6 +477,7 @@ mod tests {
     use relay_common::time::UnixTimestamp;
     use relay_system::{FromMessage, Interface};
 
+    use crate::aggregator::AggregatorConfig;
     use crate::{BucketCountInquiry, BucketValue};
 
     use super::*;
@@ -551,9 +550,12 @@ mod tests {
         let recipient = receiver.clone().start().recipient();
 
         let config = AggregatorServiceConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
+            aggregator: AggregatorConfig {
+                bucket_interval: 1,
+                initial_delay: 0,
+                debounce_delay: 0,
+                ..Default::default()
+            },
             ..Default::default()
         };
         let aggregator = AggregatorService::new(config, Some(recipient)).start();
@@ -591,9 +593,12 @@ mod tests {
         let recipient = receiver.clone().start().recipient();
 
         let config = AggregatorServiceConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
+            aggregator: AggregatorConfig {
+                bucket_interval: 1,
+                initial_delay: 0,
+                debounce_delay: 0,
+                ..Default::default()
+            },
             ..Default::default()
         };
         let aggregator = AggregatorService::new(config, Some(recipient)).start();
@@ -616,17 +621,22 @@ mod tests {
 
     fn test_config() -> AggregatorServiceConfig {
         AggregatorServiceConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            max_flush_bytes: 50_000_000,
-            max_secs_in_past: 50 * 365 * 24 * 60 * 60,
-            max_secs_in_future: 50 * 365 * 24 * 60 * 60,
-            max_name_length: 200,
-            max_tag_key_length: 200,
-            max_tag_value_length: 200,
-            max_project_key_bucket_bytes: None,
+            aggregator: {
+                AggregatorConfig {
+                    bucket_interval: 1,
+                    initial_delay: 0,
+                    debounce_delay: 0,
+                    max_secs_in_past: 50 * 365 * 24 * 60 * 60,
+                    max_secs_in_future: 50 * 365 * 24 * 60 * 60,
+                    max_name_length: 200,
+                    max_tag_key_length: 200,
+                    max_tag_value_length: 200,
+                    max_project_key_bucket_bytes: None,
+                    ..Default::default()
+                }
+            },
             max_total_bucket_bytes: None,
+            max_flush_bytes: 50_000_000,
             ..Default::default()
         }
     }
@@ -655,11 +665,17 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = AggregatorService::new(config, None);
+        let mut aggregator = AggregatorService::new(config.clone(), None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
-            aggregator.aggregator.merge(project_key, bucket1).ok();
-            aggregator.aggregator.merge(project_key, bucket2).ok();
+            aggregator
+                .aggregator
+                .merge(project_key, bucket1, config.max_total_bucket_bytes)
+                .ok();
+            aggregator
+                .aggregator
+                .merge(project_key, bucket2, config.max_total_bucket_bytes)
+                .ok();
             aggregator.try_flush();
         });
         captures
@@ -827,5 +843,3 @@ mod tests {
         test_capped_iter_completeness(100, 4);
     }
 }
-
-*/
