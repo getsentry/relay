@@ -25,7 +25,8 @@ RUN if [ ${BUILD_ARCH} == "aarch64" ]; then \
     yum -y install git make libffi-devel curl dnf ca-certificates \
     && curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 \
     && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7 \
-    && yum -y install gcc glibc glibc-devel gcc-aarch64-linux-gnu \
+    # && yum -y install gcc glibc glibc-devel gcc-aarch64-linux-gnu \
+    && dnf -y --release 7 install gcc glibc glibc-devel gcc-aarch64-linux-gnu \
     && dnf -y --release 7 --forcearch aarch64 --installroot "/usr/aarch64-linux-gnu/sys-root/" install gcc glibc glibc-devel \
     && ln -s "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so.1" "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so" \
     # NOTE(iker): work-around to create a cmake toolchain file for arch-specific
