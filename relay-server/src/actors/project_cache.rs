@@ -519,10 +519,10 @@ impl ProjectCacheBroker {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
 
-        // Get all the projects which have not updated in configured time and also have not gotten
-        // any new incoming envelopes in meantime.
+        // Get all the projects which have not updated in the configured time and also have not gotten
+        // any new incoming envelopes in the meantime.
         //
-        // In case of incident it can happen, that the ProjectState cannot get updated, and we
+        // In case of an incident it can happen, that the ProjectState cannot get updated, and we
         // still getting incoming traffic - we want to keep the buffered envelopes as long as we
         // reasonable can (till the incident is resolved) and process them as usual.
         let expired = self.projects.drain_filter(|_, entry| {

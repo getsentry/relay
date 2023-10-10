@@ -490,7 +490,7 @@ impl Project {
         self.last_updated_at
     }
 
-    /// The last time when this project was used for the incoming envelope.
+    /// The last time that this project was used for an incoming envelope.
     pub fn last_envelope_seen_at(&self) -> Instant {
         self.last_envelope_seen
     }
@@ -820,8 +820,7 @@ impl Project {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
 
-        // On every incoming envelopes, which belongs to this project, update when the last it was
-        // seen.
+        // On every incoming envelope, which belongs to this project, update when it was last seen.
         self.last_envelope_seen = envelope.start_time().into();
 
         if let Some(ref state) = state {
