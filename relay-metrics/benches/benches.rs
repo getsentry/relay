@@ -4,7 +4,10 @@ use std::fmt;
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
-use relay_metrics::{AggregatorConfig, AggregatorService, Bucket, BucketValue, DistributionValue};
+use relay_metrics::{
+    aggregator::{Aggregator, AggregatorConfig},
+    Bucket, BucketValue, DistributionValue,
+};
 
 /// Struct representing a testcase for which insert + flush are timed.
 struct MetricInput {
@@ -120,15 +123,10 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             &input,
             |b, &input| {
                 b.iter_batched(
-                    || {
-                        (
-                            AggregatorService::new(config.clone(), None),
-                            input.get_buckets(),
-                        )
-                    },
+                    || (Aggregator::new(config.clone()), input.get_buckets()),
                     |(mut aggregator, buckets)| {
                         for (project_key, bucket) in buckets {
-                            aggregator.merge(project_key, bucket).unwrap();
+                            aggregator.merge(project_key, bucket, None).unwrap();
                         }
                     },
                     BatchSize::SmallInput,
@@ -142,16 +140,16 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, &input| {
                 b.iter_batched(
                     || {
-                        let mut aggregator = AggregatorService::new(config.clone(), None);
+                        let mut aggregator = Aggregator::new(config.clone());
                         for (project_key, bucket) in input.get_buckets() {
-                            aggregator.merge(project_key, bucket).unwrap();
+                            aggregator.merge(project_key, bucket, None).unwrap();
                         }
                         aggregator
                     },
                     |mut aggregator| {
                         // XXX: Ideally we'd want to test the entire try_flush here, but spawning
                         // a service is too much work here.
-                        aggregator.pop_flush_buckets();
+                        aggregator.pop_flush_buckets(false);
                     },
                     BatchSize::SmallInput,
                 )
