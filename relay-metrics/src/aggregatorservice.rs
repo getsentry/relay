@@ -25,7 +25,7 @@ const BUCKET_SPLIT_FACTOR: usize = 32;
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
 
-/// Parameters used by the [`AggregatorService`](crate::AggregatorService).
+/// Parameters used by the [`AggregatorService`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AggregatorServiceConfig {
