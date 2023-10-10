@@ -921,8 +921,6 @@ impl fmt::Debug for Aggregator {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
 
@@ -933,17 +931,22 @@ mod tests {
 
     fn test_config() -> AggregatorServiceConfig {
         AggregatorServiceConfig {
-            bucket_interval: 1,
-            initial_delay: 0,
-            debounce_delay: 0,
-            max_flush_bytes: 50_000_000,
-            max_secs_in_past: 50 * 365 * 24 * 60 * 60,
-            max_secs_in_future: 50 * 365 * 24 * 60 * 60,
-            max_name_length: 200,
-            max_tag_key_length: 200,
-            max_tag_value_length: 200,
-            max_project_key_bucket_bytes: None,
+            aggregator: {
+                AggregatorConfig {
+                    bucket_interval: 1,
+                    initial_delay: 0,
+                    debounce_delay: 0,
+                    max_secs_in_past: 50 * 365 * 24 * 60 * 60,
+                    max_secs_in_future: 50 * 365 * 24 * 60 * 60,
+                    max_name_length: 200,
+                    max_tag_key_length: 200,
+                    max_tag_value_length: 200,
+                    max_project_key_bucket_bytes: None,
+                    ..Default::default()
+                }
+            },
             max_total_bucket_bytes: None,
+            max_flush_bytes: 50_000_000,
             ..Default::default()
         }
     }
@@ -962,14 +965,19 @@ mod tests {
     fn test_aggregator_merge_counters() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(test_config());
+        let config = test_config();
+        let mut aggregator = Aggregator::new(config.aggregator.clone());
 
         let bucket1 = some_bucket();
 
         let mut bucket2 = bucket1.clone();
         bucket2.value = BucketValue::counter(43.);
-        aggregator.merge(project_key, bucket1).unwrap();
-        aggregator.merge(project_key, bucket2).unwrap();
+        aggregator
+            .merge(project_key, bucket1, config.max_total_bucket_bytes)
+            .unwrap();
+        aggregator
+            .merge(project_key, bucket2, config.max_total_bucket_bytes)
+            .unwrap();
 
         let buckets: Vec<_> = aggregator
             .buckets
@@ -1046,12 +1054,11 @@ mod tests {
     #[test]
     fn test_aggregator_merge_timestamps() {
         relay_test::setup();
-        let config = AggregatorServiceConfig {
-            bucket_interval: 10,
-            ..test_config()
-        };
+        let mut config = test_config();
+        config.aggregator.bucket_interval = 10;
+
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator = Aggregator::new(config.aggregator.clone());
 
         let bucket1 = some_bucket();
 
@@ -1060,9 +1067,15 @@ mod tests {
 
         let mut bucket3 = bucket1.clone();
         bucket3.timestamp = UnixTimestamp::from_secs(999994721);
-        aggregator.merge(project_key, bucket1).unwrap();
-        aggregator.merge(project_key, bucket2).unwrap();
-        aggregator.merge(project_key, bucket3).unwrap();
+        aggregator
+            .merge(project_key, bucket1, config.max_total_bucket_bytes)
+            .unwrap();
+        aggregator
+            .merge(project_key, bucket2, config.max_total_bucket_bytes)
+            .unwrap();
+        aggregator
+            .merge(project_key, bucket3, config.max_total_bucket_bytes)
+            .unwrap();
 
         let mut buckets: Vec<_> = aggregator
             .buckets
@@ -1103,19 +1116,21 @@ mod tests {
     fn test_aggregator_mixed_projects() {
         relay_test::setup();
 
-        let config = AggregatorServiceConfig {
-            bucket_interval: 10,
-            ..test_config()
-        };
+        let mut config = test_config();
+        config.aggregator.bucket_interval = 10;
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator = Aggregator::new(config.aggregator.clone());
 
         // It's OK to have same metric with different projects:
-        aggregator.merge(project_key1, some_bucket()).unwrap();
-        aggregator.merge(project_key2, some_bucket()).unwrap();
+        aggregator
+            .merge(project_key1, some_bucket(), config.max_total_bucket_bytes)
+            .unwrap();
+        aggregator
+            .merge(project_key2, some_bucket(), config.max_total_bucket_bytes)
+            .unwrap();
 
         assert_eq!(aggregator.buckets.len(), 2);
     }
@@ -1193,7 +1208,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
-        let mut aggregator = Aggregator::new(test_config());
+        let mut aggregator = Aggregator::new(test_config().aggregator);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let bucket = Bucket {
@@ -1243,7 +1258,9 @@ mod tests {
             bucket.name = metric_name.to_string();
 
             let current_cost = aggregator.cost_tracker.total_cost;
-            aggregator.merge(project_key, bucket).unwrap();
+            aggregator
+                .merge(project_key, bucket, test_config().max_total_bucket_bytes)
+                .unwrap();
             let total_cost = aggregator.cost_tracker.total_cost;
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
@@ -1254,7 +1271,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_overflow() {
-        let config = AggregatorServiceConfig {
+        let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1272,7 +1289,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_zero() {
-        let config = AggregatorServiceConfig {
+        let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1291,7 +1308,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_multiple() {
-        let config = AggregatorServiceConfig {
+        let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1311,7 +1328,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_non_multiple() {
-        let config = AggregatorServiceConfig {
+        let config = AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1359,10 +1376,9 @@ mod tests {
                 tags
             },
         };
-        let aggregator_config = test_config();
 
         let mut bucket_key =
-            Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap();
+            Aggregator::validate_bucket_key(bucket_key, &test_config().aggregator).unwrap();
 
         assert_eq!(bucket_key.tags.len(), 1);
         assert_eq!(
@@ -1372,14 +1388,13 @@ mod tests {
         assert_eq!(bucket_key.tags.get("another\0garbage"), None);
 
         bucket_key.metric_name = "hergus\0bergus".to_owned();
-        Aggregator::validate_bucket_key(bucket_key, &aggregator_config).unwrap_err();
+        Aggregator::validate_bucket_key(bucket_key, &test_config().aggregator).unwrap_err();
     }
 
     #[test]
     fn test_validate_bucket_key_str_lens() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let aggregator_config = test_config();
 
         let short_metric = BucketKey {
             project_key,
@@ -1387,7 +1402,7 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".to_owned(),
             tags: BTreeMap::new(),
         };
-        assert!(Aggregator::validate_bucket_key(short_metric, &aggregator_config).is_ok());
+        assert!(Aggregator::validate_bucket_key(short_metric, &test_config().aggregator).is_ok());
 
         let long_metric = BucketKey {
             project_key,
@@ -1395,7 +1410,7 @@ mod tests {
             metric_name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".to_owned(),
             tags: BTreeMap::new(),
         };
-        let validation = Aggregator::validate_bucket_key(long_metric, &aggregator_config);
+        let validation = Aggregator::validate_bucket_key(long_metric, &test_config().aggregator);
 
         assert!(matches!(
             validation.unwrap_err(),
@@ -1411,7 +1426,8 @@ mod tests {
             tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
         };
         let validation =
-            Aggregator::validate_bucket_key(short_metric_long_tag_key, &aggregator_config).unwrap();
+            Aggregator::validate_bucket_key(short_metric_long_tag_key, &test_config().aggregator)
+                .unwrap();
         assert_eq!(validation.tags.len(), 0);
 
         let short_metric_long_tag_value = BucketKey {
@@ -1421,7 +1437,7 @@ mod tests {
             tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
         };
         let validation =
-            Aggregator::validate_bucket_key(short_metric_long_tag_value, &aggregator_config)
+            Aggregator::validate_bucket_key(short_metric_long_tag_value, &test_config().aggregator)
                 .unwrap();
         assert_eq!(validation.tags.len(), 0);
     }
@@ -1430,7 +1446,6 @@ mod tests {
     fn test_validate_tag_values_special_chars() {
         relay_test::setup();
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let aggregator_config = test_config();
 
         let tag_value = "x".repeat(199) + "ø";
         assert_eq!(tag_value.chars().count(), 200); // Should be allowed
@@ -1440,17 +1455,13 @@ mod tests {
             metric_name: "c:transactions/a_short_metric".to_owned(),
             tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
         };
-        let validated_bucket = Aggregator::validate_metric_tags(short_metric, &aggregator_config);
+        let validated_bucket =
+            Aggregator::validate_metric_tags(short_metric, &test_config().aggregator);
         assert_eq!(validated_bucket.tags["foo"], tag_value);
     }
 
     #[test]
     fn test_aggregator_cost_enforcement_total() {
-        let config = AggregatorServiceConfig {
-            max_total_bucket_bytes: Some(1),
-            ..test_config()
-        };
-
         let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
             width: 0,
@@ -1459,12 +1470,18 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator = Aggregator::new(test_config().aggregator);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator.merge(project_key, bucket.clone()).unwrap();
+        aggregator
+            .merge(project_key, bucket.clone(), Some(1))
+            .unwrap();
+
         assert_eq!(
-            aggregator.merge(project_key, bucket).unwrap_err().kind,
+            aggregator
+                .merge(project_key, bucket, Some(1))
+                .unwrap_err()
+                .kind,
             AggregateMetricsErrorKind::TotalLimitExceeded
         );
     }
@@ -1472,10 +1489,8 @@ mod tests {
     #[test]
     fn test_aggregator_cost_enforcement_project() {
         relay_test::setup();
-        let config = AggregatorServiceConfig {
-            max_project_key_bucket_bytes: Some(1),
-            ..test_config()
-        };
+        let mut config = test_config();
+        config.max_total_bucket_bytes = Some(1);
 
         let bucket = Bucket {
             timestamp: UnixTimestamp::from_secs(999994711),
@@ -1485,12 +1500,17 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = Aggregator::new(config);
+        let mut aggregator = Aggregator::new(test_config().aggregator);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
-        aggregator.merge(project_key, bucket.clone()).unwrap();
+        aggregator
+            .merge(project_key, bucket.clone(), config.max_total_bucket_bytes)
+            .unwrap();
         assert_eq!(
-            aggregator.merge(project_key, bucket).unwrap_err().kind,
+            aggregator
+                .merge(project_key, bucket, config.max_total_bucket_bytes)
+                .unwrap_err()
+                .kind,
             AggregateMetricsErrorKind::ProjectLimitExceeded
         );
     }
@@ -1498,8 +1518,7 @@ mod tests {
     #[test]
     fn test_parse_shift_key() {
         let json = r#"{"shift_key": "bucket"}"#;
-        let parsed: AggregatorServiceConfig = serde_json::from_str(json).unwrap();
+        let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
         assert!(matches!(parsed.shift_key, ShiftKey::Bucket));
     }
 }
-*/
