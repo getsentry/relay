@@ -118,10 +118,11 @@ pub enum ShiftKey {
     Bucket,
 }
 
-/// Parameters used by the [`Aggregator`].
+/// Parameters used by the [`AggregatorService`](crate::AggregatorService).
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AggregatorServiceConfig {
+    /// Parameters used by the [`Aggregator`].
     #[serde(flatten)]
     pub aggregator: AggregatorConfig,
     /// The approximate maximum number of bytes submitted within one flush cycle.

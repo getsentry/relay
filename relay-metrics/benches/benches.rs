@@ -6,7 +6,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
     aggregator::{Aggregator, AggregatorConfig},
-    Bucket, BucketValue, DistributionValue,
+    AggregatorServiceConfig, Bucket, BucketValue, DistributionValue,
 };
 
 /// Struct representing a testcase for which insert + flush are timed.
@@ -54,11 +54,18 @@ impl fmt::Display for MetricInput {
 }
 
 fn bench_insert_and_flush(c: &mut Criterion) {
-    let config = AggregatorConfig {
-        bucket_interval: 1000,
-        initial_delay: 0,
-        debounce_delay: 0,
-        ..Default::default()
+    let config = {
+        let aggregator_config = AggregatorConfig {
+            bucket_interval: 1000,
+            initial_delay: 0,
+            debounce_delay: 0,
+            ..Default::default()
+        };
+
+        AggregatorServiceConfig {
+            aggregator: aggregator_config,
+            ..Default::default()
+        }
     };
 
     let counter = Bucket {
@@ -123,10 +130,17 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             &input,
             |b, &input| {
                 b.iter_batched(
-                    || (Aggregator::new(config.clone()), input.get_buckets()),
+                    || {
+                        (
+                            Aggregator::new(config.aggregator.clone()),
+                            input.get_buckets(),
+                        )
+                    },
                     |(mut aggregator, buckets)| {
                         for (project_key, bucket) in buckets {
-                            aggregator.merge(project_key, bucket, todo!()).unwrap();
+                            aggregator
+                                .merge(project_key, bucket, config.max_total_bucket_bytes)
+                                .unwrap();
                         }
                     },
                     BatchSize::SmallInput,
@@ -140,9 +154,11 @@ fn bench_insert_and_flush(c: &mut Criterion) {
             |b, &input| {
                 b.iter_batched(
                     || {
-                        let mut aggregator = Aggregator::new(config.clone());
+                        let mut aggregator = Aggregator::new(config.aggregator.clone());
                         for (project_key, bucket) in input.get_buckets() {
-                            aggregator.merge(project_key, bucket, todo!()).unwrap();
+                            aggregator
+                                .merge(project_key, bucket, config.max_total_bucket_bytes)
+                                .unwrap();
                         }
                         aggregator
                     },
