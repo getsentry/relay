@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::aggregatorservice::{AggregatorService, FlushBuckets};
 use crate::{
-    aggregator::AggregatorConfig, AcceptsMetrics, Aggregator, MergeBuckets, MetricNamespace,
+    aggregator::AggregatorServiceConfig, AcceptsMetrics, Aggregator, MergeBuckets, MetricNamespace,
     MetricResourceIdentifier,
 };
 
@@ -24,7 +24,7 @@ pub struct ScopedAggregatorConfig {
     /// secondary aggregator.
     pub condition: Condition,
     /// The configuration of the secondary aggregator.
-    pub config: AggregatorConfig,
+    pub config: AggregatorServiceConfig,
 }
 
 /// Condition that needs to be met for a metric or bucket to be routed to a
@@ -57,7 +57,7 @@ pub struct RouterService {
 impl RouterService {
     /// Create a new router service.
     pub fn new(
-        aggregator_config: AggregatorConfig,
+        aggregator_config: AggregatorServiceConfig,
         secondary_aggregators: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {

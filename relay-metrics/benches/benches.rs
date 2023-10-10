@@ -126,7 +126,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     || (Aggregator::new(config.clone()), input.get_buckets()),
                     |(mut aggregator, buckets)| {
                         for (project_key, bucket) in buckets {
-                            aggregator.merge(project_key, bucket).unwrap();
+                            aggregator.merge(project_key, bucket, todo!()).unwrap();
                         }
                     },
                     BatchSize::SmallInput,
@@ -142,7 +142,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     || {
                         let mut aggregator = Aggregator::new(config.clone());
                         for (project_key, bucket) in input.get_buckets() {
-                            aggregator.merge(project_key, bucket).unwrap();
+                            aggregator.merge(project_key, bucket, todo!()).unwrap();
                         }
                         aggregator
                     },

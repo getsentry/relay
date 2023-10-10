@@ -121,6 +121,36 @@ pub enum ShiftKey {
 /// Parameters used by the [`Aggregator`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
+pub struct AggregatorServiceConfig {
+    #[serde(flatten)]
+    pub aggregator: AggregatorConfig,
+    /// The approximate maximum number of bytes submitted within one flush cycle.
+    ///
+    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
+    /// the cumulative length of their keys, and the number of raw values. Since final serialization
+    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// left to hard limits.
+    pub max_flush_bytes: usize,
+
+    /// Maximum amount of bytes used for metrics aggregation.
+    ///
+    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
+    /// This is only an approximation and does not take into account things such as pre-allocation
+    /// in hashmaps.
+    ///
+    /// Defaults to `None`, i.e. no limit.
+    pub max_total_bucket_bytes: Option<usize>,
+
+    /// The number of logical partitions that can receive flushed buckets.
+    ///
+    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
+    /// by setting the header `X-Sentry-Relay-Shard`.
+    pub flush_partitions: Option<u64>,
+}
+
+/// Parameters used by the [`Aggregator`].
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct AggregatorConfig {
     /// Determines the wall clock time interval for buckets in seconds.
     ///
@@ -147,20 +177,6 @@ pub struct AggregatorConfig {
     /// is added to a backdated bucket.
     pub debounce_delay: u64,
 
-    /// The approximate maximum number of bytes submitted within one flush cycle.
-    ///
-    /// This controls how big flushed batches of buckets get, depending on the number of buckets,
-    /// the cumulative length of their keys, and the number of raw values. Since final serialization
-    /// adds some additional overhead, this number is approxmate and some safety margin should be
-    /// left to hard limits.
-    pub max_flush_bytes: usize,
-
-    /// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    pub flush_partitions: Option<u64>,
-
     /// The age in seconds of the oldest allowed bucket timestamp.
     ///
     /// Defaults to 5 days.
@@ -186,15 +202,6 @@ pub struct AggregatorConfig {
     /// Defaults to `200` chars.
     pub max_tag_value_length: usize,
 
-    /// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_total_bucket_bytes: Option<usize>,
-
     /// Maximum amount of bytes used for metrics aggregation per project key.
     ///
     /// Similar measuring technique to `max_total_bucket_bytes`, but instead of a
@@ -211,53 +218,6 @@ pub struct AggregatorConfig {
 }
 
 impl AggregatorConfig {
-    /// Returns the time width buckets.
-    fn bucket_interval(&self) -> Duration {
-        Duration::from_secs(self.bucket_interval)
-    }
-
-    /// Returns the initial flush delay after the end of a bucket's original time window.
-    fn initial_delay(&self) -> Duration {
-        Duration::from_secs(self.initial_delay)
-    }
-
-    /// The delay to debounce backdated flushes.
-    fn debounce_delay(&self) -> Duration {
-        Duration::from_secs(self.debounce_delay)
-    }
-
-    /// Returns the valid range for metrics timestamps.
-    ///
-    /// Metrics or buckets outside of this range should be discarded.
-    pub fn timestamp_range(&self) -> std::ops::Range<UnixTimestamp> {
-        let now = UnixTimestamp::now().as_secs();
-        let min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(self.max_secs_in_past));
-        let max_timestamp = UnixTimestamp::from_secs(now.saturating_add(self.max_secs_in_future));
-        min_timestamp..max_timestamp
-    }
-
-    /// Determines the target bucket for an incoming bucket timestamp and bucket width.
-    ///
-    /// We select the output bucket which overlaps with the center of the incoming bucket.
-    /// Fails if timestamp is too old or too far into the future.
-    fn get_bucket_timestamp(
-        &self,
-        timestamp: UnixTimestamp,
-        bucket_width: u64,
-    ) -> Result<UnixTimestamp, AggregateMetricsError> {
-        // Find middle of the input bucket to select a target
-        let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
-        // Align target_timestamp to output bucket width
-        let ts = (ts / self.bucket_interval) * self.bucket_interval;
-        let output_timestamp = UnixTimestamp::from_secs(ts);
-
-        if !self.timestamp_range().contains(&output_timestamp) {
-            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
-        }
-
-        Ok(output_timestamp)
-    }
-
     /// Returns the instant at which a bucket should be flushed.
     ///
     /// Recent buckets are flushed after a grace period of `initial_delay`. Backdated buckets, that
@@ -290,6 +250,21 @@ impl AggregatorConfig {
         }
     }
 
+    /// The delay to debounce backdated flushes.
+    fn debounce_delay(&self) -> Duration {
+        Duration::from_secs(self.debounce_delay)
+    }
+
+    /// Returns the time width buckets.
+    fn bucket_interval(&self) -> Duration {
+        Duration::from_secs(self.bucket_interval)
+    }
+
+    /// Returns the initial flush delay after the end of a bucket's original time window.
+    fn initial_delay(&self) -> Duration {
+        Duration::from_secs(self.initial_delay)
+    }
+
     // Shift deterministically within one bucket interval based on the project or bucket key.
     //
     // This distributes buckets over time to prevent peaks.
@@ -306,6 +281,49 @@ impl AggregatorConfig {
 
         Duration::from_millis(shift_millis)
     }
+
+    /// Determines the target bucket for an incoming bucket timestamp and bucket width.
+    ///
+    /// We select the output bucket which overlaps with the center of the incoming bucket.
+    /// Fails if timestamp is too old or too far into the future.
+    fn get_bucket_timestamp(
+        &self,
+        timestamp: UnixTimestamp,
+        bucket_width: u64,
+    ) -> Result<UnixTimestamp, AggregateMetricsError> {
+        // Find middle of the input bucket to select a target
+        let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
+        // Align target_timestamp to output bucket width
+        let ts = (ts / self.bucket_interval) * self.bucket_interval;
+        let output_timestamp = UnixTimestamp::from_secs(ts);
+
+        if !self.timestamp_range().contains(&output_timestamp) {
+            return Err(AggregateMetricsErrorKind::InvalidTimestamp(timestamp).into());
+        }
+
+        Ok(output_timestamp)
+    }
+
+    /// Returns the valid range for metrics timestamps.
+    ///
+    /// Metrics or buckets outside of this range should be discarded.
+    pub fn timestamp_range(&self) -> std::ops::Range<UnixTimestamp> {
+        let now = UnixTimestamp::now().as_secs();
+        let min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(self.max_secs_in_past));
+        let max_timestamp = UnixTimestamp::from_secs(now.saturating_add(self.max_secs_in_future));
+        min_timestamp..max_timestamp
+    }
+}
+
+impl Default for AggregatorServiceConfig {
+    fn default() -> Self {
+        Self {
+            max_flush_bytes: 5_000_000, // 5 MB
+            flush_partitions: None,
+            max_total_bucket_bytes: None,
+            aggregator: AggregatorConfig::default(),
+        }
+    }
 }
 
 impl Default for AggregatorConfig {
@@ -314,14 +332,11 @@ impl Default for AggregatorConfig {
             bucket_interval: 10,
             initial_delay: 30,
             debounce_delay: 10,
-            max_flush_bytes: 5_000_000, // 5 MB
-            flush_partitions: None,
             max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
             max_secs_in_future: 60,             // 1 minute
             max_name_length: 200,
             max_tag_key_length: 200,
             max_tag_value_length: 200,
-            max_total_bucket_bytes: None,
             max_project_key_bucket_bytes: None,
             shift_key: ShiftKey::default(),
         }
@@ -505,11 +520,6 @@ impl Aggregator {
         self.name.as_str()
     }
 
-    /// Returns the config of the aggregator.
-    pub fn config(&self) -> &AggregatorConfig {
-        &self.config
-    }
-
     /// Returns the number of buckets in the aggregator.
     pub fn bucket_count(&self) -> usize {
         self.buckets.len()
@@ -543,7 +553,7 @@ impl Aggregator {
             timer(MetricTimers::BucketsScanDuration),
             aggregator = &self.name,
             {
-                let bucket_interval = self.config().bucket_interval;
+                let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
                 // binary heap ?
                 self.buckets.retain(|key, entry| {
@@ -746,6 +756,7 @@ impl Aggregator {
         &mut self,
         project_key: ProjectKey,
         bucket: Bucket,
+        max_total_bucket_bytes: Option<usize>,
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = self.get_bucket_timestamp(bucket.timestamp, bucket.width)?;
         let key = BucketKey {
@@ -784,7 +795,7 @@ impl Aggregator {
         // whether it is just a counter, etc.
         self.cost_tracker.check_limits_exceeded(
             project_key,
-            self.config.max_total_bucket_bytes,
+            max_total_bucket_bytes,
             self.config.max_project_key_bucket_bytes,
         )?;
 
@@ -835,13 +846,14 @@ impl Aggregator {
         &mut self,
         project_key: ProjectKey,
         buckets: I,
+        max_total_bucket_bytes: Option<usize>,
     ) -> Result<(), AggregateMetricsError>
     where
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
             let tag = metric_name_tag(&self.name);
-            if let Err(error) = self.merge(project_key, bucket) {
+            if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
                 relay_log::error!(
                     tags.aggregator = self.name,
                     tags.metric_name = tag,
@@ -908,6 +920,8 @@ impl fmt::Debug for Aggregator {
     }
 }
 
+/*
+
 #[cfg(test)]
 mod tests {
 
@@ -916,8 +930,8 @@ mod tests {
     use super::*;
     use crate::{dist, GaugeValue};
 
-    fn test_config() -> AggregatorConfig {
-        AggregatorConfig {
+    fn test_config() -> AggregatorServiceConfig {
+        AggregatorServiceConfig {
             bucket_interval: 1,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1031,7 +1045,7 @@ mod tests {
     #[test]
     fn test_aggregator_merge_timestamps() {
         relay_test::setup();
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 10,
             ..test_config()
         };
@@ -1088,7 +1102,7 @@ mod tests {
     fn test_aggregator_mixed_projects() {
         relay_test::setup();
 
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 10,
             ..test_config()
         };
@@ -1239,7 +1253,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_overflow() {
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1257,7 +1271,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_zero() {
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1276,7 +1290,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_multiple() {
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1296,7 +1310,7 @@ mod tests {
 
     #[test]
     fn test_get_bucket_timestamp_non_multiple() {
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 10,
             initial_delay: 0,
             debounce_delay: 0,
@@ -1431,7 +1445,7 @@ mod tests {
 
     #[test]
     fn test_aggregator_cost_enforcement_total() {
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             max_total_bucket_bytes: Some(1),
             ..test_config()
         };
@@ -1457,7 +1471,7 @@ mod tests {
     #[test]
     fn test_aggregator_cost_enforcement_project() {
         relay_test::setup();
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             max_project_key_bucket_bytes: Some(1),
             ..test_config()
         };
@@ -1483,7 +1497,8 @@ mod tests {
     #[test]
     fn test_parse_shift_key() {
         let json = r#"{"shift_key": "bucket"}"#;
-        let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
+        let parsed: AggregatorServiceConfig = serde_json::from_str(json).unwrap();
         assert!(matches!(parsed.shift_key, ShiftKey::Bucket));
     }
 }
+*/

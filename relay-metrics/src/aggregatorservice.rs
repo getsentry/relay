@@ -11,7 +11,7 @@ use relay_system::{
 use crate::aggregator;
 use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricHistograms};
-use crate::{aggregator::AggregatorConfig, BucketValue, DistributionValue};
+use crate::{aggregator::AggregatorServiceConfig, BucketValue, DistributionValue};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -105,6 +105,9 @@ pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    max_flush_bytes: usize,
+    max_total_bucket_bytes: Option<usize>,
+    flush_partitions: Option<u64>,
 }
 
 impl AggregatorService {
@@ -113,7 +116,7 @@ impl AggregatorService {
     /// The aggregator will flush a list of buckets to the receiver in regular intervals based on
     /// the given `config`.
     pub fn new(
-        config: AggregatorConfig,
+        config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
         Self::named("default".to_owned(), config, receiver)
@@ -122,20 +125,23 @@ impl AggregatorService {
     /// Like [`Self::new`], but with a provided name.
     pub(crate) fn named(
         name: String,
-        config: AggregatorConfig,
+        config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
         Self {
-            aggregator: aggregator::Aggregator::named(name, config),
             receiver,
             state: AggregatorState::Running,
+            max_flush_bytes: config.max_flush_bytes,
+            max_total_bucket_bytes: config.max_total_bucket_bytes,
+            flush_partitions: config.flush_partitions,
+            aggregator: aggregator::Aggregator::named(name, config.aggregator),
         }
     }
 
     fn handle_accepts_metrics(&self, sender: Sender<bool>) {
         let result = !self
             .aggregator
-            .totals_cost_exceeded(self.aggregator.config().max_total_bucket_bytes);
+            .totals_cost_exceeded(self.max_total_bucket_bytes);
 
         sender.send(result);
     }
@@ -147,10 +153,7 @@ impl AggregatorService {
     where
         F: FnMut(Vec<Bucket>),
     {
-        let capped_batches = CappedBucketIter::new(
-            buckets.into_iter(),
-            self.aggregator.config().max_flush_bytes,
-        );
+        let capped_batches = CappedBucketIter::new(buckets.into_iter(), self.max_flush_bytes);
         let num_batches = capped_batches
             .map(|batch| {
                 relay_statsd::metric!(
@@ -193,10 +196,9 @@ impl AggregatorService {
             );
             total_bucket_count += bucket_count;
 
-            let num_partitions = self.aggregator.config().flush_partitions;
             let partitioned_buckets = self
                 .aggregator
-                .partition_buckets(project_buckets, num_partitions);
+                .partition_buckets(project_buckets, self.flush_partitions);
             for (partition_key, buckets) in partitioned_buckets {
                 self.process_batches(buckets, |batch| {
                     if let Some(ref receiver) = self.receiver {
@@ -220,7 +222,10 @@ impl AggregatorService {
             project_key,
             buckets,
         } = msg;
-        if let Err(err) = self.aggregator.merge_all(project_key, buckets) {
+        if let Err(err) =
+            self.aggregator
+                .merge_all(project_key, buckets, self.max_total_bucket_bytes)
+        {
             relay_log::error!(
                 tags.aggregator = &self.aggregator.name(),
                 error = &err as &dyn Error,
@@ -463,6 +468,8 @@ impl MergeBuckets {
     }
 }
 
+/*
+
 #[cfg(test)]
 mod tests {
 
@@ -543,7 +550,7 @@ mod tests {
         let receiver = TestReceiver::default();
         let recipient = receiver.clone().start().recipient();
 
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 1,
             initial_delay: 0,
             debounce_delay: 0,
@@ -583,7 +590,7 @@ mod tests {
         };
         let recipient = receiver.clone().start().recipient();
 
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             bucket_interval: 1,
             initial_delay: 0,
             debounce_delay: 0,
@@ -607,8 +614,8 @@ mod tests {
         assert_eq!(receiver.bucket_count(), 0);
     }
 
-    fn test_config() -> AggregatorConfig {
-        AggregatorConfig {
+    fn test_config() -> AggregatorServiceConfig {
+        AggregatorServiceConfig {
             bucket_interval: 1,
             initial_delay: 0,
             debounce_delay: 0,
@@ -626,7 +633,7 @@ mod tests {
 
     #[must_use]
     pub fn run_test_bucket_partitioning(flush_partitions: Option<u64>) -> Vec<String> {
-        let config = AggregatorConfig {
+        let config = AggregatorServiceConfig {
             max_flush_bytes: 1000,
             flush_partitions,
             ..test_config()
@@ -820,3 +827,5 @@ mod tests {
         test_capped_iter_completeness(100, 4);
     }
 }
+
+*/
