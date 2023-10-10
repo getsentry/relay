@@ -236,6 +236,14 @@ fn parse_max_chars(name: &str) -> TokenStream {
     }
 }
 
+fn parse_max_chars_hard(size: u64) -> TokenStream {
+    if size == 0 {
+        panic!("invalid literal `{size}` for max_chars. value must be greater than 0")
+    } else {
+        quote!(crate::processor::MaxChars::Hard(size))
+    }
+}
+
 fn parse_bag_size(name: &str) -> TokenStream {
     match name {
         "small" => quote!(crate::processor::BagSize::Small),
@@ -576,6 +584,12 @@ fn parse_field_attributes(
                                 match name_value.lit {
                                     Lit::Str(litstr) => {
                                         let attr = parse_max_chars(litstr.value().as_str());
+                                        rv.max_chars = Some(quote!(#attr));
+                                    }
+                                    Lit::Int(litint) => {
+                                        let attr = parse_max_chars_hard(
+                                            litint.base10_parse::<u64>().unwrap(),
+                                        );
                                         rv.max_chars = Some(quote!(#attr));
                                     }
                                     _ => {
