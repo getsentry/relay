@@ -1259,6 +1259,7 @@ expression: metrics
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
+            "resource.render_blocking_status": "blocking",
             "span.category": "resource",
             "span.description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCi*z*KuljsgCAD6hyWCyOYZM.css",
             "span.group": "fd1c98edd40299a3",
@@ -1280,6 +1281,7 @@ expression: metrics
         tags: {
             "environment": "fake_environment",
             "http.status_code": "500",
+            "resource.render_blocking_status": "blocking",
             "span.category": "resource",
             "span.description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCi*z*KuljsgCAD6hyWCyOYZM.css",
             "span.group": "fd1c98edd40299a3",
