@@ -16,7 +16,7 @@ use crate::{aggregator::AggregatorServiceConfig, BucketValue, DistributionValue}
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
-/// The fraction of [`AggregatorConfig::max_flush_bytes`] at which buckets will be split. A value of
+/// The fraction of [`AggregatorServiceConfig::max_flush_bytes`] at which buckets will be split. A value of
 /// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
 /// and buckets larger will be split up.
 const BUCKET_SPLIT_FACTOR: usize = 32;
