@@ -2691,7 +2691,13 @@ impl EnvelopeProcessorService {
             self.normalize_dsc(state);
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
-            self.extract_metrics(state)?;
+
+            // We avoid extracting metrics if we are not sampling the event while in non-processing
+            // relays, in order to synchronize rate limits on indexed and processed transactions.
+            if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+                self.extract_metrics(state)?;
+            }
+
             self.sample_envelope(state)?;
 
             if_processing!({

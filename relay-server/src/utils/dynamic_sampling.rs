@@ -37,7 +37,6 @@ impl SamplingResult {
     }
 
     /// Returns `true` if the event should be dropped.
-    #[cfg(test)]
     pub fn should_drop(&self) -> bool {
         !self.should_keep()
     }

@@ -183,8 +183,10 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
 }
 
 fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
-    // Remove query parameters.
+    // Remove query parameters or the fragment.
     if let Some(pos) = string.find('?') {
+        string = &string[..pos];
+    } else if let Some(pos) = string.find('#') {
         string = &string[..pos];
     }
     match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
@@ -549,6 +551,13 @@ mod tests {
         "somefilenamewithnoextension",
         "file.read",
         "*"
+    );
+
+    span_description_test!(
+        resource_url_with_fragment,
+        "https://data.domain.com/data/guide123.gif#url=someotherurl",
+        "resource.img",
+        "https://data.domain.com/data/guide*.gif"
     );
 
     #[test]

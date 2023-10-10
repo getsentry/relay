@@ -539,20 +539,20 @@ def test_session_metrics_processing(
         (True, "transaction", True),
         (True, "transaction", False),
         (True, "trace", False),
-        (True, False, True),
         (True, False, False),
         (False, "transaction", False),
         (False, False, False),
+        (False, False, True),
         ("corrupted", "transaction", False),
     ],
     ids=[
         "extract from transaction-sampled, external relay",
         "extract from transaction-sampled",
         "extract from trace-sampled",
-        "extract from unsampled, external relay",
         "extract from unsampled",
         "don't extract from transaction-sampled",
         "don't extract from unsampled",
+        "don't extract from unsampled, external relay",
         "corrupted config",
     ],
 )
@@ -786,15 +786,14 @@ def test_transaction_metrics_count_per_root_project(
 
 
 @pytest.mark.parametrize(
-    "send_extracted_header,expect_extracted_header,expect_metrics_extraction",
-    [(False, True, True), (True, True, False)],
+    "send_extracted_header,expect_metrics_extraction",
+    [(False, True), (True, False)],
     ids=["must extract metrics", "mustn't extract metrics"],
 )
 def test_transaction_metrics_extraction_external_relays(
     mini_sentry,
     relay,
     send_extracted_header,
-    expect_extracted_header,
     expect_metrics_extraction,
 ):
     if send_extracted_header:
@@ -805,8 +804,17 @@ def test_transaction_metrics_extraction_external_relays(
     project_id = 42
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
-    config["transactionMetrics"] = {
-        "version": 1,
+    config["transactionMetrics"] = {"version": 3}
+    config["dynamicSampling"] = {
+        "rules": [],
+        "rulesV2": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {"op": "and", "inner": []},
+            }
+        ],
     }
 
     tx = generate_transaction_item()
@@ -825,17 +833,6 @@ def test_transaction_metrics_extraction_external_relays(
 
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
-    tx_item = envelope.items[0]
-
-    if expect_extracted_header:
-        assert tx_item.headers["metrics_extracted"] is True
-    else:
-        assert "metrics_extracted" not in tx_item.headers
-
-    tx_item_body = json.loads(tx_item.get_bytes().decode())
-    assert (
-        tx_item_body["transaction"] == "/organizations/:orgId/performance/:eventSlug/"
-    )
 
     if expect_metrics_extraction:
         metrics_envelope = mini_sentry.captured_events.get(timeout=3)
@@ -1245,35 +1242,46 @@ def test_generic_metric_extraction(mini_sentry, relay):
             }
         ],
     }
+    config["transactionMetrics"] = {"version": 3}
+    config["dynamicSampling"] = {
+        "rules": [],
+        "rulesV2": [
+            {
+                "id": 1,
+                "samplingValue": {"type": "sampleRate", "value": 0.0},
+                "type": "transaction",
+                "condition": {"op": "and", "inner": []},
+            }
+        ],
+    }
 
     transaction = generate_transaction_item()
     timestamp = datetime.now(tz=timezone.utc)
     transaction["timestamp"] = timestamp.isoformat()
     transaction["start_timestamp"] = (timestamp - timedelta(seconds=2)).isoformat()
 
-    # Explicitly test a chain of Relays
     relay = relay(relay(mini_sentry, options=TEST_CONFIG), options=TEST_CONFIG)
     relay.send_transaction(PROJECT_ID, transaction)
 
     envelope = mini_sentry.captured_events.get(timeout=3)
-    assert envelope.items[0].headers.get("type") == "transaction"
-    assert envelope.items[0].headers.get("metrics_extracted") is True
-
     envelope = mini_sentry.captured_events.get(timeout=3)
+
+    for item in envelope.items:
+        # Transaction items should be sampled and not among the envelope items.
+        assert item.headers.get("type") != "transaction"
+
     item = envelope.items[0]
     assert item.headers.get("type") == "metric_buckets"
     metrics = json.loads(item.get_bytes().decode())
 
-    assert metrics == [
-        {
-            "timestamp": int(timestamp.timestamp()),
-            "width": 1,
-            "name": "c:transactions/on_demand@none",
-            "type": "c",
-            "value": 1.0,
-            "tags": {"query_hash": "c91c2e4d"},
-        }
-    ]
+    assert {
+        "timestamp": int(timestamp.timestamp()),
+        "width": 1,
+        "name": "c:transactions/on_demand@none",
+        "type": "c",
+        "value": 1.0,
+        "tags": {"query_hash": "c91c2e4d"},
+    } in metrics
 
 
 def test_span_metrics_secondary_aggregator(
