@@ -2266,7 +2266,7 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        resource_span_extraction_enabled && op.contains("resource.")
+        (resource_span_extraction_enabled && op.contains("resource."))
             || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
