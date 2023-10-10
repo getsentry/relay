@@ -72,21 +72,21 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/http.response_content_length@none".into(),
+            mri: "d:spans/http.response_content_length@byte".into(),
             field: Some("span.data.http\\.response_content_length".into()),
             condition: Some(span_op_conditions.clone() & resource_condition.clone()),
             tags: Default::default(),
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/http.decoded_response_body_length@none".into(),
+            mri: "d:spans/http.decoded_response_body_length@byte".into(),
             field: Some("span.data.http\\.decoded_response_body_length".into()),
             condition: Some(span_op_conditions.clone() & resource_condition.clone()),
             tags: Default::default(),
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/http.response_transfer_size@none".into(),
+            mri: "d:spans/http.response_transfer_size@byte".into(),
             field: Some("span.data.http\\.response_transfer_size".into()),
             condition: Some(span_op_conditions.clone() & resource_condition.clone()),
             tags: Default::default(),
@@ -142,9 +142,9 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         // Resource-specific tags:
         TagMapping {
             metrics: vec![
-                LazyGlob::new("d:spans/http.response_content_length@none".into()),
-                LazyGlob::new("d:spans/http.decoded_response_body_length@none".into()),
-                LazyGlob::new("d:spans/http.response_transfer_size@none".into()),
+                LazyGlob::new("d:spans/http.response_content_length@byte".into()),
+                LazyGlob::new("d:spans/http.decoded_response_body_length@byte".into()),
+                LazyGlob::new("d:spans/http.response_transfer_size@byte".into()),
             ],
             tags: [
                 ("", "environment"),

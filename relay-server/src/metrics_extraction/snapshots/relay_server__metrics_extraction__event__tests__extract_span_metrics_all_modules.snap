@@ -1293,7 +1293,7 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_content_length@none",
+        name: "d:spans/http.response_content_length@byte",
         value: Distribution(
             [
                 36170.0,
@@ -1311,7 +1311,7 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_transfer_size@none",
+        name: "d:spans/http.response_transfer_size@byte",
         value: Distribution(
             [
                 36470.0,
