@@ -21,6 +21,7 @@ BUILD_IMAGE="us.gcr.io/sentryio/relay:deps"
 docker pull $BUILD_IMAGE || true
 docker buildx build \
      --build-arg RUST_TOOLCHAIN_VERSION="$TOOLCHAIN" \
+     --build-arg BUILD_ARCH="$BUILD_ARCH" \
      --platform "linux/${DOCKER_ARCH}" \
      --cache-from=${BUILD_IMAGE} \
      --target relay-deps \

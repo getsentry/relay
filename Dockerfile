@@ -9,6 +9,8 @@ FROM centos:7 AS relay-deps
 ARG RUST_TOOLCHAIN_VERSION
 ENV RUST_TOOLCHAIN_VERSION=${RUST_TOOLCHAIN_VERSION}
 
+ARG BUILD_ARCH
+
 RUN yum -y update && yum clean all \
     && yum -y install centos-release-scl epel-release \
     # install a modern compiler toolchain
@@ -19,39 +21,15 @@ RUN yum -y update && yum clean all \
     && rm -rf /var/cache/yum \
     && ln -s /usr/bin/cmake3 /usr/bin/cmake
 
-
-# yum -y update && yum clean all && yum -y install centos-release-scl epel-release cmake3 devtoolset-10 git llvm-toolset-7.0-clang-devel && yum clean all && rm -rf /var/cache/yum && ln -s /usr/bin/cmake3 /usr/bin/cmake
-
-# RUN echo 'dont cache mee'
-RUN echo "build arch: ${BUILD_ARCH}"
-
-# RUN if [ ${BUILD_ARCH} == "aarch64" ]; then \
-RUN if  true ; then \
-    yum -y install git make libffi-devel curl dnf epel-release ca-certificates \
+RUN if [ ${BUILD_ARCH} == "aarch64" ]; then \
+    yum -y install git make libffi-devel curl dnf ca-certificates \
     && curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 \
-    && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7 ; \
-    fi
-
-# yum -y install git make libffi-devel curl dnf epel-release ca-certificates && curl -L -s https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7-aarch64 > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64  && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
-
-RUN echo "arch: ${BUILD_ARCH}"
-# RUN if [ ${BUILD_ARCH} == "aarch64" ]; then \
-#     echo "yes" ; else echo "no"; fi
-
-# qemu-user not found for aarch64
-# RUN if [ ${BUILD_ARCH} == "aarch64" ]; then \
-RUN if true ; then \
-    yum -y install gcc glibc glibc-devel \
-    # dnf --release 7 --forcearch aarch64 install gcc glibc glibc-devel \
-    # && dnf --release 7 install gcc-aarch64-linux-gnu qemu-user \
-    && yum -y install gcc-aarch64-linux-gnu \
-    # && dnf --release 7 --forcearch aarch64 install gcc-aarch64-linux-gnu \
-    # && dnf --release 7 --forcearch aarch64 install gcc-aarch64-linux-gnu qemu-user \
+    && cat /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7-aarch64 >> /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7 \
+    && yum -y install gcc glibc glibc-devel gcc-aarch64-linux-gnu \
     && dnf -y --release 7 --forcearch aarch64 --installroot "/usr/aarch64-linux-gnu/sys-root/" install gcc glibc glibc-devel \
-    # && dnf -y --release 7 --forcearch aarch64 --installroot "/usr/aarch64-linux-gnu/sys-root/" install gcc-aarch64-linux-gnu \
-    # && dnf -y --release 7 --forcearch aarch64 --installroot "/usr/aarch64-linux-gnu/sys-root/" install gcc-aarch64-linux-gnu gcc-aarch64-linux-gnueabi gcc-aarch64-linux-gnueabihf qemu-user \
     && ln -s "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so.1" "/usr/aarch64-linux-gnu/sys-root/lib64/libgcc_s.so" \
-    # NOTE(iker): work-around to create a cmake toolchain file for arch-specific builds, since only objcopy is needed.
+    # NOTE(iker): work-around to create a cmake toolchain file for arch-specific
+    # builds, since only objcopy is needed.
     && rm -rf "/usr/bin/objcopy" && ln -s "/usr/bin/aarch64-linux-gnu-objcopy" "/usr/bin/objcopy" ; \
     fi
 
@@ -63,8 +41,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} \
     && echo -e '[registries.crates-io]\nprotocol = "sparse"\n[net]\ngit-fetch-with-cli = true' > $CARGO_HOME/config \
     && rustup target add aarch64-unknown-linux-gnu
-
-# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain=${RUST_TOOLCHAIN_VERSION} && echo -e '[registries.crates-io]\nprotocol = "sparse"\n[net]\ngit-fetch-with-cli = true' > $CARGO_HOME/config && rustup target add aarch64-unknown-linux-gnu
 
 COPY --from=sentry-cli /bin/sentry-cli /bin/sentry-cli
 
@@ -88,10 +64,6 @@ RUN : \
     make build-linux-release \
     TARGET=${BUILD_TARGET} \
     RELAY_FEATURES=${RELAY_FEATURES}
-
-# export BUILD_TARGET="aarch64-unknown-linux-gnu"
-# scl enable devtoolset-10 llvm-toolset-7.0 -- make build-linux-release TARGET=${BUILD_TARGET} RELAY_FEATURES=""
-# scl enable devtoolset-10 llvm-toolset-7.0 -- cd relay && cargo build --release --locked --target=aarch64-unknown-linux-gnu
 
 # Collect source bundle
 # Produces `relay-bin`, `relay-debug.zip` and `relay.src.zip` in current directory
