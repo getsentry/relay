@@ -30,6 +30,8 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
+    let resource_condition = RuleCondition::glob("span.op", "resource.*");
+
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
     let span_op_conditions = if project_config
@@ -51,13 +53,11 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             .features
             .has(Feature::SpanMetricsExtractionResource)
         {
-            conditions = conditions | RuleCondition::glob("span.op", "resource.*");
+            conditions = conditions | resource_condition.clone();
         }
 
         conditions
     };
-
-    let resource_condition = RuleCondition::glob("span.op", "resource.*");
 
     config.metrics.extend([
         MetricSpec {
