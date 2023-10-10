@@ -6,7 +6,9 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::{
+    aggregator, Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
+};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
@@ -379,6 +381,28 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
+#[derive(Debug)]
+enum AggState {
+    State(Arc<ProjectState>),
+    Aggregator(aggregator::Aggregator),
+}
+
+impl AggState {
+    fn aggregator_value(&self) -> Option<&aggregator::Aggregator> {
+        match self {
+            AggState::Aggregator(agg) => Some(agg),
+            AggState::State(_) => None,
+        }
+    }
+
+    fn state_value(&self) -> Option<Arc<ProjectState>> {
+        match self {
+            AggState::State(state) => Some(Arc::clone(&state)),
+            AggState::Aggregator(_) => None,
+        }
+    }
+}
+
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -390,7 +414,7 @@ pub struct Project {
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    state: Option<Arc<ProjectState>>,
+    state: AggState,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
@@ -405,12 +429,14 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            config,
-            state: None,
+            state: AggState::Aggregator(aggregator::Aggregator::new(
+                config.default_aggregator_config().aggregator.clone(),
+            )),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
+            config,
         }
     }
 
@@ -429,13 +455,21 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
+    fn aggregator_value(&self) -> Option<&aggregator::Aggregator> {
+        self.state.aggregator_value()
+    }
+
+    fn state_value(&self) -> Option<Arc<ProjectState>> {
+        self.state.state_value()
+    }
+
     /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
     fn remove_expired_reservoir_rules(&self) {
-        let Some(config) = self
-            .state
-            .as_ref()
-            .and_then(|state| state.config.dynamic_sampling.as_ref())
-        else {
+        let Some(state) = self.state_value() else {
+            return;
+        };
+
+        let Some(config) = state.config.dynamic_sampling.as_ref() else {
             return;
         };
 
@@ -452,7 +486,7 @@ impl Project {
     /// Returns the current [`ExpiryState`] for this project.
     /// If the project state's [`Expiry`] is `Expired`, do not return it.
     pub fn expiry_state(&self) -> ExpiryState {
-        match self.state {
+        match self.state_value() {
             Some(ref state) => match state.check_expiry(self.config.as_ref()) {
                 Expiry::Updated => ExpiryState::Updated(state.clone()),
                 Expiry::Stale => ExpiryState::Stale(state.clone()),
@@ -509,7 +543,7 @@ impl Project {
             return metrics;
         }
 
-        let (Some(state), Some(scoping)) = (&self.state, self.scoping()) else {
+        let (Some(state), Some(scoping)) = (&self.state_value(), self.scoping()) else {
             return metrics;
         };
 
@@ -529,7 +563,7 @@ impl Project {
 
     /// Remove metric buckets that are not allowed to be ingested.
     fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
-        let Some(state) = &self.state else {
+        let Some(state) = &self.state_value() else {
             return;
         };
 
@@ -752,7 +786,7 @@ impl Project {
             // If the new state is invalid but the old one still usable, keep the old one.
             ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
             // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.state = Some(state.clone()),
+            _ => self.state = AggState::State(state.clone()),
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
@@ -783,7 +817,7 @@ impl Project {
     ///
     /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.state.as_deref()?;
+        let state = self.state_value()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
@@ -967,10 +1001,10 @@ mod tests {
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.state = Some(Arc::new(project_state));
+            project.state = AggState::State(Arc::new(project_state));
 
             // Direct access should always yield a state:
-            assert!(project.state.is_some());
+            assert!(project.state_value().is_some());
 
             if expiry > 0 {
                 // With long expiry, should get a state
@@ -1006,16 +1040,16 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.state = Some(Arc::new(project_state));
+        project.state = AggState::State(Arc::new(project_state));
 
         // The project ID must be set.
-        assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(!project.state_value().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
         project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
-        assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(!project.state_value().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_some());
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
@@ -1040,7 +1074,7 @@ mod tests {
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
-        project.state = Some(Arc::new(project_state));
+        project.state = AggState::State(Arc::new(project_state));
         project
     }
 
