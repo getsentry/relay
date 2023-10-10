@@ -934,6 +934,7 @@ mod tests {
     use relay_test::mock_service;
     use uuid::Uuid;
 
+    use crate::actors::project::ExpiryState;
     use crate::testutils::empty_envelope;
 
     use super::*;
@@ -1108,6 +1109,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_eviction() {
+        tokio::time::pause();
+
         let num_permits = 5;
         let buffer_guard: Arc<_> = BufferGuard::new(num_permits).into();
         let services = mocked_services();
@@ -1151,14 +1154,20 @@ mod tests {
                     .check_envelope(envelope, services.outcome_aggregator.clone())
                     .unwrap();
             }
-
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::advance(Duration::from_millis(100)).await;
         }
 
         // One of the project will be removed.
         broker.evict_stale_project_caches();
         // Project 1 did not receive any envelopes, and should be removed now.
         assert_eq!(broker.projects.len(), 1);
+        assert!(broker.projects.get(&key1).is_none());
+
+        // Project 2, even though expired, still must be in the cache.
+        assert!(matches!(
+            broker.projects.get(&key2).unwrap().expiry_state(),
+            ExpiryState::Expired
+        ));
         assert!(broker.projects.get(&key2).is_some());
     }
 }
