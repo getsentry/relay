@@ -15,9 +15,7 @@ use tokio::time::Instant;
 
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
-use crate::statsd::{
-    metric_name_tag, MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers,
-};
+use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -811,12 +809,18 @@ impl Aggregator {
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
-            let tag = metric_name_tag(&self.name);
+            let metric_name = bucket.name.clone(); // temporary clone, can be removed later
+            let prefix = metric_name
+                .as_str()
+                .split_once('/')
+                .map_or("other", |(prefix, _)| prefix);
+
             if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
                 relay_log::error!(
                     tags.aggregator = self.name,
-                    tags.metric_name = tag,
-                    error = &error as &dyn Error
+                    tags.metric_name = prefix,
+                    full_metric_name = &metric_name,
+                    bucket.error = &error as &dyn Error
                 );
             }
         }
