@@ -78,6 +78,9 @@
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.
 //!
 //! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
@@ -148,13 +151,16 @@
     html_favicon_url = <span class="string">&quot;https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png&quot;
 </span>)]
 
-</span><span class="kw">mod </span>aggregation;
+</span><span class="doccomment">/// Only public for benchmarks.
+</span><span class="kw">pub mod </span>aggregator;
+
+<span class="kw">mod </span>aggregatorservice;
 <span class="kw">mod </span>bucket;
 <span class="kw">mod </span>protocol;
 <span class="kw">mod </span>router;
 <span class="kw">mod </span>statsd;
 
-<span class="kw">pub use </span>aggregation::<span class="kw-2">*</span>;
+<span class="kw">pub use </span>aggregatorservice::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>bucket::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>protocol::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>router::<span class="kw-2">*</span>;

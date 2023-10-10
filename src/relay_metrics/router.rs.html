@@ -186,6 +186,7 @@
 <a href="#186" id="186">186</a>
 <a href="#187" id="187">187</a>
 <a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
@@ -195,12 +196,13 @@
 <span class="kw">use </span>relay_system::{Addr, NoResponse, Recipient, Service};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
+<span class="kw">use </span><span class="kw">crate</span>::aggregatorservice::{AggregatorService, FlushBuckets};
 <span class="kw">use crate</span>::{
-    AcceptsMetrics, Aggregator, AggregatorConfig, AggregatorService, FlushBuckets, MergeBuckets,
-    MetricNamespace, MetricResourceIdentifier,
+    AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace,
+    MetricResourceIdentifier,
 };
 
-<span class="doccomment">/// Contains an [`AggregatorConfig`] for a specific scope.
+<span class="doccomment">/// Contains an [`AggregatorServiceConfig`] for a specific scope.
 ///
 /// For now, the only way to scope an aggregator is by [`MetricNamespace`].
 </span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
@@ -211,7 +213,7 @@
     /// secondary aggregator.
     </span><span class="kw">pub </span>condition: Condition,
     <span class="doccomment">/// The configuration of the secondary aggregator.
-    </span><span class="kw">pub </span>config: AggregatorConfig,
+    </span><span class="kw">pub </span>config: AggregatorServiceConfig,
 }
 
 <span class="doccomment">/// Condition that needs to be met for a metric or bucket to be routed to a
@@ -244,7 +246,7 @@
 <span class="kw">impl </span>RouterService {
     <span class="doccomment">/// Create a new router service.
     </span><span class="kw">pub fn </span>new(
-        aggregator_config: AggregatorConfig,
+        aggregator_config: AggregatorServiceConfig,
         secondary_aggregators: Vec&lt;ScopedAggregatorConfig&gt;,
         receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{

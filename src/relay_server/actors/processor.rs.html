@@ -4358,6 +4358,8 @@
 <a href="#4358" id="4358">4358</a>
 <a href="#4359" id="4359">4359</a>
 <a href="#4360" id="4360">4360</a>
+<a href="#4361" id="4361">4361</a>
+<a href="#4362" id="4362">4362</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6971,9 +6973,10 @@
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
-                transaction_range: <span class="prelude-val">Some</span>(transaction_aggregator_config.timestamp_range()),
+                transaction_range: <span class="prelude-val">Some</span>(transaction_aggregator_config.aggregator.timestamp_range()),
                 max_name_and_unit_len: <span class="prelude-val">Some</span>(
                     transaction_aggregator_config
+                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -6992,6 +6995,7 @@
                     </span>.inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
+                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
                 light_normalize_spans,

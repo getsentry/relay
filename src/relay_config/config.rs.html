@@ -2085,6 +2085,8 @@
 <a href="#2085" id="2085">2085</a>
 <a href="#2086" id="2086">2086</a>
 <a href="#2087" id="2087">2087</a>
+<a href="#2088" id="2088">2088</a>
+<a href="#2089" id="2089">2089</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2101,7 +2103,9 @@
 <span class="kw">use </span>relay_kafka::{
     ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-<span class="kw">use </span>relay_metrics::{AggregatorConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig};
+<span class="kw">use </span>relay_metrics::{
+    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
+};
 <span class="kw">use </span>relay_redis::RedisConfig;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -3325,7 +3329,7 @@
     <span class="attr">#[serde(default)]
     </span>outcomes: Outcomes,
     <span class="attr">#[serde(default)]
-    </span>aggregator: AggregatorConfig,
+    </span>aggregator: AggregatorServiceConfig,
     <span class="attr">#[serde(default)]
     </span>secondary_aggregators: Vec&lt;ScopedAggregatorConfig&gt;,
     <span class="attr">#[serde(default)]
@@ -4089,7 +4093,7 @@
     }
 
     <span class="doccomment">/// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
-    </span><span class="kw">pub fn </span>default_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorConfig {
+    </span><span class="kw">pub fn </span>default_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.aggregator
     }
 
@@ -4099,7 +4103,7 @@
     }
 
     <span class="doccomment">/// Returns aggregator config for a given metrics namespace.
-    </span><span class="kw">pub fn </span>aggregator_config_for(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>AggregatorConfig {
+    </span><span class="kw">pub fn </span>aggregator_config_for(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>AggregatorServiceConfig {
         <span class="kw">for </span>entry <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.values.secondary_aggregators {
             <span class="kw">match </span>entry.condition {
                 Condition::Eq(Field::Namespace(ns)) <span class="kw">if </span>ns == namespace =&gt; <span class="kw">return </span><span class="kw-2">&amp;</span>entry.config,
