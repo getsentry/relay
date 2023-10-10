@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -111,15 +111,24 @@ impl Service for HttpServer {
             .build();
 
         let handle = Handle::new();
-        let server = axum_server::bind(config.listen_addr())
-            .http_config(http_config)
-            .addr_incoming_config(addr_config)
-            .handle(handle.clone());
+        match TcpListener::bind(config.listen_addr()) {
+            Ok(listener) => {
+                listener.set_nonblocking(true).ok();
+                let server = axum_server::from_tcp(listener)
+                    .http_config(http_config)
+                    .addr_incoming_config(addr_config)
+                    .handle(handle.clone());
 
-        relay_log::info!("spawning http server");
-        relay_log::info!("  listening on http://{}/", config.listen_addr());
-        relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
-        tokio::spawn(server.serve(app));
+                relay_log::info!("spawning http server");
+                relay_log::info!("  listening on http://{}/", config.listen_addr());
+                relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
+                tokio::spawn(server.serve(app));
+            }
+            Err(err) => {
+                relay_log::error!("Failed to start the HTTP server: {err}");
+                std::process::exit(1);
+            }
+        }
 
         tokio::spawn(async move {
             let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
