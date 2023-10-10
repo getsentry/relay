@@ -13,7 +13,7 @@ use crate::{
     MetricResourceIdentifier,
 };
 
-/// Contains an [`AggregatorConfig`] for a specific scope.
+/// Contains an [`AggregatorServiceConfig`] for a specific scope.
 ///
 /// For now, the only way to scope an aggregator is by [`MetricNamespace`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
