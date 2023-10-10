@@ -902,8 +902,7 @@ mod tests {
             max_tag_key_length: 200,
             max_tag_value_length: 200,
             max_project_key_bucket_bytes: None,
-            ..Default::default() // max_total_bucket_bytes: None,
-                                 // max_flush_bytes: 50_000_000,
+            ..Default::default()
         }
     }
 
@@ -1009,7 +1008,7 @@ mod tests {
         config.bucket_interval = 10;
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut aggregator = Aggregator::new(config.clone());
+        let mut aggregator = Aggregator::new(config);
 
         let bucket1 = some_bucket();
 
@@ -1067,7 +1066,7 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
-        let mut aggregator = Aggregator::new(config.clone());
+        let mut aggregator = Aggregator::new(config);
 
         // It's OK to have same metric with different projects:
         aggregator.merge(project_key1, some_bucket(), None).unwrap();
