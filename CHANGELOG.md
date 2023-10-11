@@ -26,7 +26,7 @@
 - Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
 - Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
 - Add `profile_id` to spans. ([#2569](https://github.com/getsentry/relay/pull/2569))
-- Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571))
+- Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571), [#2589](https://github.com/getsentry/relay/pull/2589))
 - Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
 
