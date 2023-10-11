@@ -132,7 +132,16 @@
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::net::SocketAddr;
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::net::{SocketAddr, TcpListener};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -245,15 +254,24 @@
             .build();
 
         <span class="kw">let </span>handle = Handle::new();
-        <span class="kw">let </span>server = axum_server::bind(config.listen_addr())
-            .http_config(http_config)
-            .addr_incoming_config(addr_config)
-            .handle(handle.clone());
+        <span class="kw">match </span>TcpListener::bind(config.listen_addr()) {
+            <span class="prelude-val">Ok</span>(listener) =&gt; {
+                listener.set_nonblocking(<span class="bool-val">true</span>).ok();
+                <span class="kw">let </span>server = axum_server::from_tcp(listener)
+                    .http_config(http_config)
+                    .addr_incoming_config(addr_config)
+                    .handle(handle.clone());
 
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;spawning http server&quot;</span>);
-        <span class="macro">relay_log::info!</span>(<span class="string">&quot;  listening on http://{}/&quot;</span>, config.listen_addr());
-        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
-        tokio::spawn(server.serve(app));
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;spawning http server&quot;</span>);
+                <span class="macro">relay_log::info!</span>(<span class="string">&quot;  listening on http://{}/&quot;</span>, config.listen_addr());
+                <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::ServerStarting) += <span class="number">1</span>);
+                tokio::spawn(server.serve(app));
+            }
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;Failed to start the HTTP server: {err}&quot;</span>);
+                std::process::exit(<span class="number">1</span>);
+            }
+        }
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span>Shutdown { timeout } = Controller::shutdown_handle().notified().<span class="kw">await</span>;
