@@ -30,7 +30,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let resource_condition = RuleCondition::glob("span.op", "resource.*");
+    let resource_condition = RuleCondition::eq("span.category", "resource");
 
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
@@ -40,14 +40,13 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     {
         RuleCondition::all()
     } else {
+        let is_disabled = RuleCondition::glob("span.op", DISABLED_DATABASES);
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
-            | RuleCondition::glob("span.description", "*\"$*");
+            | RuleCondition::glob("span.description", vec!["*\"$*", "{*"]);
 
         let mut conditions = RuleCondition::eq("span.op", "http.client")
-            | (RuleCondition::glob("span.op", "db*")
-                & !RuleCondition::glob("span.op", DISABLED_DATABASES)
-                & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo))
-            | RuleCondition::glob("span.op", MOBILE_OPS);
+            | RuleCondition::glob("span.op", MOBILE_OPS)
+            | (RuleCondition::eq("span.category", "db") & !is_disabled & !is_mongo);
 
         if project_config
             .features
