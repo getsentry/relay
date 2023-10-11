@@ -184,7 +184,12 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
 
 fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
     // Remove query parameters or the fragment.
-    if let Some(pos) = string.find('?') {
+    if string.starts_with("data:") {
+        if let Some(pos) = string.find(';') {
+            return Some(string[..pos].into());
+        }
+        return Some("data:*/*".into());
+    } else if let Some(pos) = string.find('?') {
         string = &string[..pos];
     } else if let Some(pos) = string.find('#') {
         string = &string[..pos];
@@ -585,6 +590,13 @@ mod tests {
         "/page?action=name",
         "resource.script",
         "/page"
+    );
+
+    span_description_test!(
+        resource_img_embedded,
+        "data:image/svg+xml;base64,PHN2ZyB4bW",
+        "resource.img",
+        "data:image/svg+xml"
     );
 
     #[test]
