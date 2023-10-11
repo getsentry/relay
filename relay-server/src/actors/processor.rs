@@ -2253,7 +2253,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn is_span_allowed(&self, span: &Span) -> bool {
+    fn is_span_allowed(&self, span: &Span, resource_span_extraction_enabled: bool) -> bool {
         let Some(op) = span.op.value() else {
             return false;
         };
@@ -2266,7 +2266,8 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        op == "http.client"
+        (resource_span_extraction_enabled && op.contains("resource."))
+            || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
             || op.starts_with("db")
@@ -2328,6 +2329,9 @@ impl EnvelopeProcessorService {
         let all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
+        let resource_span_extraction_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionResource);
 
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
@@ -2336,7 +2340,9 @@ impl EnvelopeProcessorService {
                     continue;
                 };
                 // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
+                if !all_modules_enabled
+                    && !self.is_span_allowed(inner_span, resource_span_extraction_enabled)
+                {
                     continue;
                 }
                 // HACK: clone the span to set the segment_id. This should happen
@@ -2611,9 +2617,10 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                transaction_range: Some(transaction_aggregator_config.timestamp_range()),
+                transaction_range: Some(transaction_aggregator_config.aggregator.timestamp_range()),
                 max_name_and_unit_len: Some(
                     transaction_aggregator_config
+                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -2632,6 +2639,7 @@ impl EnvelopeProcessorService {
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
+                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: false,
                 light_normalize_spans,
