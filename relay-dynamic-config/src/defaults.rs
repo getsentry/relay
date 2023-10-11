@@ -13,7 +13,7 @@ const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 
 /// A list of patterns found in MongoDB queries
-const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*"];
+const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
 /// Adds configuration for extracting metrics from spans.
 ///

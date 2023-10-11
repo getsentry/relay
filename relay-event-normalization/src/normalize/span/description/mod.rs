@@ -93,6 +93,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
 fn is_sql_mongodb(description: &str, db_system: Option<&str>) -> bool {
     description.contains("\"$")
         || description.contains("({")
+        || description.contains("[{")
         || description.starts_with('{')
         || db_system == Some("mongodb")
 }
