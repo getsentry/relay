@@ -12,7 +12,9 @@ use relay_event_schema::protocol::Span;
 use relay_protocol::{Annotated, Remark, RemarkType, Value};
 use url::Url;
 
-use crate::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
+use crate::regexes::{
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+};
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::transactions::SpanDescriptionRule;
 
@@ -30,6 +32,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         .value()
         .and_then(|v| v.get("db.system"))
         .and_then(|system| system.as_str());
+    let span_origin = span.origin.as_str();
 
     let scrubbed = span
         .op
@@ -46,6 +49,9 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                     || is_sql_mongodb(description, db_system)
                 {
                     None
+                // `db.sql.transaction` coming from CoreData need to be scrubbed differently.
+                } else if sub == "sql.transaction" && span_origin == Some("auto.db.core_data") {
+                    scrub_core_data(description)
                 } else {
                     sql::scrub_queries(db_system, description)
                 }
@@ -94,6 +100,13 @@ fn is_sql_mongodb(description: &str, db_system: Option<&str>) -> bool {
 /// We are unable to parse active record when we do not know which database is being used.
 fn is_legacy_activerecord(sub_op: &str, db_system: Option<&str>) -> bool {
     db_system.is_none() && (sub_op.contains("active_record") || sub_op.contains("activerecord"))
+}
+
+fn scrub_core_data(string: &str) -> Option<String> {
+    match DB_SQL_TRANSACTION_CORE_DATA_REGEX.replace_all(string, "*") {
+        Cow::Owned(scrubbed) => Some(scrubbed),
+        Cow::Borrowed(_) => Some("".into()),
+    }
 }
 
 fn scrub_http(string: &str) -> Option<String> {
@@ -670,5 +683,40 @@ mod tests {
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.as_str(), Some("SELECT a FROM b"));
+    }
+
+    #[test]
+    fn core_data() {
+        let json = r#"{
+            "description": "INSERTED 1 'UAEventData'",
+            "op": "db.sql.transaction",
+            "origin": "auto.db.core_data"
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+
+        assert_eq!(scrubbed.as_str(), Some("INSERTED * 'UAEventData'"));
+    }
+
+    #[test]
+    fn multiple_core_data() {
+        let json = r#"{
+            "description": "UPDATED 1 'QueuedRequest', DELETED 1 'QueuedRequest'",
+            "op": "db.sql.transaction",
+            "origin": "auto.db.core_data"
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+
+        assert_eq!(
+            scrubbed.as_str(),
+            Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
+        );
     }
 }
