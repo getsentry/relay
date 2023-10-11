@@ -295,6 +295,11 @@
 <a href="#295" id="295">295</a>
 <a href="#296" id="296">296</a>
 <a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay processing and normalization module.
 //!
 //! Replays are multi-part values sent from Sentry integrations spanning arbitrary time-periods.
@@ -379,6 +384,7 @@
     ///   &quot;replay_type&quot;: &quot;session&quot;
     /// }
     /// ```
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;environment&quot;</span>)]
     </span><span class="kw">pub </span>replay_type: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Segment identifier.
@@ -431,9 +437,11 @@
     </span><span class="kw">pub </span>urls: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// A list of error-ids discovered during the lifetime of the segment.
+    </span><span class="attr">#[metastructure(bag_size = <span class="string">&quot;medium&quot;</span>)]
     </span><span class="kw">pub </span>error_ids: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// A list of trace-ids discovered during the lifetime of the segment.
+    </span><span class="attr">#[metastructure(bag_size = <span class="string">&quot;medium&quot;</span>)]
     </span><span class="kw">pub </span>trace_ids: Annotated&lt;Array&lt;String&gt;&gt;,
 
     <span class="doccomment">/// Contexts describing the environment (e.g. device, os or browser).
@@ -444,6 +452,7 @@
     ///
     /// A string representing the platform the SDK is submitting from. This will be used by the
     /// Sentry interface to customize various components in the interface.
+    </span><span class="attr">#[metastructure(max_chars = <span class="string">&quot;environment&quot;</span>)]
     </span><span class="kw">pub </span>platform: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// The release version of the application.
@@ -470,7 +479,8 @@
         allow_chars = <span class="string">&quot;a-zA-Z0-9_.-&quot;</span>,
         trim_whitespace = <span class="string">&quot;true&quot;</span>,
         required = <span class="string">&quot;false&quot;</span>,
-        nonempty = <span class="string">&quot;true&quot;
+        nonempty = <span class="string">&quot;true&quot;</span>,
+        max_chars = <span class="string">&quot;environment&quot;
     </span>)]
     </span><span class="kw">pub </span>dist: Annotated&lt;String&gt;,
 
@@ -494,7 +504,7 @@
     </span><span class="kw">pub </span>tags: Annotated&lt;Tags&gt;,
 
     <span class="doccomment">/// Static value. Should always be &quot;replay_event&quot;.
-    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">&quot;type&quot;</span>, max_chars = <span class="string">&quot;environment&quot;</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Information about the user who triggered this event.
