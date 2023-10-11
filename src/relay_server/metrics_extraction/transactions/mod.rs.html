@@ -1814,6 +1814,12 @@
 <a href="#1814" id="1814">1814</a>
 <a href="#1815" id="1815">1815</a>
 <a href="#1816" id="1816">1816</a>
+<a href="#1817" id="1817">1817</a>
+<a href="#1818" id="1818">1818</a>
+<a href="#1819" id="1819">1819</a>
+<a href="#1820" id="1820">1820</a>
+<a href="#1821" id="1821">1821</a>
+<a href="#1822" id="1822">1822</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
@@ -2147,13 +2153,19 @@
 
         <span class="comment">// Duration
         </span><span class="kw">let </span>duration = relay_common::time::chrono_to_positive_millis(end - start);
+        <span class="kw">let </span>has_profile = <span class="kw">if </span><span class="self">self</span>.config.version &gt;= <span class="number">3 </span>{
+            <span class="bool-val">false
+        </span>} <span class="kw">else </span>{
+            <span class="self">self</span>.has_profile
+        };
+
         metrics.project_metrics.push(
             TransactionMetric::Duration {
                 unit: DurationUnit::MilliSecond,
                 value: duration,
                 tags: TransactionDurationTags {
-                    has_profile: <span class="self">self</span>.has_profile, <span class="comment">// TODO: Stop producing this in v3
-                    </span>universal_tags: tags.clone(),
+                    has_profile,
+                    universal_tags: tags.clone(),
                 },
             }
             .into_metric(timestamp),
