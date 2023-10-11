@@ -1117,9 +1117,10 @@ impl EnvelopeProcessorService {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload()) {
-                Ok(processed) => {
-                    item.set_payload(ContentType::Json, processed);
+            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
+                Ok(result) => {
+                    item.set_routing_hint(result.routing_hint);
+                    item.set_payload(ContentType::Json, result.payload);
                     ItemAction::Keep
                 }
                 Err(error) => {

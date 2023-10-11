@@ -3700,6 +3700,7 @@ version = "23.9.1"
 dependencies = [
  "once_cell",
  "regex",
+ "relay-base-schema",
  "serde",
  "serde_json",
  "similar-asserts",

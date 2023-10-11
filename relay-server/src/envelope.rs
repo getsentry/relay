@@ -35,6 +35,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
 use std::time::Instant;
+use uuid::Uuid;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -451,6 +452,14 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     filename: Option<String>,
 
+    /// The routing_hint may be used to specify how the envelpope should be routed in when
+    /// published to kafka.
+    ///
+    /// XXX(epurkhiser): This is currently ONLY used for [`ItemType::CheckIn`]'s when publishing
+    /// the envelope into kafka.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    routing_hint: Option<Uuid>,
+
     /// Indicates that this item is being rate limited.
     ///
     /// By default, rate limited items are immediately removed from Envelopes. For processing,
@@ -499,6 +508,7 @@ impl Item {
                 attachment_type: None,
                 content_type: None,
                 filename: None,
+                routing_hint: None,
                 rate_limited: false,
                 sample_rates: None,
                 other: BTreeMap::new(),
@@ -616,6 +626,18 @@ impl Item {
         S: Into<String>,
     {
         self.headers.filename = Some(filename.into());
+    }
+
+    /// Returns the routing_hint of this item.
+    #[cfg(feature = "processing")]
+    pub fn routing_hint(&self) -> Option<Uuid> {
+        self.headers.routing_hint
+    }
+
+    /// Set the routing_hint of this item.
+    #[cfg(feature = "processing")]
+    pub fn set_routing_hint(&mut self, routing_hint: Uuid) {
+        self.headers.routing_hint = Some(routing_hint);
     }
 
     /// Returns whether this item should be rate limited.
@@ -1247,6 +1269,17 @@ mod tests {
 
         assert_eq!(item.get_header("custom"), Some(&Value::from(42u64)));
         assert_eq!(item.get_header("anything"), None);
+    }
+
+    #[test]
+    #[cfg(feature = "processing")]
+    fn test_item_set_routing_hint() {
+        let uuid = Uuid::parse_str("8a4ab00f-fba2-4f7b-a164-b58199d55c95").unwrap();
+
+        let mut item = Item::new(ItemType::Event);
+        item.set_routing_hint(uuid);
+
+        assert_eq!(item.routing_hint(), Some(uuid));
     }
 
     #[test]
