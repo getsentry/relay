@@ -15,6 +15,7 @@
 - Fix reporting of Relay's crashes to Sentry. The `crash-handler` feature did not enable the crash reporter and uploads of crashes were broken. ([#2532](https://github.com/getsentry/relay/pull/2532))
 - Use correct field to pick SQL parser for span normalization. ([#2536](https://github.com/getsentry/relay/pull/2536))
 - Prevent stack overflow on SQL serialization. ([#2538](https://github.com/getsentry/relay/pull/2538))
+- Bind exclusively to the port for the HTTP server. ([#2582](https://github.com/getsentry/relay/pull/2582))
 
 **Internal**:
 
