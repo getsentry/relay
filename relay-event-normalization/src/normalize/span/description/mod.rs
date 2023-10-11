@@ -43,7 +43,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                     || sub.contains("mongodb")
                     || sub.contains("redis")
                     || is_legacy_activerecord(sub, db_system)
-                    || is_sql_mongodb(sub, description, db_system)
+                    || is_sql_mongodb(description, db_system)
                 {
                     None
                 } else {
@@ -84,8 +84,11 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.
-fn is_sql_mongodb(sub_op: &str, description: &str, db_system: Option<&str>) -> bool {
-    sub_op == "sql.query" && (description.contains("\"$") || db_system == Some("mongodb"))
+fn is_sql_mongodb(description: &str, db_system: Option<&str>) -> bool {
+    description.contains("\"$")
+        || description.contains("({")
+        || description.starts_with('{')
+        || db_system == Some("mongodb")
 }
 
 /// We are unable to parse active record when we do not know which database is being used.
