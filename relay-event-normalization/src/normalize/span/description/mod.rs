@@ -602,6 +602,15 @@ mod tests {
         "data:image/svg+xml"
     );
 
+    span_description_test!(
+        db_category_with_mongodb_query,
+        "find({some_id:1234567890},{limit:100})",
+        "db",
+        ""
+    );
+
+    span_description_test!(db_category_with_not_sql, "{someField:someValue}", "db", "");
+
     #[test]
     fn informed_sql_parser() {
         let json = r#"
