@@ -193,10 +193,16 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
         Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(string) => {
             // No IDs scrubbed, but we still want to set something.
-            let url = Url::parse(string).ok()?;
-            let extension = url.path().rsplit_once('.')?.1;
-            let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
-            Some(format!("{domain}/*.{extension}"))
+            // If we managed to parse the URL, we'll try to get an extension.
+            if let Ok(url) = Url::parse(string) {
+                let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
+                // If there is an extension, we add it to the domain.
+                if let Some(extension) = url.path().rsplit_once('.') {
+                    return Some(format!("{domain}/*.{}", extension.1));
+                }
+                return Some(domain);
+            }
+            Some(string.into())
         }
     }
 }
@@ -547,7 +553,7 @@ mod tests {
     );
 
     span_description_test!(
-        span_description_fil_no_extension,
+        span_description_file_with_no_extension,
         "somefilenamewithnoextension",
         "file.read",
         "*"
@@ -558,6 +564,27 @@ mod tests {
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
         "https://data.domain.com/data/guide*.gif"
+    );
+
+    span_description_test!(
+        resource_script_with_no_extension,
+        "https://www.domain.com/page?id=1234567890",
+        "resource.script",
+        "*.domain.com"
+    );
+
+    span_description_test!(
+        resource_script_with_no_domain,
+        "/page.js?action=name",
+        "resource.script",
+        "/page.js"
+    );
+
+    span_description_test!(
+        resource_script_with_no_domain_no_extension,
+        "/page?action=name",
+        "resource.script",
+        "/page"
     );
 
     #[test]
