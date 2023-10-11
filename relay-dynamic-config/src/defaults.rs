@@ -12,6 +12,9 @@ const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*
 /// A list of span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 
+/// A list of patterns found in MongoDB queries
+const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*"];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -42,7 +45,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     } else {
         let is_disabled = RuleCondition::glob("span.op", DISABLED_DATABASES);
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
-            | RuleCondition::glob("span.description", vec!["*\"$*", "{*", "*({*"]);
+            | RuleCondition::glob("span.description", MONGODB_QUERIES);
 
         let mut conditions = RuleCondition::eq("span.op", "http.client")
             | RuleCondition::glob("span.op", MOBILE_OPS)
