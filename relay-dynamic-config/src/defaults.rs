@@ -42,7 +42,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     } else {
         let is_disabled = RuleCondition::glob("span.op", DISABLED_DATABASES);
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
-            | RuleCondition::glob("span.description", vec!["*\"$*", "{*"]);
+            | RuleCondition::glob("span.description", vec!["*\"$*", "{*", "*({*"]);
 
         let mut conditions = RuleCondition::eq("span.op", "http.client")
             | RuleCondition::glob("span.op", MOBILE_OPS)
