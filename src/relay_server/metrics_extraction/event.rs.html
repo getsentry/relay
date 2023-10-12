@@ -1069,6 +1069,20 @@
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
 <a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -1515,12 +1529,26 @@
                     &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
                     &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
                     &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
+                        &quot;http.decoded_response_body_length&quot;: 128950,
                         &quot;http.response_content_length&quot;: 36170,
                         &quot;http.response_transfer_size&quot;: 36470,
                         &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;
                     },
                     &quot;hash&quot;: &quot;e2fae740cccd3789&quot;
+                },
+                {
+                    &quot;timestamp&quot;: 1694732408.3145,
+                    &quot;start_timestamp&quot;: 1694732407.8367,
+                    &quot;span_id&quot;: &quot;97c0ef9770a02f9d&quot;,
+                    &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
+                    &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
+                    &quot;op&quot;: &quot;resource.link&quot;,
+                    &quot;description&quot;: &quot;domain.com/zero-length-00&quot;,
+                    &quot;data&quot;: {
+                        &quot;http.decoded_response_body_length&quot;: 0,
+                        &quot;http.response_content_length&quot;: 0,
+                        &quot;http.response_transfer_size&quot;: 0
+                    }
                 }
             ]
         }
@@ -2040,7 +2068,7 @@
                     &quot;parent_span_id&quot;: &quot;9756d8d7b2b364ff&quot;,
                     &quot;trace_id&quot;: &quot;77aeb1c16bb544a4a39b8d42944947a3&quot;,
                     &quot;data&quot;: {
-                        &quot;http.decoded_response_content_length&quot;: 128950,
+                        &quot;http.decoded_response_body_length&quot;: 128950,
                         &quot;http.response_content_length&quot;: 36170,
                         &quot;http.response_transfer_size&quot;: 36470,
                         &quot;resource.render_blocking_status&quot;: &quot;blocking&quot;
