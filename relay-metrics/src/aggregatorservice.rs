@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::iter::FusedIterator;
 use std::time::Duration;
 
@@ -265,16 +264,8 @@ impl AggregatorService {
             project_key,
             buckets,
         } = msg;
-        if let Err(err) =
-            self.aggregator
-                .merge_all(project_key, buckets, self.max_total_bucket_bytes)
-        {
-            relay_log::error!(
-                tags.aggregator = &self.aggregator.name(),
-                error = &err as &dyn Error,
-                "failed to merge buckets"
-            );
-        }
+        self.aggregator
+            .merge_all(project_key, buckets, self.max_total_bucket_bytes);
     }
 
     fn handle_message(&mut self, msg: Aggregator) {
