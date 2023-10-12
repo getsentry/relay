@@ -58,38 +58,6 @@ pub enum SpanTagKey {
 }
 
 impl SpanTagKey {
-    /// The key used to write this tag into `span.data`.
-    ///
-    /// This key corresponds to the tag key on span metrics.
-    /// NOTE: This method can be removed once we stop double-writing span tags.
-    pub fn data_key(&self) -> &str {
-        match self {
-            SpanTagKey::Release => "release",
-            SpanTagKey::User => "user",
-            SpanTagKey::Environment => "environment",
-            SpanTagKey::Transaction => "transaction",
-            SpanTagKey::TransactionMethod => "transaction.method",
-            SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
-            SpanTagKey::Mobile => "mobile",
-            SpanTagKey::DeviceClass => "device.class",
-
-            SpanTagKey::Action => "span.action",
-            SpanTagKey::Category => "span.category",
-            SpanTagKey::Description => "span.description",
-            SpanTagKey::Domain => "span.domain",
-            SpanTagKey::Group => "span.group",
-            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
-            SpanTagKey::HttpResponseContentLength => "http.response_content_length",
-            SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
-            SpanTagKey::Module => "span.module",
-            SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
-            SpanTagKey::SpanOp => "span.op",
-            SpanTagKey::StatusCode => "span.status_code",
-            SpanTagKey::System => "span.system",
-        }
-    }
-
     /// The key used to write this tag into `span.sentry_keys`.
     ///
     /// This key corresponds to the tag key in the snuba span dataset.
@@ -182,17 +150,6 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
                 .chain(tags.clone())
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
-        );
-
-        // Double write to `span.data` for now. This can be removed once all users of these fields
-        // have switched to `sentry_tags`.
-        let data = span.data.value_mut().get_or_insert_with(Default::default);
-        data.extend(
-            shared_tags
-                .clone()
-                .into_iter()
-                .chain(tags)
-                .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
         );
     }
 }
