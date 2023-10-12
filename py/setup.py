@@ -113,8 +113,8 @@ setup(
     zip_safe=False,
     platforms="any",
     python_requires=">=3.8",
-    install_requires=["milksnake>=0.1.2"],
-    setup_requires=["milksnake>=0.1.2"],
+    install_requires=["milksnake>=0.1.6"],
+    setup_requires=["milksnake>=0.1.6"],
     milksnake_tasks=[build_native],
     cmdclass={"sdist": CustomSDist},
 )
