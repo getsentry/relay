@@ -34,7 +34,6 @@ mod tests {
     use relay_protocol::Annotated;
     use relay_sampling::condition::RuleCondition;
     use std::collections::HashMap;
-    use std::hash::Hash;
 
     fn mock_filters() -> HashMap<String, GenericFilterConfig> {
         let mut generic_filters_map = HashMap::new();

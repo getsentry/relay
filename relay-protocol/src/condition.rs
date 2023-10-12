@@ -330,7 +330,7 @@ impl NotCondition {
 ///
 /// let condition = !RuleCondition::eq("obj.status", "invalid");
 /// ```
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "op")]
 pub enum RuleCondition {
     /// A condition that compares values for equality.
@@ -441,6 +441,7 @@ pub enum RuleCondition {
 
     /// An unsupported condition for future compatibility.
     #[serde(other)]
+    #[default]
     Unsupported,
 }
 
@@ -693,12 +694,6 @@ impl std::ops::Not for RuleCondition {
 
     fn not(self) -> Self::Output {
         self.negate()
-    }
-}
-
-impl Default for RuleCondition {
-    fn default() -> Self {
-        RuleCondition::Unsupported
     }
 }
 

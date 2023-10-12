@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::fmt;
-use std::fmt::format;
 
 use serde::Serialize;
 
