@@ -621,7 +621,7 @@ impl Project {
                         aggregator.send(MergeBuckets::new(self.project_key, buckets));
                     }
                     AggregationState::Aggregator(inner_agg) => {
-                        let _ = inner_agg.merge_all(self.project_key, buckets, None);
+                        inner_agg.merge_all(self.project_key, buckets, None);
                     }
                 }
             }
