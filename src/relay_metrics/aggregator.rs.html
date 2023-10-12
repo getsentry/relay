@@ -1449,11 +1449,6 @@
 <a href="#1449" id="1449">1449</a>
 <a href="#1450" id="1450">1450</a>
 <a href="#1451" id="1451">1451</a>
-<a href="#1452" id="1452">1452</a>
-<a href="#1453" id="1453">1453</a>
-<a href="#1454" id="1454">1454</a>
-<a href="#1455" id="1455">1455</a>
-<a href="#1456" id="1456">1456</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -2260,28 +2255,23 @@
         project_key: ProjectKey,
         buckets: I,
         max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt;
-    <span class="kw">where
+    ) <span class="kw">where
         </span>I: IntoIterator&lt;Item = Bucket&gt;,
     {
         <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
-            <span class="kw">let </span>metric_name = bucket.name.clone(); <span class="comment">// temporary clone, can be removed later
-            </span><span class="kw">let </span>prefix = metric_name
-                .as_str()
-                .split_once(<span class="string">&#39;/&#39;</span>)
-                .map_or(<span class="string">&quot;other&quot;</span>, |(prefix, <span class="kw">_</span>)| prefix);
-
             <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.merge(project_key, bucket, max_total_bucket_bytes) {
-                <span class="macro">relay_log::error!</span>(
-                    tags.aggregator = <span class="self">self</span>.name,
-                    tags.metric_name = prefix,
-                    full_metric_name = <span class="kw-2">&amp;</span>metric_name,
-                    bucket.error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error
-                );
+                <span class="kw">match </span><span class="kw-2">&amp;</span>error.kind {
+                    <span class="comment">// Ignore invalid timestamp errors.
+                    </span>AggregateMetricsErrorKind::InvalidTimestamp(<span class="kw">_</span>) =&gt; {}
+                    _other =&gt; {
+                        <span class="macro">relay_log::error!</span>(
+                            tags.aggregator = <span class="self">self</span>.name,
+                            bucket.error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error
+                        );
+                    }
+                }
             }
         }
-
-        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Split buckets into N logical partitions, determined by the bucket key.
