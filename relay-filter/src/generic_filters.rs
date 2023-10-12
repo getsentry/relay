@@ -33,27 +33,24 @@ mod tests {
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
     use relay_sampling::condition::RuleCondition;
-    use std::collections::HashMap;
 
-    fn mock_filters() -> HashMap<String, GenericFilterConfig> {
-        let mut generic_filters_map = HashMap::new();
-
-        generic_filters_map.insert(
-            "hydrationError".to_string(),
-            GenericFilterConfig {
-                is_enabled: true,
-                condition: RuleCondition::eq("event.release", "1.0"),
-            },
-        );
-        generic_filters_map.insert(
-            "chunkLoadError".to_string(),
-            GenericFilterConfig {
-                is_enabled: true,
-                condition: RuleCondition::eq("event.transaction", "/hello"),
-            },
-        );
-
-        generic_filters_map
+    fn mock_filters() -> Vec<(String, GenericFilterConfig)> {
+        vec![
+            (
+                "hydrationError".to_string(),
+                GenericFilterConfig {
+                    is_enabled: true,
+                    condition: RuleCondition::eq("event.release", "1.0"),
+                },
+            ),
+            (
+                "chunkLoadError".to_string(),
+                GenericFilterConfig {
+                    is_enabled: true,
+                    condition: RuleCondition::eq("event.transaction", "/hello"),
+                },
+            ),
+        ]
     }
 
     #[test]

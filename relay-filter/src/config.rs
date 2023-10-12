@@ -1,13 +1,16 @@
 //! Config structs for all filters.
 
 use std::borrow::Cow;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::convert::Infallible;
+use std::fmt;
 use std::str::FromStr;
 
 use relay_common::glob3::GlobPatterns;
 use relay_sampling::condition::RuleCondition;
-use serde::{Deserialize, Serialize};
+use serde::de::{MapAccess, Visitor};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -211,14 +214,62 @@ impl GenericFilterConfig {
 }
 
 /// Configuration for generic filters.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GenericFiltersConfig(pub HashMap<String, GenericFilterConfig>);
+#[derive(Clone, Debug, Default)]
+pub struct GenericFiltersConfig(pub Vec<(String, GenericFilterConfig)>);
 
 impl GenericFiltersConfig {
     /// Returns true if there are no generic filters configured.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty() || self.0.iter().all(|(_, value)| value.is_empty())
+    }
+}
+
+impl Serialize for GenericFiltersConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (filter_name, filter_config) in self.0.iter() {
+            map.serialize_entry(filter_name, filter_config)?
+        }
+        map.end()
+    }
+}
+
+struct GenericFiltersConfigVisitor();
+
+impl<'de> Visitor<'de> for GenericFiltersConfigVisitor {
+    type Value = GenericFiltersConfig;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter
+            .write_str("a map where keys are filter names and values are filter configurations")
+    }
+
+    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+    where
+        M: MapAccess<'de>,
+    {
+        let mut filters = GenericFiltersConfig(vec![]);
+
+        // We don't perform any kind of de-duplication in case of duplicate keys, since this might
+        // lead to an opaque behavior from the outside. The resolution of multiple filters with
+        // the same name, will be a responsibility of the matching algorithm.
+        while let Some((key, value)) = access.next_entry()? {
+            filters.0.push((key, value));
+        }
+
+        Ok(filters)
+    }
+}
+
+impl<'de> Deserialize<'de> for GenericFiltersConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(GenericFiltersConfigVisitor())
     }
 }
 
@@ -340,15 +391,6 @@ mod tests {
 
     #[test]
     fn test_serialize_full() {
-        let mut generic_filters_map = HashMap::new();
-        generic_filters_map.insert(
-            "hydrationError".to_string(),
-            GenericFilterConfig {
-                is_enabled: true,
-                condition: RuleCondition::eq("event.exceptions", "HydrationError"),
-            },
-        );
-
         let filters_config = FiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
             client_ips: ClientIpsFilterConfig {
@@ -373,7 +415,13 @@ mod tests {
                 patterns: GlobPatterns::new(vec!["*health*".to_string()]),
                 is_enabled: true,
             },
-            generic_filters: GenericFiltersConfig(generic_filters_map),
+            generic_filters: GenericFiltersConfig(vec![(
+                "hydrationError".to_string(),
+                GenericFilterConfig {
+                    is_enabled: true,
+                    condition: RuleCondition::eq("event.exceptions", "HydrationError"),
+                },
+            )]),
         };
 
         insta::assert_json_snapshot!(filters_config, @r#"
@@ -442,6 +490,65 @@ mod tests {
             is_enabled: false,
             browsers: {},
         }
+        "###);
+    }
+
+    #[test]
+    fn test_deserialize_generic_filters() {
+        let json = r#"{
+            "hydrationError": {
+              "isEnabled": true,
+              "condition": {
+                "op": "eq",
+                "name": "event.exceptions",
+                "value": "HydrationError"
+              }
+            },
+            "chunkLoadError": {
+                "isEnabled": false,
+                "condition": {
+                  "op": "eq",
+                  "name": "event.exceptions",
+                  "value": "ChunkLoadError"
+                }
+            }
+          }"#;
+        let config = serde_json::from_str::<GenericFiltersConfig>(json).unwrap();
+        insta::assert_debug_snapshot!(config, @r###"
+        GenericFiltersConfig(
+            [
+                (
+                    "hydrationError",
+                    GenericFilterConfig {
+                        is_enabled: true,
+                        condition: Eq(
+                            EqCondition {
+                                name: "event.exceptions",
+                                value: String("HydrationError"),
+                                options: EqCondOptions {
+                                    ignore_case: false,
+                                },
+                            },
+                        ),
+                    },
+                ),
+                (
+                    "chunkLoadError",
+                    GenericFilterConfig {
+                        is_enabled: false,
+                        condition: Eq(
+                            EqCondition {
+                                name: "event.exceptions",
+                                value: String("ChunkLoadError"),
+                                options: EqCondOptions {
+                                    ignore_case: false,
+                                },
+                            },
+                        ),
+                    },
+                ),
+            ],
+        )
         "###);
     }
 }
