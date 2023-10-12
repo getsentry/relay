@@ -78,6 +78,9 @@
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
 
@@ -158,4 +161,7 @@
     )
     .unwrap()
 });
+
+<span class="kw">pub static </span>DB_SQL_TRANSACTION_CORE_DATA_REGEX: Lazy&lt;Regex&gt; =
+    Lazy::new(|| Regex::new(<span class="string">r&quot;(?P&lt;int&gt;\d+)&quot;</span>).unwrap());
 </code></pre></div></section></main></body></html>
