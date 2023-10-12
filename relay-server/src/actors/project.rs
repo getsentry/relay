@@ -381,25 +381,33 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
+/// Enum representing either the project state or an aggregation of metrics.
+///
+/// We want to wait with enforcing rate limits on metrics until we have a project state,
+/// So when we don't have one yet, we hold them in this aggregator until the project state arrives.
 #[derive(Debug)]
-enum AggState {
+#[allow(clippy::large_enum_variant)]
+enum AggregationState {
     State(Arc<ProjectState>),
     Aggregator(aggregator::Aggregator),
 }
 
-impl AggState {
-    fn aggregator_value(&self) -> Option<&aggregator::Aggregator> {
+impl AggregationState {
+    fn state_value(&self) -> Option<Arc<ProjectState>> {
         match self {
-            AggState::Aggregator(agg) => Some(agg),
-            AggState::State(_) => None,
+            AggregationState::State(state) => Some(Arc::clone(state)),
+            AggregationState::Aggregator(_) => None,
         }
     }
 
-    fn state_value(&self) -> Option<Arc<ProjectState>> {
-        match self {
-            AggState::State(state) => Some(Arc::clone(&state)),
-            AggState::Aggregator(_) => None,
-        }
+    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
+        let buckets = match self {
+            AggregationState::State(_) => None,
+            AggregationState::Aggregator(agg) => Some(agg.take_buckets()),
+        };
+        *self = Self::State(state);
+
+        buckets
     }
 }
 
@@ -414,7 +422,7 @@ pub struct Project {
     last_updated_at: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    state: AggState,
+    state: AggregationState,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
@@ -429,7 +437,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: AggState::Aggregator(aggregator::Aggregator::new(
+            state: AggregationState::Aggregator(aggregator::Aggregator::new(
                 config.default_aggregator_config().aggregator.clone(),
             )),
             state_channel: None,
@@ -453,10 +461,6 @@ impl Project {
     /// Returns the [`ReservoirCounters`] for the project.
     pub fn reservoir_counters(&self) -> ReservoirCounters {
         self.reservoir_counters.clone()
-    }
-
-    fn aggregator_value(&self) -> Option<&aggregator::Aggregator> {
-        self.state.aggregator_value()
     }
 
     fn state_value(&self) -> Option<Arc<ProjectState>> {
@@ -600,8 +604,16 @@ impl Project {
     ) {
         if self.metrics_allowed() {
             let buckets = self.rate_limit_metrics(buckets, outcome_aggregator);
+
             if !buckets.is_empty() {
-                aggregator.send(MergeBuckets::new(self.project_key, buckets));
+                match &mut self.state {
+                    AggregationState::State(_) => {
+                        aggregator.send(MergeBuckets::new(self.project_key, buckets));
+                    }
+                    AggregationState::Aggregator(inner_agg) => {
+                        inner_agg.merge_all(self.project_key, buckets, None);
+                    }
+                }
             }
         } else {
             relay_log::debug!("dropping metric buckets, project disabled");
@@ -733,6 +745,14 @@ impl Project {
         }
     }
 
+    fn set_state(&mut self, state: Arc<ProjectState>, aggregator: Addr<Aggregator>) {
+        let buckets = self.state.set_state(state);
+
+        if let Some(buckets) = buckets {
+            aggregator.send(MergeBuckets::new(self.project_key, buckets));
+        }
+    }
+
     /// Ensures the project state gets updated.
     ///
     /// This first checks if the state needs to be updated. This is the case if the project state
@@ -759,6 +779,7 @@ impl Project {
     pub fn update_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
+        aggregator: Addr<Aggregator>,
         mut state: Arc<ProjectState>,
         no_cache: bool,
     ) {
@@ -786,7 +807,7 @@ impl Project {
             // If the new state is invalid but the old one still usable, keep the old one.
             ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
             // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.state = AggState::State(state.clone()),
+            _ => self.set_state(state.clone(), aggregator),
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
@@ -1001,7 +1022,7 @@ mod tests {
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.state = AggState::State(Arc::new(project_state));
+            project.state = AggregationState::State(Arc::new(project_state));
 
             // Direct access should always yield a state:
             assert!(project.state_value().is_some());
@@ -1019,6 +1040,7 @@ mod tests {
     #[tokio::test]
     async fn test_stale_cache() {
         let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -1040,13 +1062,18 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.state = AggState::State(Arc::new(project_state));
+        project.state = AggregationState::State(Arc::new(project_state));
 
         // The project ID must be set.
         assert!(!project.state_value().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
-        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
+        project.update_state(
+            addr.clone(),
+            aggregator.clone(),
+            Arc::new(ProjectState::err()),
+            false,
+        );
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(!project.state_value().unwrap().invalid());
@@ -1062,7 +1089,12 @@ mod tests {
         // * without backoff it would just panic, not able to call the ProjectCache service
         let channel = StateChannel::new();
         project.state_channel = Some(channel);
-        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
+        project.update_state(
+            addr.clone(),
+            aggregator.clone(),
+            Arc::new(ProjectState::err()),
+            false,
+        );
         project.fetch_state(addr, false);
     }
 
@@ -1074,7 +1106,7 @@ mod tests {
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
-        project.state = AggState::State(Arc::new(project_state));
+        project.state = AggregationState::State(Arc::new(project_state));
         project
     }
 

@@ -570,8 +570,10 @@ impl ProjectCacheBroker {
         } = message;
 
         let project_cache = self.services.project_cache.clone();
+        let aggregator = self.services.aggregator.clone();
         self.get_or_create_project(project_key).update_state(
             project_cache,
+            aggregator,
             state.clone(),
             no_cache,
         );

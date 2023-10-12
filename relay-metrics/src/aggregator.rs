@@ -487,6 +487,23 @@ impl Aggregator {
         self.cost_tracker.totals_cost_exceeded(max_total_cost)
     }
 
+    /// Takes out the buckets from the aggregator, leaving an empty map.
+    pub fn take_buckets(&mut self) -> Vec<Bucket> {
+        let bucket_interval = self.config.bucket_interval;
+        let buckets = std::mem::take(&mut self.buckets);
+
+        buckets
+            .into_iter()
+            .map(|(key, entry)| Bucket {
+                timestamp: key.timestamp,
+                width: bucket_interval,
+                name: key.metric_name.clone(),
+                value: entry.value,
+                tags: key.tags.clone(),
+            })
+            .collect()
+    }
+
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
@@ -512,7 +529,6 @@ impl Aggregator {
             {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
-                // binary heap ?
                 self.buckets.retain(|key, entry| {
                     if force || entry.elapsed() {
                         // Take the value and leave a placeholder behind. It'll be removed right after.
@@ -804,8 +820,7 @@ impl Aggregator {
         project_key: ProjectKey,
         buckets: I,
         max_total_bucket_bytes: Option<usize>,
-    ) -> Result<(), AggregateMetricsError>
-    where
+    ) where
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
@@ -824,8 +839,6 @@ impl Aggregator {
                 );
             }
         }
-
-        Ok(())
     }
 
     /// Split buckets into N logical partitions, determined by the bucket key.
