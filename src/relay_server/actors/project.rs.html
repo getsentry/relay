@@ -1118,6 +1118,16 @@
 <a href="#1118" id="1118">1118</a>
 <a href="#1119" id="1119">1119</a>
 <a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
+<a href="#1129" id="1129">1129</a>
+<a href="#1130" id="1130">1130</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1508,6 +1518,7 @@
     backoff: RetryBackoff,
     next_fetch_attempt: <span class="prelude-ty">Option</span>&lt;Instant&gt;,
     last_updated_at: Instant,
+    last_envelope_seen: Instant,
     project_key: ProjectKey,
     config: Arc&lt;Config&gt;,
     state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectState&gt;&gt;,
@@ -1524,6 +1535,7 @@
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: <span class="prelude-val">None</span>,
             last_updated_at: Instant::now(),
+            last_envelope_seen: Instant::now(),
             project_key: key,
             config,
             state: <span class="prelude-val">None</span>,
@@ -1606,6 +1618,11 @@
     <span class="doccomment">/// The last time the project state was updated
     </span><span class="kw">pub fn </span>last_updated_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
         <span class="self">self</span>.last_updated_at
+    }
+
+    <span class="doccomment">/// The last time that this project was used for an incoming envelope.
+    </span><span class="kw">pub fn </span>last_envelope_seen_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
+        <span class="self">self</span>.last_envelope_seen
     }
 
     <span class="doccomment">/// Refresh the update time of the project in order to delay eviction.
@@ -1933,6 +1950,9 @@
         <span class="kw">let </span>state = <span class="self">self</span>.valid_state().filter(|state| !state.invalid());
         <span class="kw">let </span><span class="kw-2">mut </span>scoping = envelope.scoping();
 
+        <span class="comment">// On every incoming envelope, which belongs to this project, update when it was last seen.
+        </span><span class="self">self</span>.last_envelope_seen = envelope.start_time().into();
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>state) = state {
             scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
@@ -2140,7 +2160,7 @@
 
         <span class="comment">// This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it&#39;s the first attemt, we get Duration of 0.
+        //   it&#39;s the first attempt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it&#39;s a noop, since if backoff is active
