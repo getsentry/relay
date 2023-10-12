@@ -222,7 +222,7 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
                 if let Some(extension) = url.path().rsplit_once('.') {
                     return Some(format!("{domain}/*.{}", extension.1));
                 }
-                return Some(domain);
+                return Some(format!("{domain}/*"));
             }
             Some(string.into())
         }
