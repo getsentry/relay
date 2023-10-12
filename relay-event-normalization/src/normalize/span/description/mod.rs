@@ -106,7 +106,7 @@ fn is_legacy_activerecord(sub_op: &str, db_system: Option<&str>) -> bool {
 fn scrub_core_data(string: &str) -> Option<String> {
     match DB_SQL_TRANSACTION_CORE_DATA_REGEX.replace_all(string, "*") {
         Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(_) => Some("".into()),
+        Cow::Borrowed(_) => None,
     }
 }
 
