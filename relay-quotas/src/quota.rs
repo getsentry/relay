@@ -110,7 +110,8 @@ impl CategoryUnit {
             | DataCategory::TransactionIndexed
             | DataCategory::Span
             | DataCategory::MonitorSeat
-            | DataCategory::Monitor => Some(Self::Count),
+            | DataCategory::Monitor
+            | DataCategory::UserFeedback => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
 
