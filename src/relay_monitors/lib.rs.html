@@ -523,7 +523,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>process_json_roundtrip() {
+    </span><span class="kw">fn </span>serialize_json_roundtrip() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
@@ -544,7 +544,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>process_with_upsert_short() {
+    </span><span class="kw">fn </span>serialize_with_upsert_short() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
@@ -564,7 +564,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>process_with_upsert_interval() {
+    </span><span class="kw">fn </span>serialize_with_upsert_interval() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
@@ -588,7 +588,7 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>process_with_upsert_full() {
+    </span><span class="kw">fn </span>serialize_with_upsert_full() {
         <span class="kw">let </span>json = <span class="string">r#&quot;{
   &quot;check_in_id&quot;: &quot;a460c25ff2554577b920fcfacae4e5eb&quot;,
   &quot;monitor_slug&quot;: &quot;my-monitor&quot;,
