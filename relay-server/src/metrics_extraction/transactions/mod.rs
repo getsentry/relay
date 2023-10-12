@@ -182,6 +182,10 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
+    if let Some(device_class) = event.tag_value("device.class") {
+        tags.insert(CommonTag::DeviceClass, device_class.to_owned());
+    }
+
     let custom_tags = &config.extract_custom_tags;
     if !custom_tags.is_empty() {
         // XXX(slow): event tags are a flat array
@@ -457,7 +461,8 @@ mod tests {
             },
             "tags": {
                 "fOO": "bar",
-                "bogus": "absolutely"
+                "bogus": "absolutely",
+                "device.class": "1"
             },
             "measurements": {
                 "foo": {"value": 420.69},
@@ -582,6 +587,7 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
+                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -606,6 +612,7 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
+                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -631,6 +638,7 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
+                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -664,6 +672,7 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
+                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -701,6 +710,7 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
+                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
