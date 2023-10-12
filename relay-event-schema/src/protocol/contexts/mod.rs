@@ -2,6 +2,7 @@ mod app;
 mod browser;
 mod cloud_resource;
 mod device;
+mod feedback;
 mod gpu;
 mod monitor;
 mod os;
@@ -12,11 +13,11 @@ mod reprocessing;
 mod response;
 mod runtime;
 mod trace;
-
 pub use app::*;
 pub use browser::*;
 pub use cloud_resource::*;
 pub use device::*;
+pub use feedback::*;
 pub use gpu::*;
 pub use monitor::*;
 pub use os::*;
@@ -67,6 +68,8 @@ pub enum Context {
     Profile(Box<ProfileContext>),
     /// Information related to Replay.
     Replay(Box<ReplayContext>),
+    /// Information related to Feedback.
+    Feedback(Box<FeedbackContext>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.

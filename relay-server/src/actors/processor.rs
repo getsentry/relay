@@ -1715,7 +1715,7 @@ impl EnvelopeProcessorService {
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
-        } else if let Some(mut item) = user_feedback_item {
+        } else if let Some(item) = user_feedback_item {
             relay_log::trace!("processing user feedback");
             self.event_from_json_payload(item, Some(EventType::UserFeedback))?
         } else if let Some(mut item) = raw_security_item {

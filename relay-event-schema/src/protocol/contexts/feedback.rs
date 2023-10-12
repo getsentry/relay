@@ -3,9 +3,8 @@ use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
-use crate::protocol::EventId;
 
-/// Replay context.
+/// Feedback context.
 ///
 /// The replay context contains the replay_id of the session replay if the event
 /// occurred during a replay. The replay_id is added onto the dynamic sampling context
@@ -14,42 +13,45 @@ use crate::protocol::EventId;
 /// This context is never set on the client for events, only on relay.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct ReplayContext {
+pub struct FeedbackContext {
     /// The replay ID.
-    pub replay_id: Annotated<EventId>,
+    pub message: Annotated<String>,
+
+    #[metastructure(pii = "false")]
+    pub contact_email: Annotated<String>,
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true")]
     pub other: Object<Value>,
 }
 
-impl super::DefaultContext for ReplayContext {
+impl super::DefaultContext for FeedbackContext {
     fn default_key() -> &'static str {
-        "replay"
+        "feedback"
     }
 
     fn from_context(context: super::Context) -> Option<Self> {
         match context {
-            super::Context::Replay(c) => Some(*c),
+            super::Context::Feedback(c) => Some(*c),
             _ => None,
         }
     }
 
     fn cast(context: &super::Context) -> Option<&Self> {
         match context {
-            super::Context::Replay(c) => Some(c),
+            super::Context::Feedback(c) => Some(c),
             _ => None,
         }
     }
 
     fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
         match context {
-            super::Context::Replay(c) => Some(c),
+            super::Context::Feedback(c) => Some(c),
             _ => None,
         }
     }
 
     fn into_context(self) -> super::Context {
-        super::Context::Replay(Box::new(self))
+        super::Context::Feedback(Box::new(self))
     }
 }
 
@@ -59,31 +61,19 @@ mod tests {
     use crate::protocol::Context;
 
     #[test]
-    fn test_replay_context() {
+    fn test_feedback_context() {
         let json = r#"{
-  "replay_id": "4c79f60c11214eb38604f4ae0781bfb2",
-  "type": "replay"
+  "message": "test message",
+  "contact_email": "test@test.com",
+  "type": "feedback"
 }"#;
-        let context = Annotated::new(Context::Replay(Box::new(ReplayContext {
-            replay_id: Annotated::new(EventId("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap())),
+        let context = Annotated::new(Context::Feedback(Box::new(FeedbackContext {
+            message: Annotated::new("test message".to_string()),
+            contact_email: Annotated::new("test@test.com".to_string()),
             other: Object::default(),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
         assert_eq!(json, context.to_json_pretty().unwrap());
-    }
-
-    #[test]
-    fn test_replay_context_normalization() {
-        let json = r#"{
-  "replay_id": "4C79F60C11214EB38604F4AE0781BFB2",
-  "type": "replay"
-}"#;
-        let context = Annotated::new(Context::Replay(Box::new(ReplayContext {
-            replay_id: Annotated::new(EventId("4c79f60c11214eb38604f4ae0781bfb2".parse().unwrap())),
-            other: Object::default(),
-        })));
-
-        assert_eq!(context, Annotated::from_json(json).unwrap());
     }
 }

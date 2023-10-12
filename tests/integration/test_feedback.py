@@ -25,6 +25,10 @@ def generate_feedback_sdk_event():
             },
         },
         "contexts": {
+            "feedback": {
+                "message": "test message",
+                "contact_email": "test@example.com",
+            },
             "trace": {
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
                 "span_id": "FA90FDEAD5F74052",
@@ -88,6 +92,11 @@ def test_feedback_event_with_processing(
             "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
             "span_id": "fa90fdead5f74052",
             "type": "trace",
+        },
+        "feedback": {
+            "message": "test message",
+            "contact_email": "test@example.com",
+            "type": "feedback",
         },
     }
 
