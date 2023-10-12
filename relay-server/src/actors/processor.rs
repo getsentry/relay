@@ -1717,6 +1717,11 @@ impl EnvelopeProcessorService {
             })
         } else if let Some(item) = user_feedback_item {
             relay_log::trace!("processing user feedback");
+            let project_state = &state.project_state;
+            let feedback_ingest = project_state.has_feature(Feature::UserFeedbackIngest);
+            if !feedback_ingest {
+                return Err(ProcessingError::NoEventPayload);
+            }
             self.event_from_json_payload(item, Some(EventType::UserFeedback))?
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");

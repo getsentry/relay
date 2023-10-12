@@ -46,7 +46,7 @@ def test_feedback_event_with_processing(
 ):
     relay = relay_with_processing()
     mini_sentry.add_basic_project_config(
-        42, extra={"config": {"features": ["organizations:session-replay"]}}
+        42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
 
     _events_consumer = events_consumer(timeout=5)
@@ -106,7 +106,8 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
 
     project_id = 42
     mini_sentry.add_basic_project_config(
-        project_id, extra={"config": {"features": ["organizations:session-replay"]}}
+        project_id,
+        extra={"config": {"features": ["organizations:user-feedback-ingest"]}},
     )
 
     replay_item = generate_feedback_sdk_event()

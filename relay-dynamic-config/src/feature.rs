@@ -11,6 +11,9 @@ pub enum Feature {
     /// Enables data scrubbing of replay recording payloads.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
+    /// Enables new User Feedback ingest
+    #[serde(rename = "organizations:user-feedback-ingest")]
+    UserFeedbackIngest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
