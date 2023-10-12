@@ -820,7 +820,8 @@ impl Aggregator {
         project_key: ProjectKey,
         buckets: I,
         max_total_bucket_bytes: Option<usize>,
-    ) where
+    ) -> Result<(), AggregateMetricsError>
+    where
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
@@ -839,6 +840,7 @@ impl Aggregator {
                 );
             }
         }
+        Ok(())
     }
 
     /// Split buckets into N logical partitions, determined by the bucket key.

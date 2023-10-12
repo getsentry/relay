@@ -6,6 +6,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
+use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     aggregator, Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
 };
@@ -409,6 +410,10 @@ impl AggregationState {
 
         buckets
     }
+
+    fn new(config: AggregatorConfig) -> Self {
+        Self::Aggregator(aggregator::Aggregator::new(config))
+    }
 }
 
 /// Structure representing organization and project configuration for a project key.
@@ -437,9 +442,7 @@ impl Project {
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
             project_key: key,
-            state: AggregationState::Aggregator(aggregator::Aggregator::new(
-                config.default_aggregator_config().aggregator.clone(),
-            )),
+            state: AggregationState::new(config.default_aggregator_config().aggregator.clone()),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
