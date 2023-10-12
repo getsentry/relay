@@ -376,7 +376,7 @@ mod tests {
                 is_enabled: false,
             },
             generic_filters: GenericFiltersConfig(
-                {},
+                [],
             ),
         }
         "###);
