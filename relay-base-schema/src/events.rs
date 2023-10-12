@@ -42,7 +42,7 @@ pub enum EventType {
     /// Performance monitoring transactions carrying spans.
     Transaction,
     /// User feedback payload.
-    UserFeedback,
+    UserReportV2,
     /// All events that do not qualify as any other type.
     #[serde(other)]
     #[default]
@@ -73,7 +73,7 @@ impl FromStr for EventType {
             "expectct" => EventType::ExpectCt,
             "expectstaple" => EventType::ExpectStaple,
             "transaction" => EventType::Transaction,
-            "user_report_v2" => EventType::UserFeedback,
+            "user_report_v2" => EventType::UserReportV2,
             _ => return Err(ParseEventTypeError),
         })
     }
@@ -89,7 +89,7 @@ impl fmt::Display for EventType {
             EventType::ExpectCt => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
             EventType::Transaction => write!(f, "transaction"),
-            EventType::UserFeedback => write!(f, "user_report_v2"),
+            EventType::UserReportV2 => write!(f, "user_report_v2"),
         }
     }
 }

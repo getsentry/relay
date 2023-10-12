@@ -111,7 +111,7 @@ impl CategoryUnit {
             | DataCategory::Span
             | DataCategory::MonitorSeat
             | DataCategory::Monitor
-            | DataCategory::UserFeedback => Some(Self::Count),
+            | DataCategory::UserReportV2 => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
 

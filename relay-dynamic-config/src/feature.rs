@@ -13,7 +13,7 @@ pub enum Feature {
     SessionReplayRecordingScrubbing,
     /// Enables new User Feedback ingest
     #[serde(rename = "organizations:user-feedback-ingest")]
-    UserFeedbackIngest,
+    UserReportV2Ingest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.

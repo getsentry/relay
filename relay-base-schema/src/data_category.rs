@@ -60,7 +60,7 @@ pub enum DataCategory {
     /// User Feedback
     ///
     /// Represents a User Feedback processed
-    UserFeedback = 14,
+    UserReportV2 = 14,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -112,7 +112,7 @@ impl DataCategory {
             Self::Monitor => "monitor",
             Self::Span => "span",
             Self::MonitorSeat => "monitor_seat",
-            Self::UserFeedback => "user_feedback",
+            Self::UserReportV2 => "user_report_v2",
             Self::Unknown => "unknown",
         }
     }
@@ -162,7 +162,7 @@ impl From<EventType> for DataCategory {
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 Self::Security
             }
-            EventType::UserFeedback => Self::UserFeedback,
+            EventType::UserReportV2 => Self::UserReportV2,
         }
     }
 }

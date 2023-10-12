@@ -128,7 +128,7 @@ impl ItemType {
         match event_type {
             EventType::Default | EventType::Error => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
-            EventType::UserFeedback => ItemType::UserReportV2,
+            EventType::UserReportV2 => ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security
             }

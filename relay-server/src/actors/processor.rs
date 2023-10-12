@@ -1718,11 +1718,11 @@ impl EnvelopeProcessorService {
         } else if let Some(item) = user_feedback_item {
             relay_log::trace!("processing user feedback");
             let project_state = &state.project_state;
-            let feedback_ingest = project_state.has_feature(Feature::UserFeedbackIngest);
+            let feedback_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
             if !feedback_ingest {
                 return Err(ProcessingError::NoEventPayload);
             }
-            self.event_from_json_payload(item, Some(EventType::UserFeedback))?
+            self.event_from_json_payload(item, Some(EventType::UserReportV2))?
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             sample_rates = item.take_sample_rates();
