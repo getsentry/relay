@@ -16,6 +16,7 @@
 - Use correct field to pick SQL parser for span normalization. ([#2536](https://github.com/getsentry/relay/pull/2536))
 - Prevent stack overflow on SQL serialization. ([#2538](https://github.com/getsentry/relay/pull/2538))
 - Bind exclusively to the port for the HTTP server. ([#2582](https://github.com/getsentry/relay/pull/2582))
+- Scrub resource spans even when there's no domain or extension or when the description is an image. ([#2591](https://github.com/getsentry/relay/pull/2591))
 
 **Internal**:
 
