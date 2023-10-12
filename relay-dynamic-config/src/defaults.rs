@@ -1,6 +1,6 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::condition::RuleCondition;
+use relay_sampling::condition::{EqCondition, RuleCondition};
 
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
@@ -83,21 +83,33 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/http.response_content_length@byte".into(),
             field: Some("span.data.http\\.response_content_length".into()),
-            condition: Some(span_op_conditions.clone() & resource_condition.clone()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.response_content_length", 0),
+            ),
             tags: Default::default(),
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/http.decoded_response_body_length@byte".into(),
             field: Some("span.data.http\\.decoded_response_body_length".into()),
-            condition: Some(span_op_conditions.clone() & resource_condition.clone()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.decoded_response_body_length", 0),
+            ),
             tags: Default::default(),
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/http.response_transfer_size@byte".into(),
             field: Some("span.data.http\\.response_transfer_size".into()),
-            condition: Some(span_op_conditions.clone() & resource_condition.clone()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
+            ),
             tags: Default::default(),
         },
     ]);
