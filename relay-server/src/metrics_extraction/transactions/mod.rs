@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
-use relay_event_normalization::utils as normalize_utils;
+use relay_event_normalization::utils::{self as normalize_utils, MOBILE_SDKS};
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
@@ -182,8 +182,10 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
-    if let Some(device_class) = event.tag_value("device.class") {
-        tags.insert(CommonTag::DeviceClass, device_class.to_owned());
+    if MOBILE_SDKS.contains(&event.sdk_name()) {
+        if let Some(device_class) = event.tag_value("device.class") {
+            tags.insert(CommonTag::DeviceClass, device_class.to_owned());
+        }
     }
 
     let custom_tags = &config.extract_custom_tags;
@@ -587,7 +589,6 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
-                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -612,7 +613,6 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
-                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -638,7 +638,6 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
-                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -672,7 +671,6 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
-                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -710,7 +708,6 @@ mod tests {
                 ),
                 tags: {
                     "browser.name": "Chrome",
-                    "device.class": "1",
                     "dist": "foo",
                     "environment": "fake_environment",
                     "fOO": "bar",
@@ -1325,6 +1322,59 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_device_class_mobile() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
+            },
+            "measurements": {
+                "frames_frozen": {
+                    "value": 3
+                }
+            },
+            "tags": {
+                "device.class": "2"
+            },
+            "sdk": {
+                "name": "sentry.cocoa"
+            }
+        }
+        "#;
+        let event = Annotated::from_json(json).unwrap();
+
+        let config = TransactionMetricsConfig::default();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let buckets_by_name = extracted
+            .project_metrics
+            .into_iter()
+            .map(|Bucket { name, tags, .. }| (name, tags))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            buckets_by_name["d:transactions/measurements.frames_frozen@none"]["device.class"],
+            "2"
+        );
+        assert_eq!(
+            buckets_by_name["d:transactions/duration@millisecond"]["device.class"],
+            "2"
+        );
     }
 
     /// Helper function to check if the transaction name is set correctly
