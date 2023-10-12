@@ -804,28 +804,23 @@ impl Aggregator {
         project_key: ProjectKey,
         buckets: I,
         max_total_bucket_bytes: Option<usize>,
-    ) -> Result<(), AggregateMetricsError>
-    where
+    ) where
         I: IntoIterator<Item = Bucket>,
     {
         for bucket in buckets.into_iter() {
-            let metric_name = bucket.name.clone(); // temporary clone, can be removed later
-            let prefix = metric_name
-                .as_str()
-                .split_once('/')
-                .map_or("other", |(prefix, _)| prefix);
-
             if let Err(error) = self.merge(project_key, bucket, max_total_bucket_bytes) {
-                relay_log::error!(
-                    tags.aggregator = self.name,
-                    tags.metric_name = prefix,
-                    full_metric_name = &metric_name,
-                    bucket.error = &error as &dyn Error
-                );
+                match &error.kind {
+                    // Ignore invalid timestamp errors.
+                    AggregateMetricsErrorKind::InvalidTimestamp(_) => {}
+                    _other => {
+                        relay_log::error!(
+                            tags.aggregator = self.name,
+                            bucket.error = &error as &dyn Error
+                        );
+                    }
+                }
             }
         }
-
-        Ok(())
     }
 
     /// Split buckets into N logical partitions, determined by the bucket key.
