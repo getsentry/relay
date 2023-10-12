@@ -696,6 +696,12 @@ impl std::ops::Not for RuleCondition {
     }
 }
 
+impl Default for RuleCondition {
+    fn default() -> Self {
+        RuleCondition::Unsupported
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

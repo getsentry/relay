@@ -2036,7 +2036,9 @@ impl EnvelopeProcessorService {
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.managed_envelope.reject(Outcome::Filtered(err));
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
         })

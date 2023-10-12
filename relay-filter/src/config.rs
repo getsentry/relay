@@ -1,11 +1,12 @@
 //! Config structs for all filters.
 
 use std::borrow::Cow;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::convert::Infallible;
 use std::str::FromStr;
 
 use relay_common::glob3::GlobPatterns;
+use relay_sampling::condition::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 /// Common configuration for event filters.
@@ -192,6 +193,34 @@ impl LegacyBrowsersFilterConfig {
     }
 }
 
+/// Configuration for a generic filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenericFilterConfig {
+    /// Specifies whether this filter is enabled.
+    pub is_enabled: bool,
+    /// The condition for the filter.
+    pub condition: RuleCondition,
+}
+
+impl GenericFilterConfig {
+    pub fn is_empty(&self) -> bool {
+        !self.is_enabled || matches!(self.condition, RuleCondition::Unsupported)
+    }
+}
+
+/// Configuration for generic filters.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenericFiltersConfig(pub HashMap<String, GenericFilterConfig>);
+
+impl GenericFiltersConfig {
+    /// Returns true if there are no generic filters configured.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty() || self.0.iter().all(|(_, value)| value.is_empty())
+    }
+}
+
 /// Configuration for all event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -234,6 +263,10 @@ pub struct FiltersConfig {
         skip_serializing_if = "IgnoreTransactionsFilterConfig::is_empty"
     )]
     pub ignore_transactions: IgnoreTransactionsFilterConfig,
+
+    /// Configuration for generic filters.
+    #[serde(default, skip_serializing_if = "GenericFiltersConfig::is_empty")]
+    pub generic_filters: GenericFiltersConfig,
 }
 
 impl FiltersConfig {
@@ -248,12 +281,14 @@ impl FiltersConfig {
             && self.localhost.is_empty()
             && self.releases.is_empty()
             && self.ignore_transactions.is_empty()
+            && self.generic_filters.is_empty()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use relay_sampling::condition::EqCondition;
 
     #[test]
     fn test_empty_config() -> Result<(), serde_json::Error> {
@@ -302,6 +337,19 @@ mod tests {
 
     #[test]
     fn test_serialize_full() {
+        let mut generic_filters_map = HashMap::new();
+        generic_filters_map.insert(
+            "hydrationError",
+            GenericFilterConfig {
+                is_enabled: true,
+                condition: RuleCondition::Eq(EqCondition {
+                    name: "".to_string(),
+                    value: Default::default(),
+                    options: Default::default(),
+                }),
+            },
+        );
+
         let filters_config = FiltersConfig {
             browser_extensions: FilterConfig { is_enabled: true },
             client_ips: ClientIpsFilterConfig {
@@ -326,6 +374,7 @@ mod tests {
                 patterns: GlobPatterns::new(vec!["*health*".to_string()]),
                 is_enabled: true,
             },
+            generic_filters: GenericFiltersConfig(generic_filters_map),
         };
 
         insta::assert_json_snapshot!(filters_config, @r#"

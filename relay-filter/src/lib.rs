@@ -20,6 +20,7 @@ pub mod browser_extensions;
 pub mod client_ips;
 pub mod csp;
 pub mod error_messages;
+pub mod generic_filters;
 pub mod legacy_browsers;
 pub mod localhost;
 pub mod transaction_name;

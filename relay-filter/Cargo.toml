@@ -17,6 +17,7 @@ relay-common = { path = "../relay-common" }
 relay-event-schema = { path = "../relay-event-schema" }
 relay-protocol = { path = "../relay-protocol" }
 relay-ua = { path = "../relay-ua" }
+relay-sampling = { path = "../relay-sampling" }
 serde = { workspace = true }
 url = { workspace = true }
 
