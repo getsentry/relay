@@ -497,9 +497,9 @@ impl Aggregator {
             .map(|(key, entry)| Bucket {
                 timestamp: key.timestamp,
                 width: bucket_interval,
-                name: key.metric_name.clone(),
+                name: key.metric_name,
                 value: entry.value,
-                tags: key.tags.clone(),
+                tags: key.tags,
             })
             .collect()
     }
