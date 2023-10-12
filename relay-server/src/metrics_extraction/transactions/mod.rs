@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use relay_base_schema::events::EventType;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{TagMapping, TransactionMetricsConfig};
-use relay_event_normalization::utils::{self as normalize_utils, MOBILE_SDKS};
+use relay_event_normalization::utils as normalize_utils;
 use relay_event_schema::protocol::{
     AsPair, BrowserContext, Event, OsContext, TraceContext, TransactionSource,
 };
@@ -182,7 +182,7 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
-    if MOBILE_SDKS.contains(&event.sdk_name()) {
+    if normalize_utils::MOBILE_SDKS.contains(&event.sdk_name()) {
         if let Some(device_class) = event.tag_value("device.class") {
             tags.insert(CommonTag::DeviceClass, device_class.to_owned());
         }
