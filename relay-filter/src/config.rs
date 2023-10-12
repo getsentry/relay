@@ -204,6 +204,7 @@ pub struct GenericFilterConfig {
 }
 
 impl GenericFilterConfig {
+    /// Returns true if the filter is not enabled or the condition is not supported.
     pub fn is_empty(&self) -> bool {
         !self.is_enabled || matches!(self.condition, RuleCondition::Unsupported)
     }
@@ -288,7 +289,6 @@ impl FiltersConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_sampling::condition::EqCondition;
 
     #[test]
     fn test_empty_config() -> Result<(), serde_json::Error> {
@@ -324,6 +324,9 @@ mod tests {
                 patterns: [],
                 is_enabled: false,
             },
+            generic_filters: GenericFiltersConfig(
+                {},
+            ),
         }
         "###);
         Ok(())
@@ -339,14 +342,10 @@ mod tests {
     fn test_serialize_full() {
         let mut generic_filters_map = HashMap::new();
         generic_filters_map.insert(
-            "hydrationError",
+            "hydrationError".to_string(),
             GenericFilterConfig {
                 is_enabled: true,
-                condition: RuleCondition::Eq(EqCondition {
-                    name: "".to_string(),
-                    value: Default::default(),
-                    options: Default::default(),
-                }),
+                condition: RuleCondition::eq("event.exceptions", "HydrationError"),
             },
         );
 
@@ -419,6 +418,16 @@ mod tests {
               "*health*"
             ],
             "isEnabled": true
+          },
+          "genericFilters": {
+            "hydrationError": {
+              "isEnabled": true,
+              "condition": {
+                "op": "eq",
+                "name": "event.exceptions",
+                "value": "HydrationError"
+              }
+            }
           }
         }
         "#);

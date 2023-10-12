@@ -47,22 +47,21 @@ pub fn should_filter(
     config: &FiltersConfig,
 ) -> Result<(), FilterStatKey> {
     // In order to maintain backwards compatibility, we still want to run the old matching logic,
-    // but only if the generic filters configuration is empty, signaling that it's not available.
-    if config.generic_filters.is_empty() {
-        // The order of applying filters should not matter as they are additive. Still, be careful
-        // when making changes to this order.
-        csp::should_filter(event, &config.csp)?;
-        client_ips::should_filter(client_ip, &config.client_ips)?;
-        releases::should_filter(event, &config.releases)?;
-        error_messages::should_filter(event, &config.error_messages)?;
-        localhost::should_filter(event, &config.localhost)?;
-        browser_extensions::should_filter(event, &config.browser_extensions)?;
-        legacy_browsers::should_filter(event, &config.legacy_browsers)?;
-        web_crawlers::should_filter(event, &config.web_crawlers)?;
-        transaction_name::should_filter(event, &config.ignore_transactions)?;
-    } else {
-        generic_filters::should_filter(event, &config.generic_filters)?;
-    }
+    // but we will try to match generic filters first, since the goal is to eventually fade out the
+    // the normal filters except for the ones that have complex conditions.
+    generic_filters::should_filter(event, &config.generic_filters)?;
+
+    // The order of applying filters should not matter as they are additive. Still, be careful
+    // when making changes to this order.
+    csp::should_filter(event, &config.csp)?;
+    client_ips::should_filter(client_ip, &config.client_ips)?;
+    releases::should_filter(event, &config.releases)?;
+    error_messages::should_filter(event, &config.error_messages)?;
+    localhost::should_filter(event, &config.localhost)?;
+    browser_extensions::should_filter(event, &config.browser_extensions)?;
+    legacy_browsers::should_filter(event, &config.legacy_browsers)?;
+    web_crawlers::should_filter(event, &config.web_crawlers)?;
+    transaction_name::should_filter(event, &config.ignore_transactions)?;
 
     Ok(())
 }
