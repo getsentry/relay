@@ -224,7 +224,7 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
                 }
                 return Some(format!("{domain}/*"));
             }
-            Some(string.into())
+            None
         }
     }
 }
