@@ -4,7 +4,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_dynamic_config::{Feature, LimitedProjectConfig, ProjectConfig};
+use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
 use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
 use relay_quotas::{Quota, RateLimits, Scoping};
@@ -388,6 +388,7 @@ pub struct Project {
     backoff: RetryBackoff,
     next_fetch_attempt: Option<Instant>,
     last_updated_at: Instant,
+    last_envelope_seen: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
     state: Option<Arc<ProjectState>>,
@@ -404,6 +405,7 @@ impl Project {
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
             next_fetch_attempt: None,
             last_updated_at: Instant::now(),
+            last_envelope_seen: Instant::now(),
             project_key: key,
             config,
             state: None,
@@ -488,6 +490,11 @@ impl Project {
         self.last_updated_at
     }
 
+    /// The last time that this project was used for an incoming envelope.
+    pub fn last_envelope_seen_at(&self) -> Instant {
+        self.last_envelope_seen
+    }
+
     /// Refresh the update time of the project in order to delay eviction.
     ///
     /// Called by the project cache when the project state is refreshed.
@@ -513,7 +520,12 @@ impl Project {
             return metrics;
         };
 
-        match MetricsLimiter::create(metrics, &state.config.quotas, scoping) {
+        let usage = match state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+
+        match MetricsLimiter::create(metrics, &state.config.quotas, scoping, usage) {
             Ok(mut limiter) => {
                 limiter.enforce_limits(Ok(&self.rate_limits), outcome_aggregator);
                 limiter.into_metrics()
@@ -808,6 +820,9 @@ impl Project {
         let state = self.valid_state().filter(|state| !state.invalid());
         let mut scoping = envelope.scoping();
 
+        // On every incoming envelope, which belongs to this project, update when it was last seen.
+        self.last_envelope_seen = envelope.start_time().into();
+
         if let Some(ref state) = state {
             scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
@@ -892,7 +907,12 @@ impl Project {
 
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
-        let buckets = match MetricsLimiter::create(buckets, quotas, scoping) {
+        let usage = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, usage) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
                 #[allow(unused_variables)]
@@ -1010,7 +1030,7 @@ mod tests {
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
         // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it's the first attemt, we get Duration of 0.
+        //   it's the first attempt, we get Duration of 0.
         // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
         //   like ~ 1s
         // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active

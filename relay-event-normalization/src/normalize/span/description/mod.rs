@@ -182,10 +182,22 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
     Some(scrubbed)
 }
 
-fn scrub_resource_identifiers(string: &str) -> Option<String> {
+fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
+    // Remove query parameters or the fragment.
+    if let Some(pos) = string.find('?') {
+        string = &string[..pos];
+    } else if let Some(pos) = string.find('#') {
+        string = &string[..pos];
+    }
     match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
-        Cow::Borrowed(_) => None,
         Cow::Owned(scrubbed) => Some(scrubbed),
+        Cow::Borrowed(string) => {
+            // No IDs scrubbed, but we still want to set something.
+            let url = Url::parse(string).ok()?;
+            let extension = url.path().rsplit_once('.')?.1;
+            let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
+            Some(format!("{domain}/*.{extension}"))
+        }
     }
 }
 
@@ -328,171 +340,193 @@ mod tests {
         };
     }
 
-    span_description_test!(span_description_scrub_empty, "", "http.client", "");
+    span_description_test!(empty, "", "http.client", "");
 
     span_description_test!(
-        span_description_scrub_only_domain,
+        only_domain,
         "GET http://service.io",
         "http.client",
         "GET http://service.io"
     );
 
     span_description_test!(
-        span_description_scrub_only_urllike_on_http_ops,
+        only_urllike_on_http_ops,
         "GET https://www.service.io/resources/01234",
         "http.client",
         "GET https://*.service.io"
     );
 
     span_description_test!(
-        span_description_scrub_path_ids_end,
+        path_ids_end,
         "GET https://www.service.io/resources/01234",
         "http.client",
         "GET https://*.service.io"
     );
 
     span_description_test!(
-        span_description_scrub_path_ids_middle,
+        path_ids_middle,
         "GET https://www.service.io/resources/01234/details",
         "http.client",
         "GET https://*.service.io"
     );
 
     span_description_test!(
-        span_description_scrub_path_multiple_ids,
+        path_multiple_ids,
         "GET https://www.service.io/users/01234-qwerty/settings/98765-adfghj",
         "http.client",
         "GET https://*.service.io"
     );
 
     span_description_test!(
-        span_description_scrub_path_md5_hashes,
+        path_md5_hashes,
         "GET /clients/563712f9722fb0996ac8f3905b40786f/project/01234",
         "http.client",
         "GET *"
     );
 
     span_description_test!(
-        span_description_scrub_path_sha_hashes,
+        path_sha_hashes,
         "GET /clients/403926033d001b5279df37cbbe5287b7c7c267fa/project/01234",
         "http.client",
         "GET *"
     );
 
     span_description_test!(
-        span_description_scrub_hex,
+        hex,
         "GET /shop/de/f43/beef/3D6/my-beef",
         "http.client",
         "GET *"
     );
 
     span_description_test!(
-        span_description_scrub_path_uuids,
+        path_uuids,
         "GET /clients/8ff81d74-606d-4c75-ac5e-cee65cbbc866/project/01234",
         "http.client",
         "GET *"
     );
 
     span_description_test!(
-        span_description_scrub_data_images,
+        data_images,
         "GET data:image/png;base64,drtfghaksjfdhaeh/blah/blah/blah",
         "http.client",
         "GET data:image/*"
     );
 
     span_description_test!(
-        span_description_scrub_only_dblike_on_db_ops,
+        only_dblike_on_db_ops,
         "SELECT count() FROM table WHERE id IN (%s, %s)",
         "http.client",
         ""
     );
 
     span_description_test!(
-        span_description_scrub_cache,
+        cache,
         "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
         "GET *"
     );
 
-    span_description_test!(
-        span_description_scrub_redis_set,
-        "SET mykey myvalue",
-        "db.redis",
-        "SET *"
-    );
+    span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET *");
 
     span_description_test!(
-        span_description_scrub_redis_set_quoted,
+        redis_set_quoted,
         r#"SET mykey 'multi: part, value'"#,
         "db.redis",
         "SET *"
     );
 
-    span_description_test!(
-        span_description_scrub_redis_whitespace,
-        " GET  asdf:123",
-        "db.redis",
-        "GET *"
-    );
+    span_description_test!(redis_whitespace, " GET  asdf:123", "db.redis", "GET *");
+
+    span_description_test!(redis_no_args, "EXEC", "db.redis", "EXEC");
+
+    span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
 
     span_description_test!(
-        span_description_scrub_redis_no_args,
-        "EXEC",
-        "db.redis",
-        "EXEC"
-    );
-
-    span_description_test!(
-        span_description_scrub_redis_invalid,
-        "What a beautiful day!",
-        "db.redis",
-        "*"
-    );
-
-    span_description_test!(
-        span_description_scrub_redis_long_command,
+        redis_long_command,
         "ACL SETUSER jane",
         "db.redis",
         "ACL SETUSER *"
     );
 
     span_description_test!(
-        span_description_scrub_nothing_cache,
+        nothing_cache,
         "abc-dontscrubme-meneither:stillno:ohplsstop",
         "cache.get_item",
         "*"
     );
 
     span_description_test!(
-        span_description_scrub_resource_script,
+        resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
-        "https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.js-*.map"
+        "https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.chunk.js-*.map"
     );
 
     span_description_test!(
-        span_description_scrub_resource_script_numeric_filename,
+        resource_script_numeric_filename,
         "https://example.com/static/chunks/09876543211234567890",
         "resource.script",
         "https://example.com/static/chunks/*"
     );
 
     span_description_test!(
-        span_description_scrub_resource_css,
+        resource_css,
         "https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css",
         "resource.css",
         "https://example.com/assets/dark_high_contrast-*.css"
     );
 
     span_description_test!(
-        span_description_scrub_nothing_in_resource,
-        "https://example.com/assets/this_is-a_good_resource-123-dont_scrub_me.js",
+        integer_in_resource,
+        "https://example.com/assets/this_is-a_good_resource-123-scrub_me.js",
         "resource.css",
-        ""
+        "https://example.com/assets/this_is-a_good_resource-*-scrub_me.js"
     );
 
     span_description_test!(
-        span_description_scrub_ui_load,
+        resource_query_params,
+        "/organization-avatar/123/?s=120",
+        "resource.img",
+        "/organization-avatar/*/"
+    );
+
+    span_description_test!(
+        resource_query_params2,
+        "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
+        "resource.img",
+        "https://data.domain.com/data/guide*.gif"
+    );
+
+    span_description_test!(
+        resource_no_ids,
+        "https://data.domain.com/data/guide.gif",
+        "resource.img",
+        "*.domain.com/*.gif"
+    );
+
+    span_description_test!(
+        resource_webpack,
+        "https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js",
+        "resource.js",
+        "https://domain.com/path/to/app-*.*.js"
+    );
+
+    span_description_test!(
+        resource_vite,
+        "webroot/assets/Profile-73f6525d.js",
+        "resource.js",
+        "webroot/assets/Profile-*.js"
+    );
+
+    span_description_test!(
+        resource_vite_css,
+        "webroot/assets/Shop-1aff80f7.css",
+        "resource.css",
+        "webroot/assets/Shop-*.css"
+    );
+
+    span_description_test!(
+        ui_load,
         "ListAppViewController",
         "ui.load",
         "ListAppViewController"
@@ -517,6 +551,13 @@ mod tests {
         "somefilenamewithnoextension",
         "file.read",
         "*"
+    );
+
+    span_description_test!(
+        resource_url_with_fragment,
+        "https://data.domain.com/data/guide123.gif#url=someotherurl",
+        "resource.img",
+        "https://data.domain.com/data/guide*.gif"
     );
 
     #[test]

@@ -14,7 +14,9 @@ use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::{AggregatorConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig};
+use relay_metrics::{
+    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
+};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -1238,7 +1240,7 @@ struct ConfigValues {
     #[serde(default)]
     outcomes: Outcomes,
     #[serde(default)]
-    aggregator: AggregatorConfig,
+    aggregator: AggregatorServiceConfig,
     #[serde(default)]
     secondary_aggregators: Vec<ScopedAggregatorConfig>,
     #[serde(default)]
@@ -2001,8 +2003,8 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Returns configuration for the metrics [aggregator](relay_metrics::Aggregator).
-    pub fn aggregator_config(&self) -> &AggregatorConfig {
+    /// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
+    pub fn default_aggregator_config(&self) -> &AggregatorServiceConfig {
         &self.values.aggregator
     }
 
@@ -2012,7 +2014,7 @@ impl Config {
     }
 
     /// Returns aggregator config for a given metrics namespace.
-    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorConfig {
+    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
         for entry in &self.values.secondary_aggregators {
             match entry.condition {
                 Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,

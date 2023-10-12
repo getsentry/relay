@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
 - Added support for NEL (Network Error Logging) reports ingestion. ([#2421](https://github.com/getsentry/relay/pull/2421))
 
 ## 0.8.31

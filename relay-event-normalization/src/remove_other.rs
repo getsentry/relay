@@ -76,7 +76,7 @@ impl Processor for RemoveOtherProcessor {
 mod tests {
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{Context, Contexts, OsContext, User, Values};
-    use relay_protocol::get_value;
+    use relay_protocol::{get_value, FromValue};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -227,5 +227,24 @@ mod tests {
             *other.get("bar").unwrap(),
             Annotated::from_error(ErrorKind::InvalidAttribute, None)
         );
+    }
+
+    #[test]
+    fn test_scrape_attempts() {
+        let json = serde_json::json!({
+            "scraping_attempts": [
+                {"status": "not_attempted", "url": "http://example.com/embedded.js"},
+                {"status": "not_attempted", "url": "http://example.com/embedded.js.map"},
+            ]
+        });
+
+        let mut event = Event::from_value(json.into());
+        process_value(
+            &mut event,
+            &mut RemoveOtherProcessor,
+            ProcessingState::root(),
+        )
+        .unwrap();
+        assert!(event.value().unwrap().other.is_empty());
     }
 }

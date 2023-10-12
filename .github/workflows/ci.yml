@@ -187,7 +187,6 @@ jobs:
         arch: [amd64]
         image_name: [relay, relay-pop]
 
-
     name: Build Docker Image
     runs-on: ubuntu-latest
 
@@ -430,6 +429,7 @@ jobs:
           python-version: 3.8
           snuba: true
           kafka: true
+          symbolicator: true
 
       - name: Download Docker Image
         uses: actions/download-artifact@v3

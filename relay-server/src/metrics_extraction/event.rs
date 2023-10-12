@@ -433,6 +433,37 @@ mod tests {
                     "timestamp": 1597976302.0000000,
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.css",
+                    "op": "resource.link",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_body_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking"
+                    },
+                    "hash": "e2fae740cccd3789"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "op": "resource.link",
+                    "description": "domain.com/zero-length-00",
+                    "data": {
+                        "http.decoded_response_body_length": 0,
+                        "http.response_content_length": 0,
+                        "http.response_transfer_size": 0
+                    }
                 }
             ]
         }
@@ -941,6 +972,23 @@ mod tests {
                     "start_timestamp": 1695255134.469436,
                     "timestamp": 1695255136.137952,
                     "trace_id": "2dc90ee797b94299ba5ad82b816fc9f8"
+                },
+                {
+                    "timestamp": 1694732408.3145,
+                    "start_timestamp": 1694732407.8367,
+                    "exclusive_time": 477.800131,
+                    "description": "https://cdn.domain.com/path/to/file-hk2YHeW7Eo2XLCiE38F1Fz22KuljsgCAD6hyWCyOYZM.css",
+                    "op": "resource.link",
+                    "span_id": "97c0ef9770a02f9d",
+                    "parent_span_id": "9756d8d7b2b364ff",
+                    "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+                    "data": {
+                        "http.decoded_response_body_length": 128950,
+                        "http.response_content_length": 36170,
+                        "http.response_transfer_size": 36470,
+                        "resource.render_blocking_status": "blocking"
+                    },
+                    "hash": "e2fae740cccd3789"
                 }
             ]
         }

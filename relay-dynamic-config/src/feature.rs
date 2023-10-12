@@ -25,6 +25,12 @@ pub enum Feature {
     /// Enable extracting spans for all modules.
     #[serde(rename = "projects:span-metrics-extraction-all-modules")]
     SpanMetricsExtractionAllModules,
+    /// Enable processing profiles
+    #[serde(rename = "organizations:profiling")]
+    Profiling,
+    /// Enable extracting resource spans.
+    #[serde(rename = "projects:span-metrics-extraction-resource")]
+    SpanMetricsExtractionResource,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
@@ -32,9 +38,6 @@ pub enum Feature {
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-normalize")]
     Deprecated2,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[serde(rename = "organizations:profiling")]
-    Deprecated3,
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "projects:extract-standalone-spans")]
     Deprecated4,

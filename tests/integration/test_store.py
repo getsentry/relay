@@ -680,11 +680,13 @@ def test_rate_limit_metrics_buckets(
     )
 
 
+@pytest.mark.parametrize("extraction_version", [1, 3])
 def test_processing_quota_transaction_indexing(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
     transactions_consumer,
+    extraction_version,
 ):
     relay = relay_with_processing(
         {
@@ -724,7 +726,7 @@ def test_processing_quota_transaction_indexing(
         },
     ]
     projectconfig["config"]["transactionMetrics"] = {
-        "version": 1,
+        "version": extraction_version,
     }
 
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))

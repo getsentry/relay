@@ -1,5 +1,5 @@
 ---
-source: relay-general/src/pii/processor.rs
+source: relay-pii/src/processor.rs
 expression: "&data"
 ---
 Event {
@@ -106,6 +106,7 @@ Event {
     spans: ~,
     measurements: ~,
     breakdowns: ~,
+    scraping_attempts: ~,
     _metrics: ~,
     other: {},
 }

@@ -1092,24 +1092,22 @@ impl EnvelopeProcessorService {
         state.managed_envelope.retain_items(|item| match item.ty() {
             // Drop profile without a transaction in the same envelope.
             ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
-            ItemType::Profile => {
-                if !found_profile {
-                    match relay_profiling::parse_metadata(&item.payload()) {
-                        Ok(_) => {
-                            found_profile = true;
-                            ItemAction::Keep
-                        }
-                        Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        ))),
+            // First profile found in the envelope, we'll keep it if metadata are valid.
+            ItemType::Profile if !found_profile => {
+                match relay_profiling::parse_metadata(&item.payload()) {
+                    Ok(_) => {
+                        found_profile = true;
+                        ItemAction::Keep
                     }
-                } else {
-                    // We found a second profile, drop it.
-                    ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                        relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-                    )))
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
+            // We found another profile, we'll drop it.
+            ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+            ))),
             _ => ItemAction::Keep,
         });
         state.has_profile = found_profile;
@@ -1143,9 +1141,13 @@ impl EnvelopeProcessorService {
     /// Process profiles and set the profile ID in the profile context on the transaction if successful
     #[cfg(feature = "processing")]
     fn process_profiles(&self, state: &mut ProcessEnvelopeState) {
+        let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
         let mut found_profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Profile => {
+                if !profiling_enabled {
+                    return ItemAction::DropSilently;
+                }
                 match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
                     Ok((profile_id, payload)) => {
                         if payload.len() <= self.inner.config.max_profile_size() {
@@ -2288,7 +2290,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn is_span_allowed(&self, span: &Span) -> bool {
+    fn is_span_allowed(&self, span: &Span, resource_span_extraction_enabled: bool) -> bool {
         let Some(op) = span.op.value() else {
             return false;
         };
@@ -2301,7 +2303,8 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        op == "http.client"
+        (resource_span_extraction_enabled && op.contains("resource."))
+            || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
             || op.starts_with("db")
@@ -2363,6 +2366,9 @@ impl EnvelopeProcessorService {
         let all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
+        let resource_span_extraction_enabled = state
+            .project_state
+            .has_feature(Feature::SpanMetricsExtractionResource);
 
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
@@ -2371,7 +2377,9 @@ impl EnvelopeProcessorService {
                     continue;
                 };
                 // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
+                if !all_modules_enabled
+                    && !self.is_span_allowed(inner_span, resource_span_extraction_enabled)
+                {
                     continue;
                 }
                 // HACK: clone the span to set the segment_id. This should happen
@@ -2631,6 +2639,11 @@ impl EnvelopeProcessorService {
             .project_state
             .has_feature(Feature::SpanMetricsExtraction);
 
+        let transaction_aggregator_config = self
+            .inner
+            .config
+            .aggregator_config_for(MetricNamespace::Transactions);
+
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
@@ -2641,16 +2654,10 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                transaction_range: Some(
-                    self.inner
-                        .config
-                        .aggregator_config_for(MetricNamespace::Transactions)
-                        .timestamp_range(),
-                ),
+                transaction_range: Some(transaction_aggregator_config.aggregator.timestamp_range()),
                 max_name_and_unit_len: Some(
-                    self.inner
-                        .config
-                        .aggregator_config()
+                    transaction_aggregator_config
+                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -2669,6 +2676,7 @@ impl EnvelopeProcessorService {
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
+                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: false,
                 light_normalize_spans,
@@ -2726,7 +2734,13 @@ impl EnvelopeProcessorService {
             self.normalize_dsc(state);
             self.filter_event(state)?;
             self.run_dynamic_sampling(state);
-            self.extract_metrics(state)?;
+
+            // We avoid extracting metrics if we are not sampling the event while in non-processing
+            // relays, in order to synchronize rate limits on indexed and processed transactions.
+            if self.inner.config.processing_enabled() || state.sampling_result.should_drop() {
+                self.extract_metrics(state)?;
+            }
+
             self.sample_envelope(state)?;
 
             if_processing!({
