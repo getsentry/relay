@@ -10,7 +10,7 @@ use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
-use serde_json::Value;
+use serde_json::value::RawValue;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
@@ -45,23 +45,17 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
 
-    let items: Value =
+    let items: Vec<Box<RawValue>> =
         serde_json::from_slice(&params.body).map_err(BadStoreRequest::InvalidJson)?;
 
-    // Iterate only if the body contains the list of the items.
-    let handlers = items.as_array().into_iter().flatten().map(|item| {
-        let mut envelope = Envelope::from_request(Some(EventId::new()), params.meta.clone());
+    let mut envelope = Envelope::from_request(Some(EventId::new()), params.meta.clone());
+    for item in items {
         let mut report_item = Item::new(ItemType::Nel);
         report_item.set_payload(ContentType::Json, item.to_owned().to_string());
         envelope.add_item(report_item);
-        common::handle_envelope(&state, envelope)
-    });
-
-    // Check the results of the handled envelopes.
-    for handle_result in futures::future::join_all(handlers).await {
-        handle_result?;
     }
 
+    common::handle_envelope(&state, envelope).await?;
     Ok(().into_response())
 }
 

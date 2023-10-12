@@ -45,7 +45,7 @@ use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -740,7 +740,7 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
-            ItemType::Nel => true,
+            ItemType::Nel => false,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::ReplayEvent => true,
@@ -1078,6 +1078,38 @@ impl Envelope {
             headers: self.headers.clone(),
             items: split_items,
         }))
+    }
+
+    /// Splits the envelope by the given predicate.
+    ///
+    /// The main differents from [`split_by`] is this function returns the list of the newly
+    /// constracted envelopes with all the items where the predicate returns `true`. Otherwise it
+    /// returns an empty list.
+    ///
+    /// The returned envelopes assume the same headers.
+    pub fn split_all_by<F>(&mut self, mut f: F) -> SmallVec<[Box<Self>; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let mut envelopes = smallvec![];
+
+        let split_count = self.items().filter(|item| f(item)).count();
+        if split_count == 0 {
+            return envelopes;
+        }
+
+        let old_items = std::mem::take(&mut self.items);
+        let (split_items, own_items) = old_items.into_iter().partition(f);
+        self.items = own_items;
+
+        for item in split_items {
+            envelopes.push(Box::new(Envelope {
+                headers: self.headers.clone(),
+                items: smallvec![item],
+            }))
+        }
+
+        envelopes
     }
 
     /// Retains only the items specified by the predicate.
