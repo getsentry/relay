@@ -4354,18 +4354,6 @@
 <a href="#4354" id="4354">4354</a>
 <a href="#4355" id="4355">4355</a>
 <a href="#4356" id="4356">4356</a>
-<a href="#4357" id="4357">4357</a>
-<a href="#4358" id="4358">4358</a>
-<a href="#4359" id="4359">4359</a>
-<a href="#4360" id="4360">4360</a>
-<a href="#4361" id="4361">4361</a>
-<a href="#4362" id="4362">4362</a>
-<a href="#4363" id="4363">4363</a>
-<a href="#4364" id="4364">4364</a>
-<a href="#4365" id="4365">4365</a>
-<a href="#4366" id="4366">4366</a>
-<a href="#4367" id="4367">4367</a>
-<a href="#4368" id="4368">4368</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6736,18 +6724,6 @@
                     .into_iter()
                     .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                     .collect(),
-            );
-            <span class="comment">// Double write to `span.data` for now. This can be removed once all users of these fields
-            // have switched to `sentry_tags`.
-            </span><span class="kw">let </span>data = transaction_span
-                .data
-                .value_mut()
-                .get_or_insert_with(Default::default);
-            data.extend(
-                shared_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
             );
             add_span(transaction_span.into());
         }
