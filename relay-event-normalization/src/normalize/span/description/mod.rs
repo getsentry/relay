@@ -592,7 +592,7 @@ mod tests {
         resource_script_with_no_extension,
         "https://www.domain.com/page?id=1234567890",
         "resource.script",
-        "*.domain.com"
+        "*.domain.com/*"
     );
 
     span_description_test!(
