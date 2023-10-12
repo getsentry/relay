@@ -300,10 +300,13 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
-            scrubbed_description
-                .and_then(|d| d.split_once(' '))
-                .and_then(|(_, d)| Url::parse(d).ok())
-                .and_then(|url| {
+            if let Some(scrubbed) = scrubbed_description {
+                let url = if let Some((_, url)) = scrubbed.split_once(' ') {
+                    url
+                } else {
+                    scrubbed
+                };
+                Url::parse(url).ok().and_then(|url| {
                     url.domain().map(|d| {
                         let mut domain = d.to_lowercase();
                         if let Some(port) = url.port() {
@@ -312,6 +315,9 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                         domain
                     })
                 })
+            } else {
+                None
+            }
         } else if span_op.starts_with("db") {
             span.description
                 .value()
