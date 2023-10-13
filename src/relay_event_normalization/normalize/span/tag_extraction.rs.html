@@ -786,6 +786,12 @@
 <a href="#786" id="786">786</a>
 <a href="#787" id="787">787</a>
 <a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -1081,10 +1087,13 @@
 
         <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>|| span_op.starts_with(<span class="string">&quot;resource.&quot;</span>) {
             <span class="comment">// HACK: Parse the normalized description to get the normalized domain.
-            </span>scrubbed_description
-                .and_then(|d| d.split_once(<span class="string">&#39; &#39;</span>))
-                .and_then(|(<span class="kw">_</span>, d)| Url::parse(d).ok())
-                .and_then(|url| {
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed) = scrubbed_description {
+                <span class="kw">let </span>url = <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, url)) = scrubbed.split_once(<span class="string">&#39; &#39;</span>) {
+                    url
+                } <span class="kw">else </span>{
+                    scrubbed
+                };
+                Url::parse(url).ok().and_then(|url| {
                     url.domain().map(|d| {
                         <span class="kw">let </span><span class="kw-2">mut </span>domain = d.to_lowercase();
                         <span class="kw">if let </span><span class="prelude-val">Some</span>(port) = url.port() {
@@ -1093,6 +1102,9 @@
                         domain
                     })
                 })
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>}
         } <span class="kw">else if </span>span_op.starts_with(<span class="string">&quot;db&quot;</span>) {
             span.description
                 .value()
