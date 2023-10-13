@@ -102,7 +102,7 @@ def test_feedback_event_with_processing(
     }
 
 
-def test_replay_events_without_processing(mini_sentry, relay_chain):
+def test_feedback_events_without_processing(mini_sentry, relay_chain):
     relay = relay_chain(min_relay_version="latest")
 
     project_id = 42
@@ -119,4 +119,4 @@ def test_replay_events_without_processing(mini_sentry, relay_chain):
     assert len(envelope.items) == 1
 
     userfeedback = envelope.items[0]
-    assert userfeedback.type == "user_report_v2"
+    assert userfeedback.type == "feedback"
