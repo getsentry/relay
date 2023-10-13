@@ -144,6 +144,12 @@ impl StartedRouter {
         }
     }
 
+    fn get_aggregator(&self, namespace: Option<MetricNamespace>) -> &Addr<Aggregator> {
+        namespace
+            .and_then(|ns| self.secondary_aggregators.get(&ns))
+            .unwrap_or(&self.default_aggregator)
+    }
+
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
         let metrics_by_namespace = message.buckets.into_iter().group_by(|bucket| {
             MetricResourceIdentifier::parse(&bucket.name)
@@ -153,9 +159,7 @@ impl StartedRouter {
 
         // TODO: Parse MRI only once, move validation from Aggregator here.
         for (namespace, group) in metrics_by_namespace.into_iter() {
-            let aggregator = namespace
-                .and_then(|ns| self.secondary_aggregators.get(&ns))
-                .unwrap_or(&self.default_aggregator);
+            let aggregator = self.get_aggregator(namespace);
 
             aggregator.send(MergeBuckets {
                 project_key: message.project_key,
