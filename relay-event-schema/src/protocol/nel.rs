@@ -4,7 +4,6 @@
 //! W3C Editor's Draft: <https://w3c.github.io/network-error-logging/>
 //! MDN: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging>
 
-use crate::processor::ProcessValue;
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
@@ -81,20 +80,6 @@ impl NetworkReportRaw {
     pub fn try_annotated_from(value: &[u8]) -> Result<Annotated<Self>, NetworkReportError> {
         Annotated::from_json_bytes(value).map_err(NetworkReportError::InvalidJson)
     }
-}
-
-/// TODO(olek)
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct NetworkReport {
-    /// The age of the report since it got collected and before it got sent.
-    pub age: Annotated<i64>,
-    /// The type of the report.
-    #[metastructure(field = "type")]
-    pub ty: Annotated<String>,
-    /// For forward compatibility.
-    #[metastructure(additional_properties, pii = "maybe")]
-    pub other: Object<Value>,
 }
 
 #[cfg(test)]

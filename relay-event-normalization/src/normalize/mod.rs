@@ -17,7 +17,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass,
     Event, EventId, EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement,
-    Measurements, ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags,
+    Measurements, NelContext, ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags,
     TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
@@ -264,7 +264,7 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectCt
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
-        } else if event.nel.value().is_some() {
+        } else if event.context::<NelContext>().is_some() {
             EventType::Nel
         } else {
             EventType::Default
@@ -678,7 +678,7 @@ fn is_security_report(event: &Event) -> bool {
 }
 
 fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
-    if event.nel.value().is_none() {
+    if event.context::<NelContext>().is_none() {
         return;
     }
 

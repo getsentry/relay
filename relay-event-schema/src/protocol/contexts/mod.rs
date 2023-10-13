@@ -4,6 +4,7 @@ mod cloud_resource;
 mod device;
 mod gpu;
 mod monitor;
+mod nel;
 mod os;
 mod otel;
 mod profile;
@@ -19,6 +20,7 @@ pub use cloud_resource::*;
 pub use device::*;
 pub use gpu::*;
 pub use monitor::*;
+pub use nel::*;
 pub use os::*;
 pub use otel::*;
 pub use profile::*;
@@ -78,6 +80,8 @@ pub enum Context {
     Otel(Box<OtelContext>),
     /// Cloud resource information.
     CloudResource(Box<CloudResourceContext>),
+    /// Nel information.
+    Nel(Box<NelContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),

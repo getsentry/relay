@@ -2,8 +2,8 @@
 
 use chrono::{DateTime, Duration, Utc};
 use relay_event_schema::protocol::{
-    Contexts, Event, HeaderName, HeaderValue, Headers, LogEntry, NetworkReportRaw, PairList,
-    Request, ResponseContext, Timestamp,
+    Contexts, Event, HeaderName, HeaderValue, Headers, LogEntry, NelContext, NetworkReportRaw,
+    PairList, Request, ResponseContext, Timestamp,
 };
 use relay_protocol::Annotated;
 
@@ -53,8 +53,12 @@ pub fn normalize(event: &mut Event, nel: Annotated<NetworkReportRaw>) {
         event.logger = Annotated::from("nel".to_string());
 
         let contexts = event.contexts.get_or_insert_with(Contexts::new);
-        let response_context = contexts.get_or_default::<ResponseContext>();
 
+        let nel_context = contexts.get_or_default::<NelContext>();
+        nel_context.ty = nel.ty.clone();
+        nel_context.age = nel.age.clone();
+
+        let response_context = contexts.get_or_default::<ResponseContext>();
         response_context.origin = body.server_ip.clone();
         response_context.status_code = body
             .status_code

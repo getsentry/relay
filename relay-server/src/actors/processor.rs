@@ -31,9 +31,9 @@ use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReport, NetworkReportError, NetworkReportRaw,
-    OtelContext, RelayInfo, Replay, SecurityReportType, SessionAggregates, SessionAttributes,
-    SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
+    IpAddr, LenientString, Metrics, NetworkReportError, NetworkReportRaw, OtelContext, RelayInfo,
+    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
@@ -1508,7 +1508,6 @@ impl EnvelopeProcessorService {
             // If the incoming payload could be converted into the raw network error, try
             // to use it to normalize the event.
             Ok(report) => {
-                event.nel = self.extract_nel_report(&report);
                 nel::normalize(&mut event, report);
             }
             Err(err) => {
@@ -1521,16 +1520,6 @@ impl EnvelopeProcessorService {
         }
 
         Ok((Annotated::new(event), len))
-    }
-
-    /// Create annotated [`Report`] from the provided [`NetworkReportRaw`].
-    fn extract_nel_report(&self, nel: &Annotated<NetworkReportRaw>) -> Annotated<NetworkReport> {
-        let mut report = NetworkReport::default();
-        if let Some(nel) = nel.value() {
-            report.age = nel.age.clone();
-            report.ty = nel.ty.clone();
-        }
-        report.into()
     }
 
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {

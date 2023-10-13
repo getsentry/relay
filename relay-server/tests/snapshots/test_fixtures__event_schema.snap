@@ -926,6 +926,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/CloudResourceContext"
         },
         {
+          "$ref": "#/definitions/NelContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -2547,6 +2550,33 @@ expression: "relay_event_schema::protocol::event_json_schema()"
       "anyOf": [
         {
           "type": "string"
+        }
+      ]
+    },
+    "NelContext": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "age": {
+              "description": " The age of the report since it got collected and before it got sent.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            },
+            "type": {
+              "description": " The type of the report.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
