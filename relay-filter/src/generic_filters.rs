@@ -9,17 +9,17 @@ use relay_event_schema::protocol::Event;
 use relay_sampling::condition::RuleCondition;
 
 /// Checks events by patterns in their error messages.
-pub fn matches(event: &Event, condition: &RuleCondition) -> bool {
-    // TODO: check how to augment the getter in order to support an equivalent behavior of existing
-    //  filters.
-    condition.matches(event)
+pub fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
+    // TODO: the condition DSL needs to be extended to support more complex semantics, such as
+    //  collections operations.
+    condition.map_or(false, |condition| condition.matches(event))
 }
 
 /// Filters events by patterns in their error messages.
 pub fn should_filter(event: &Event, config: &GenericFiltersConfig) -> Result<(), FilterStatKey> {
     for (filter_name, filter_config) in config.0.iter() {
-        if matches(event, &filter_config.condition) {
-            return Err(FilterStatKey::GenericFilters(filter_name.clone()));
+        if filter_config.is_enabled && matches(event, filter_config.condition.as_ref()) {
+            return Err(FilterStatKey::GenericFilter(filter_name.clone()));
         }
     }
 
@@ -40,14 +40,14 @@ mod tests {
                 "hydrationError".to_string(),
                 GenericFilterConfig {
                     is_enabled: true,
-                    condition: RuleCondition::eq("event.release", "1.0"),
+                    condition: Some(RuleCondition::eq("event.release", "1.0")),
                 },
             ),
             (
                 "chunkLoadError".to_string(),
                 GenericFilterConfig {
                     is_enabled: true,
-                    condition: RuleCondition::eq("event.transaction", "/hello"),
+                    condition: Some(RuleCondition::eq("event.transaction", "/hello")),
                 },
             ),
         ]
@@ -64,7 +64,7 @@ mod tests {
         };
         assert_eq!(
             should_filter(&event, &config),
-            Err(FilterStatKey::GenericFilters("hydrationError".to_string()))
+            Err(FilterStatKey::GenericFilter("hydrationError".to_string()))
         );
 
         // Matching second rule.
@@ -74,7 +74,7 @@ mod tests {
         };
         assert_eq!(
             should_filter(&event, &config),
-            Err(FilterStatKey::GenericFilters("chunkLoadError".to_string()))
+            Err(FilterStatKey::GenericFilter("chunkLoadError".to_string()))
         );
 
         // Matching both rules (first is taken).
@@ -85,7 +85,7 @@ mod tests {
         };
         assert_eq!(
             should_filter(&event, &config),
-            Err(FilterStatKey::GenericFilters("hydrationError".to_string()))
+            Err(FilterStatKey::GenericFilter("hydrationError".to_string()))
         );
 
         // Matching no rule.

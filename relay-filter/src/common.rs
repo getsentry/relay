@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -37,7 +38,7 @@ pub enum FilterStatKey {
     FilteredTransactions,
 
     /// Filtered due to a generic filter.
-    GenericFilters(String),
+    GenericFilter(String),
 }
 
 // An event grouped to a removed group.
@@ -54,8 +55,8 @@ pub enum FilterStatKey {
 
 impl FilterStatKey {
     /// Returns the string identifier of the filter stat key.
-    pub fn name(self) -> String {
-        match self {
+    pub fn name(self) -> Cow<'static, str> {
+        Cow::Borrowed(match self {
             FilterStatKey::IpAddress => "ip-address",
             FilterStatKey::ReleaseVersion => "release-version",
             FilterStatKey::ErrorMessage => "error-message",
@@ -65,11 +66,10 @@ impl FilterStatKey {
             FilterStatKey::WebCrawlers => "web-crawlers",
             FilterStatKey::InvalidCsp => "invalid-csp",
             FilterStatKey::FilteredTransactions => "filtered-transaction",
-            FilterStatKey::GenericFilters(filter_name) => {
-                return format!("generic-filters@{filter_name}")
+            FilterStatKey::GenericFilter(filter_name) => {
+                return Cow::Owned(filter_name);
             }
-        }
-        .to_string()
+        })
     }
 }
 
@@ -93,12 +93,7 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
             "web-crawlers" => FilterStatKey::WebCrawlers,
             "invalid-csp" => FilterStatKey::InvalidCsp,
             "filtered-transaction" => FilterStatKey::FilteredTransactions,
-            other => match other.strip_prefix("generic-filters@") {
-                Some(filter_name) => FilterStatKey::GenericFilters(filter_name.to_string()),
-                None => {
-                    return Err(other);
-                }
-            },
+            other => FilterStatKey::GenericFilter(other.to_string()),
         })
     }
 }

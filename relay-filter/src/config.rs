@@ -203,17 +203,20 @@ pub struct GenericFilterConfig {
     /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
     /// The condition for the filter.
-    pub condition: RuleCondition,
+    pub condition: Option<RuleCondition>,
 }
 
 impl GenericFilterConfig {
     /// Returns true if the filter is not enabled or the condition is not supported.
     pub fn is_empty(&self) -> bool {
-        !self.is_enabled || matches!(self.condition, RuleCondition::Unsupported)
+        !self.is_enabled || matches!(self.condition, Some(RuleCondition::Unsupported))
     }
 }
 
 /// Configuration for generic filters.
+///
+/// We use a vector in order to guarantee consistent total ordering of filters that is required
+/// by the matching algorithm.
 #[derive(Clone, Debug, Default)]
 pub struct GenericFiltersConfig(pub Vec<(String, GenericFilterConfig)>);
 
@@ -419,7 +422,7 @@ mod tests {
                 "hydrationError".to_string(),
                 GenericFilterConfig {
                     is_enabled: true,
-                    condition: RuleCondition::eq("event.exceptions", "HydrationError"),
+                    condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
                 },
             )]),
         };
@@ -521,14 +524,16 @@ mod tests {
                     "hydrationError",
                     GenericFilterConfig {
                         is_enabled: true,
-                        condition: Eq(
-                            EqCondition {
-                                name: "event.exceptions",
-                                value: String("HydrationError"),
-                                options: EqCondOptions {
-                                    ignore_case: false,
+                        condition: Some(
+                            Eq(
+                                EqCondition {
+                                    name: "event.exceptions",
+                                    value: String("HydrationError"),
+                                    options: EqCondOptions {
+                                        ignore_case: false,
+                                    },
                                 },
-                            },
+                            ),
                         ),
                     },
                 ),
@@ -536,14 +541,16 @@ mod tests {
                     "chunkLoadError",
                     GenericFilterConfig {
                         is_enabled: false,
-                        condition: Eq(
-                            EqCondition {
-                                name: "event.exceptions",
-                                value: String("ChunkLoadError"),
-                                options: EqCondOptions {
-                                    ignore_case: false,
+                        condition: Some(
+                            Eq(
+                                EqCondition {
+                                    name: "event.exceptions",
+                                    value: String("ChunkLoadError"),
+                                    options: EqCondOptions {
+                                        ignore_case: false,
+                                    },
                                 },
-                            },
+                            ),
                         ),
                     },
                 ),
