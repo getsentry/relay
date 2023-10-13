@@ -14,16 +14,9 @@ use url::Url;
 
 use crate::span::description::parse_query;
 use crate::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
+    http_status_code_from_span, MOBILE_SDKS,
 };
-
-/// Used to decide when to extract mobile-specific span tags.
-const MOBILE_SDKS: [&str; 4] = [
-    "sentry.cocoa",
-    "sentry.dart.flutter",
-    "sentry.java.android",
-    "sentry.javascript.react-native",
-];
 
 /// A list of supported span tags for tag extraction.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
