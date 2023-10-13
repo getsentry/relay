@@ -24,16 +24,16 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
-    TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
+    MeasurementsConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReport, OtelContext, RelayInfo, Replay, ReportError,
-    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
-    Timestamp, TraceContext, UserReport, Values,
+    IpAddr, LenientString, Metrics, NetworkReport, NetworkReportError, NetworkReportRaw,
+    OtelContext, RelayInfo, Replay, SecurityReportType, SessionAggregates, SessionAttributes,
+    SessionStatus, SessionUpdate, Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
@@ -121,7 +121,7 @@ pub enum ProcessingError {
     InvalidSecurityReport(#[source] serde_json::Error),
 
     #[error("invalid nel report")]
-    InvalidNelReport(#[source] ReportError),
+    InvalidNelReport(#[source] NetworkReportError),
 
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
@@ -1492,28 +1492,45 @@ impl EnvelopeProcessorService {
         Ok((Annotated::new(event), len))
     }
 
-    fn event_from_nel_report(
+    fn event_from_nel_item(
         &self,
         item: Item,
         _meta: &RequestMeta,
     ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
         let mut event = Event::default();
+        let data: &[u8] = &item.payload();
 
-        let data = &item.payload();
+        // Try to get the raw network report.
+        let report = NetworkReportRaw::try_annotated_from(data);
 
-        let apply_result = NetworkReport::apply_to_event(data, &mut event);
-
-        if let Err(json_error) = apply_result {
-            // logged in extract_event
-            relay_log::configure_scope(|scope| {
-                scope.set_extra("payload", String::from_utf8_lossy(data).into());
-            });
-
-            return Err(ProcessingError::InvalidNelReport(json_error));
+        match report {
+            // If the incoming payload could be converted into the raw network error, try
+            // to use it to normalize the event.
+            Ok(report) => {
+                event.nel = self.extract_nel_report(&report);
+                nel::normalize(&mut event, report);
+            }
+            Err(err) => {
+                // logged in extract_event
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("payload", String::from_utf8_lossy(data).into());
+                });
+                return Err(ProcessingError::InvalidNelReport(err));
+            }
         }
 
         Ok((Annotated::new(event), len))
+    }
+
+    /// Create annotated [`Report`] from the provided [`NetworkReportRaw`].
+    fn extract_nel_report(&self, nel: &Annotated<NetworkReportRaw>) -> Annotated<NetworkReport> {
+        let mut report = NetworkReport::default();
+        if let Some(nel) = nel.value() {
+            report.age = nel.age.clone();
+            report.ty = nel.ty.clone();
+        }
+        report.into()
     }
 
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
@@ -1755,7 +1772,7 @@ impl EnvelopeProcessorService {
                 })?
         } else if let Some(item) = nel_item {
             relay_log::trace!("processing nel report");
-            self.event_from_nel_report(item, envelope.meta())
+            self.event_from_nel_item(item, envelope.meta())
                 .map_err(|error| {
                     relay_log::error!(error = &error as &dyn Error, "failed to extract NEL report");
                     error

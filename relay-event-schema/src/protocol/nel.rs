@@ -4,21 +4,15 @@
 //! W3C Editor's Draft: <https://w3c.github.io/network-error-logging/>
 //! MDN: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging>
 
-use chrono::{DateTime, Duration, Utc};
-
 use crate::processor::ProcessValue;
-use crate::protocol::{
-    AsPair, Event, HeaderName, HeaderValue, Headers, LogEntry, PairList, Request, TagEntry, Tags,
-    Timestamp,
-};
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 use thiserror::Error;
 
 /// The NEL parsing errors.
 #[derive(Debug, Error)]
-pub enum ReportError {
+pub enum NetworkReportError {
     /// Unexpected format.
     #[error("unexpected format")]
     InvalidNel,
@@ -28,9 +22,9 @@ pub enum ReportError {
 }
 
 /// Generated network error report (NEL).
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct Body {
+pub struct BodyRaw {
     /// The elapsed number of milliseconds between the start of the resource
     /// fetch and when it was completed or aborted by the user agent.
     pub elapsed_time: Annotated<u64>,
@@ -51,6 +45,9 @@ pub struct Body {
     /// If request failed, the type of its network error. If request succeeded, "ok".
     #[metastructure(field = "type")]
     pub ty: Annotated<String>,
+    /// For forward compatibility.
+    #[metastructure(additional_properties, pii = "maybe")]
+    pub other: Object<Value>,
 }
 
 /// Models the content of a NEL report.
@@ -60,9 +57,9 @@ pub struct Body {
 /// via serde.
 ///
 /// See <https://w3c.github.io/network-error-logging/>
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
-pub struct NetworkReport {
+pub struct NetworkReportRaw {
     /// The age of the report since it got collected and before it got sent.
     pub age: Annotated<i64>,
     /// The type of the report.
@@ -74,101 +71,40 @@ pub struct NetworkReport {
     /// The User-Agent HTTP header.
     pub user_agent: Annotated<String>,
     /// The body of the NEL report.
-    pub body: Annotated<Body>,
+    pub body: Annotated<BodyRaw>,
+    /// For forward compatibility.
+    #[metastructure(additional_properties, pii = "maybe")]
+    pub other: Object<Value>,
 }
 
-impl NetworkReport {
-    fn get_request(&self) -> Request {
-        let headers = match self.user_agent.value() {
-            Some(ref user_agent) if !user_agent.is_empty() => {
-                Annotated::new(Headers(PairList(vec![Annotated::new((
-                    Annotated::new(HeaderName::new("User-Agent")),
-                    Annotated::new(HeaderValue::new(user_agent)),
-                ))])))
-            }
-            Some(_) | None => Annotated::empty(),
-        };
-        Request {
-            url: self.url.clone(),
-            headers,
-            ..Request::default()
-        }
+impl NetworkReportRaw {
+    pub fn try_annotated_from(value: &[u8]) -> Result<Annotated<Self>, NetworkReportError> {
+        Annotated::from_json_bytes(value).map_err(NetworkReportError::InvalidJson)
     }
-    pub fn apply_to_event(data: &[u8], event: &mut Event) -> Result<(), ReportError> {
-        let mut nel: Annotated<NetworkReport> =
-            Annotated::from_json_bytes(data).map_err(ReportError::InvalidJson)?;
+}
 
-        if let Some(nel) = nel.value_mut() {
-            if let Some(body) = nel.body.value() {
-                event.logentry = Annotated::new(LogEntry::from({
-                    if nel.ty.value().map_or("", |v| v.as_str()) == "http.error" {
-                        format!(
-                            "{} / {} ({})",
-                            body.phase.as_str().unwrap_or(""),
-                            body.ty.as_str().unwrap_or(""),
-                            body.status_code.value().unwrap_or(&0)
-                        )
-                    } else {
-                        format!(
-                            "{} / {}",
-                            body.phase.as_str().unwrap_or(""),
-                            body.ty.as_str().unwrap_or(""),
-                        )
-                    }
-                }));
-
-                event.request = Annotated::new(nel.get_request());
-                event.logger = Annotated::from("nel".to_string());
-
-                // Exrtact common tags.
-                let tags = event.tags.get_or_insert_with(Tags::default);
-                if let Some(ref method) = body.method.value() {
-                    tags.push(Annotated::new(TagEntry::from_pair((
-                        Annotated::new("method".to_string()),
-                        Annotated::new(method.to_string()),
-                    ))));
-                }
-                if let Some(ref protocol) = body.protocol.value() {
-                    tags.push(Annotated::new(TagEntry::from_pair((
-                        Annotated::new("protocol".to_string()),
-                        Annotated::new(protocol.to_string()),
-                    ))));
-                }
-                if let Some(ref status_code) = body.status_code.value() {
-                    tags.push(Annotated::new(TagEntry::from_pair((
-                        Annotated::new("status_code".to_string()),
-                        Annotated::new(status_code.to_string()),
-                    ))));
-                }
-                if let Some(ref server_ip) = body.server_ip.value() {
-                    tags.push(Annotated::new(TagEntry::from_pair((
-                        Annotated::new("server_ip".to_string()),
-                        Annotated::new(server_ip.to_string()),
-                    ))));
-                }
-            }
-
-            // Set the timestamp on the event when it actually occured.
-            let now: DateTime<Utc> = Utc::now();
-            if let Some(event_time) =
-                now.checked_sub_signed(Duration::milliseconds(*nel.age.value().unwrap_or(&0)))
-            {
-                event.timestamp = Annotated::new(Timestamp::from(event_time));
-            }
-        }
-        event.nel = nel;
-        Ok(())
-    }
+/// TODO(olek)
+#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
+pub struct NetworkReport {
+    /// The age of the report since it got collected and before it got sent.
+    pub age: Annotated<i64>,
+    /// The type of the report.
+    #[metastructure(field = "type")]
+    pub ty: Annotated<String>,
+    /// For forward compatibility.
+    #[metastructure(additional_properties, pii = "maybe")]
+    pub other: Object<Value>,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use chrono::{TimeZone, Utc};
     use relay_protocol::assert_annotated_snapshot;
 
+    use crate::protocol::NetworkReportRaw;
+
     #[test]
-    fn test_nel_basic() {
+    fn test_nel_raw_basic() {
         let json = r#"{
             "age": 31042,
             "body": {
@@ -187,63 +123,24 @@ mod tests {
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
         }"#;
 
-        let mut event = Event::default();
-        NetworkReport::apply_to_event(json.as_bytes(), &mut event).unwrap();
+        let report = NetworkReportRaw::try_annotated_from(json.as_bytes()).unwrap();
 
-        // mock timestamp because it is actually dynamic and depend on current time and "age" field
-        event.timestamp =
-            Annotated::new(Utc.with_ymd_and_hms(2023, 10, 5, 0, 0, 0).unwrap().into());
-
-        assert_annotated_snapshot!(Annotated::new(event), @r###"
+        assert_annotated_snapshot!(report, @r###"
         {
-          "logentry": {
-            "formatted": "connection / tcp.refused"
-          },
-          "logger": "nel",
-          "timestamp": 1696464000.0,
-          "request": {
-            "url": "http://example.com/",
-            "headers": [
-              [
-                "User-Agent",
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
-              ]
-            ]
-          },
-          "tags": [
-            [
-              "method",
-              "GET"
-            ],
-            [
-              "protocol",
-              "http/1.1"
-            ],
-            [
-              "status_code",
-              "0"
-            ],
-            [
-              "server_ip",
-              "127.0.0.1"
-            ]
-          ],
-          "nel": {
-            "age": 31042,
-            "type": "network-error",
-            "url": "http://example.com/",
-            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
-            "body": {
-              "elapsed_time": 0,
-              "method": "GET",
-              "phase": "connection",
-              "protocol": "http/1.1",
-              "referrer": "",
-              "sampling_fraction": 1.0,
-              "server_ip": "127.0.0.1",
-              "status_code": 0,
-              "type": "tcp.refused"
-            }
+          "age": 31042,
+          "type": "network-error",
+          "url": "http://example.com/",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+          "body": {
+            "elapsed_time": 0,
+            "method": "GET",
+            "phase": "connection",
+            "protocol": "http/1.1",
+            "referrer": "",
+            "sampling_fraction": 1.0,
+            "server_ip": "127.0.0.1",
+            "status_code": 0,
+            "type": "tcp.refused"
           }
         }
         "###);
