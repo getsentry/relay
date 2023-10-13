@@ -490,10 +490,9 @@ impl Aggregator {
     /// Takes out the buckets from the aggregator, leaving an empty map.
     pub fn take_buckets(&mut self) -> Vec<Bucket> {
         let bucket_interval = self.config.bucket_interval;
-        let buckets = std::mem::take(&mut self.buckets);
 
-        buckets
-            .into_iter()
+        self.buckets
+            .drain()
             .map(|(key, entry)| Bucket {
                 timestamp: key.timestamp,
                 width: bucket_interval,

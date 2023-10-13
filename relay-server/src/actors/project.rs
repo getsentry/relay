@@ -386,33 +386,35 @@ enum GetOrFetch<'a> {
 ///
 /// We want to wait with enforcing rate limits on metrics until we have a project state,
 /// So when we don't have one yet, we hold them in this aggregator until the project state arrives.
+///
+/// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-enum AggregationState {
-    State(Arc<ProjectState>),
-    Aggregator(aggregator::Aggregator),
+enum State {
+    Cached(Arc<ProjectState>),
+    Pending(Box<aggregator::Aggregator>),
 }
 
-impl AggregationState {
+impl State {
     fn state_value(&self) -> Option<Arc<ProjectState>> {
         match self {
-            AggregationState::State(state) => Some(Arc::clone(state)),
-            AggregationState::Aggregator(_) => None,
+            State::Cached(state) => Some(Arc::clone(state)),
+            State::Pending(_) => None,
         }
     }
 
+    /// Sets the new `ProjectState`.
     fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
         let buckets = match self {
-            AggregationState::State(_) => None,
-            AggregationState::Aggregator(agg) => Some(agg.take_buckets()),
+            State::Cached(_) => None,
+            State::Pending(agg) => Some(agg.take_buckets()),
         };
-        *self = Self::State(state);
+        *self = Self::Cached(state);
 
         buckets
     }
 
     fn new(config: AggregatorConfig) -> Self {
-        Self::Aggregator(aggregator::Aggregator::new(config))
+        Self::Pending(Box::new(aggregator::Aggregator::new(config)))
     }
 }
 
@@ -428,7 +430,7 @@ pub struct Project {
     last_envelope_seen: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    state: AggregationState,
+    state: State,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
@@ -444,7 +446,7 @@ impl Project {
             last_updated_at: Instant::now(),
             last_envelope_seen: Instant::now(),
             project_key: key,
-            state: AggregationState::new(config.default_aggregator_config().aggregator.clone()),
+            state: State::new(config.default_aggregator_config().aggregator.clone()),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
@@ -617,10 +619,12 @@ impl Project {
 
             if !buckets.is_empty() {
                 match &mut self.state {
-                    AggregationState::State(_) => {
+                    State::Cached(_) => {
+                        // We can send metrics straight to the aggregator.
                         aggregator.send(MergeBuckets::new(self.project_key, buckets));
                     }
-                    AggregationState::Aggregator(inner_agg) => {
+                    State::Pending(inner_agg) => {
+                        // We need to queue the metrics in a temporary aggregator until the project state becomes available.
                         inner_agg.merge_all(self.project_key, buckets, None);
                     }
                 }
@@ -1035,7 +1039,7 @@ mod tests {
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.state = AggregationState::State(Arc::new(project_state));
+            project.state = State::Cached(Arc::new(project_state));
 
             // Direct access should always yield a state:
             assert!(project.state_value().is_some());
@@ -1075,7 +1079,7 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.state = AggregationState::State(Arc::new(project_state));
+        project.state = State::Cached(Arc::new(project_state));
 
         // The project ID must be set.
         assert!(!project.state_value().unwrap().invalid());
@@ -1119,7 +1123,7 @@ mod tests {
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
-        project.state = AggregationState::State(Arc::new(project_state));
+        project.state = State::Cached(Arc::new(project_state));
         project
     }
 
