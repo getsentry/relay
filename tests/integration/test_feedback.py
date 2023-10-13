@@ -3,7 +3,7 @@ import json
 
 def generate_feedback_sdk_event():
     return {
-        "type": "user_report_v2",
+        "type": "feedback",
         "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
         "timestamp": 1597977777.6189718,
         "dist": "1.12",
@@ -56,7 +56,7 @@ def test_feedback_event_with_processing(
     relay.send_user_feedback(42, feedback)
 
     replay_event, replay_event_message = _events_consumer.get_event()
-    assert replay_event["type"] == "user_report_v2"
+    assert replay_event["type"] == "feedback"
     # assert replay_event_message["retention_days"] == 90
 
     parsed_feedback = json.loads(bytes(replay_event_message["payload"]))

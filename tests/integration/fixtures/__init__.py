@@ -222,7 +222,7 @@ class SentryLike:
 
     def send_user_feedback(self, project_id, payload):
         envelope = Envelope()
-        envelope.add_item(Item(PayloadRef(json=payload), type="user_report_v2"))
+        envelope.add_item(Item(PayloadRef(json=payload), type="feedback"))
         self.send_envelope(project_id, envelope)
 
     def send_metrics(self, project_id, payload):
