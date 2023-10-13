@@ -1082,7 +1082,7 @@ impl Envelope {
 
     /// Splits the envelope by the given predicate.
     ///
-    /// The main differents from [`split_by`] is this function returns the list of the newly
+    /// The main differents from `split_by()` is this function returns the list of the newly
     /// constracted envelopes with all the items where the predicate returns `true`. Otherwise it
     /// returns an empty list.
     ///
