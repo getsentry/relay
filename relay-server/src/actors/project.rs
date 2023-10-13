@@ -404,13 +404,10 @@ impl State {
 
     /// Sets the new `ProjectState`.
     fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
-        let buckets = match self {
+        match std::mem::replace(self, Self::Cached(state)) {
+            State::Pending(agg) => Some(agg.into_buckets()),
             State::Cached(_) => None,
-            State::Pending(agg) => Some(agg.take_buckets()),
-        };
-        *self = Self::Cached(state);
-
-        buckets
+        }
     }
 
     fn new(config: AggregatorConfig) -> Self {

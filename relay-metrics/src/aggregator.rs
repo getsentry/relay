@@ -488,11 +488,11 @@ impl Aggregator {
     }
 
     /// Takes out the buckets from the aggregator, leaving an empty map.
-    pub fn take_buckets(&mut self) -> Vec<Bucket> {
+    pub fn into_buckets(self) -> Vec<Bucket> {
         let bucket_interval = self.config.bucket_interval;
 
         self.buckets
-            .drain()
+            .into_iter()
             .map(|(key, entry)| Bucket {
                 timestamp: key.timestamp,
                 width: bucket_interval,
