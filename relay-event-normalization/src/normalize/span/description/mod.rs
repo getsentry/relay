@@ -12,7 +12,9 @@ use relay_event_schema::protocol::Span;
 use relay_protocol::{Annotated, Remark, RemarkType, Value};
 use url::Url;
 
-use crate::regexes::{REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX};
+use crate::regexes::{
+    DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+};
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::transactions::SpanDescriptionRule;
 
@@ -30,6 +32,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         .value()
         .and_then(|v| v.get("db.system"))
         .and_then(|system| system.as_str());
+    let span_origin = span.origin.as_str();
 
     let scrubbed = span
         .op
@@ -43,9 +46,12 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                     || sub.contains("mongodb")
                     || sub.contains("redis")
                     || is_legacy_activerecord(sub, db_system)
-                    || is_sql_mongodb(sub, description, db_system)
+                    || is_sql_mongodb(description, db_system)
                 {
                     None
+                // `db.sql.transaction` coming from CoreData need to be scrubbed differently.
+                } else if sub == "sql.transaction" && span_origin == Some("auto.db.core_data") {
+                    scrub_core_data(description)
                 } else {
                     sql::scrub_queries(db_system, description)
                 }
@@ -84,13 +90,24 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.
-fn is_sql_mongodb(sub_op: &str, description: &str, db_system: Option<&str>) -> bool {
-    sub_op == "sql.query" && (description.contains("\"$") || db_system == Some("mongodb"))
+fn is_sql_mongodb(description: &str, db_system: Option<&str>) -> bool {
+    description.contains("\"$")
+        || description.contains("({")
+        || description.contains("[{")
+        || description.starts_with('{')
+        || db_system == Some("mongodb")
 }
 
 /// We are unable to parse active record when we do not know which database is being used.
 fn is_legacy_activerecord(sub_op: &str, db_system: Option<&str>) -> bool {
     db_system.is_none() && (sub_op.contains("active_record") || sub_op.contains("activerecord"))
+}
+
+fn scrub_core_data(string: &str) -> Option<String> {
+    match DB_SQL_TRANSACTION_CORE_DATA_REGEX.replace_all(string, "*") {
+        Cow::Owned(scrubbed) => Some(scrubbed),
+        Cow::Borrowed(_) => None,
+    }
 }
 
 fn scrub_http(string: &str) -> Option<String> {
@@ -184,7 +201,12 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
 
 fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
     // Remove query parameters or the fragment.
-    if let Some(pos) = string.find('?') {
+    if string.starts_with("data:") {
+        if let Some(pos) = string.find(';') {
+            return Some(string[..pos].into());
+        }
+        return Some("data:*/*".into());
+    } else if let Some(pos) = string.find('?') {
         string = &string[..pos];
     } else if let Some(pos) = string.find('#') {
         string = &string[..pos];
@@ -193,10 +215,16 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
         Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(string) => {
             // No IDs scrubbed, but we still want to set something.
-            let url = Url::parse(string).ok()?;
-            let extension = url.path().rsplit_once('.')?.1;
-            let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
-            Some(format!("{domain}/*.{extension}"))
+            // If we managed to parse the URL, we'll try to get an extension.
+            if let Ok(url) = Url::parse(string) {
+                let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
+                // If there is an extension, we add it to the domain.
+                if let Some(extension) = url.path().rsplit_once('.') {
+                    return Some(format!("{domain}/*.{}", extension.1));
+                }
+                return Some(format!("{domain}/*"));
+            }
+            Some(string.into())
         }
     }
 }
@@ -547,7 +575,7 @@ mod tests {
     );
 
     span_description_test!(
-        span_description_fil_no_extension,
+        span_description_file_with_no_extension,
         "somefilenamewithnoextension",
         "file.read",
         "*"
@@ -559,6 +587,43 @@ mod tests {
         "resource.img",
         "https://data.domain.com/data/guide*.gif"
     );
+
+    span_description_test!(
+        resource_script_with_no_extension,
+        "https://www.domain.com/page?id=1234567890",
+        "resource.script",
+        "*.domain.com/*"
+    );
+
+    span_description_test!(
+        resource_script_with_no_domain,
+        "/page.js?action=name",
+        "resource.script",
+        "/page.js"
+    );
+
+    span_description_test!(
+        resource_script_with_no_domain_no_extension,
+        "/page?action=name",
+        "resource.script",
+        "/page"
+    );
+
+    span_description_test!(
+        resource_img_embedded,
+        "data:image/svg+xml;base64,PHN2ZyB4bW",
+        "resource.img",
+        "data:image/svg+xml"
+    );
+
+    span_description_test!(
+        db_category_with_mongodb_query,
+        "find({some_id:1234567890},{limit:100})",
+        "db",
+        ""
+    );
+
+    span_description_test!(db_category_with_not_sql, "{someField:someValue}", "db", "");
 
     #[test]
     fn informed_sql_parser() {
@@ -619,5 +684,40 @@ mod tests {
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.as_str(), Some("SELECT a FROM b"));
+    }
+
+    #[test]
+    fn core_data() {
+        let json = r#"{
+            "description": "INSERTED 1 'UAEventData'",
+            "op": "db.sql.transaction",
+            "origin": "auto.db.core_data"
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+
+        assert_eq!(scrubbed.as_str(), Some("INSERTED * 'UAEventData'"));
+    }
+
+    #[test]
+    fn multiple_core_data() {
+        let json = r#"{
+            "description": "UPDATED 1 'QueuedRequest', DELETED 1 'QueuedRequest'",
+            "op": "db.sql.transaction",
+            "origin": "auto.db.core_data"
+        }"#;
+
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+
+        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+
+        assert_eq!(
+            scrubbed.as_str(),
+            Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
+        );
     }
 }

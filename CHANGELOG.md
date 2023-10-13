@@ -16,6 +16,7 @@
 - Use correct field to pick SQL parser for span normalization. ([#2536](https://github.com/getsentry/relay/pull/2536))
 - Prevent stack overflow on SQL serialization. ([#2538](https://github.com/getsentry/relay/pull/2538))
 - Bind exclusively to the port for the HTTP server. ([#2582](https://github.com/getsentry/relay/pull/2582))
+- Scrub resource spans even when there's no domain or extension or when the description is an image. ([#2591](https://github.com/getsentry/relay/pull/2591))
 
 **Internal**:
 
@@ -24,7 +25,7 @@
 - Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
 - Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
 - Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
-- Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
+- Write span tags to `span.sentry_tags` instead of `span.data`. ([#2555](https://github.com/getsentry/relay/pull/2555), [#2598](https://github.com/getsentry/relay/pull/2598))
 - Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
 - Add `profile_id` to spans. ([#2569](https://github.com/getsentry/relay/pull/2569))
 - Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571), [#2589](https://github.com/getsentry/relay/pull/2589))
