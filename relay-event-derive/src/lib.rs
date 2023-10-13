@@ -236,11 +236,11 @@ fn parse_max_chars(name: &str) -> TokenStream {
     }
 }
 
-fn parse_max_chars_hard(size: u64) -> TokenStream {
+fn parse_max_chars_literal(size: usize) -> TokenStream {
     if size == 0 {
         panic!("invalid literal `{size}` for max_chars. value must be greater than 0")
     } else {
-        quote!(crate::processor::MaxChars::Hard(size))
+        quote!(crate::processor::MaxChars::Hard(#size))
     }
 }
 
@@ -587,8 +587,8 @@ fn parse_field_attributes(
                                         rv.max_chars = Some(quote!(#attr));
                                     }
                                     Lit::Int(litint) => {
-                                        let attr = parse_max_chars_hard(
-                                            litint.base10_parse::<u64>().unwrap(),
+                                        let attr = parse_max_chars_literal(
+                                            litint.base10_parse::<usize>().unwrap(),
                                         );
                                         rv.max_chars = Some(quote!(#attr));
                                     }
