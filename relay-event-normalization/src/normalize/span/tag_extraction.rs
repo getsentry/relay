@@ -14,16 +14,9 @@ use url::Url;
 
 use crate::span::description::parse_query;
 use crate::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
+    http_status_code_from_span, MOBILE_SDKS,
 };
-
-/// Used to decide when to extract mobile-specific span tags.
-const MOBILE_SDKS: [&str; 4] = [
-    "sentry.cocoa",
-    "sentry.dart.flutter",
-    "sentry.java.android",
-    "sentry.javascript.react-native",
-];
 
 /// A list of supported span tags for tag extraction.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -42,46 +35,22 @@ pub enum SpanTagKey {
     DeviceClass,
 
     // Specific to spans
-    Description,
-    Group,
-    SpanOp,
-    Category,
-    Module,
     Action,
+    Category,
+    Description,
     Domain,
-    System,
+    Group,
+    HttpDecodedResponseBodyLength,
+    HttpResponseContentLength,
+    HttpResponseTransferSize,
+    Module,
+    ResourceRenderBlockingStatus,
+    SpanOp,
     StatusCode,
+    System,
 }
 
 impl SpanTagKey {
-    /// The key used to write this tag into `span.data`.
-    ///
-    /// This key corresponds to the tag key on span metrics.
-    /// NOTE: This method can be removed once we stop double-writing span tags.
-    pub fn data_key(&self) -> &str {
-        match self {
-            SpanTagKey::Release => "release",
-            SpanTagKey::User => "user",
-            SpanTagKey::Environment => "environment",
-            SpanTagKey::Transaction => "transaction",
-            SpanTagKey::TransactionMethod => "transaction.method",
-            SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
-            SpanTagKey::Mobile => "mobile",
-            SpanTagKey::DeviceClass => "device.class",
-
-            SpanTagKey::Description => "span.description",
-            SpanTagKey::Group => "span.group",
-            SpanTagKey::SpanOp => "span.op",
-            SpanTagKey::Category => "span.category",
-            SpanTagKey::Module => "span.module",
-            SpanTagKey::Action => "span.action",
-            SpanTagKey::Domain => "span.domain",
-            SpanTagKey::System => "span.system",
-            SpanTagKey::StatusCode => "span.status_code",
-        }
-    }
-
     /// The key used to write this tag into `span.sentry_keys`.
     ///
     /// This key corresponds to the tag key in the snuba span dataset.
@@ -97,16 +66,50 @@ impl SpanTagKey {
             SpanTagKey::Mobile => "mobile",
             SpanTagKey::DeviceClass => "device.class",
 
-            SpanTagKey::Description => "description",
-            SpanTagKey::Group => "group",
-            SpanTagKey::SpanOp => "op",
-            SpanTagKey::Category => "category",
-            SpanTagKey::Module => "module",
             SpanTagKey::Action => "action",
+            SpanTagKey::Category => "category",
+            SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
-            SpanTagKey::System => "system",
+            SpanTagKey::Group => "group",
+            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
+            SpanTagKey::HttpResponseContentLength => "http.response_content_length",
+            SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
+            SpanTagKey::Module => "module",
+            SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
+            SpanTagKey::SpanOp => "op",
             SpanTagKey::StatusCode => "status_code",
+            SpanTagKey::System => "system",
         }
+    }
+}
+
+/// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
+/// delay the browser from rendering page content to the screen.
+///
+/// See <https://developer.mozilla.org/en-US/docs/Web/API/PerformanceResourceTiming/renderBlockingStatus>.
+enum RenderBlockingStatus {
+    Blocking,
+    NonBlocking,
+}
+
+impl<'a> TryFrom<&'a str> for RenderBlockingStatus {
+    type Error = &'a str;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        Ok(match value {
+            "blocking" => Self::Blocking,
+            "non-blocking" => Self::NonBlocking,
+            other => return Err(other),
+        })
+    }
+}
+
+impl std::fmt::Display for RenderBlockingStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Blocking => "blocking",
+            Self::NonBlocking => "non-blocking",
+        })
     }
 }
 
@@ -140,17 +143,6 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
                 .chain(tags.clone())
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
-        );
-
-        // Double write to `span.data` for now. This can be removed once all users of these fields
-        // have switched to `sentry_tags`.
-        let data = span.data.value_mut().get_or_insert_with(Default::default);
-        data.extend(
-            shared_tags
-                .clone()
-                .into_iter()
-                .chain(tags)
-                .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
         );
     }
 }
@@ -299,12 +291,15 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             span_tags.insert(SpanTagKey::Action, act);
         }
 
-        let domain = if span_op == "http.client" {
+        let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
-            scrubbed_description
-                .and_then(|d| d.split_once(' '))
-                .and_then(|(_, d)| Url::parse(d).ok())
-                .and_then(|url| {
+            if let Some(scrubbed) = scrubbed_description {
+                let url = if let Some((_, url)) = scrubbed.split_once(' ') {
+                    url
+                } else {
+                    scrubbed
+                };
+                Url::parse(url).ok().and_then(|url| {
                     url.domain().map(|d| {
                         let mut domain = d.to_lowercase();
                         if let Some(port) = url.port() {
@@ -313,6 +308,9 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                         domain
                     })
                 })
+            } else {
+                None
+            }
         } else if span_op.starts_with("db") {
             span.description
                 .value()
@@ -339,6 +337,57 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
             let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
+        }
+
+        if span_op.starts_with("resource.") {
+            if let Some(http_response_content_length) = span
+                .data
+                .value()
+                .and_then(|data| data.get("http.response_content_length"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::HttpResponseContentLength,
+                    http_response_content_length.to_owned(),
+                );
+            }
+
+            if let Some(http_decoded_response_body_length) = span
+                .data
+                .value()
+                .and_then(|data| data.get("http.decoded_response_body_length"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::HttpDecodedResponseBodyLength,
+                    http_decoded_response_body_length.to_owned(),
+                );
+            }
+
+            if let Some(http_response_transfer_size) = span
+                .data
+                .value()
+                .and_then(|data| data.get("http.response_transfer_size"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::HttpResponseTransferSize,
+                    http_response_transfer_size.to_owned(),
+                );
+            }
+
+            if let Some(resource_render_blocking_status) = span
+                .data
+                .value()
+                .and_then(|data| data.get("resource.render_blocking_status"))
+                .and_then(|value| value.as_str())
+            {
+                // Validate that it's a valid status:
+                if let Ok(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
+                {
+                    span_tags.insert(SpanTagKey::ResourceRenderBlockingStatus, status.to_string());
+                }
+            }
         }
     }
 

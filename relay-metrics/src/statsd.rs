@@ -112,13 +112,13 @@ pub enum MetricHistograms {
     ///    time period (`false`) or after the initial delay has expired (`true`).
     BucketsDelay,
 
-    /// The number of batches emitted per partition by [`crate::aggregation::Aggregator`].
+    /// The number of batches emitted per partition by [`crate::aggregator::Aggregator`].
     ///
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BatchesPerPartition,
 
-    /// The number of buckets in a batch emitted by [`crate::aggregation::Aggregator`].
+    /// The number of buckets in a batch emitted by [`crate::aggregator::Aggregator`].
     ///
     /// This corresponds to the number of buckets that will end up in an envelope.
     ///

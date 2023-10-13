@@ -27,26 +27,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             tags: ~,
             origin: ~,
             profile_id: ~,
-            data: {
-                "device.class": String(
-                    "1",
-                ),
-                "mobile": String(
-                    "true",
-                ),
-                "release": String(
-                    "1.2.3",
-                ),
-                "span.op": String(
-                    "default",
-                ),
-                "transaction": String(
-                    "gEt /api/:version/users/",
-                ),
-                "transaction.method": String(
-                    "GET",
-                ),
-            },
+            data: ~,
             sentry_tags: {
                 "device.class": "1",
                 "mobile": "true",

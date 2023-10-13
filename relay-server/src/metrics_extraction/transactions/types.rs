@@ -228,6 +228,7 @@ pub enum CommonTag {
     BrowserName,
     OsName,
     GeoCountryCode,
+    DeviceClass,
     Custom(String),
 }
 
@@ -246,6 +247,7 @@ impl Display for CommonTag {
             CommonTag::BrowserName => "browser.name",
             CommonTag::OsName => "os.name",
             CommonTag::GeoCountryCode => "geo.country_code",
+            CommonTag::DeviceClass => "device.class",
             CommonTag::Custom(s) => s,
         };
         write!(f, "{name}")
@@ -261,8 +263,8 @@ pub enum ExtractMetricsError {
     /// The event timestamp is outside the supported range.
     ///
     /// The supported range is derived from the
-    /// [`max_secs_in_past`](relay_metrics::AggregatorConfig::max_secs_in_past) and
-    /// [`max_secs_in_future`](relay_metrics::AggregatorConfig::max_secs_in_future) configuration options.
+    /// [`max_secs_in_past`](relay_metrics::aggregator::AggregatorConfig::max_secs_in_past) and
+    /// [`max_secs_in_future`](relay_metrics::aggregator::AggregatorConfig::max_secs_in_future) configuration options.
     #[error("timestamp too old or too far in the future")]
     InvalidTimestamp,
 }

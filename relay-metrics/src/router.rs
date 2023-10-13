@@ -7,12 +7,13 @@ use itertools::Itertools;
 use relay_system::{Addr, NoResponse, Recipient, Service};
 use serde::{Deserialize, Serialize};
 
+use crate::aggregatorservice::{AggregatorService, FlushBuckets};
 use crate::{
-    AcceptsMetrics, Aggregator, AggregatorConfig, AggregatorService, FlushBuckets, MergeBuckets,
-    MetricNamespace, MetricResourceIdentifier,
+    AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace,
+    MetricResourceIdentifier,
 };
 
-/// Contains an [`AggregatorConfig`] for a specific scope.
+/// Contains an [`AggregatorServiceConfig`] for a specific scope.
 ///
 /// For now, the only way to scope an aggregator is by [`MetricNamespace`].
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -23,7 +24,7 @@ pub struct ScopedAggregatorConfig {
     /// secondary aggregator.
     pub condition: Condition,
     /// The configuration of the secondary aggregator.
-    pub config: AggregatorConfig,
+    pub config: AggregatorServiceConfig,
 }
 
 /// Condition that needs to be met for a metric or bucket to be routed to a
@@ -56,7 +57,7 @@ pub struct RouterService {
 impl RouterService {
     /// Create a new router service.
     pub fn new(
-        aggregator_config: AggregatorConfig,
+        aggregator_config: AggregatorServiceConfig,
         secondary_aggregators: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
