@@ -145,12 +145,28 @@
 <a href="#145" id="145">145</a>
 <a href="#146" id="146">146</a>
 <a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! **Deprecated.** Utilities for extracting common event fields.
 //!
 //! This utility module is being phased out. Functionality in this module should be moved to the
 //! specific normalization file requiring this data access.
 
 </span><span class="kw">use </span>relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
+
+<span class="doccomment">/// Used to decide when to extract mobile-specific tags.
+</span><span class="kw">pub const </span>MOBILE_SDKS: [<span class="kw-2">&amp;</span>str; <span class="number">4</span>] = [
+    <span class="string">&quot;sentry.cocoa&quot;</span>,
+    <span class="string">&quot;sentry.dart.flutter&quot;</span>,
+    <span class="string">&quot;sentry.java.android&quot;</span>,
+    <span class="string">&quot;sentry.javascript.react-native&quot;</span>,
+];
 
 <span class="doccomment">/// Extract the HTTP status code from the span data.
 </span><span class="kw">pub fn </span>http_status_code_from_span(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
