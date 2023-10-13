@@ -384,7 +384,7 @@ enum GetOrFetch<'a> {
 
 /// Enum representing either the project state or an aggregation of metrics.
 ///
-/// We want to wait with enforcing rate limits on metrics until we have a project state,
+/// We have to delay rate limiting on metrics until we have a valid project state,
 /// So when we don't have one yet, we hold them in this aggregator until the project state arrives.
 ///
 /// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
