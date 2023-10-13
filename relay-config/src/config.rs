@@ -2004,69 +2004,71 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Returns an [`AggregatorConfig`] that ist he mo
+    /// Returns the most permissible [`AggregatorConfig`] based on the values of all the configured aggregators.
     pub fn permissive_aggregator_config(&self) -> AggregatorConfig {
-        let secondary_aggs: Vec<AggregatorServiceConfig> = self
-            .values
-            .secondary_aggregators
-            .clone()
-            .into_iter()
-            .map(|x| x.config)
-            .collect();
+        let aggregators = {
+            let secondary_aggs: Vec<AggregatorServiceConfig> = self
+                .values
+                .secondary_aggregators
+                .clone()
+                .into_iter()
+                .map(|x| x.config)
+                .collect();
 
-        let all_aggs = [secondary_aggs.clone(), vec![self.values.aggregator.clone()]].concat();
+            [secondary_aggs.clone(), vec![self.values.aggregator.clone()]].concat()
+        };
 
-        let bucket_interval = secondary_aggs
+        // The unwraps are safe, as it's only 'None' if the vector is empty.
+        let bucket_interval = aggregators
             .iter()
             .min_by_key(|agg| agg.aggregator.bucket_interval)
-            .unwrap_or(&self.values.aggregator)
+            .unwrap()
             .aggregator
             .bucket_interval;
 
-        for agg in &all_aggs {
+        for agg in &aggregators {
             if agg.aggregator.bucket_interval % bucket_interval != 0 {
                 relay_log::error!("buckets don't align");
             }
         }
 
-        let max_secs_in_past = secondary_aggs
+        let max_secs_in_past = aggregators
             .iter()
             .max_by_key(|agg| agg.aggregator.max_secs_in_past)
-            .unwrap_or(&self.values.aggregator)
+            .unwrap()
             .aggregator
             .bucket_interval;
 
-        let max_secs_in_future = secondary_aggs
+        let max_secs_in_future = aggregators
             .iter()
             .max_by_key(|agg| agg.aggregator.max_secs_in_future)
-            .unwrap_or(&self.values.aggregator)
+            .unwrap()
             .aggregator
             .bucket_interval;
 
-        let max_name_length = secondary_aggs
+        let max_name_length = aggregators
             .iter()
             .max_by_key(|agg| agg.aggregator.max_name_length)
-            .unwrap_or(&self.values.aggregator)
+            .unwrap()
             .aggregator
             .bucket_interval as usize;
 
-        let max_tag_key_length = secondary_aggs
+        let max_tag_key_length = aggregators
             .iter()
             .max_by_key(|agg| agg.aggregator.max_tag_key_length)
-            .unwrap_or(&self.values.aggregator)
+            .unwrap()
             .aggregator
             .bucket_interval as usize;
 
-        let max_tag_value_length = secondary_aggs
+        let max_tag_value_length = aggregators
             .iter()
             .max_by_key(|agg| agg.aggregator.max_tag_value_length)
-            .unwrap_or(&self.values.aggregator)
+            .unwrap()
             .aggregator
             .bucket_interval as usize;
 
+        // None means 'no limit'.
         let max_project_key_bucket_bytes = None;
-
-        let shift_key = ShiftKey::default();
 
         AggregatorConfig {
             bucket_interval,
@@ -2076,7 +2078,6 @@ impl Config {
             max_tag_key_length,
             max_tag_value_length,
             max_project_key_bucket_bytes,
-            shift_key,
             ..Default::default()
         }
     }
