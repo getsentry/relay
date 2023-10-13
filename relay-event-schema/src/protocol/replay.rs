@@ -82,7 +82,7 @@ pub struct Replay {
     ///   "replay_type": "session"
     /// }
     /// ```
-    #[metastructure(max_chars = "environment")]
+    #[metastructure(max_chars = 64)]
     pub replay_type: Annotated<String>,
 
     /// Segment identifier.
@@ -150,7 +150,7 @@ pub struct Replay {
     ///
     /// A string representing the platform the SDK is submitting from. This will be used by the
     /// Sentry interface to customize various components in the interface.
-    #[metastructure(max_chars = "environment")]
+    #[metastructure(max_chars = 64)]
     pub platform: Annotated<String>,
 
     /// The release version of the application.
@@ -178,7 +178,7 @@ pub struct Replay {
         trim_whitespace = "true",
         required = "false",
         nonempty = "true",
-        max_chars = "environment"
+        max_chars = 64
     )]
     pub dist: Annotated<String>,
 
@@ -202,7 +202,7 @@ pub struct Replay {
     pub tags: Annotated<Tags>,
 
     /// Static value. Should always be "replay_event".
-    #[metastructure(field = "type", max_chars = "environment")]
+    #[metastructure(field = "type", max_chars = 64)]
     pub ty: Annotated<String>,
 
     /// Information about the user who triggered this event.
