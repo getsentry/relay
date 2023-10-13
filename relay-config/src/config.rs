@@ -14,7 +14,7 @@ use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
+use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
 };
