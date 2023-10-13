@@ -41,7 +41,8 @@ pub enum EventType {
     ExpectStaple,
     /// Performance monitoring transactions carrying spans.
     Transaction,
-    /// User feedback payload.
+    /// User feedback payload. TODO(Jferg): Change this to UserFeedback once old UserReport
+    /// logic is deprecated.
     UserReportV2,
     /// All events that do not qualify as any other type.
     #[serde(other)]

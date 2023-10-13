@@ -59,7 +59,9 @@ pub enum DataCategory {
     MonitorSeat = 13,
     /// User Feedback
     ///
-    /// Represents a User Feedback processed
+    /// Represents a User Feedback processed.
+    /// Currently standardized on name UserReportV2 to avoid clashing with the old UserReport.
+    /// TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
     UserReportV2 = 14,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run

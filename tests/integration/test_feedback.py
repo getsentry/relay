@@ -28,6 +28,7 @@ def generate_feedback_sdk_event():
             "feedback": {
                 "message": "test message",
                 "contact_email": "test@example.com",
+                "type": "userreportv2",
             },
             "trace": {
                 "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
@@ -96,7 +97,7 @@ def test_feedback_event_with_processing(
         "feedback": {
             "message": "test message",
             "contact_email": "test@example.com",
-            "type": "feedback",
+            "type": "userreportv2",
         },
     }
 
