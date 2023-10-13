@@ -66,8 +66,8 @@ impl FilterStatKey {
             FilterStatKey::WebCrawlers => "web-crawlers",
             FilterStatKey::InvalidCsp => "invalid-csp",
             FilterStatKey::FilteredTransactions => "filtered-transaction",
-            FilterStatKey::GenericFilter(filter_name) => {
-                return Cow::Owned(filter_name);
+            FilterStatKey::GenericFilter(filter_identifier) => {
+                return Cow::Owned(filter_identifier);
             }
         })
     }

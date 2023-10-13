@@ -209,7 +209,7 @@ pub struct GenericFilterConfig {
 impl GenericFilterConfig {
     /// Returns true if the filter is not enabled or the condition is not supported.
     pub fn is_empty(&self) -> bool {
-        !self.is_enabled || matches!(self.condition, Some(RuleCondition::Unsupported))
+        !self.is_enabled || self.condition.is_none()
     }
 }
 

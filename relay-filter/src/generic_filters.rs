@@ -18,7 +18,7 @@ pub fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
 /// Filters events by patterns in their error messages.
 pub fn should_filter(event: &Event, config: &GenericFiltersConfig) -> Result<(), FilterStatKey> {
     for (filter_name, filter_config) in config.0.iter() {
-        if filter_config.is_enabled && matches(event, filter_config.condition.as_ref()) {
+        if !filter_config.is_empty() && matches(event, filter_config.condition.as_ref()) {
             return Err(FilterStatKey::GenericFilter(filter_name.clone()));
         }
     }
@@ -37,14 +37,14 @@ mod tests {
     fn mock_filters() -> Vec<(String, GenericFilterConfig)> {
         vec![
             (
-                "hydrationError".to_string(),
+                "firstReleases".to_string(),
                 GenericFilterConfig {
                     is_enabled: true,
                     condition: Some(RuleCondition::eq("event.release", "1.0")),
                 },
             ),
             (
-                "chunkLoadError".to_string(),
+                "helloTransactions".to_string(),
                 GenericFilterConfig {
                     is_enabled: true,
                     condition: Some(RuleCondition::eq("event.transaction", "/hello")),
@@ -64,7 +64,7 @@ mod tests {
         };
         assert_eq!(
             should_filter(&event, &config),
-            Err(FilterStatKey::GenericFilter("hydrationError".to_string()))
+            Err(FilterStatKey::GenericFilter("firstReleases".to_string()))
         );
 
         // Matching second rule.
@@ -74,7 +74,9 @@ mod tests {
         };
         assert_eq!(
             should_filter(&event, &config),
-            Err(FilterStatKey::GenericFilter("chunkLoadError".to_string()))
+            Err(FilterStatKey::GenericFilter(
+                "helloTransactions".to_string()
+            ))
         );
 
         // Matching both rules (first is taken).
@@ -85,7 +87,7 @@ mod tests {
         };
         assert_eq!(
             should_filter(&event, &config),
-            Err(FilterStatKey::GenericFilter("hydrationError".to_string()))
+            Err(FilterStatKey::GenericFilter("firstReleases".to_string()))
         );
 
         // Matching no rule.
