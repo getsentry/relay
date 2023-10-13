@@ -507,14 +507,7 @@ mod tests {
                 "value": "HydrationError"
               }
             },
-            "chunkLoadError": {
-                "isEnabled": false,
-                "condition": {
-                  "op": "eq",
-                  "name": "event.exceptions",
-                  "value": "ChunkLoadError"
-                }
-            }
+            "chunkLoadError": []
           }"#;
         let config = serde_json::from_str::<GenericFiltersConfig>(json).unwrap();
         insta::assert_debug_snapshot!(config, @r###"
