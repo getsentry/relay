@@ -2946,6 +2946,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "protocol": {
+              "description": " HTTP protocol.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "query_string": {
               "description": " The query string component of the URL.\n\n Can be given as unparsed string, dictionary, or list of tuples.\n\n If the query string is not declared and part of the `url`, Sentry moves it to the\n query string.",
               "default": null,
@@ -3059,6 +3067,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "inferred_content_type": {
               "description": " The inferred content type of the response payload.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "origin": {
+              "description": " Origin address.\n\n The adddress of the origin server, where this response is coming from.",
               "default": null,
               "type": [
                 "string",

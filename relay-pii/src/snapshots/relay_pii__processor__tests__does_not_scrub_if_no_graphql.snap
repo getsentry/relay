@@ -28,6 +28,7 @@ Event {
     request: Request {
         url: ~,
         method: ~,
+        protocol: ~,
         data: Object(
             {
                 "query": String(
@@ -77,6 +78,7 @@ Event {
                             },
                         ),
                         inferred_content_type: ~,
+                        origin: ~,
                         other: {},
                     },
                 ),
