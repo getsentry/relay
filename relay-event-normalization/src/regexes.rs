@@ -78,3 +78,6 @@ pub static RESOURCE_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     )
     .unwrap()
 });
+
+pub static DB_SQL_TRANSACTION_CORE_DATA_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?P<int>\d+)").unwrap());

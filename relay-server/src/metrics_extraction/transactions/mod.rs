@@ -331,12 +331,18 @@ impl TransactionExtractor<'_> {
 
         // Duration
         let duration = relay_common::time::chrono_to_positive_millis(end - start);
+        let has_profile = if self.config.version >= 3 {
+            false
+        } else {
+            self.has_profile
+        };
+
         metrics.project_metrics.push(
             TransactionMetric::Duration {
                 unit: DurationUnit::MilliSecond,
                 value: duration,
                 tags: TransactionDurationTags {
-                    has_profile: self.has_profile, // TODO: Stop producing this in v3
+                    has_profile,
                     universal_tags: tags.clone(),
                 },
             }

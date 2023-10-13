@@ -32,6 +32,9 @@ pub enum Feature {
     /// Enable processing profiles
     #[serde(rename = "organizations:profiling")]
     Profiling,
+    /// Enable extracting resource spans.
+    #[serde(rename = "projects:span-metrics-extraction-resource")]
+    SpanMetricsExtractionResource,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

@@ -203,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    fn process_json_roundtrip() {
+    fn serialize_json_roundtrip() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn process_with_upsert_short() {
+    fn serialize_with_upsert_short() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
@@ -244,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn process_with_upsert_interval() {
+    fn serialize_with_upsert_interval() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
@@ -268,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn process_with_upsert_full() {
+    fn serialize_with_upsert_full() {
         let json = r#"{
   "check_in_id": "a460c25ff2554577b920fcfacae4e5eb",
   "monitor_slug": "my-monitor",
