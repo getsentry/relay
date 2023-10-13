@@ -446,7 +446,7 @@ impl Project {
             last_updated_at: Instant::now(),
             last_envelope_seen: Instant::now(),
             project_key: key,
-            state: State::new(config.default_aggregator_config().aggregator.clone()),
+            state: State::new(config.permissive_aggregator_config()),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),

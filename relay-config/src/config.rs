@@ -14,6 +14,7 @@ use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
+use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
     AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
 };
@@ -2001,6 +2002,83 @@ impl Config {
     /// Maximum rate limit to report to clients in seconds.
     pub fn max_rate_limit(&self) -> Option<u64> {
         self.values.processing.max_rate_limit.map(u32::into)
+    }
+
+    /// Returns an [`AggregatorConfig`] that ist he mo
+    pub fn permissive_aggregator_config(&self) -> AggregatorConfig {
+        let secondary_aggs: Vec<AggregatorServiceConfig> = self
+            .values
+            .secondary_aggregators
+            .clone()
+            .into_iter()
+            .map(|x| x.config)
+            .collect();
+
+        let all_aggs = [secondary_aggs.clone(), vec![self.values.aggregator.clone()]].concat();
+
+        let bucket_interval = secondary_aggs
+            .iter()
+            .min_by_key(|agg| agg.aggregator.bucket_interval)
+            .unwrap_or(&self.values.aggregator)
+            .aggregator
+            .bucket_interval;
+
+        for agg in &all_aggs {
+            if agg.aggregator.bucket_interval % bucket_interval != 0 {
+                relay_log::error!("buckets don't align");
+            }
+        }
+
+        let max_secs_in_past = secondary_aggs
+            .iter()
+            .max_by_key(|agg| agg.aggregator.max_secs_in_past)
+            .unwrap_or(&self.values.aggregator)
+            .aggregator
+            .bucket_interval;
+
+        let max_secs_in_future = secondary_aggs
+            .iter()
+            .max_by_key(|agg| agg.aggregator.max_secs_in_future)
+            .unwrap_or(&self.values.aggregator)
+            .aggregator
+            .bucket_interval;
+
+        let max_name_length = secondary_aggs
+            .iter()
+            .max_by_key(|agg| agg.aggregator.max_name_length)
+            .unwrap_or(&self.values.aggregator)
+            .aggregator
+            .bucket_interval as usize;
+
+        let max_tag_key_length = secondary_aggs
+            .iter()
+            .max_by_key(|agg| agg.aggregator.max_tag_key_length)
+            .unwrap_or(&self.values.aggregator)
+            .aggregator
+            .bucket_interval as usize;
+
+        let max_tag_value_length = secondary_aggs
+            .iter()
+            .max_by_key(|agg| agg.aggregator.max_tag_value_length)
+            .unwrap_or(&self.values.aggregator)
+            .aggregator
+            .bucket_interval as usize;
+
+        let max_project_key_bucket_bytes = None;
+
+        let shift_key = ShiftKey::default();
+
+        AggregatorConfig {
+            bucket_interval,
+            max_secs_in_past,
+            max_secs_in_future,
+            max_name_length,
+            max_tag_key_length,
+            max_tag_value_length,
+            max_project_key_bucket_bytes,
+            shift_key,
+            ..Default::default()
+        }
     }
 
     /// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).
