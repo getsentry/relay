@@ -5,6 +5,14 @@
 
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
 
+/// Used to decide when to extract mobile-specific tags.
+pub const MOBILE_SDKS: [&str; 4] = [
+    "sentry.cocoa",
+    "sentry.dart.flutter",
+    "sentry.java.android",
+    "sentry.javascript.react-native",
+];
+
 /// Extract the HTTP status code from the span data.
 pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     // For SDKs which put the HTTP status code into the span data.
