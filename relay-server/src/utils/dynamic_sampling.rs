@@ -159,7 +159,7 @@ mod tests {
     use relay_base_schema::events::EventType;
     use relay_event_schema::protocol::{Event, EventId, LenientString};
     use relay_protocol::Annotated;
-    use relay_sampling::condition::RuleCondition;
+    use relay_protocol::RuleCondition;
     use relay_sampling::config::{
         RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule, SamplingValue,
     };

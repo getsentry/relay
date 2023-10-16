@@ -20,8 +20,7 @@ use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_pii::{
     selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
 };
-use relay_protocol::{Annotated, Remark};
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::{Annotated, Remark, RuleCondition};
 use relay_sampling::SamplingConfig;
 
 use crate::core::{RelayBuf, RelayStr};

@@ -399,13 +399,13 @@ mod tests {
     use similar_asserts::assert_eq;
     use uuid::Uuid;
 
-    use crate::condition::RuleCondition;
     use crate::config::{
         DecayingFunction, RuleId, RuleType, SamplingRule, SamplingValue, TimeRange,
     };
     use crate::dsc::TraceUserContext;
     use crate::evaluation::MatchedRuleIds;
     use crate::DynamicSamplingContext;
+    use relay_protocol::RuleCondition;
 
     use super::*;
 
