@@ -685,7 +685,7 @@ impl Aggregator {
         force_flush: bool,
         flush_partitions: Option<u64>,
         max_flush_bytes: usize,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        receiver: Option<&Recipient<FlushBuckets, NoResponse>>,
     ) {
         let flush_buckets = self.pop_flush_buckets(force_flush);
 
@@ -709,7 +709,7 @@ impl Aggregator {
                 self.process_batches(
                     buckets,
                     |batch| {
-                        if let Some(ref receiver) = receiver {
+                        if let Some(receiver) = receiver {
                             receiver.send(FlushBuckets {
                                 project_key,
                                 partition_key,
