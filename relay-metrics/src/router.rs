@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use relay_system::{NoResponse, Recipient, Sender, Service};
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::FLUSH_INTERVAL;
+use crate::aggregator::{self, FLUSH_INTERVAL};
 use crate::aggregatorservice::{AggregatorService, FlushBuckets};
 use crate::{Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace};
 
@@ -54,6 +54,9 @@ enum AggregatorState {
 pub struct RouterService {
     default_aggregator: AggregatorService,
     secondary_aggregators: BTreeMap<MetricNamespace, AggregatorService>,
+    max_flush_bytes: usize,
+    max_total_bucket_bytes: Option<usize>,
+    flush_partitions: Option<u64>,
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
 }
@@ -66,6 +69,9 @@ impl RouterService {
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
         Self {
+            max_total_bucket_bytes: aggregator_config.max_total_bucket_bytes,
+            max_flush_bytes: aggregator_config.max_flush_bytes,
+            flush_partitions: aggregator_config.flush_partitions,
             default_aggregator: AggregatorService::new(aggregator_config, receiver.clone()),
             secondary_aggregators: secondary_aggregators
                 .into_iter()
@@ -147,14 +153,22 @@ impl RouterService {
         }
     }
 
-    fn handle_accepts_metrics(&mut self, sender: Sender<bool>) {
-        let max_total_bucket_bytes = None;
-        let result = !self
-            .default_aggregator
-            .aggregator()
-            .totals_cost_exceeded(max_total_bucket_bytes);
+    fn aggregators(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
+        std::iter::once(self.default_aggregator.aggregator()).chain(
+            self.secondary_aggregators
+                .iter_mut()
+                .map(|(_, agg)| agg.aggregator()),
+        )
+    }
 
-        sender.send(result);
+    fn handle_accepts_metrics(&mut self, sender: Sender<bool>) {
+        let max_bytes = self.max_total_bucket_bytes;
+
+        let accepts = self
+            .aggregators()
+            .all(|agg| agg.totals_cost_exceeded(max_bytes));
+
+        sender.send(accepts);
     }
 
     fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
@@ -163,12 +177,10 @@ impl RouterService {
             buckets,
         } = msg;
 
-        let max_total_bucket_bytes = None;
-
         self.default_aggregator.aggregator().merge_all(
             project_key,
             buckets,
-            max_total_bucket_bytes,
+            self.max_total_bucket_bytes,
         );
     }
 
