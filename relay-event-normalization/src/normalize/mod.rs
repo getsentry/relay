@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::span::tag_extraction::{self, extract_span_tags};
+use crate::timestamp::TimestampProcessor;
 use crate::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
@@ -1020,6 +1021,9 @@ pub fn light_normalize_event(
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+
+        // NOTE(iker): this runs before the clockdrift
+        TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
         normalize_security_report(event, config.client_ip, &config.user_agent);
