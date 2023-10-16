@@ -650,32 +650,6 @@ impl Aggregator {
         self.cost_tracker.totals_cost_exceeded(max_total_cost)
     }
 
-    /// Split the provided buckets into batches and process each batch with the given function.
-    ///
-    /// For each batch, log a histogram metric.
-    pub fn process_batches(
-        &self,
-        buckets: impl IntoIterator<Item = Bucket>,
-        process: impl Fn(Vec<Bucket>),
-        max_flush_bytes: usize,
-    ) {
-        let capped_batches = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
-        let num_batches = capped_batches
-            .map(|batch| {
-                relay_statsd::metric!(
-                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                    aggregator = self.name(),
-                );
-                process(batch);
-            })
-            .count();
-
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
-            aggregator = self.name(),
-        );
-    }
-
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
