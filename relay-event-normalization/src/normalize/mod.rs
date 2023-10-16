@@ -677,6 +677,7 @@ fn is_security_report(event: &Event) -> bool {
         || event.hpkp.value().is_some()
 }
 
+/// Backfills the client IP address on for the NEL reports.
 fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
     if event.context::<NelContext>().is_none() {
         return;

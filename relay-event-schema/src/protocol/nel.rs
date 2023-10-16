@@ -24,8 +24,7 @@ pub enum NetworkReportError {
 #[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct BodyRaw {
-    /// The elapsed number of milliseconds between the start of the resource
-    /// fetch and when it was completed or aborted by the user agent.
+    /// The time between the start of the resource fetch and when it was completed or aborted.
     pub elapsed_time: Annotated<u64>,
     /// HTTP method.
     pub method: Annotated<String>,

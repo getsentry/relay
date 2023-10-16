@@ -278,7 +278,7 @@ fn queue_envelope(
         });
     }
 
-    // Take all the NEL reporst and split them up into the separate envelopes with 1 item per
+    // Take all NEL reports and split them up into the separate envelopes with 1 item per
     // envelope.
     for nel_envelope in envelope.split_all_by(|item| matches!(item.ty(), ItemType::Nel)) {
         relay_log::trace!("queueing separate envelopes for NEL report");

@@ -35,7 +35,7 @@ fn is_nel_mime(mime: Mime) -> bool {
     )
 }
 
-/// This handles all messages coming on the NEL endpoint.
+/// Handles all messages coming on the NEL endpoint.
 async fn handle(
     state: ServiceState,
     mime: Mime,
