@@ -4354,6 +4354,11 @@
 <a href="#4354" id="4354">4354</a>
 <a href="#4355" id="4355">4355</a>
 <a href="#4356" id="4356">4356</a>
+<a href="#4357" id="4357">4357</a>
+<a href="#4358" id="4358">4358</a>
+<a href="#4359" id="4359">4359</a>
+<a href="#4360" id="4360">4360</a>
+<a href="#4361" id="4361">4361</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4470,8 +4475,8 @@
     <span class="attr">#[error(<span class="string">&quot;missing project id in DSN&quot;</span>)]
     </span>MissingProjectId,
 
-    <span class="attr">#[error(<span class="string">&quot;invalid security report type&quot;</span>)]
-    </span>InvalidSecurityType,
+    <span class="attr">#[error(<span class="string">&quot;invalid security report type: {0:?}&quot;</span>)]
+    </span>InvalidSecurityType(Bytes),
 
     <span class="attr">#[error(<span class="string">&quot;invalid security report&quot;</span>)]
     </span>InvalidSecurityReport(<span class="attr">#[source] </span>serde_json::Error),
@@ -4503,7 +4508,9 @@
             </span><span class="self">Self</span>::PayloadTooLarge =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::TooLarge)),
             <span class="self">Self</span>::InvalidJson(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidJson)),
             <span class="self">Self</span>::InvalidMsgpack(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
-            <span class="self">Self</span>::InvalidSecurityType =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReportType)),
+            <span class="self">Self</span>::InvalidSecurityType(<span class="kw">_</span>) =&gt; {
+                <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReportType))
+            }
             <span class="self">Self</span>::InvalidSecurityReport(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReport)),
             <span class="self">Self</span>::InvalidTransaction =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             <span class="self">Self</span>::InvalidTimestamp =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Timestamp)),
@@ -5791,10 +5798,13 @@
         <span class="kw">let </span>len = item.len();
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
 
-        <span class="kw">let </span>data = <span class="kw-2">&amp;</span>item.payload();
-        <span class="kw">let </span>report_type = SecurityReportType::from_json(data)
-            .map_err(ProcessingError::InvalidJson)<span class="question-mark">?
-            </span>.ok_or(ProcessingError::InvalidSecurityType)<span class="question-mark">?</span>;
+        <span class="kw">let </span>bytes = item.payload();
+        <span class="kw">let </span>data = <span class="kw-2">&amp;</span>bytes;
+        <span class="kw">let </span><span class="prelude-val">Some</span>(report_type) =
+            SecurityReportType::from_json(data).map_err(ProcessingError::InvalidJson)<span class="question-mark">?
+        </span><span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::InvalidSecurityType(bytes));
+        };
 
         <span class="kw">let </span>apply_result = <span class="kw">match </span>report_type {
             SecurityReportType::Csp =&gt; Csp::apply_to_event(data, <span class="kw-2">&amp;mut </span>event),
