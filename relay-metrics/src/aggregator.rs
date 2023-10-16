@@ -1118,6 +1118,22 @@ impl fmt::Debug for Aggregator {
     }
 }
 
+impl Drop for Aggregator {
+    fn drop(&mut self) {
+        let remaining_buckets = self.bucket_count();
+        if remaining_buckets > 0 {
+            relay_log::error!(
+                tags.aggregator = self.name(),
+                "metrics aggregator dropping {remaining_buckets} buckets"
+            );
+            relay_statsd::metric!(
+                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64,
+                aggregator = self.name(),
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1687,5 +1703,123 @@ mod tests {
         let json = r#"{"shift_key": "bucket"}"#;
         let parsed: AggregatorConfig = serde_json::from_str(json).unwrap();
         assert!(matches!(parsed.shift_key, ShiftKey::Bucket));
+    }
+
+    #[test]
+    fn test_capped_iter_empty() {
+        let buckets = vec![];
+
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_capped_iter_single() {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [36, 49, 57, 68],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 200);
+        let batch = iter.next().unwrap();
+        assert_eq!(batch.len(), 1);
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_capped_iter_split() {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [1, 1, 1, 1],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+
+        // 58 is a magic number obtained by experimentation that happens to split this bucket
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), 108);
+        let batch1 = iter.next().unwrap();
+        assert_eq!(batch1.len(), 1);
+
+        match batch1.first().unwrap().value {
+            BucketValue::Distribution(ref dist) => assert_eq!(dist.len(), 2),
+            _ => unreachable!(),
+        }
+
+        let batch2 = iter.next().unwrap();
+        assert_eq!(batch2.len(), 1);
+
+        match batch2.first().unwrap().value {
+            BucketValue::Distribution(ref dist) => assert_eq!(dist.len(), 2),
+            _ => unreachable!(),
+        }
+
+        assert!(iter.next().is_none());
+    }
+
+    fn test_capped_iter_completeness(max_flush_bytes: usize, expected_elements: usize) {
+        let json = r#"[
+          {
+            "name": "endpoint.response_time",
+            "unit": "millisecond",
+            "value": [1, 1, 1, 1],
+            "type": "d",
+            "timestamp": 1615889440,
+            "width": 10,
+            "tags": {
+                "route": "user_index"
+            }
+          }
+        ]"#;
+
+        let buckets = serde_json::from_str::<Vec<Bucket>>(json).unwrap();
+
+        let mut iter = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
+        let batches = iter
+            .by_ref()
+            .take(expected_elements + 1)
+            .collect::<Vec<_>>();
+        assert!(
+            batches.len() <= expected_elements,
+            "Cannot have more buckets than individual values"
+        );
+        let total_elements: usize = batches.into_iter().flatten().map(|x| x.value.len()).sum();
+        assert_eq!(total_elements, expected_elements);
+    }
+
+    #[test]
+    fn test_capped_iter_completeness_0() {
+        test_capped_iter_completeness(0, 0);
+    }
+
+    #[test]
+    fn test_capped_iter_completeness_90() {
+        // This would cause an infinite loop.
+        test_capped_iter_completeness(90, 0);
+    }
+
+    #[test]
+    fn test_capped_iter_completeness_100() {
+        test_capped_iter_completeness(100, 4);
     }
 }
