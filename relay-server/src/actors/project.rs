@@ -382,7 +382,7 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
-/// Enum representing either the project state or an aggregation of metrics.
+/// Represents either the project state or an aggregation of metrics.
 ///
 /// We have to delay rate limiting on metrics until we have a valid project state,
 /// So when we don't have one yet, we hold them in this aggregator until the project state arrives.

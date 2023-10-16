@@ -2009,60 +2009,40 @@ impl Config {
     /// A lossless aggregator can be put in front of any of the configured aggregators without losing data that the configured aggregator would keep.
     /// This is useful for pre-aggregating metrics together in a single aggregator instance.
     pub fn permissive_aggregator_config(&self) -> AggregatorConfig {
-        let aggregators: Vec<AggregatorConfig> = self
-            .values
-            .secondary_aggregators
-            .iter()
-            .map(|agg| &agg.config.aggregator)
-            .chain(std::iter::once(&self.values.aggregator.aggregator))
-            .cloned()
-            .collect();
+        let AggregatorConfig {
+            mut bucket_interval,
+            mut max_secs_in_past,
+            mut max_secs_in_future,
+            mut max_name_length,
+            mut max_tag_key_length,
+            mut max_tag_value_length,
+            mut max_project_key_bucket_bytes,
+            ..
+        } = &self.default_aggregator_config().aggregator;
 
-        // The unwraps are safe, as it's only 'None' if the vector is empty.
-        let bucket_interval = aggregators
-            .iter()
-            .min_by_key(|agg| agg.bucket_interval)
-            .unwrap()
-            .bucket_interval;
+        for secondary_config in self.secondary_aggregator_configs() {
+            let agg = &secondary_config.config.aggregator;
 
-        for agg in &aggregators {
-            if agg.bucket_interval % bucket_interval != 0 {
+            bucket_interval = bucket_interval.min(agg.bucket_interval);
+            max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
+            max_secs_in_future = max_secs_in_future.max(agg.max_secs_in_future);
+            max_name_length = max_name_length.max(agg.max_name_length);
+            max_tag_key_length = max_tag_key_length.max(agg.max_tag_key_length);
+            max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
+            max_project_key_bucket_bytes =
+                max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
+        }
+
+        for agg in self
+            .secondary_aggregator_configs()
+            .iter()
+            .map(|sc| &sc.config)
+            .chain(std::iter::once(self.default_aggregator_config()))
+        {
+            if agg.aggregator.bucket_interval % bucket_interval != 0 {
                 relay_log::error!("buckets don't align");
             }
         }
-
-        let max_secs_in_past = aggregators
-            .iter()
-            .max_by_key(|agg| agg.max_secs_in_past)
-            .unwrap()
-            .max_secs_in_past;
-
-        let max_secs_in_future = aggregators
-            .iter()
-            .max_by_key(|agg| agg.max_secs_in_future)
-            .unwrap()
-            .max_secs_in_future;
-
-        let max_name_length = aggregators
-            .iter()
-            .max_by_key(|agg| agg.max_name_length)
-            .unwrap()
-            .max_name_length;
-
-        let max_tag_key_length = aggregators
-            .iter()
-            .max_by_key(|agg| agg.max_tag_key_length)
-            .unwrap()
-            .max_tag_key_length;
-
-        let max_tag_value_length = aggregators
-            .iter()
-            .max_by_key(|agg| agg.max_tag_value_length)
-            .unwrap()
-            .max_tag_value_length;
-
-        // None means 'no limit'.
-        let max_project_key_bucket_bytes = None;
 
         AggregatorConfig {
             bucket_interval,
