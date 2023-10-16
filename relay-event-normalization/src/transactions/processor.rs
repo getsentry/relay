@@ -378,7 +378,7 @@ fn scrub_identifiers_with_regex(
     Ok(did_change)
 }
 
-/// Set the event's end timestamp into the spans that don't have one.
+/// Copies the event's end timestamp into the spans that don't have one.
 fn end_all_spans(event: &mut Event) -> ProcessingResult {
     let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     for span in spans {
