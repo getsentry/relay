@@ -2035,31 +2035,31 @@ impl Config {
             .iter()
             .max_by_key(|agg| agg.max_secs_in_past)
             .unwrap()
-            .bucket_interval;
+            .max_secs_in_past;
 
         let max_secs_in_future = aggregators
             .iter()
             .max_by_key(|agg| agg.max_secs_in_future)
             .unwrap()
-            .bucket_interval;
+            .max_secs_in_future;
 
         let max_name_length = aggregators
             .iter()
             .max_by_key(|agg| agg.max_name_length)
             .unwrap()
-            .bucket_interval as usize;
+            .max_name_length as usize;
 
         let max_tag_key_length = aggregators
             .iter()
             .max_by_key(|agg| agg.max_tag_key_length)
             .unwrap()
-            .bucket_interval as usize;
+            .max_tag_key_length as usize;
 
         let max_tag_value_length = aggregators
             .iter()
             .max_by_key(|agg| agg.max_tag_value_length)
             .unwrap()
-            .bucket_interval as usize;
+            .max_tag_value_length as usize;
 
         // None means 'no limit'.
         let max_project_key_bucket_bytes = None;
