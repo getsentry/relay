@@ -8,6 +8,7 @@
 - Accept spans needed for the mobile Starfish module. ([#2570](https://github.com/getsentry/relay/pull/2570))
 - Extract size metrics and blocking status tag for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
 - Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
+- Add new generic inbound filters. ([#2595](https://github.com/getsentry/relay/pull/2595))
 
 **Bug Fixes**:
 

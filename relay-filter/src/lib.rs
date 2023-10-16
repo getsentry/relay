@@ -49,7 +49,7 @@ pub fn should_filter(
     // In order to maintain backwards compatibility, we still want to run the old matching logic,
     // but we will try to match generic filters first, since the goal is to eventually fade out the
     // the normal filters except for the ones that have complex conditions.
-    generic_filters::should_filter(event, &config.generic_filters)?;
+    generic_filters::should_filter(event, &config.generic)?;
 
     // The order of applying filters should not matter as they are additive. Still, be careful
     // when making changes to this order.

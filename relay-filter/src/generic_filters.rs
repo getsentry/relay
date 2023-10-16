@@ -6,7 +6,7 @@
 
 use crate::{FilterStatKey, GenericFiltersConfig};
 use relay_event_schema::protocol::Event;
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::RuleCondition;
 
 /// Checks events by patterns in their error messages.
 pub fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
@@ -17,7 +17,7 @@ pub fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
 
 /// Filters events by patterns in their error messages.
 pub fn should_filter(event: &Event, config: &GenericFiltersConfig) -> Result<(), FilterStatKey> {
-    for (filter_name, filter_config) in config.0.iter() {
+    for (filter_name, filter_config) in config.filters.0.iter() {
         if !filter_config.is_empty() && matches(event, filter_config.condition.as_ref()) {
             return Err(FilterStatKey::GenericFilter(filter_name.clone()));
         }
@@ -32,7 +32,7 @@ mod tests {
     use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
-    use relay_sampling::condition::RuleCondition;
+    use relay_protocol::RuleCondition;
 
     fn mock_filters() -> Vec<(String, GenericFilterConfig)> {
         vec![

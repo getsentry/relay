@@ -7,7 +7,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_common::glob3::GlobPatterns;
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::RuleCondition;
 use serde::de::{MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -213,24 +213,21 @@ impl GenericFilterConfig {
     }
 }
 
-/// Configuration for generic filters.
-///
-/// We use a vector in order to guarantee consistent total ordering of filters that is required
-/// by the matching algorithm.
+/// Configuration for a set of ordered filters.
 #[derive(Clone, Debug, Default)]
-pub struct GenericFiltersConfig(pub Vec<(String, GenericFilterConfig)>);
+pub struct OrderedFilters(pub Vec<(String, GenericFilterConfig)>);
 
-impl GenericFiltersConfig {
+impl OrderedFilters {
     /// Returns true if there are no generic filters configured.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty() || self.0.iter().all(|(_, value)| value.is_empty())
     }
 }
 
-impl Serialize for GenericFiltersConfig {
+impl Serialize for OrderedFilters {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         let mut map = serializer.serialize_map(Some(self.0.len()))?;
         for (filter_name, filter_config) in self.0.iter() {
@@ -240,10 +237,10 @@ impl Serialize for GenericFiltersConfig {
     }
 }
 
-struct GenericFiltersConfigVisitor();
+struct OrderedFiltersVisitor();
 
-impl<'de> Visitor<'de> for GenericFiltersConfigVisitor {
-    type Value = GenericFiltersConfig;
+impl<'de> Visitor<'de> for OrderedFiltersVisitor {
+    type Value = OrderedFilters;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter
@@ -251,10 +248,10 @@ impl<'de> Visitor<'de> for GenericFiltersConfigVisitor {
     }
 
     fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-    where
-        M: MapAccess<'de>,
+        where
+            M: MapAccess<'de>,
     {
-        let mut filters = GenericFiltersConfig(vec![]);
+        let mut filters = OrderedFilters(vec![]);
 
         // We don't perform any kind of de-duplication in case of duplicate keys, since this might
         // lead to an opaque behavior from the outside. The resolution of multiple filters with
@@ -267,12 +264,32 @@ impl<'de> Visitor<'de> for GenericFiltersConfigVisitor {
     }
 }
 
-impl<'de> Deserialize<'de> for GenericFiltersConfig {
+impl<'de> Deserialize<'de> for OrderedFilters {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(GenericFiltersConfigVisitor())
+        deserializer.deserialize_map(OrderedFiltersVisitor())
+    }
+}
+
+
+/// Configuration for generic filters.
+///
+/// We use a vector in order to guarantee consistent total ordering of filters that is required
+/// by the matching algorithm.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct GenericFiltersConfig {
+    /// Version of the filters configuration.
+    pub version: u16,
+    /// Filters configuration as an ordered map.
+    pub filters: OrderedFilters,
+}
+
+impl GenericFiltersConfig {
+    /// Returns true if the filters are not declared.
+    pub fn is_empty(&self) -> bool {
+        self.filters.is_empty()
     }
 }
 
@@ -321,11 +338,11 @@ pub struct FiltersConfig {
 
     /// Configuration for generic filters.
     #[serde(default, skip_serializing_if = "GenericFiltersConfig::is_empty")]
-    pub generic_filters: GenericFiltersConfig,
+    pub generic: GenericFiltersConfig,
 }
 
 impl FiltersConfig {
-    /// Returns true if there are no filter configurations delcared.
+    /// Returns true if there are no filter configurations declared.
     pub fn is_empty(&self) -> bool {
         self.browser_extensions.is_empty()
             && self.client_ips.is_empty()
@@ -336,7 +353,7 @@ impl FiltersConfig {
             && self.localhost.is_empty()
             && self.releases.is_empty()
             && self.ignore_transactions.is_empty()
-            && self.generic_filters.is_empty()
+            && self.generic.is_empty()
     }
 }
 
