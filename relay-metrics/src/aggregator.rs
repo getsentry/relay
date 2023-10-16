@@ -9,7 +9,6 @@ use std::{fmt, mem};
 use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::{MonotonicResult, UnixTimestamp};
-use relay_system::{NoResponse, Recipient};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
@@ -17,7 +16,7 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{aggregator, DistributionValue, FlushBuckets};
+use crate::{aggregator, DistributionValue, HashedBucket};
 
 /// The fraction of [`AggregatorServiceConfig::max_flush_bytes`](crate::AggregatorServiceConfig) at which buckets will be split. A value of
 /// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
@@ -111,7 +110,7 @@ fn estimate_size(bucket: &Bucket) -> usize {
 /// Since this uses an approximate function to estimate the size of buckets, the actual serialized
 /// payload may exceed the size. The estimation function is built in a way to guarantee the same
 /// order of magnitude.
-struct CappedBucketIter<T: Iterator<Item = Bucket>> {
+pub struct CappedBucketIter<T: Iterator<Item = Bucket>> {
     buckets: T,
     next_bucket: Option<Bucket>,
     max_flush_bytes: usize,
@@ -503,14 +502,6 @@ impl Ord for QueuedBucket {
     }
 }
 
-/// A Bucket and its hashed key.
-/// This is cheaper to pass around than a (BucketKey, Bucket) pair.
-pub struct HashedBucket {
-    // This is only public because pop_flush_buckets is used in benchmark.
-    hashed_key: u64,
-    bucket: Bucket,
-}
-
 #[derive(Default)]
 struct CostTracker {
     total_cost: usize,
@@ -670,58 +661,6 @@ impl Aggregator {
         );
     }
 
-    /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
-    /// to the receiver to send the [`MergeBuckets`](crate::MergeBuckets) message back if buckets could not be flushed
-    /// and we require another re-try.
-    ///
-    /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    pub fn try_flush(
-        &mut self,
-        force_flush: bool,
-        flush_partitions: Option<u64>,
-        max_flush_bytes: usize,
-        receiver: Option<&Recipient<FlushBuckets, NoResponse>>,
-    ) {
-        let flush_buckets = self.pop_flush_buckets(force_flush);
-
-        if flush_buckets.is_empty() {
-            return;
-        }
-
-        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
-
-        let mut total_bucket_count = 0u64;
-        for (project_key, project_buckets) in flush_buckets.into_iter() {
-            let bucket_count = project_buckets.len() as u64;
-            relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
-                aggregator = self.name(),
-            );
-            total_bucket_count += bucket_count;
-
-            let partitioned_buckets = self.partition_buckets(project_buckets, flush_partitions);
-            for (partition_key, buckets) in partitioned_buckets {
-                self.process_batches(
-                    buckets,
-                    |batch| {
-                        if let Some(receiver) = receiver {
-                            receiver.send(FlushBuckets {
-                                project_key,
-                                partition_key,
-                                buckets: batch,
-                            });
-                        };
-                    },
-                    max_flush_bytes,
-                );
-            }
-        }
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
-            aggregator = self.name(),
-        );
-    }
-
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
@@ -772,10 +711,7 @@ impl Aggregator {
                         buckets
                             .entry(key.project_key)
                             .or_default()
-                            .push(HashedBucket {
-                                hashed_key: key.hash64(),
-                                bucket,
-                            });
+                            .push(HashedBucket::new(key.hash64(), bucket));
 
                         false
                     } else {
@@ -1056,35 +992,6 @@ impl Aggregator {
                 }
             }
         }
-    }
-
-    /// Split buckets into N logical partitions, determined by the bucket key.
-    pub fn partition_buckets(
-        &self,
-        buckets: Vec<HashedBucket>,
-        flush_partitions: Option<u64>,
-    ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
-        let flush_partitions = match flush_partitions {
-            None => {
-                return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
-            }
-            Some(x) => x.max(1), // handle 0,
-        };
-        let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
-        for bucket in buckets {
-            let partition_key = bucket.hashed_key % flush_partitions;
-            partitions
-                .entry(Some(partition_key))
-                .or_default()
-                .push(bucket.bucket);
-
-            // Log the distribution of buckets over partition key
-            relay_statsd::metric!(
-                histogram(MetricHistograms::PartitionKeys) = partition_key as f64,
-                aggregator = &self.name,
-            );
-        }
-        partitions
     }
 
     /// Create a new aggregator.

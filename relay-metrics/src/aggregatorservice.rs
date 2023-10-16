@@ -1,7 +1,7 @@
 //! Aggregation logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
 use itertools::Itertools;
@@ -12,11 +12,26 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig};
+use crate::aggregator::{self, AggregatorConfig, CappedBucketIter};
+use crate::statsd::MetricHistograms;
 use crate::{Bucket, MetricNamespace, MetricResourceIdentifier};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
+
+/// A Bucket and its hashed key.
+/// This is cheaper to pass around than a (BucketKey, Bucket) pair.
+pub struct HashedBucket {
+    hashed_key: u64,
+    bucket: Bucket,
+}
+
+impl HashedBucket {
+    /// Creates a new [`HashedBucket`] instance.
+    pub fn new(hashed_key: u64, bucket: Bucket) -> Self {
+        Self { hashed_key, bucket }
+    }
+}
 
 /// Aggregator service interface.
 #[derive(Debug)]
@@ -199,25 +214,117 @@ impl AggregatorService {
         }
     }
 
+    /// Split buckets into N logical partitions, determined by the bucket key.
+    fn partition_buckets(
+        &self,
+        aggregator_name: &str,
+        buckets: Vec<HashedBucket>,
+    ) -> BTreeMap<Option<u64>, Vec<Bucket>> {
+        let flush_partitions = match self.flush_partitions {
+            None => {
+                return BTreeMap::from([(None, buckets.into_iter().map(|x| x.bucket).collect())]);
+            }
+            Some(x) => x.max(1), // handle 0,
+        };
+        let mut partitions = BTreeMap::<_, Vec<Bucket>>::new();
+        for bucket in buckets {
+            let partition_key = bucket.hashed_key % flush_partitions;
+            partitions
+                .entry(Some(partition_key))
+                .or_default()
+                .push(bucket.bucket);
+
+            // Log the distribution of buckets over partition key
+            relay_statsd::metric!(
+                histogram(MetricHistograms::PartitionKeys) = partition_key as f64,
+                aggregator = aggregator_name,
+            );
+        }
+        partitions
+    }
+
+    fn try_flush(
+        &self,
+        aggregator_name: &str,
+        flush_buckets: HashMap<ProjectKey, Vec<HashedBucket>>,
+    ) {
+        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
+
+        let mut total_bucket_count = 0u64;
+        for (project_key, project_buckets) in flush_buckets.into_iter() {
+            let bucket_count = project_buckets.len() as u64;
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                aggregator = aggregator_name,
+            );
+            total_bucket_count += bucket_count;
+
+            let partitioned_buckets = self.partition_buckets(aggregator_name, project_buckets);
+
+            for (partition_key, buckets) in partitioned_buckets {
+                let capped_batches =
+                    CappedBucketIter::new(buckets.into_iter(), self.max_flush_bytes);
+
+                let num_batches = capped_batches
+                    .map(|batch| {
+                        relay_statsd::metric!(
+                            histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                            aggregator = aggregator_name,
+                        );
+                        if let Some(receiver) = self.receiver.as_ref() {
+                            receiver.send(FlushBuckets {
+                                project_key,
+                                partition_key,
+                                buckets: batch,
+                            });
+                        };
+                    })
+                    .count();
+
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+                    aggregator = aggregator_name,
+                );
+            }
+        }
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
+            aggregator = aggregator_name,
+        );
+    }
+
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
     /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
     /// and we require another re-try.
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self) {
+    fn try_flush_all(&mut self) {
         let force_flush = matches!(&self.state, &AggregatorState::ShuttingDown);
-        let flush_partitions = self.flush_partitions;
-        let max_flush_bytes = self.max_flush_bytes;
-        let receiver = self.receiver.clone();
 
-        for agg in self.aggregators() {
-            agg.try_flush(
-                force_flush,
-                flush_partitions,
-                max_flush_bytes,
-                receiver.as_ref(),
-            );
+        let flush_buckets: Vec<_> = self
+            .aggregators_mut()
+            .map(|agg| agg.pop_flush_buckets(force_flush))
+            .collect_vec();
+
+        for (name, buckets) in self
+            .aggregators_ref()
+            .map(|agg| agg.name())
+            .zip(flush_buckets.into_iter())
+        {
+            if buckets.is_empty() {
+                continue;
+            };
+
+            self.try_flush(name, buckets);
         }
+    }
+
+    fn aggregators_ref(&self) -> impl Iterator<Item = &aggregator::Aggregator> {
+        std::iter::once(&self.default_aggregator).chain(self.secondary_aggregators.values())
+    }
+
+    fn aggregators_mut(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
+        std::iter::once(&mut self.default_aggregator).chain(self.secondary_aggregators.values_mut())
     }
 
     fn handle_message(&mut self, msg: Aggregator) {
@@ -231,16 +338,11 @@ impl AggregatorService {
         }
     }
 
-    fn aggregators(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
-        std::iter::once(&mut self.default_aggregator)
-            .chain(self.secondary_aggregators.iter_mut().map(|(_, agg)| agg))
-    }
-
     fn handle_accepts_metrics(&mut self, sender: Sender<bool>) {
         let max_bytes = self.max_total_bucket_bytes;
 
         let accepts = self
-            .aggregators()
+            .aggregators_mut()
             .all(|agg| agg.totals_cost_exceeded(max_bytes));
 
         sender.send(accepts);
@@ -296,7 +398,7 @@ impl Service for AggregatorService {
                     biased;
 
 
-                    _ = ticker.tick() => self.try_flush(),
+                    _ = ticker.tick() => self.try_flush_all(),
                     Some(message) = rx.recv() => self.handle_message(message),
                     shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
 
@@ -562,7 +664,7 @@ mod tests {
                 .default_aggregator
                 .merge(project_key, bucket2, config.max_total_bucket_bytes)
                 .ok();
-            aggregator.try_flush();
+            aggregator.try_flush_all();
         });
         captures
             .into_iter()
