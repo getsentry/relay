@@ -1,7 +1,8 @@
-//! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
+//! Aggregation logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use itertools::Itertools;
 use relay_base_schema::project::ProjectKey;
@@ -11,8 +12,11 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, FLUSH_INTERVAL};
+use crate::aggregator::{self, AggregatorConfig};
 use crate::{Bucket, MetricNamespace, MetricResourceIdentifier};
+
+/// Interval for the flush cycle of the [`AggregatorService`].
+const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Aggregator service interface.
 #[derive(Debug)]
@@ -21,7 +25,7 @@ pub enum Aggregator {
     AcceptsMetrics(AcceptsMetrics, Sender<bool>),
     /// Merge the buckets.
     MergeBuckets(MergeBuckets),
-    /// Message is used only for tests to get the current number of buckets in the default `AggregatorService`.
+    /// Message is used only for tests to get the current number of buckets in the default [`AggregatorService`].
     #[cfg(test)]
     BucketCountInquiry(BucketCountInquiry, Sender<usize>),
 }
@@ -158,7 +162,7 @@ enum AggregatorState {
 /// Each aggregator gets its own configuration.
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
-pub struct RouterService {
+pub struct AggregatorService {
     default_aggregator: aggregator::Aggregator,
     secondary_aggregators: BTreeMap<MetricNamespace, aggregator::Aggregator>,
     max_flush_bytes: usize,
@@ -168,7 +172,7 @@ pub struct RouterService {
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
 }
 
-impl RouterService {
+impl AggregatorService {
     /// Create a new router service.
     pub fn new(
         aggregator_config: AggregatorServiceConfig,
@@ -275,7 +279,7 @@ impl RouterService {
     }
 }
 
-impl Service for RouterService {
+impl Service for AggregatorService {
     type Interface = Aggregator;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
@@ -440,7 +444,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let aggregator = RouterService::new(config, vec![], Some(recipient)).start();
+        let aggregator = AggregatorService::new(config, vec![], Some(recipient)).start();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
@@ -483,7 +487,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let aggregator = RouterService::new(config, vec![], Some(recipient)).start();
+        let aggregator = AggregatorService::new(config, vec![], Some(recipient)).start();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
@@ -547,7 +551,7 @@ mod tests {
             tags: BTreeMap::new(),
         };
 
-        let mut aggregator = RouterService::new(config.clone(), vec![], None);
+        let mut aggregator = AggregatorService::new(config.clone(), vec![], None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator

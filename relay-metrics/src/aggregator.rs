@@ -19,9 +19,6 @@ use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{aggregator, DistributionValue, FlushBuckets};
 
-/// Interval for the flush cycle of the [`AggregatorService`].
-pub const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
-
 /// The fraction of [`AggregatorServiceConfig::max_flush_bytes`] at which buckets will be split. A value of
 /// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
 /// and buckets larger will be split up.
@@ -650,14 +647,12 @@ impl Aggregator {
     /// Split the provided buckets into batches and process each batch with the given function.
     ///
     /// For each batch, log a histogram metric.
-    pub fn process_batches<F>(
+    pub fn process_batches(
         &self,
         buckets: impl IntoIterator<Item = Bucket>,
-        mut process: F,
+        process: impl Fn(Vec<Bucket>),
         max_flush_bytes: usize,
-    ) where
-        F: FnMut(Vec<Bucket>),
-    {
+    ) {
         let capped_batches = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
         let num_batches = capped_batches
             .map(|batch| {
@@ -676,7 +671,7 @@ impl Aggregator {
     }
 
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
-    /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
+    /// to the receiver to send the [`MergeBuckets`](crate::MergeBuckets) message back if buckets could not be flushed
     /// and we require another re-try.
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.

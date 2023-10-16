@@ -138,7 +138,7 @@ impl ServiceState {
         )
         .start();
 
-        let aggregator = relay_metrics::RouterService::new(
+        let aggregator = relay_metrics::AggregatorService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             Some(project_cache.clone().recipient()),
