@@ -199,13 +199,14 @@ pub fn process_check_in(
 
     // Use the project_id + monitor_slug as the routing key hint. This helps ensure monitor
     // check-ins are processed in order by consistently routing check-ins from the same monitor.
-    let project_id_slug_key: Vec<u8> = [
-        &project_id.value().to_be_bytes()[..],
+
+    let project_id_slug_key = [
+        &project_id.value().to_be_bytes(),
         check_in.monitor_slug.as_bytes(),
     ]
     .concat();
 
-    let routing_hint = Uuid::new_v5(namespace, project_id_slug_key.as_slice());
+    let routing_hint = Uuid::new_v5(namespace, &project_id_slug_key);
 
     Ok(ProcessedCheckInResult {
         routing_hint,
