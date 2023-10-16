@@ -180,6 +180,10 @@ impl AggregatorService {
         }
     }
 
+    pub fn aggregator(&mut self) -> &mut aggregator::Aggregator {
+        &mut self.aggregator
+    }
+
     fn handle_accepts_metrics(&self, sender: Sender<bool>) {
         let result = !self
             .aggregator

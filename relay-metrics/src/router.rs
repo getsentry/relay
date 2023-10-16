@@ -44,6 +44,11 @@ pub enum Field {
     Namespace(MetricNamespace),
 }
 
+enum AggregatorState {
+    Running,
+    ShuttingDown,
+}
+
 /// Service that routes metrics & metric buckets to the appropriate aggregator.
 ///
 /// Each aggregator gets its own configuration.
@@ -52,6 +57,7 @@ pub enum Field {
 pub struct RouterService {
     default_aggregator: AggregatorService,
     secondary_aggregators: BTreeMap<MetricNamespace, AggregatorService>,
+    state: AggregatorState,
 }
 
 impl RouterService {
@@ -73,7 +79,79 @@ impl RouterService {
                     )
                 })
                 .collect(),
+            state: AggregatorState::Running,
         }
+    }
+
+    /// Split the provided buckets into batches and process each batch with the given function.
+    ///
+    /// For each batch, log a histogram metric.
+    fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
+    where
+        F: FnMut(Vec<Bucket>),
+    {
+        let capped_batches = CappedBucketIter::new(buckets.into_iter(), self.max_flush_bytes);
+        let num_batches = capped_batches
+            .map(|batch| {
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                    aggregator = self.aggregator.name(),
+                );
+                process(batch);
+            })
+            .count();
+
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+            aggregator = self.aggregator.name(),
+        );
+    }
+
+    /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
+    /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
+    /// and we require another re-try.
+    ///
+    /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
+    fn try_flush(&mut self) {
+        let flush_buckets = {
+            let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
+            self.aggregator.pop_flush_buckets(force_flush)
+        };
+
+        if flush_buckets.is_empty() {
+            return;
+        }
+
+        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
+
+        let mut total_bucket_count = 0u64;
+        for (project_key, project_buckets) in flush_buckets.into_iter() {
+            let bucket_count = project_buckets.len() as u64;
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                aggregator = self.aggregator.name(),
+            );
+            total_bucket_count += bucket_count;
+
+            let partitioned_buckets = self
+                .aggregator
+                .partition_buckets(project_buckets, self.flush_partitions);
+            for (partition_key, buckets) in partitioned_buckets {
+                self.process_batches(buckets, |batch| {
+                    if let Some(ref receiver) = self.receiver {
+                        receiver.send(FlushBuckets {
+                            project_key,
+                            partition_key,
+                            buckets: batch,
+                        });
+                    }
+                });
+            }
+        }
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
+            aggregator = self.aggregator.name(),
+        );
     }
 }
 
