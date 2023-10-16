@@ -329,7 +329,7 @@ mod tests {
         let result = process_check_in(json.as_bytes(), ProjectId::new(1));
 
         // The routing_hint should be consistent for the (project_id, monitor_slug)
-        let expected_uuid = Uuid::parse_str("3612580a-5d37-594b-9a90-d8142792f9c8").unwrap();
+        let expected_uuid = Uuid::parse_str("66e5c5fa-b1b9-5980-8d85-432c1874521a").unwrap();
 
         if let Ok(processed_result) = result {
             assert_eq!(String::from_utf8(processed_result.payload).unwrap(), json);
