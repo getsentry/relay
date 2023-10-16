@@ -33,6 +33,7 @@ pub use self::macros::*;
 pub use self::meta::*;
 pub use self::size::*;
 pub use self::traits::*;
+pub use self::utils::*;
 pub use self::value::*;
 
 #[cfg(feature = "derive")]
