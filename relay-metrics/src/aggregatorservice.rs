@@ -188,16 +188,25 @@ pub struct AggregatorService {
 }
 
 impl AggregatorService {
-    /// Create a new router service.
+    /// Create a new aggregator service.
     pub fn new(
         aggregator_config: AggregatorServiceConfig,
         secondary_aggregators: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     ) -> Self {
+        let max_total_bucket_bytes = aggregator_config.max_total_bucket_bytes;
+        let max_flush_bytes = aggregator_config.max_flush_bytes;
+        let flush_partitions = aggregator_config.flush_partitions;
+
+        if !secondary_aggregators.iter().all(|agg| {
+            agg.config.flush_partitions == flush_partitions
+                && agg.config.max_total_bucket_bytes == max_total_bucket_bytes
+                && agg.config.max_flush_bytes == max_flush_bytes
+        }) {
+            relay_log::error!("aggregatorserviceconfigs are inconsistent");
+        }
+
         Self {
-            max_total_bucket_bytes: aggregator_config.max_total_bucket_bytes,
-            max_flush_bytes: aggregator_config.max_flush_bytes,
-            flush_partitions: aggregator_config.flush_partitions,
             default_aggregator: aggregator::Aggregator::new(aggregator_config.aggregator),
             secondary_aggregators: secondary_aggregators
                 .into_iter()
@@ -211,6 +220,9 @@ impl AggregatorService {
                 .collect(),
             state: AggregatorState::Running,
             receiver,
+            max_total_bucket_bytes,
+            max_flush_bytes,
+            flush_partitions,
         }
     }
 
