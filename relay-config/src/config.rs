@@ -2047,19 +2047,19 @@ impl Config {
             .iter()
             .max_by_key(|agg| agg.max_name_length)
             .unwrap()
-            .max_name_length as usize;
+            .max_name_length;
 
         let max_tag_key_length = aggregators
             .iter()
             .max_by_key(|agg| agg.max_tag_key_length)
             .unwrap()
-            .max_tag_key_length as usize;
+            .max_tag_key_length;
 
         let max_tag_value_length = aggregators
             .iter()
             .max_by_key(|agg| agg.max_tag_value_length)
             .unwrap()
-            .max_tag_value_length as usize;
+            .max_tag_value_length;
 
         // None means 'no limit'.
         let max_project_key_bucket_bytes = None;
