@@ -1,6 +1,6 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::RuleCondition;
 
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};

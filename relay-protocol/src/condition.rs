@@ -3,11 +3,11 @@
 //! The root type is [`RuleCondition`].
 
 use relay_common::glob3::GlobPatterns;
-use relay_protocol::{Getter, Val};
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 
 use crate::utils;
+use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -326,7 +326,7 @@ impl NotCondition {
 /// # Example
 ///
 /// ```
-/// use relay_sampling::condition::RuleCondition;
+/// use relay_protocol::RuleCondition;
 ///
 /// let condition = !RuleCondition::eq("obj.status", "invalid");
 /// ```
@@ -343,7 +343,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::eq("obj.status", "invalid");
     /// ```
@@ -354,7 +354,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::gte("obj.length", 10);
     /// ```
@@ -365,7 +365,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::lte("obj.length", 10);
     /// ```
@@ -376,7 +376,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::gt("obj.length", 10);
     /// ```
@@ -387,7 +387,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::lt("obj.length", 10);
     /// ```
@@ -398,7 +398,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::glob("obj.name", "error: *");
     /// ```
@@ -409,7 +409,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::eq("obj.status", "invalid")
     ///     | RuleCondition::eq("obj.status", "unknown");
@@ -421,7 +421,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::eq("obj.status", "invalid")
     ///     & RuleCondition::gte("obj.length", 10);
@@ -433,7 +433,7 @@ pub enum RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = !RuleCondition::eq("obj.status", "invalid");
     /// ```
@@ -465,7 +465,7 @@ impl RuleCondition {
     /// # Examples
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// // Matches if the value is identical to the given string:
     /// let condition = RuleCondition::eq("obj.status", "invalid");
@@ -485,7 +485,7 @@ impl RuleCondition {
     /// # Examples
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// // Matches if the value is identical to the given string:
     /// let condition = RuleCondition::eq_ignore_case("obj.status", "invalid");
@@ -502,7 +502,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// // Match a single pattern:
     /// let condition = RuleCondition::glob("obj.name", "error: *");
@@ -519,7 +519,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::gt("obj.length", 10);
     /// ```
@@ -532,7 +532,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::gte("obj.length", 10);
     /// ```
@@ -545,7 +545,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::lt("obj.length", 10);
     /// ```
@@ -558,7 +558,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::lte("obj.length", 10);
     /// ```
@@ -573,7 +573,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::eq("obj.status", "invalid")
     ///     & RuleCondition::gte("obj.length", 10);
@@ -596,7 +596,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = RuleCondition::eq("obj.status", "invalid")
     ///     | RuleCondition::eq("obj.status", "unknown");
@@ -619,7 +619,7 @@ impl RuleCondition {
     /// # Example
     ///
     /// ```
-    /// use relay_sampling::condition::RuleCondition;
+    /// use relay_protocol::RuleCondition;
     ///
     /// let condition = !RuleCondition::eq("obj.status", "invalid");
     /// ```
@@ -700,29 +700,37 @@ impl std::ops::Not for RuleCondition {
 mod tests {
     use std::collections::BTreeMap;
 
-    use relay_base_schema::project::ProjectKey;
     use uuid::Uuid;
-
-    use crate::dsc::TraceUserContext;
-    use crate::DynamicSamplingContext;
 
     use super::*;
 
-    fn dsc_dummy() -> DynamicSamplingContext {
-        DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("abd0f232775f45feab79864e580d160b").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: TraceUserContext {
-                user_segment: "vip".to_owned(),
-                user_id: "user-id".to_owned(),
-            },
-            replay_id: Some(Uuid::new_v4()),
-            environment: Some("debug".to_string()),
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: None,
-            other: BTreeMap::new(),
+    struct MockDSC {
+        transaction: String,
+        release: String,
+        environment: String,
+        user_segment: String,
+    }
+
+    impl Getter for MockDSC {
+        fn get_value(&self, path: &str) -> Option<Val<'_>> {
+            Some(match path.strip_prefix("trace.")? {
+                "transaction" => self.transaction.as_str().into(),
+                "release" => self.release.as_str().into(),
+                "environment" => self.environment.as_str().into(),
+                "user_segment" => self.user_segment.as_str().into(),
+                _ => {
+                    return None;
+                }
+            })
+        }
+    }
+
+    fn mock_dsc() -> MockDSC {
+        MockDSC {
+            transaction: "transaction1".to_string(),
+            release: "1.1.1".to_string(),
+            environment: "debug".to_string(),
+            user_segment: "vip".to_string(),
         }
     }
 
@@ -928,7 +936,7 @@ mod tests {
             ("match no conditions", RuleCondition::all()),
         ];
 
-        let dsc = dsc_dummy();
+        let dsc = mock_dsc();
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -971,7 +979,7 @@ mod tests {
             ("never", false, RuleCondition::never()),
         ];
 
-        let dsc = dsc_dummy();
+        let dsc = mock_dsc();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -1014,7 +1022,7 @@ mod tests {
             ("all", true, RuleCondition::all()),
         ];
 
-        let dsc = dsc_dummy();
+        let dsc = mock_dsc();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -1037,7 +1045,7 @@ mod tests {
             ),
         ];
 
-        let dsc = dsc_dummy();
+        let dsc = mock_dsc();
 
         for (rule_test_name, expected, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");
@@ -1075,7 +1083,7 @@ mod tests {
             ),
         ];
 
-        let dsc = dsc_dummy();
+        let dsc = mock_dsc();
 
         for (rule_test_name, condition) in conditions.iter() {
             let failure_name = format!("Failed on test: '{rule_test_name}'!!!");

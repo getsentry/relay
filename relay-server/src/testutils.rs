@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use relay_event_schema::protocol::EventId;
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::RuleCondition;
 use relay_sampling::config::{
     DecayingFunction, RuleId, RuleType, SamplingMode, SamplingRule, SamplingValue,
 };
