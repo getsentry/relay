@@ -698,10 +698,6 @@ impl std::ops::Not for RuleCondition {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use uuid::Uuid;
-
     use super::*;
 
     struct MockDSC {
@@ -717,7 +713,7 @@ mod tests {
                 "transaction" => self.transaction.as_str().into(),
                 "release" => self.release.as_str().into(),
                 "environment" => self.environment.as_str().into(),
-                "user_segment" => self.user_segment.as_str().into(),
+                "user.segment" => self.user_segment.as_str().into(),
                 _ => {
                     return None;
                 }
