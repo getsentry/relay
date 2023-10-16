@@ -2,13 +2,14 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::hash::Hasher;
-use std::iter::FromIterator;
+use std::iter::{FromIterator, FusedIterator};
 use std::time::Duration;
 use std::{fmt, mem};
 
 use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::{MonotonicResult, UnixTimestamp};
+use relay_system::{NoResponse, Recipient};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
@@ -16,6 +17,165 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
+use crate::{aggregator, DistributionValue, FlushBuckets};
+
+/// Interval for the flush cycle of the [`AggregatorService`].
+pub const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
+
+/// The fraction of [`AggregatorServiceConfig::max_flush_bytes`] at which buckets will be split. A value of
+/// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
+/// and buckets larger will be split up.
+const BUCKET_SPLIT_FACTOR: usize = 32;
+
+/// The average size of values when serialized.
+const AVG_VALUE_SIZE: usize = 8;
+
+/// Splits this bucket if its estimated serialization size exceeds a threshold.
+///
+/// There are three possible return values:
+///  - `(Some, None)` if the bucket fits entirely into the size budget. There is no split.
+///  - `(None, Some)` if the size budget cannot even hold the bucket name and tags. There is no
+///    split, the entire bucket is moved.
+///  - `(Some, Some)` if the bucket fits partially. Remaining values are moved into a new bucket
+///    with all other information cloned.
+///
+/// This is an approximate function. The bucket is not actually serialized, but rather its
+/// footprint is estimated through the number of data points contained. See
+/// `estimate_size` for more information.
+fn split_at(mut bucket: Bucket, size: usize) -> (Option<Bucket>, Option<Bucket>) {
+    // If there's enough space for the entire bucket, do not perform a split.
+    if size >= estimate_size(&bucket) {
+        return (Some(bucket), None);
+    }
+
+    // If the bucket key can't even fit into the remaining length, move the entire bucket into
+    // the right-hand side.
+    let own_size = estimate_base_size(&bucket);
+    if size < (own_size + AVG_VALUE_SIZE) {
+        // split_at must not be zero
+        return (None, Some(bucket));
+    }
+
+    // Perform a split with the remaining space after adding the key. We assume an average
+    // length of 8 bytes per value and compute the number of items fitting into the left side.
+    let split_at = (size - own_size) / AVG_VALUE_SIZE;
+
+    match bucket.value {
+        BucketValue::Counter(_) => (None, Some(bucket)),
+        BucketValue::Distribution(ref mut distribution) => {
+            let mut org = std::mem::take(distribution);
+
+            let mut new_bucket = bucket.clone();
+            new_bucket.value =
+                BucketValue::Distribution(DistributionValue::from_slice(&org[split_at..]));
+
+            org.truncate(split_at);
+            bucket.value = BucketValue::Distribution(org);
+
+            (Some(bucket), Some(new_bucket))
+        }
+        BucketValue::Set(ref mut set) => {
+            let org = std::mem::take(set);
+            let mut new_bucket = bucket.clone();
+
+            let mut iter = org.into_iter();
+            bucket.value = BucketValue::Set((&mut iter).take(split_at).collect());
+            new_bucket.value = BucketValue::Set(iter.collect());
+
+            (Some(bucket), Some(new_bucket))
+        }
+        BucketValue::Gauge(_) => (None, Some(bucket)),
+    }
+}
+
+/// Estimates the number of bytes needed to serialize the bucket without value.
+///
+/// Note that this does not match the exact size of the serialized payload. Instead, the size is
+/// approximated through tags and a static overhead.
+fn estimate_base_size(bucket: &Bucket) -> usize {
+    50 + bucket.name.len() + aggregator::tags_cost(&bucket.tags)
+}
+
+/// Estimates the number of bytes needed to serialize the bucket.
+///
+/// Note that this does not match the exact size of the serialized payload. Instead, the size is
+/// approximated through the number of contained values, assuming an average size of serialized
+/// values.
+fn estimate_size(bucket: &Bucket) -> usize {
+    estimate_base_size(bucket) + bucket.value.len() * AVG_VALUE_SIZE
+}
+
+/// An iterator returning batches of buckets fitting into a size budget.
+///
+/// The size budget is given through `max_flush_bytes`, though this is an approximate number. On
+/// every iteration, this iterator returns a `Vec<Bucket>` which serializes into a buffer of the
+/// specified size. Buckets at the end of each batch may be split to fit into the batch.
+///
+/// Since this uses an approximate function to estimate the size of buckets, the actual serialized
+/// payload may exceed the size. The estimation function is built in a way to guarantee the same
+/// order of magnitude.
+struct CappedBucketIter<T: Iterator<Item = Bucket>> {
+    buckets: T,
+    next_bucket: Option<Bucket>,
+    max_flush_bytes: usize,
+}
+
+impl<T: Iterator<Item = Bucket>> CappedBucketIter<T> {
+    /// Creates a new `CappedBucketIter`.
+    pub fn new(mut buckets: T, max_flush_bytes: usize) -> Self {
+        let next_bucket = buckets.next();
+
+        Self {
+            buckets,
+            next_bucket,
+            max_flush_bytes,
+        }
+    }
+}
+
+impl<T: Iterator<Item = Bucket>> Iterator for CappedBucketIter<T> {
+    type Item = Vec<Bucket>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut current_batch = Vec::new();
+        let mut remaining_bytes = self.max_flush_bytes;
+
+        while let Some(bucket) = self.next_bucket.take() {
+            let bucket_size = estimate_size(&bucket);
+            if bucket_size <= remaining_bytes {
+                // the bucket fits
+                remaining_bytes -= bucket_size;
+                current_batch.push(bucket);
+                self.next_bucket = self.buckets.next();
+            } else if bucket_size < self.max_flush_bytes / BUCKET_SPLIT_FACTOR {
+                // the bucket is too small to split, move it entirely
+                self.next_bucket = Some(bucket);
+                break;
+            } else {
+                // the bucket is big enough to split
+                let (left, right) = split_at(bucket, remaining_bytes);
+                if let Some(left) = left {
+                    current_batch.push(left);
+                }
+
+                self.next_bucket = right;
+                break;
+            }
+        }
+
+        if current_batch.is_empty() {
+            // There is still leftover data not returned by the iterator after it has ended.
+            if self.next_bucket.take().is_some() {
+                relay_log::error!("CappedBucketIter swallowed bucket");
+            }
+            None
+        } else {
+            Some(current_batch)
+        }
+    }
+}
+
+impl<T: Iterator<Item = Bucket>> FusedIterator for CappedBucketIter<T> {}
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -485,6 +645,86 @@ impl Aggregator {
     /// Returns `true` if the cost trackers value is larger than the given max cost.
     pub fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
         self.cost_tracker.totals_cost_exceeded(max_total_cost)
+    }
+
+    /// Split the provided buckets into batches and process each batch with the given function.
+    ///
+    /// For each batch, log a histogram metric.
+    pub fn process_batches<F>(
+        &self,
+        buckets: impl IntoIterator<Item = Bucket>,
+        mut process: F,
+        max_flush_bytes: usize,
+    ) where
+        F: FnMut(Vec<Bucket>),
+    {
+        let capped_batches = CappedBucketIter::new(buckets.into_iter(), max_flush_bytes);
+        let num_batches = capped_batches
+            .map(|batch| {
+                relay_statsd::metric!(
+                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
+                    aggregator = self.name(),
+                );
+                process(batch);
+            })
+            .count();
+
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
+            aggregator = self.name(),
+        );
+    }
+
+    /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
+    /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
+    /// and we require another re-try.
+    ///
+    /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
+    pub fn try_flush(
+        &mut self,
+        force_flush: bool,
+        flush_partitions: Option<u64>,
+        max_flush_bytes: usize,
+        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    ) {
+        let flush_buckets = self.pop_flush_buckets(force_flush);
+
+        if flush_buckets.is_empty() {
+            return;
+        }
+
+        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
+
+        let mut total_bucket_count = 0u64;
+        for (project_key, project_buckets) in flush_buckets.into_iter() {
+            let bucket_count = project_buckets.len() as u64;
+            relay_statsd::metric!(
+                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
+                aggregator = self.name(),
+            );
+            total_bucket_count += bucket_count;
+
+            let partitioned_buckets = self.partition_buckets(project_buckets, flush_partitions);
+            for (partition_key, buckets) in partitioned_buckets {
+                self.process_batches(
+                    buckets,
+                    |batch| {
+                        if let Some(ref receiver) = receiver {
+                            receiver.send(FlushBuckets {
+                                project_key,
+                                partition_key,
+                                buckets: batch,
+                            });
+                        };
+                    },
+                    max_flush_bytes,
+                );
+            }
+        }
+        relay_statsd::metric!(
+            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
+            aggregator = self.name(),
+        );
     }
 
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.

@@ -3,15 +3,12 @@
 
 use std::collections::BTreeMap;
 
-use itertools::Itertools;
-use relay_system::{Addr, NoResponse, Recipient, Service};
+use relay_system::{NoResponse, Recipient, Sender, Service};
 use serde::{Deserialize, Serialize};
 
+use crate::aggregator::FLUSH_INTERVAL;
 use crate::aggregatorservice::{AggregatorService, FlushBuckets};
-use crate::{
-    AcceptsMetrics, Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace,
-    MetricResourceIdentifier,
-};
+use crate::{Aggregator, AggregatorServiceConfig, MergeBuckets, MetricNamespace};
 
 /// Contains an [`AggregatorServiceConfig`] for a specific scope.
 ///
@@ -58,6 +55,7 @@ pub struct RouterService {
     default_aggregator: AggregatorService,
     secondary_aggregators: BTreeMap<MetricNamespace, AggregatorService>,
     state: AggregatorState,
+    receiver: Option<Recipient<FlushBuckets, NoResponse>>,
 }
 
 impl RouterService {
@@ -80,31 +78,8 @@ impl RouterService {
                 })
                 .collect(),
             state: AggregatorState::Running,
+            receiver,
         }
-    }
-
-    /// Split the provided buckets into batches and process each batch with the given function.
-    ///
-    /// For each batch, log a histogram metric.
-    fn process_batches<F>(&self, buckets: impl IntoIterator<Item = Bucket>, mut process: F)
-    where
-        F: FnMut(Vec<Bucket>),
-    {
-        let capped_batches = CappedBucketIter::new(buckets.into_iter(), self.max_flush_bytes);
-        let num_batches = capped_batches
-            .map(|batch| {
-                relay_statsd::metric!(
-                    histogram(MetricHistograms::BucketsPerBatch) = batch.len() as f64,
-                    aggregator = self.aggregator.name(),
-                );
-                process(batch);
-            })
-            .count();
-
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BatchesPerPartition) = num_batches as f64,
-            aggregator = self.aggregator.name(),
-        );
     }
 
     /// Sends the [`FlushBuckets`] message to the receiver in the fire and forget fashion. It is up
@@ -113,91 +88,29 @@ impl RouterService {
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush(&mut self) {
-        let flush_buckets = {
-            let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-            self.aggregator.pop_flush_buckets(force_flush)
-        };
+        let force_flush = matches!(&self.state, &AggregatorState::ShuttingDown);
+        let flush_partitions = None;
+        let max_flush_bytes = 5;
 
-        if flush_buckets.is_empty() {
-            return;
-        }
-
-        relay_log::trace!("flushing {} projects to receiver", flush_buckets.len());
-
-        let mut total_bucket_count = 0u64;
-        for (project_key, project_buckets) in flush_buckets.into_iter() {
-            let bucket_count = project_buckets.len() as u64;
-            relay_statsd::metric!(
-                histogram(MetricHistograms::BucketsFlushedPerProject) = bucket_count,
-                aggregator = self.aggregator.name(),
-            );
-            total_bucket_count += bucket_count;
-
-            let partitioned_buckets = self
-                .aggregator
-                .partition_buckets(project_buckets, self.flush_partitions);
-            for (partition_key, buckets) in partitioned_buckets {
-                self.process_batches(buckets, |batch| {
-                    if let Some(ref receiver) = self.receiver {
-                        receiver.send(FlushBuckets {
-                            project_key,
-                            partition_key,
-                            buckets: batch,
-                        });
-                    }
-                });
-            }
-        }
-        relay_statsd::metric!(
-            histogram(MetricHistograms::BucketsFlushed) = total_bucket_count,
-            aggregator = self.aggregator.name(),
+        self.default_aggregator.aggregator().try_flush(
+            force_flush,
+            flush_partitions,
+            max_flush_bytes,
+            self.receiver.clone(),
         );
-    }
-}
 
-impl Service for RouterService {
-    type Interface = Aggregator;
-
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut router = StartedRouter::start(self);
-            relay_log::info!("metrics router started");
-
-            // Note that currently this loop never exists and will run till the tokio runtime shuts
-            // down. This is about to change with the refactoring for the shutdown process.
-            loop {
-                tokio::select! {
-                    biased;
-
-                    Some(message) = rx.recv() => router.handle_message(message),
-
-                    else => break,
-                }
-            }
-            relay_log::info!("metrics router stopped");
-        });
-    }
-}
-
-/// Helper struct that holds the [`Addr`]s of started aggregators.
-struct StartedRouter {
-    default_aggregator: Addr<Aggregator>,
-    secondary_aggregators: BTreeMap<MetricNamespace, Addr<Aggregator>>,
-}
-
-impl StartedRouter {
-    fn start(router: RouterService) -> Self {
-        Self {
-            default_aggregator: router.default_aggregator.start(),
-            secondary_aggregators: router
-                .secondary_aggregators
-                .into_iter()
-                .map(|(key, service)| (key, service.start()))
-                .collect(),
+        for agg in &mut self.secondary_aggregators {
+            agg.1.aggregator().try_flush(
+                force_flush,
+                flush_partitions,
+                max_flush_bytes,
+                self.receiver.clone(),
+            );
         }
     }
 
-    fn handle_message(&mut self, msg: Aggregator) {
+    /*
+    fn _handle_message(&mut self, msg: Aggregator) {
         match msg {
             Aggregator::AcceptsMetrics(_, sender) => {
                 let requests: Vec<_> = Some(self.default_aggregator.send(AcceptsMetrics))
@@ -221,14 +134,46 @@ impl StartedRouter {
             Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
         }
     }
+    */
 
-    fn get_aggregator(&self, namespace: Option<MetricNamespace>) -> &Addr<Aggregator> {
-        namespace
-            .and_then(|ns| self.secondary_aggregators.get(&ns))
-            .unwrap_or(&self.default_aggregator)
+    fn handle_message(&mut self, msg: Aggregator) {
+        match msg {
+            Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
+            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+            #[cfg(test)]
+            Aggregator::BucketCountInquiry(_, sender) => {
+                sender.send(self.default_aggregator.aggregator().bucket_count())
+            }
+        }
     }
 
-    fn handle_merge_buckets(&mut self, message: MergeBuckets) {
+    fn handle_accepts_metrics(&mut self, sender: Sender<bool>) {
+        let max_total_bucket_bytes = None;
+        let result = !self
+            .default_aggregator
+            .aggregator()
+            .totals_cost_exceeded(max_total_bucket_bytes);
+
+        sender.send(result);
+    }
+
+    fn handle_merge_buckets(&mut self, msg: MergeBuckets) {
+        let MergeBuckets {
+            project_key,
+            buckets,
+        } = msg;
+
+        let max_total_bucket_bytes = None;
+
+        self.default_aggregator.aggregator().merge_all(
+            project_key,
+            buckets,
+            max_total_bucket_bytes,
+        );
+    }
+
+    /*
+    fn _handle_merge_buckets(&mut self, message: MergeBuckets) {
         let metrics_by_namespace = message.buckets.into_iter().group_by(|bucket| {
             MetricResourceIdentifier::parse(&bucket.name)
                 .map(|mri| mri.namespace)
@@ -244,6 +189,34 @@ impl StartedRouter {
                 buckets: group.collect(),
             });
         }
+    }
+    */
+}
+
+impl Service for RouterService {
+    type Interface = Aggregator;
+
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        tokio::spawn(async move {
+            relay_log::info!("metrics router started");
+
+            let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
+
+            // Note that currently this loop never exists and will run till the tokio runtime shuts
+            // down. This is about to change with the refactoring for the shutdown process.
+            loop {
+                tokio::select! {
+                    biased;
+
+
+                    _ = ticker.tick() => self.try_flush(),
+                    Some(message) = rx.recv() => self.handle_message(message),
+
+                    else => break,
+                }
+            }
+            relay_log::info!("metrics router stopped");
+        });
     }
 }
 
