@@ -394,9 +394,12 @@ mod tests {
                 patterns: [],
                 is_enabled: false,
             },
-            generic_filters: GenericFiltersConfig(
-                [],
-            ),
+            generic: GenericFiltersConfig {
+                version: 0,
+                filters: OrderedFilters(
+                    [],
+                ),
+            },
         }
         "###);
         Ok(())
@@ -434,13 +437,16 @@ mod tests {
                 patterns: GlobPatterns::new(vec!["*health*".to_string()]),
                 is_enabled: true,
             },
-            generic_filters: GenericFiltersConfig(vec![(
-                "hydrationError".to_string(),
-                GenericFilterConfig {
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
-                },
-            )]),
+            generic: GenericFiltersConfig {
+                version: 1,
+                filters: OrderedFilters(vec![(
+                    "hydrationError".to_string(),
+                    GenericFilterConfig {
+                        is_enabled: true,
+                        condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
+                    },
+                )]),
+            },
         };
 
         insta::assert_json_snapshot!(filters_config, @r#"
@@ -486,13 +492,16 @@ mod tests {
             ],
             "isEnabled": true
           },
-          "genericFilters": {
-            "hydrationError": {
-              "isEnabled": true,
-              "condition": {
-                "op": "eq",
-                "name": "event.exceptions",
-                "value": "HydrationError"
+          "generic": {
+            "version": 1,
+            "filters": {
+              "hydrationError": {
+                "isEnabled": true,
+                "condition": {
+                  "op": "eq",
+                  "name": "event.exceptions",
+                  "value": "HydrationError"
+                }
               }
             }
           }
@@ -515,56 +524,54 @@ mod tests {
     #[test]
     fn test_deserialize_generic_filters() {
         let json = r#"{
-            "hydrationError": {
-              "isEnabled": true,
-              "condition": {
-                "op": "eq",
-                "name": "event.exceptions",
-                "value": "HydrationError"
-              }
-            },
-            "chunkLoadError": []
-          }"#;
+            "version": 1,
+            "filters": {
+                "hydrationError": {
+                  "isEnabled": true,
+                  "condition": {
+                    "op": "eq",
+                    "name": "event.exceptions",
+                    "value": "HydrationError"
+                  }
+                },
+                "chunkLoadError": {
+                    "isEnabled": false
+                }
+           }
+        }"#;
         let config = serde_json::from_str::<GenericFiltersConfig>(json).unwrap();
         insta::assert_debug_snapshot!(config, @r###"
-        GenericFiltersConfig(
-            [
-                (
-                    "hydrationError",
-                    GenericFilterConfig {
-                        is_enabled: true,
-                        condition: Some(
-                            Eq(
-                                EqCondition {
-                                    name: "event.exceptions",
-                                    value: String("HydrationError"),
-                                    options: EqCondOptions {
-                                        ignore_case: false,
+        GenericFiltersConfig {
+            version: 1,
+            filters: OrderedFilters(
+                [
+                    (
+                        "hydrationError",
+                        GenericFilterConfig {
+                            is_enabled: true,
+                            condition: Some(
+                                Eq(
+                                    EqCondition {
+                                        name: "event.exceptions",
+                                        value: String("HydrationError"),
+                                        options: EqCondOptions {
+                                            ignore_case: false,
+                                        },
                                     },
-                                },
+                                ),
                             ),
-                        ),
-                    },
-                ),
-                (
-                    "chunkLoadError",
-                    GenericFilterConfig {
-                        is_enabled: false,
-                        condition: Some(
-                            Eq(
-                                EqCondition {
-                                    name: "event.exceptions",
-                                    value: String("ChunkLoadError"),
-                                    options: EqCondOptions {
-                                        ignore_case: false,
-                                    },
-                                },
-                            ),
-                        ),
-                    },
-                ),
-            ],
-        )
+                        },
+                    ),
+                    (
+                        "chunkLoadError",
+                        GenericFilterConfig {
+                            is_enabled: false,
+                            condition: None,
+                        },
+                    ),
+                ],
+            ),
+        }
         "###);
     }
 }

@@ -46,6 +46,7 @@ pub fn should_filter(
     client_ip: Option<IpAddr>,
     config: &FiltersConfig,
 ) -> Result<(), FilterStatKey> {
+    // TODO: perform version check.
     // In order to maintain backwards compatibility, we still want to run the old matching logic,
     // but we will try to match generic filters first, since the goal is to eventually fade out the
     // the normal filters except for the ones that have complex conditions.

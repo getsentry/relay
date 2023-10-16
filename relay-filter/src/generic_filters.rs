@@ -29,7 +29,7 @@ pub fn should_filter(event: &Event, config: &GenericFiltersConfig) -> Result<(),
 #[cfg(test)]
 mod tests {
     use crate::generic_filters::should_filter;
-    use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
+    use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, OrderedFilters};
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
@@ -55,7 +55,10 @@ mod tests {
 
     #[test]
     fn test_should_filter_event() {
-        let config = GenericFiltersConfig(mock_filters());
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: OrderedFilters(mock_filters()),
+        };
 
         // Matching first rule.
         let event = Event {
