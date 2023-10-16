@@ -46,11 +46,13 @@ pub fn should_filter(
     client_ip: Option<IpAddr>,
     config: &FiltersConfig,
 ) -> Result<(), FilterStatKey> {
-    // TODO: perform version check.
-    // In order to maintain backwards compatibility, we still want to run the old matching logic,
-    // but we will try to match generic filters first, since the goal is to eventually fade out the
-    // the normal filters except for the ones that have complex conditions.
-    generic_filters::should_filter(event, &config.generic)?;
+    // We support the filtering with the new filters, only for the same or older versions.
+    if config.generic.version <= generic_filters::VERSION {
+        // In order to maintain backwards compatibility, we still want to run the old matching logic,
+        // but we will try to match generic filters first, since the goal is to eventually fade out the
+        // the normal filters except for the ones that have complex conditions.
+        generic_filters::should_filter(event, &config.generic)?;
+    }
 
     // The order of applying filters should not matter as they are additive. Still, be careful
     // when making changes to this order.
