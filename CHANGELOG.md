@@ -32,6 +32,7 @@
 - Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
 - Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
+- Remove `AggregationService` and rename `RouterService` to `AggregationService`. ([#2611](https://github.com/getsentry/relay/pull/2611))
 
 ## 23.9.1
 
