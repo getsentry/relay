@@ -164,9 +164,10 @@ pub fn to_pii_config(
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
     use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::Event;
-    use relay_protocol::{assert_annotated_snapshot, FromValue};
+    use relay_protocol::{assert_annotated_snapshot, get_value, FromValue};
     use similar_asserts::assert_eq;
 
     use crate::PiiProcessor;
@@ -1503,5 +1504,32 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_exclude_list() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "do_not_scrub_1": "password",
+                    "do_not_scrub_2": ["password"],
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            //sensitive_fields: vec![],
+            exclude_fields: vec!["do_not_scrub_1".into(), "do_not_scrub_2".into()],
+            ..simple_enabled_config()
+        })
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_debug_snapshot!(
+            get_value!(data.extra!),
+            @""
+        );
     }
 }
