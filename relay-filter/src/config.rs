@@ -226,8 +226,8 @@ impl OrderedFilters {
 
 impl Serialize for OrderedFilters {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         let mut map = serializer.serialize_map(Some(self.0.len()))?;
         for (filter_name, filter_config) in self.0.iter() {
@@ -248,8 +248,8 @@ impl<'de> Visitor<'de> for OrderedFiltersVisitor {
     }
 
     fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-        where
-            M: MapAccess<'de>,
+    where
+        M: MapAccess<'de>,
     {
         let mut filters = OrderedFilters(vec![]);
 
@@ -266,13 +266,12 @@ impl<'de> Visitor<'de> for OrderedFiltersVisitor {
 
 impl<'de> Deserialize<'de> for OrderedFilters {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         deserializer.deserialize_map(OrderedFiltersVisitor())
     }
 }
-
 
 /// Configuration for generic filters.
 ///
