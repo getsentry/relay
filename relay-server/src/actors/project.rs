@@ -762,8 +762,10 @@ impl Project {
         let buckets = self.state.set_state(state);
 
         if let Some(buckets) = buckets {
-            relay_log::debug!("sending metrics from pre-aggregator to aggregator");
-            aggregator.send(MergeBuckets::new(self.project_key, buckets));
+            if !buckets.is_empty() {
+                relay_log::debug!("sending metrics from pre-aggregator to aggregator");
+                aggregator.send(MergeBuckets::new(self.project_key, buckets));
+            }
         }
     }
 
