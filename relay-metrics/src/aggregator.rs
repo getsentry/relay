@@ -487,7 +487,7 @@ impl Aggregator {
         self.cost_tracker.totals_cost_exceeded(max_total_cost)
     }
 
-    /// Takes out the buckets from the aggregator, leaving an empty map.
+    /// Converts this aggregator into a vector of [`Bucket`].
     pub fn into_buckets(self) -> Vec<Bucket> {
         let bucket_interval = self.config.bucket_interval;
 

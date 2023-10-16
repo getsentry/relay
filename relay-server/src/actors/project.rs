@@ -402,7 +402,7 @@ impl State {
         }
     }
 
-    /// Sets the new `ProjectState`.
+    /// Sets the new `ProjectState`. If the variant was pending, the buckets will be returned.
     fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
         match std::mem::replace(self, Self::Cached(state)) {
             State::Pending(agg) => Some(agg.into_buckets()),
@@ -618,10 +618,12 @@ impl Project {
                 match &mut self.state {
                     State::Cached(_) => {
                         // We can send metrics straight to the aggregator.
+                        relay_log::debug!("sending metrics straight to aggregator");
                         aggregator.send(MergeBuckets::new(self.project_key, buckets));
                     }
                     State::Pending(inner_agg) => {
                         // We need to queue the metrics in a temporary aggregator until the project state becomes available.
+                        relay_log::debug!("sending metrics to pre-aggregator");
                         inner_agg.merge_all(self.project_key, buckets, None);
                     }
                 }
@@ -760,6 +762,7 @@ impl Project {
         let buckets = self.state.set_state(state);
 
         if let Some(buckets) = buckets {
+            relay_log::debug!("sending metrics from pre-aggregator to aggregator");
             aggregator.send(MergeBuckets::new(self.project_key, buckets));
         }
     }

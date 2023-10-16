@@ -14,7 +14,7 @@ use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::aggregator::AggregatorConfig;
+use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
 use relay_metrics::{
     AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
 };
@@ -2004,7 +2004,10 @@ impl Config {
         self.values.processing.max_rate_limit.map(u32::into)
     }
 
-    /// Returns the most permissible [`AggregatorConfig`] based on the values of all the configured aggregators.
+    /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.
+    ///
+    /// A lossless aggregator can be put in front of any of the configured aggregators without losing data that the configured aggregator would keep.
+    /// This is useful for pre-aggregating metrics together in a single aggregator instance.
     pub fn permissive_aggregator_config(&self) -> AggregatorConfig {
         let aggregators: Vec<AggregatorConfig> = self
             .values
@@ -2069,7 +2072,9 @@ impl Config {
             max_tag_key_length,
             max_tag_value_length,
             max_project_key_bucket_bytes,
-            ..Default::default()
+            initial_delay: 30,
+            debounce_delay: 10,
+            shift_key: ShiftKey::Project,
         }
     }
 
