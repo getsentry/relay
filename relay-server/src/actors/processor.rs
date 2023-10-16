@@ -114,8 +114,8 @@ pub enum ProcessingError {
     #[error("missing project id in DSN")]
     MissingProjectId,
 
-    #[error("invalid security report type")]
-    InvalidSecurityType,
+    #[error("invalid security report type: {0:?}")]
+    InvalidSecurityType(Bytes),
 
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
@@ -147,7 +147,9 @@ impl ProcessingError {
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
-            Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
+            Self::InvalidSecurityType(_) => {
+                Some(Outcome::Invalid(DiscardReason::SecurityReportType))
+            }
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
@@ -1435,10 +1437,13 @@ impl EnvelopeProcessorService {
         let len = item.len();
         let mut event = Event::default();
 
-        let data = &item.payload();
-        let report_type = SecurityReportType::from_json(data)
-            .map_err(ProcessingError::InvalidJson)?
-            .ok_or(ProcessingError::InvalidSecurityType)?;
+        let bytes = item.payload();
+        let data = &bytes;
+        let Some(report_type) =
+            SecurityReportType::from_json(data).map_err(ProcessingError::InvalidJson)?
+        else {
+            return Err(ProcessingError::InvalidSecurityType(bytes));
+        };
 
         let apply_result = match report_type {
             SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
