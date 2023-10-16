@@ -4026,7 +4026,11 @@ mod tests {
             outcome_from_parts(ClientReportField::Filtered, "error-message"),
             Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
         ));
-        assert!(outcome_from_parts(ClientReportField::Filtered, "adsf").is_err());
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "hydration-error"),
+            Ok(Outcome::Filtered(FilterStatKey::GenericFilter(_)))
+        ));
     }
 
     #[test]
