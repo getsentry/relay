@@ -2554,6 +2554,7 @@ expression: "relay_event_schema::protocol::event_json_schema()"
       ]
     },
     "NelContext": {
+      "description": " Contains the unique to NEL reports information.\n\n NEL is a browser feature that allows reporting of failed network requests from the client side.\n W3C Editor's Draft: <https://w3c.github.io/network-error-logging/>\n MDN: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging>",
       "anyOf": [
         {
           "type": "object",
