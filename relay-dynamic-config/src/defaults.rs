@@ -15,6 +15,9 @@ const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 /// A list of patterns found in MongoDB queries
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
+/// A list of patterns for resource span ops we'd like to ingest.
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css"];
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -33,7 +36,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let resource_condition = RuleCondition::glob("span.op", "resource*");
+    let resource_condition = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
