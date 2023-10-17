@@ -1054,19 +1054,17 @@ impl Envelope {
         self.items.push(item)
     }
 
-    /// Splits the envelope by the given predicate.
+    /// Splits off the items from the envelope using provided predicates.
     ///
-    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
-    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
-    /// with all items that return `true`. Items that return `false` remain in this envelope.
-    ///
-    /// The returned envelope assumes the same headers.
-    pub fn split_by<F>(&mut self, mut f: F) -> Option<Box<Self>>
+    /// First predicate is the the additional condition on the count of found items by second
+    /// predicate.
+    fn split_off_items<C, F>(&mut self, cond: C, mut f: F) -> Option<SmallVec<[Item; 3]>>
     where
+        C: Fn(usize) -> bool,
         F: FnMut(&Item) -> bool,
     {
         let split_count = self.items().filter(|item| f(item)).count();
-        if split_count == self.len() || split_count == 0 {
+        if cond(split_count) {
             return None;
         }
 
@@ -1074,6 +1072,22 @@ impl Envelope {
         let (split_items, own_items) = old_items.into_iter().partition(f);
         self.items = own_items;
 
+        Some(split_items)
+    }
+
+    /// Splits the envelope by the given predicate.
+    ///
+    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
+    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
+    /// with all items that return `true`. Items that return `false` remain in this envelope.
+    ///
+    /// The returned envelope assumes the same headers.
+    pub fn split_by<F>(&mut self, f: F) -> Option<Box<Self>>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let items_count = self.len();
+        let split_items = self.split_off_items(|count| count == 0 || count == items_count, f)?;
         Some(Box::new(Envelope {
             headers: self.headers.clone(),
             items: split_items,
@@ -1087,20 +1101,14 @@ impl Envelope {
     /// returns an empty list.
     ///
     /// The returned envelopes assume the same headers.
-    pub fn split_all_by<F>(&mut self, mut f: F) -> SmallVec<[Box<Self>; 3]>
+    pub fn split_all_by<F>(&mut self, f: F) -> SmallVec<[Box<Self>; 3]>
     where
         F: FnMut(&Item) -> bool,
     {
         let mut envelopes = smallvec![];
-
-        let split_count = self.items().filter(|item| f(item)).count();
-        if split_count == 0 {
+        let Some(split_items) = self.split_off_items(|count| count == 0, f) else {
             return envelopes;
-        }
-
-        let old_items = std::mem::take(&mut self.items);
-        let (split_items, own_items) = old_items.into_iter().partition(f);
-        self.items = own_items;
+        };
 
         for item in split_items {
             envelopes.push(Box::new(Envelope {
