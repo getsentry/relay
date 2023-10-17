@@ -68,10 +68,14 @@ pub fn enrich_nel_event(event: &mut Event, nel: Annotated<NetworkReportRaw>) {
     nel_context.phase = body.phase;
     nel_context.sampling_fraction = body.sampling_fraction;
 
-    let response_context = contexts.get_or_default::<ResponseContext>();
-    response_context.status_code = body
+    // Set response status code only if it's bigger than zero.
+    let status_code = body
         .status_code
         .map_value(|v| u64::try_from(v).unwrap_or(0));
+    if status_code.value().unwrap_or(&0) > &0 {
+        let response_context = contexts.get_or_default::<ResponseContext>();
+        response_context.status_code = status_code;
+    }
 
     // Set the timestamp on the event when it actually occurred.
     let now: DateTime<Utc> = Utc::now();
