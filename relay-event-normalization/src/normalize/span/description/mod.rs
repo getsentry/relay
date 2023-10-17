@@ -1,5 +1,6 @@
 //! Span description scrubbing logic.
 mod sql;
+use once_cell::sync::Lazy;
 pub use sql::parse_query;
 
 use std::borrow::Cow;
@@ -48,7 +49,7 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                     sql::scrub_queries(db_system, description)
                 }
             }
-            ("resource", _) => scrub_resource_identifiers(description),
+            ("resource", _) => scrub_resource(description),
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
@@ -178,34 +179,49 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
     Some(scrubbed)
 }
 
-fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
-    // Remove query parameters or the fragment.
-    if string.starts_with("data:") {
-        if let Some(pos) = string.find(';') {
-            return Some(string[..pos].into());
-        }
-        return Some("data:*/*".into());
-    } else if let Some(pos) = string.find('?') {
-        string = &string[..pos];
-    } else if let Some(pos) = string.find('#') {
-        string = &string[..pos];
-    }
-    match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
-        Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(string) => {
-            // No IDs scrubbed, but we still want to set something.
-            // If we managed to parse the URL, we'll try to get an extension.
-            if let Ok(url) = Url::parse(string) {
-                let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
-                // If there is an extension, we add it to the domain.
-                if let Some(extension) = url.path().rsplit_once('.') {
-                    return Some(format!("{domain}/*.{}", extension.1));
-                }
-                return Some(format!("{domain}/*"));
+static DUMMY_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
+
+fn scrub_resource(string: &str) -> Option<String> {
+    let (url, is_relative) = match Url::parse(string) {
+        Ok(url) => (url, false),
+        Err(url::ParseError::RelativeUrlWithoutBase) => {
+            // Try again, with base URL
+            match Url::options().base_url(Some(&DUMMY_URL)).parse(string) {
+                Ok(url) => (url, true),
+                Err(_) => return None,
             }
-            Some(string.into())
         }
+        Err(_) => return None,
+    };
+
+    let mut formatted = match url.scheme() {
+        "data" => match url.path().split_once(';') {
+            Some((ty, _data)) => format!("data:{ty}"),
+            None => "data:*/*".to_owned(),
+        },
+        "chrome-extension" => {
+            let path = scrub_resource_identifiers(url.path());
+            format!("chrome-extension://*/{path}")
+        }
+        scheme => {
+            let path = scrub_resource_identifiers(url.path());
+            let domain = url
+                .domain()
+                .and_then(|d| normalize_domain(d, url.port()))
+                .unwrap_or("".into());
+            format!("{scheme}://{domain}{path}")
+        }
+    };
+
+    if is_relative {
+        formatted = formatted.replace("http://REPLACE_ME", "");
     }
+
+    Some(formatted)
+}
+
+fn scrub_resource_identifiers(string: &str) -> Cow<str> {
+    RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post")
 }
 
 #[cfg(test)]
@@ -249,7 +265,7 @@ mod tests {
                 if $expected == "" {
                     assert!(scrubbed.is_none());
                 } else {
-                    assert_eq!(scrubbed.unwrap(), $expected);
+                    assert_eq!($expected, scrubbed.unwrap());
                 }
             }
         };
@@ -442,9 +458,9 @@ mod tests {
 
     span_description_test!(
         chrome_extension,
-        "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-*k.svg",
+        "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
         "resource.other",
-        "chrome-extension://*/img/assets/*.svg"
+        "chrome-extension://*/img/assets/icon-*k.svg"
     );
 
     span_description_test!(
