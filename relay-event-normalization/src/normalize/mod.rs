@@ -3710,4 +3710,20 @@ mod tests {
         ]
         "###);
     }
+
+    #[test]
+    fn test_reject_stale_transaction() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
+        assert_eq!(
+            light_normalize_event(&mut transaction, LightNormalizationConfig::default())
+                .unwrap_err()
+                .to_string(),
+            "invalid transaction event: timestamp is too stale"
+        );
+    }
 }

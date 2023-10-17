@@ -45,39 +45,32 @@ impl Processor for TimestampProcessor {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::Event;
+    use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_protocol::Annotated;
 
-    use crate::{light_normalize_event, LightNormalizationConfig};
+    use crate::timestamp::TimestampProcessor;
 
     #[test]
     fn test_accept_recent_errors() {
-        let now = chrono::Utc::now().timestamp_millis();
-
-        let json = format!(
-            r#"{{
+        let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
-  "timestamp": {}
-}}"#,
-            now
+  "timestamp": 1
+}"#;
+        let mut error = Annotated::<Event>::from_json(json).unwrap();
+        assert!(
+            process_value(&mut error, &mut TimestampProcessor, ProcessingState::root()).is_ok()
         );
-        let mut error = Annotated::<Event>::from_json(&json).unwrap();
-        assert!(light_normalize_event(&mut error, LightNormalizationConfig::default()).is_ok());
     }
 
     #[test]
     fn test_reject_stale_errors() {
-        let stale = -chrono::Utc::now().timestamp_millis();
-
-        let json = format!(
-            r#"{{
+        let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
-  "timestamp": {}
-}}"#,
-            stale
-        );
-        let mut error = Annotated::<Event>::from_json(&json).unwrap();
+  "timestamp": -1
+}"#;
+        let mut error = Annotated::<Event>::from_json(json).unwrap();
         assert_eq!(
-            light_normalize_event(&mut error, LightNormalizationConfig::default())
+            process_value(&mut error, &mut TimestampProcessor, ProcessingState::root())
                 .unwrap_err()
                 .to_string(),
             "invalid transaction event: timestamp is too stale"
@@ -86,59 +79,56 @@ mod tests {
 
     #[test]
     fn test_accept_recent_transactions() {
-        let now = chrono::Utc::now().timestamp_millis();
-
-        let json = format!(
-            r#"{{
+        let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
-  "start_timestamp": {},
-  "timestamp": {}
-}}"#,
-            now, now
-        );
-        let mut error = Annotated::<Event>::from_json(&json).unwrap();
-        assert!(light_normalize_event(&mut error, LightNormalizationConfig::default()).is_ok());
+  "start_timestamp": 1,
+  "timestamp": 2
+}"#;
+        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
+        assert!(process_value(
+            &mut transaction,
+            &mut TimestampProcessor,
+            ProcessingState::root()
+        )
+        .is_ok());
     }
 
     #[test]
     fn test_reject_stale_transactions() {
-        let stale = -chrono::Utc::now().timestamp_millis();
-
-        let json = format!(
-            r#"{{
+        let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
-  "start_timestamp": {},
-  "timestamp": {}
-}}"#,
-            stale, stale
-        );
-        let mut error = Annotated::<Event>::from_json(&json).unwrap();
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
         assert_eq!(
-            light_normalize_event(&mut error, LightNormalizationConfig::default())
-                .unwrap_err()
-                .to_string(),
+            process_value(
+                &mut transaction,
+                &mut TimestampProcessor,
+                ProcessingState::root()
+            )
+            .unwrap_err()
+            .to_string(),
             "invalid transaction event: timestamp is too stale"
         );
     }
 
     #[test]
     fn test_reject_long_running_transactions() {
-        let now = chrono::Utc::now().timestamp_millis();
-        let stale = -now;
-
-        let json = format!(
-            r#"{{
+        let json = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
-  "start_timestamp": {},
-  "timestamp": {}
-}}"#,
-            stale, now
-        );
-        let mut error = Annotated::<Event>::from_json(&json).unwrap();
+  "start_timestamp": -1,
+  "timestamp": 1
+}"#;
+        let mut transaction = Annotated::<Event>::from_json(&json).unwrap();
         assert_eq!(
-            light_normalize_event(&mut error, LightNormalizationConfig::default())
-                .unwrap_err()
-                .to_string(),
+            process_value(
+                &mut transaction,
+                &mut TimestampProcessor,
+                ProcessingState::root()
+            )
+            .unwrap_err()
+            .to_string(),
             "invalid transaction event: timestamp is too stale"
         );
     }
