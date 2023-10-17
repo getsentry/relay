@@ -1153,7 +1153,7 @@ mod tests {
     }
 
     /// Checks that the project doesn't send buckets to the aggregator from its pre-aggregator
-    /// until it has received a project state.
+    /// if it haven't received a project state.
     #[tokio::test]
     async fn test_pre_aggregator_no_flush_without_state() {
         // Project without project state.
