@@ -554,6 +554,41 @@ mod tests {
     );
 
     span_description_test!(
+        chrome_extension,
+        "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-*k.svg",
+        "resource.other",
+        "chrome-extension://*/img/assets/*.svg"
+    );
+
+    span_description_test!(
+        urlencoded_path_segments,
+        "https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue",
+        "resource.iframe",
+        "domain.com/embed/*"
+    );
+
+    span_description_test!(
+        random_string1,
+        "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
+        "resource.img",
+        "*.domain.com/*/foo-99"
+    );
+
+    span_description_test!(
+        random_string2,
+        "resource.script",
+        "http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp",
+        "*/domain.com/*/*/*.dom.jsonp"
+    );
+
+    span_description_test!(
+        random_string3,
+        "resource.link",
+        "jkhdkkncnoglghljlkmcimlnlhkeamab/123.css",
+        "*/*.css"
+    );
+
+    span_description_test!(
         ui_load,
         "ListAppViewController",
         "ui.load",
