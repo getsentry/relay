@@ -873,7 +873,7 @@ impl Aggregator {
     }
 
     /// Like [`Self::new`], but with a provided name.
-    pub(crate) fn named(name: String, config: AggregatorConfig) -> Self {
+    pub fn named(name: String, config: AggregatorConfig) -> Self {
         Self {
             name,
             config,

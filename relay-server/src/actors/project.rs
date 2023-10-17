@@ -411,7 +411,10 @@ impl State {
     }
 
     fn new(config: AggregatorConfig) -> Self {
-        Self::Pending(Box::new(aggregator::Aggregator::new(config)))
+        Self::Pending(Box::new(aggregator::Aggregator::named(
+            "pre-aggregator".to_string(),
+            config,
+        )))
     }
 }
 
@@ -759,10 +762,11 @@ impl Project {
     }
 
     fn set_state(&mut self, state: Arc<ProjectState>, aggregator: Addr<Aggregator>) {
+        let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
         let buckets = self.state.set_state(state);
 
         if let Some(buckets) = buckets {
-            if !buckets.is_empty() {
+            if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from pre-aggregator to aggregator");
                 aggregator.send(MergeBuckets::new(self.project_key, buckets));
             }
