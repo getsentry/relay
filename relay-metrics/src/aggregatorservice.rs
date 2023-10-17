@@ -177,6 +177,8 @@ enum AggregatorState {
 /// Each aggregator gets its own configuration.
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
 /// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
+/// The service will flush a list of buckets to the receiver in regular intervals based on
+/// the given `config` in all of its aggregators.
 pub struct AggregatorService {
     default_aggregator: aggregator::Aggregator,
     secondary_aggregators: BTreeMap<MetricNamespace, aggregator::Aggregator>,
