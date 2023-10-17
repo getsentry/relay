@@ -12,7 +12,6 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
-use crate::normalize::span::description::scrub_span_description;
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::TransactionNameRule;
 
@@ -28,20 +27,17 @@ pub struct TransactionNameConfig<'r> {
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
     timestamp_range: Option<Range<UnixTimestamp>>,
-    enrich_spans: bool,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     /// Creates a new `TransactionsProcessor` instance.
     pub fn new(
         name_config: TransactionNameConfig<'r>,
-        enrich_spans: bool,
         timestamp_range: Option<Range<UnixTimestamp>>,
     ) -> Self {
         Self {
             name_config,
             timestamp_range,
-            enrich_spans,
         }
     }
 
@@ -456,10 +452,6 @@ impl Processor for TransactionsProcessor<'_> {
 
         span.op.get_or_insert_with(|| "default".to_owned());
 
-        if self.enrich_spans {
-            scrub_span_description(span);
-        }
-
         span.process_child_values(self, state)?;
 
         Ok(())
@@ -549,7 +541,6 @@ mod tests {
 
         let processor = &mut TransactionsProcessor::new(
             TransactionNameConfig::default(),
-            false,
             Some(UnixTimestamp::now()..UnixTimestamp::now()),
         );
 
@@ -1663,7 +1654,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
                 None,
             ),
             ProcessingState::root(),
@@ -1728,7 +1718,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
                 None,
             ),
             ProcessingState::root(),
@@ -1817,7 +1806,6 @@ mod tests {
             TransactionNameConfig {
                 rules: rules.as_ref(),
             },
-            false,
             None,
         );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1949,7 +1937,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
                 None,
             ),
             ProcessingState::root(),
@@ -2017,7 +2004,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
                 None,
             ),
             ProcessingState::root(),
@@ -2135,7 +2121,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, false, None),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2362,7 +2348,6 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                false,
                 None,
             ),
             ProcessingState::root(),
@@ -2408,7 +2393,6 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                false,
                 None,
             ),
             ProcessingState::root(),

@@ -12,7 +12,7 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::parse_query;
+use crate::span::description::{parse_query, scrub_span_description};
 use crate::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag,
     http_status_code_from_span, MOBILE_SDKS,
@@ -244,13 +244,9 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             span_tags.insert(SpanTagKey::Module, module.to_owned());
         }
 
-        let scrubbed_description = span
-            .data
-            .value()
-            .and_then(|data| data.get("description.scrubbed"))
-            .and_then(|value| value.as_str());
+        let scrubbed_description = scrub_span_description(span);
 
-        let action = match (span_module, span_op.as_str(), scrubbed_description) {
+        let action = match (span_module, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -293,7 +289,7 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
-            if let Some(scrubbed) = scrubbed_description {
+            if let Some(scrubbed) = scrubbed_description.as_deref() {
                 let url = if let Some((_, url)) = scrubbed.split_once(' ') {
                     url
                 } else {
@@ -331,11 +327,11 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             // group tag mustn't be affected by this, and still be
             // computed from the full, untruncated description.
 
-            let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
+            let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
+            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 

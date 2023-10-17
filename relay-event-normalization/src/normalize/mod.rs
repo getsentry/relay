@@ -1013,7 +1013,6 @@ pub fn light_normalize_event(
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.enrich_spans,
             config.transaction_range,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
