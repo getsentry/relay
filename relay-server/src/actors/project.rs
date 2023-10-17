@@ -769,6 +769,8 @@ impl Project {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from pre-aggregator to aggregator");
                 aggregator.send(MergeBuckets::new(self.project_key, buckets));
+            } else {
+                panic!();
             }
         }
     }
@@ -871,7 +873,7 @@ impl Project {
 
     /// Runs the checks on incoming envelopes.
     ///
-    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information.
+    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more informationrelay-metrics/src/aggregator.rs:886:1.
     ///
     /// * checks the rate limits
     /// * validates the envelope meta in `check_request` - determines whether the given request
@@ -1015,7 +1017,7 @@ impl Project {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use relay_common::time::UnixTimestamp;
     use relay_metrics::BucketValue;
@@ -1150,6 +1152,61 @@ mod tests {
         let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
 
         assert!(metrics.len() == 1);
+    }
+
+    /// Checks that the project doesn't send buckets to the aggregator from its pre-aggregator
+    /// until it has received a project state.
+    #[tokio::test]
+    async fn test_pre_aggregator_no_flush_without_state() {
+        // Project without project state.
+        let mut project = Project {
+            state: State::new(Config::default().permissive_aggregator_config()),
+            ..create_project(None)
+        };
+
+        let bucket_state = Arc::new(Mutex::new(false));
+        let (aggregator, handle) = mock_service("aggregator", bucket_state.clone(), |state, _| {
+            *state.lock().unwrap() = true;
+        });
+
+        let buckets = vec![create_transaction_bucket()];
+        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        project.merge_buckets(aggregator, outcome_aggregator, buckets);
+        handle.await.unwrap();
+
+        let buckets_received = *bucket_state.lock().unwrap();
+        assert!(!buckets_received);
+    }
+
+    /// Checks that the pre-aggregator flushes buckets to the aggregator when the project
+    /// receives a project state.
+    #[tokio::test]
+    async fn test_pre_aggregator_flush_with_state() {
+        // Project without project state.
+        let mut project = Project {
+            state: State::new(Config::default().permissive_aggregator_config()),
+            ..create_project(None)
+        };
+
+        let bucket_state = Arc::new(Mutex::new(false));
+        let (aggregator, handle) = mock_service("aggregator", bucket_state.clone(), |state, _| {
+            *state.lock().unwrap() = true;
+        });
+
+        let buckets = vec![create_transaction_bucket()];
+        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        project.merge_buckets(
+            aggregator.clone(),
+            outcome_aggregator.clone(),
+            buckets.clone(),
+        );
+        let project_state = Arc::new(ProjectState::allowed());
+        // set_state should trigger flushing from pre-aggregator to aggregator.
+        project.set_state(project_state, aggregator);
+        handle.await.unwrap(); // state isnt updated until we await.
+
+        let buckets_received = *bucket_state.lock().unwrap();
+        assert!(buckets_received);
     }
 
     #[tokio::test]
