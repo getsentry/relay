@@ -21,7 +21,6 @@ mod clock_drift;
 mod event_error;
 mod geo;
 mod legacy;
-pub mod nel;
 mod normalize;
 mod regexes;
 mod remove_other;

@@ -24,8 +24,8 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
-    MeasurementsConfig, TransactionNameConfig,
+    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
+    TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
@@ -1503,7 +1503,10 @@ impl EnvelopeProcessorService {
         _meta: &RequestMeta,
     ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
-        let mut event = Event::default();
+        let mut event = Event {
+            ty: Annotated::from(EventType::Nel),
+            ..Default::default()
+        };
         let data: &[u8] = &item.payload();
 
         // Try to get the raw network report.
@@ -1513,7 +1516,7 @@ impl EnvelopeProcessorService {
             // If the incoming payload could be converted into the raw network error, try
             // to use it to normalize the event.
             Ok(report) => {
-                nel::normalize(&mut event, report);
+                utils::enrich_nel_event(&mut event, report);
             }
             Err(err) => {
                 // logged in extract_event

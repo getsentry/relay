@@ -313,7 +313,7 @@ fn queue_envelope(
             .send(ValidateEnvelope::new(event_context));
     }
 
-    // Update the old context before continue with the source envelope.
+    // Update the old context before continuing with the source envelope.
     managed_envelope.update();
 
     if managed_envelope.envelope().is_empty() {

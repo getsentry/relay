@@ -2559,17 +2559,43 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         {
           "type": "object",
           "properties": {
-            "age": {
-              "description": " The age of the report since it got collected and before it got sent.",
+            "elapsed_time": {
+              "description": " The time between the start of the resource fetch and when it was completed or aborted.",
               "default": null,
               "type": [
                 "integer",
                 "null"
               ],
-              "format": "int64"
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "phase": {
+              "description": " If request failed, the phase of its network error. If request succeeded, \"application\".",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sampling_fraction": {
+              "description": " The sampling rate.",
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "server_ip": {
+              "description": " Server IP where the requests was sent to.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "type": {
-              "description": " The type of the report.",
+              "description": " If request failed, the type of its network error. If request succeeded, \"ok\".",
               "default": null,
               "type": [
                 "string",
@@ -3098,14 +3124,6 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "inferred_content_type": {
               "description": " The inferred content type of the response payload.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "origin": {
-              "description": " Origin address.\n\n The adddress of the origin server, where this response is coming from.",
               "default": null,
               "type": [
                 "string",

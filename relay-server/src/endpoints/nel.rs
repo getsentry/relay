@@ -45,7 +45,7 @@ async fn handle(
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE.into_response());
     }
 
-    let items: Vec<Box<RawValue>> =
+    let items: Vec<&RawValue> =
         serde_json::from_slice(&params.body).map_err(BadStoreRequest::InvalidJson)?;
 
     let mut envelope = Envelope::from_request(Some(EventId::new()), params.meta.clone());

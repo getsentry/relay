@@ -59,7 +59,6 @@ Event {
                             {},
                         ),
                         inferred_content_type: ~,
-                        origin: ~,
                         other: {},
                     },
                 ),

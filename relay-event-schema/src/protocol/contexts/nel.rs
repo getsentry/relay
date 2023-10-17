@@ -12,11 +12,18 @@ use crate::processor::ProcessValue;
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NelContext {
-    /// The age of the report since it got collected and before it got sent.
-    pub age: Annotated<i64>,
-    /// The type of the report.
+    /// If request failed, the type of its network error. If request succeeded, "ok".
     #[metastructure(field = "type")]
     pub ty: Annotated<String>,
+    /// Server IP where the requests was sent to.
+    #[metastructure(pii = "true")]
+    pub server_ip: Annotated<String>,
+    /// The time between the start of the resource fetch and when it was completed or aborted.
+    pub elapsed_time: Annotated<u64>,
+    /// If request failed, the phase of its network error. If request succeeded, "application".
+    pub phase: Annotated<String>,
+    /// The sampling rate.
+    pub sampling_fraction: Annotated<f64>,
     /// For forward compatibility.
     #[metastructure(additional_properties, pii = "maybe")]
     pub other: Object<Value>,
