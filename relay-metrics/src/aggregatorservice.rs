@@ -47,10 +47,6 @@ pub enum Aggregator {
 
 impl Interface for Aggregator {}
 
-/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
-#[derive(Debug)]
-pub struct AcceptsMetrics;
-
 impl FromMessage<AcceptsMetrics> for Aggregator {
     type Response = AsyncResponse<bool>;
     fn from_message(message: AcceptsMetrics, sender: Sender<bool>) -> Self {
@@ -65,11 +61,6 @@ impl FromMessage<MergeBuckets> for Aggregator {
     }
 }
 
-/// Used only for testing the `AggregatorService`.
-#[cfg(test)]
-#[derive(Debug)]
-pub struct BucketCountInquiry;
-
 #[cfg(test)]
 impl FromMessage<BucketCountInquiry> for Aggregator {
     type Response = AsyncResponse<usize>;
@@ -77,6 +68,15 @@ impl FromMessage<BucketCountInquiry> for Aggregator {
         Self::BucketCountInquiry(message, sender)
     }
 }
+
+/// Check whether the aggregator has not (yet) exceeded its total limits. Used for health checks.
+#[derive(Debug)]
+pub struct AcceptsMetrics;
+
+/// Used only for testing the `AggregatorService`.
+#[cfg(test)]
+#[derive(Debug)]
+pub struct BucketCountInquiry;
 
 /// A message containing a vector of buckets to be flushed.
 ///
@@ -305,9 +305,10 @@ impl AggregatorService {
         );
     }
 
-    /// Flushes all the aggregators and sends the [`FlushBuckets`] message to the receiver
-    /// in the fire and forget fashion. It is up to the receiver to send the [`MergeBuckets`]
-    /// message back if buckets could not be flushed and we require another re-try.
+    /// Flushes all the aggregators and sends the [`FlushBuckets`] message to the receiver.
+    ///
+    /// Messages are sent in a fire and forget fashion. It is up to the receiver to send
+    /// the [`MergeBuckets`] message back if buckets could not be flushed and we require another re-try.
     ///
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush_all(&mut self) {
