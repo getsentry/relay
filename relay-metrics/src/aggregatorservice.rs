@@ -354,9 +354,9 @@ impl AggregatorService {
     fn handle_accepts_metrics(&mut self, sender: Sender<bool>) {
         let max_bytes = self.max_total_bucket_bytes;
 
-        let accepts = self
+        let accepts = !self
             .aggregators_mut()
-            .all(|agg| agg.totals_cost_exceeded(max_bytes));
+            .any(|agg| agg.totals_cost_exceeded(max_bytes));
 
         sender.send(accepts);
     }
