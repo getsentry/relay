@@ -1022,7 +1022,6 @@ pub fn light_normalize_event(
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
-        // NOTE(iker): this runs before the clockdrift
         TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.

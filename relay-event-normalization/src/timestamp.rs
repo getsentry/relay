@@ -4,6 +4,16 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::Event;
 use relay_protocol::Meta;
 
+/// Ensures an event's timestamps are not stale.
+///
+/// Stale timestamps are those that happened before January 1, 1970 UTC. The
+/// processor validates the start and end timestamps of an event and returns an
+/// error if any of these is stale.
+///
+/// The processor checks the timestamps individually and it's not responsible
+/// for decisions that relate timestamps together, including but not limited to:
+/// - Ensuring the start timestamp is not later than the end timestamp.
+/// - The event finished in the last <X> days.
 pub struct TimestampProcessor;
 
 impl Processor for TimestampProcessor {
