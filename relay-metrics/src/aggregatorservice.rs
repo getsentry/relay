@@ -355,7 +355,7 @@ impl AggregatorService {
         let max_bytes = self.max_total_bucket_bytes;
 
         let accepts = !self
-            .aggregators_mut()
+            .aggregators_ref()
             .any(|agg| agg.totals_cost_exceeded(max_bytes));
 
         sender.send(accepts);
@@ -399,17 +399,16 @@ impl Service for AggregatorService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
-            relay_log::info!("metrics router started");
+            relay_log::info!("aggregator service started");
 
             let mut ticker = tokio::time::interval(FLUSH_INTERVAL);
             let mut shutdown = Controller::shutdown_handle();
 
-            // Note that currently this loop never exists and will run till the tokio runtime shuts
+            // Note that currently this loop never exits and will run till the tokio runtime shuts
             // down. This is about to change with the refactoring for the shutdown process.
             loop {
                 tokio::select! {
                     biased;
-
 
                     _ = ticker.tick() => self.try_flush_all(),
                     Some(message) = rx.recv() => self.handle_message(message),
@@ -418,7 +417,7 @@ impl Service for AggregatorService {
                     else => break,
                 }
             }
-            relay_log::info!("metrics router stopped");
+            relay_log::info!("aggregator service stopped");
         });
     }
 }
