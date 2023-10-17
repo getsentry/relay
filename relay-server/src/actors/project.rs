@@ -769,8 +769,6 @@ impl Project {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from pre-aggregator to aggregator");
                 aggregator.send(MergeBuckets::new(self.project_key, buckets));
-            } else {
-                panic!();
             }
         }
     }
