@@ -54,7 +54,7 @@ pub fn enrich_nel_event(event: &mut Event, nel: Annotated<NetworkReportRaw>) {
 
     if let Some(referrer) = body.referrer.value() {
         headers.insert(
-            HeaderName::new("refferer"),
+            HeaderName::new("referer"),
             HeaderValue::new(referrer).into(),
         );
     }
@@ -64,7 +64,7 @@ pub fn enrich_nel_event(event: &mut Event, nel: Annotated<NetworkReportRaw>) {
     let nel_context = contexts.get_or_default::<NelContext>();
     nel_context.server_ip = body.server_ip;
     nel_context.elapsed_time = body.elapsed_time;
-    nel_context.ty = body.ty;
+    nel_context.error_type = body.ty;
     nel_context.phase = body.phase;
     nel_context.sampling_fraction = body.sampling_fraction;
 

@@ -13,8 +13,7 @@ use crate::processor::ProcessValue;
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NelContext {
     /// If request failed, the type of its network error. If request succeeded, "ok".
-    #[metastructure(field = "type")]
-    pub ty: Annotated<String>,
+    pub error_type: Annotated<String>,
     /// Server IP where the requests was sent to.
     #[metastructure(pii = "true")]
     pub server_ip: Annotated<String>,

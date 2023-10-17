@@ -2569,6 +2569,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               "format": "uint64",
               "minimum": 0.0
             },
+            "error_type": {
+              "description": " If request failed, the type of its network error. If request succeeded, \"ok\".",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "phase": {
               "description": " If request failed, the phase of its network error. If request succeeded, \"application\".",
               "default": null,
@@ -2588,14 +2596,6 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "server_ip": {
               "description": " Server IP where the requests was sent to.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "type": {
-              "description": " If request failed, the type of its network error. If request succeeded, \"ok\".",
               "default": null,
               "type": [
                 "string",

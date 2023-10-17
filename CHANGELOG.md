@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Added support for NEL (Network Error Logging) reports ingestion. ([#2421](https://github.com/getsentry/relay/pull/2421))
+- Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
 
 ## 23.10.0
 
