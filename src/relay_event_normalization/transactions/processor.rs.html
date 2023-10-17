@@ -2475,6 +2475,7 @@
 <a href="#2475" id="2475">2475</a>
 <a href="#2476" id="2476">2476</a>
 <a href="#2477" id="2477">2477</a>
+<a href="#2478" id="2478">2478</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::Range;
 
@@ -2855,7 +2856,8 @@
     <span class="prelude-val">Ok</span>(did_change)
 }
 
-<span class="kw">fn </span>end_all_spans(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
+<span class="doccomment">/// Copies the event&#39;s end timestamp into the spans that don&#39;t have one.
+</span><span class="kw">fn </span>end_all_spans(event: <span class="kw-2">&amp;mut </span>Event) -&gt; ProcessingResult {
     <span class="kw">let </span>spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     <span class="kw">for </span>span <span class="kw">in </span>spans {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span.value_mut() {

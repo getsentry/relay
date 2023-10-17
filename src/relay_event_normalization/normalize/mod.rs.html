@@ -3708,6 +3708,7 @@
 <a href="#3708" id="3708">3708</a>
 <a href="#3709" id="3709">3709</a>
 <a href="#3710" id="3710">3710</a>
+<a href="#3711" id="3711">3711</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -4558,7 +4559,7 @@
     <span class="doccomment">/// The valid time range for transaction events.
     ///
     /// This time range should be inferred from storage dependencies, such as metrics storage.
-    /// Transactions with an end timestamp is outside of this time range are dropped as invalid.
+    /// Transactions with an end timestamp outside of this time range are dropped as invalid.
     </span><span class="kw">pub </span>transaction_range: <span class="prelude-ty">Option</span>&lt;Range&lt;UnixTimestamp&gt;&gt;,
 
     <span class="doccomment">/// The maximum length for names of custom measurements.
@@ -4701,12 +4702,13 @@
 
 <span class="doccomment">/// Normalizes data in the event payload.
 ///
-/// This function applies a series of transaformations on the event payload based on the passed
-/// configuration. See the config fields for a description of the normalization steps. There is
-/// extended normalization available in the [`StoreProcessor`](crate::StoreProcessor).
+/// This function applies a series of transformations on the event payload based
+/// on the passed configuration. See the config fields for a description of the
+/// normalization steps. There is extended normalization available in the
+/// [`StoreProcessor`](crate::StoreProcessor).
 ///
-/// The returned [`ProcessingResult`] indicates whether the passed event should be ingested or
-/// dropped.
+/// The returned [`ProcessingResult`] indicates whether the passed event should
+/// be ingested or dropped.
 </span><span class="kw">pub fn </span>light_normalize_event(
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
     config: LightNormalizationConfig,
