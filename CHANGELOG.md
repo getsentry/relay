@@ -32,6 +32,8 @@
 - Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
 - Don't aggregate metrics until we received its project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
+- Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
+
 
 ## 23.9.1
 
