@@ -186,7 +186,7 @@ fn scrub_resource(string: &str) -> Option<String> {
         Ok(url) => (url, false),
         Err(url::ParseError::RelativeUrlWithoutBase) => {
             // Try again, with base URL
-            match Url::options().base_url(Some(&DUMMY_URL)).parse(string) {
+            match dbg!(Url::options().base_url(Some(&DUMMY_URL)).parse(string)) {
                 Ok(url) => (url, true),
                 Err(_) => return None,
             }
@@ -201,7 +201,7 @@ fn scrub_resource(string: &str) -> Option<String> {
         },
         "chrome-extension" => {
             let path = scrub_resource_identifiers(url.path());
-            format!("chrome-extension://*/{path}")
+            format!("chrome-extension://*{path}")
         }
         scheme => {
             let path = scrub_resource_identifiers(url.path());
@@ -214,7 +214,7 @@ fn scrub_resource(string: &str) -> Option<String> {
     };
 
     if is_relative {
-        formatted = formatted.replace("http://REPLACE_ME", "");
+        formatted = formatted.replace("http://replace_me", "");
     }
 
     Some(formatted)
@@ -425,14 +425,14 @@ mod tests {
         resource_query_params2,
         "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://data.domain.com/data/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "*.domain.com/*.gif"
+        "https://*.domain.com/data/guide.gif"
     );
 
     span_description_test!(
@@ -446,14 +446,14 @@ mod tests {
         resource_vite,
         "webroot/assets/Profile-73f6525d.js",
         "resource.js",
-        "webroot/assets/Profile-*.js"
+        "/webroot/assets/Profile-*.js"
     );
 
     span_description_test!(
         resource_vite_css,
         "webroot/assets/Shop-1aff80f7.css",
         "resource.css",
-        "webroot/assets/Shop-*.css"
+        "/webroot/assets/Shop-*.css"
     );
 
     span_description_test!(
@@ -523,14 +523,14 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://data.domain.com/data/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_script_with_no_extension,
         "https://www.domain.com/page?id=1234567890",
         "resource.script",
-        "*.domain.com/*"
+        "https://*.domain.com/page"
     );
 
     span_description_test!(
