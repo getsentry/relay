@@ -1110,10 +1110,15 @@ impl Envelope {
             return envelopes;
         };
 
+        let headers = &mut self.headers;
+
         for item in split_items {
+            // Each item should get an envelope with the new event id.
+            headers.event_id = Some(EventId::new());
+
             envelopes.push(Box::new(Envelope {
-                headers: self.headers.clone(),
                 items: smallvec![item],
+                headers: headers.clone(),
             }))
         }
 

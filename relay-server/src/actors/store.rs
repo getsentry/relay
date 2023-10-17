@@ -309,7 +309,7 @@ impl StoreService {
 
         self.producer
             .client
-            .send_message(topic, organization_id, &message)?;
+            .send_message(topic, organization_id, dbg!(&message))?;
 
         Ok(())
     }

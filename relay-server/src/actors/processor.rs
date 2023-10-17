@@ -30,10 +30,10 @@ use relay_event_normalization::{
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
-    Breadcrumb, ClientReport, Contexts, Csp, Event, EventId, EventType, ExpectCt, ExpectStaple,
-    Hpkp, IpAddr, LenientString, Metrics, NetworkReportError, NetworkReportRaw, OtelContext,
-    RelayInfo, Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus,
-    SessionUpdate, Timestamp, TraceContext, UserReport, Values,
+    Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
+    IpAddr, LenientString, Metrics, NetworkReportError, NetworkReportRaw, OtelContext, RelayInfo,
+    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
@@ -1504,7 +1504,6 @@ impl EnvelopeProcessorService {
     ) -> Result<ExtractedEvent, ProcessingError> {
         let len = item.len();
         let mut event = Event {
-            id: Annotated::new(EventId::new()),
             ty: Annotated::new(EventType::Nel),
             ..Default::default()
         };
