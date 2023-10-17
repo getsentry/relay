@@ -13,7 +13,7 @@ use relay_protocol::Meta;
 /// The processor checks the timestamps individually and it's not responsible
 /// for decisions that relate timestamps together, including but not limited to:
 /// - Ensuring the start timestamp is not later than the end timestamp.
-/// - The event finished in the last <X> days.
+/// - The event finished in the last X days.
 pub struct TimestampProcessor;
 
 impl Processor for TimestampProcessor {
