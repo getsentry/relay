@@ -2691,7 +2691,6 @@ impl EnvelopeProcessorService {
         self.process_user_reports(state);
         self.process_replays(state)?;
         self.filter_profiles(state);
-        self.process_spans(state);
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
@@ -2733,6 +2732,7 @@ impl EnvelopeProcessorService {
             // We need the event parsed in order to set the profile context on it
             self.process_profiles(state);
             self.process_check_ins(state);
+            self.process_spans(state);
         });
 
         if state.has_event() {
