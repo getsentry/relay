@@ -1014,7 +1014,6 @@ pub fn light_normalize_event(
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
             config.enrich_spans,
-            config.span_description_rules,
             config.transaction_range,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
