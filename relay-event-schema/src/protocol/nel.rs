@@ -50,10 +50,6 @@ pub struct BodyRaw {
 
 /// Models the content of a NEL report.
 ///
-/// NOTE: This is the structure used inside the Event (serialization is based on Annotated
-/// infrastructure). We also use a version of this structure to deserialize from raw JSON
-/// via serde.
-///
 /// See <https://w3c.github.io/network-error-logging/>
 #[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
 #[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
