@@ -34,7 +34,6 @@
 - Don't aggregate metrics until we received its project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
 - Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
 
-
 ## 23.9.1
 
 - No documented changes.

@@ -873,7 +873,7 @@ impl Project {
 
     /// Runs the checks on incoming envelopes.
     ///
-    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more informationrelay-metrics/src/aggregator.rs:886:1.
+    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information
     ///
     /// * checks the rate limits
     /// * validates the envelope meta in `check_request` - determines whether the given request
