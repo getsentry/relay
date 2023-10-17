@@ -848,7 +848,7 @@ pub struct LightNormalizationConfig<'a> {
     /// The valid time range for transaction events.
     ///
     /// This time range should be inferred from storage dependencies, such as metrics storage.
-    /// Transactions with an end timestamp is outside of this time range are dropped as invalid.
+    /// Transactions with an end timestamp outside of this time range are dropped as invalid.
     pub transaction_range: Option<Range<UnixTimestamp>>,
 
     /// The maximum length for names of custom measurements.
@@ -991,12 +991,13 @@ impl<'a> DynamicMeasurementsConfig<'a> {
 
 /// Normalizes data in the event payload.
 ///
-/// This function applies a series of transaformations on the event payload based on the passed
-/// configuration. See the config fields for a description of the normalization steps. There is
-/// extended normalization available in the [`StoreProcessor`](crate::StoreProcessor).
+/// This function applies a series of transformations on the event payload based
+/// on the passed configuration. See the config fields for a description of the
+/// normalization steps. There is extended normalization available in the
+/// [`StoreProcessor`](crate::StoreProcessor).
 ///
-/// The returned [`ProcessingResult`] indicates whether the passed event should be ingested or
-/// dropped.
+/// The returned [`ProcessingResult`] indicates whether the passed event should
+/// be ingested or dropped.
 pub fn light_normalize_event(
     event: &mut Annotated<Event>,
     config: LightNormalizationConfig,
