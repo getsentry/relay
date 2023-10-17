@@ -3888,6 +3888,7 @@ dependencies = [
  "relay-redis",
  "relay-replays",
  "relay-sampling",
+ "relay-spans",
  "relay-statsd",
  "relay-system",
  "relay-test",
@@ -3909,6 +3910,17 @@ dependencies = [
  "url",
  "uuid",
  "zstd",
+]
+
+[[package]]
+name = "relay-spans"
+version = "23.9.1"
+dependencies = [
+ "enumset",
+ "relay-event-schema",
+ "relay-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

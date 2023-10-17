@@ -1,0 +1,17 @@
+[package]
+name = "relay-spans"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Event normalization and processing"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "23.9.1"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[dependencies]
+enumset = "1.0.4"
+relay-event-schema = { path = "../relay-event-schema" }
+relay-protocol = { path = "../relay-protocol" }
+serde = { workspace = true }
+serde_json = { workspace = true }

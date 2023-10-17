@@ -31,6 +31,9 @@ pub enum Feature {
     /// Enable extracting resource spans.
     #[serde(rename = "projects:span-metrics-extraction-resource")]
     SpanMetricsExtractionResource,
+    /// Enable OTel span ingestion.
+    #[serde(rename = "organizations:otel-span-ingestion")]
+    OTelSpanIngestion,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]

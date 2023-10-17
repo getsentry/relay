@@ -2427,6 +2427,29 @@ impl EnvelopeProcessorService {
         Ok(span)
     }
 
+    #[cfg(feature = "processing")]
+    fn process_spans(&self, state: &mut ProcessEnvelopeState) {
+        let otel_span_ingestion_enabled =
+            state.project_state.has_feature(Feature::OTelSpanIngestion);
+        state.managed_envelope.retain_items(|item| match item.ty() {
+            ItemType::Span if !otel_span_ingestion_enabled => ItemAction::DropSilently,
+            ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
+                Ok(span) => match self.validate_span(span) {
+                    Ok(_) => ItemAction::Keep,
+                    Err(e) => {
+                        relay_log::error!("Invalid span: {e}");
+                        ItemAction::DropSilently
+                    }
+                },
+                Err(e) => {
+                    relay_log::error!("Invalid span: {e}");
+                    ItemAction::DropSilently
+                }
+            },
+            _ => ItemAction::Keep,
+        });
+    }
+
     /// Computes the sampling decision on the incoming event
     fn run_dynamic_sampling(&self, state: &mut ProcessEnvelopeState) {
         // Running dynamic sampling involves either:
@@ -2668,6 +2691,7 @@ impl EnvelopeProcessorService {
         self.process_user_reports(state);
         self.process_replays(state)?;
         self.filter_profiles(state);
+        self.process_spans(state);
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
