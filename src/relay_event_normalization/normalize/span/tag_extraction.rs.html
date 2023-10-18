@@ -788,10 +788,6 @@
 <a href="#788" id="788">788</a>
 <a href="#789" id="789">789</a>
 <a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.data` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -806,7 +802,7 @@
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <span class="kw">use </span>url::Url;
 
-<span class="kw">use </span><span class="kw">crate</span>::span::description::parse_query;
+<span class="kw">use </span><span class="kw">crate</span>::span::description::{parse_query, scrub_span_description};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     extract_http_status_code, extract_transaction_op, get_eventuser_tag,
     http_status_code_from_span, MOBILE_SDKS,
@@ -1038,13 +1034,9 @@
             span_tags.insert(SpanTagKey::Module, module.to_owned());
         }
 
-        <span class="kw">let </span>scrubbed_description = span
-            .data
-            .value()
-            .and_then(|data| data.get(<span class="string">&quot;description.scrubbed&quot;</span>))
-            .and_then(|value| value.as_str());
+        <span class="kw">let </span>scrubbed_description = scrub_span_description(span);
 
-        <span class="kw">let </span>action = <span class="kw">match </span>(span_module, span_op.as_str(), scrubbed_description) {
+        <span class="kw">let </span>action = <span class="kw">match </span>(span_module, span_op.as_str(), <span class="kw-2">&amp;</span>scrubbed_description) {
             (<span class="prelude-val">Some</span>(<span class="string">&quot;http&quot;</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; span
                 .data
                 .value()
@@ -1087,7 +1079,7 @@
 
         <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">&quot;http.client&quot; </span>|| span_op.starts_with(<span class="string">&quot;resource.&quot;</span>) {
             <span class="comment">// HACK: Parse the normalized description to get the normalized domain.
-            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed) = scrubbed_description {
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(scrubbed) = scrubbed_description.as_deref() {
                 <span class="kw">let </span>url = <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, url)) = scrubbed.split_once(<span class="string">&#39; &#39;</span>) {
                     url
                 } <span class="kw">else </span>{
@@ -1125,11 +1117,11 @@
             // group tag mustn&#39;t be affected by this, and still be
             // computed from the full, untruncated description.
 
-            </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, md5::compute(scrubbed_desc));
+            </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, md5::compute(<span class="kw-2">&amp;</span>scrubbed_desc));
             span_group.truncate(<span class="number">16</span>);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            <span class="kw">let </span>truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
+            <span class="kw">let </span>truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 

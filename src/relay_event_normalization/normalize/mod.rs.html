@@ -3707,8 +3707,6 @@
 <a href="#3707" id="3707">3707</a>
 <a href="#3708" id="3708">3708</a>
 <a href="#3709" id="3709">3709</a>
-<a href="#3710" id="3710">3710</a>
-<a href="#3711" id="3711">3711</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -4724,8 +4722,6 @@
         // can revert some changes to ProcessingAction)
         </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.enrich_spans,
-            config.span_description_rules,
             config.transaction_range,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
