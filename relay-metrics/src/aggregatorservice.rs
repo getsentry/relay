@@ -178,6 +178,18 @@ struct Flusher {
 }
 
 impl Flusher {
+    fn new(
+        max_flush_bytes: usize,
+        flush_partitions: Option<u64>,
+        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    ) -> Self {
+        Self {
+            max_flush_bytes,
+            flush_partitions,
+            receiver,
+        }
+    }
+
     /// Split buckets into N logical partitions, determined by the bucket key.
     fn partition_buckets(
         &self,
@@ -264,9 +276,9 @@ impl Flusher {
 /// the given `config` in all of its aggregators.
 pub struct AggregatorService {
     router: AggregatorRouter,
-    max_total_bucket_bytes: Option<usize>,
-    state: AggregatorState,
     flusher: Flusher,
+    state: AggregatorState,
+    max_total_bucket_bytes: Option<usize>,
 }
 
 impl AggregatorService {
@@ -290,13 +302,9 @@ impl AggregatorService {
 
         Self {
             router: AggregatorRouter::new(aggregator_config.aggregator, secondary_aggregators),
+            flusher: Flusher::new(max_flush_bytes, flush_partitions, receiver),
             state: AggregatorState::Running,
             max_total_bucket_bytes,
-            flusher: Flusher {
-                receiver,
-                max_flush_bytes,
-                flush_partitions,
-            },
         }
     }
 
