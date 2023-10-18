@@ -186,12 +186,14 @@ fn scrub_resource(string: &str) -> Option<String> {
         Ok(url) => (url, false),
         Err(url::ParseError::RelativeUrlWithoutBase) => {
             // Try again, with base URL
-            match dbg!(Url::options().base_url(Some(&DUMMY_URL)).parse(string)) {
+            match Url::options().base_url(Some(&DUMMY_URL)).parse(string) {
                 Ok(url) => (url, true),
                 Err(_) => return None,
             }
         }
-        Err(_) => return None,
+        Err(_) => {
+            return None;
+        }
     };
 
     let mut formatted = match url.scheme() {
@@ -223,23 +225,42 @@ fn scrub_resource(string: &str) -> Option<String> {
 
 fn scrub_resource_path(string: &str) -> Cow<str> {
     let mut segments = vec![];
+    let mut extension = "";
     for segment in string.split('/') {
-        segments.push(if contains_special_chars(segment) {
+        let (base, ext) = match segment.rsplit_once('.') {
+            Some(p) => p,
+            None => (segment, ""),
+        };
+        extension = ext;
+        segments.push(if invalid_base_name(base) {
             Cow::Borrowed("*")
         } else {
-            RESOURCE_NORMALIZER_REGEX.replace_all(segment, "$pre*$post")
+            RESOURCE_NORMALIZER_REGEX.replace_all(base, "$pre*$post")
         });
     }
 
-    Cow::Owned(segments.join("/")) // TODO cow
+    // TODO: optimize
+    let joined = segments.join("/");
+    if extension.is_empty() {
+        joined
+    } else {
+        format!("{joined}.{extension}")
+    }
+    .into()
 }
 
-fn contains_special_chars(segment: &str) -> bool {
-    for char in segment.as_bytes() {
-        if "&%#=+@".as_bytes().contains(char) {
+const MAX_SEGMENT_LENGTH: usize = 25;
+
+fn invalid_base_name(segment: &str) -> bool {
+    if segment.len() > MAX_SEGMENT_LENGTH {
+        return true;
+    }
+    for char in segment.chars() {
+        if "&%#=+@".contains(char) {
             return true;
         };
     }
+
     false
 }
 
@@ -409,7 +430,7 @@ mod tests {
         resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
-        "https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.chunk.js-*.map"
+        "https://example.com/static/chunks/*.map"
     );
 
     span_description_test!(
@@ -430,7 +451,7 @@ mod tests {
         integer_in_resource,
         "https://example.com/assets/this_is-a_good_resource-123-scrub_me.js",
         "resource.css",
-        "https://example.com/assets/this_is-a_good_resource-*-scrub_me.js"
+        "https://example.com/assets/*.js"
     );
 
     span_description_test!(
@@ -458,7 +479,7 @@ mod tests {
         resource_webpack,
         "https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js",
         "resource.js",
-        "https://domain.com/path/to/app-*.*.js"
+        "https://domain.com/path/to/*.js"
     );
 
     span_description_test!(
@@ -493,20 +514,21 @@ mod tests {
         random_string1,
         "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
         "resource.img",
-        "*.domain.com/*/foo-99"
+        "*https://.domain.com/*/foo-*"
     );
 
     span_description_test!(
         random_string2,
-        "resource.script",
         "http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp",
-        "*/domain.com/*/*/*.dom.jsonp"
+
+        "resource.script",
+        "https://*/domain.com/*/*/*.jsonp"
     );
 
     span_description_test!(
         random_string3,
-        "resource.link",
         "jkhdkkncnoglghljlkmcimlnlhkeamab/123.css",
+        "resource.link",
         "*/*.css"
     );
 
@@ -586,7 +608,7 @@ mod tests {
         resource_img_semi_colon,
         "http://www.foo.com/path/to/resource;param1=test;param2=ing",
         "resource.img",
-        "http://*.foo.com/*"
+        "http://*.foo.com/path/to/*"
     );
 
     span_description_test!(
@@ -614,7 +636,7 @@ mod tests {
         resource_script_normalize_domain,
         "https://sub.sub.sub.domain.com/resource.js",
         "resource.script",
-        "https://*.domain.com/*.js"
+        "https://*.domain.com/resource.js"
     );
 
     #[test]
