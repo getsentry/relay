@@ -116,6 +116,35 @@
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::net::SocketAddr;
 
@@ -129,12 +158,21 @@
 <span class="kw">impl </span>ForwardedFor {
     <span class="kw">const </span>FORWARDED_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;X-Forwarded-For&quot;</span>;
     <span class="kw">const </span>VERCEL_FORWARDED_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;X-Vercel-Forwarded-For&quot;</span>;
+    <span class="kw">const </span>SENTRY_FORWARDED_HEADER: <span class="kw-2">&amp;</span>str = <span class="string">&quot;X-Sentry-Forwarded-For&quot;</span>;
 
-    <span class="doccomment">/// We prefer the Vercel header because the normal one could get overwritten as explained here.
+    <span class="doccomment">/// We prefer the SENTRY_FORWARDED_HEADER over the standard header because our infrastructure
+    /// puts the contents of the incoming FORWARDED_HEADER into SENTRY_FORWARDED_HEADER for security
+    /// reasons. This also is a way for users who can&#39;t mutate the regular FORWARDED_HEADER to still
+    /// tell Sentry about forwarded ip.
+    ///
+    /// In Vercel environments the FORWARDED_HEADER value could be overwritten (which also makes the
+    /// SENTRY_FORWARDED_HEADER value inaccruate). This leads us to rely on the
+    /// VERCEL_FORWARDED_HEADER as the source of truth instead.
     /// `https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for`
     </span><span class="kw">fn </span>get_forwarded_for_ip(header_map: <span class="kw-2">&amp;</span>HeaderMap) -&gt; <span class="kw-2">&amp;</span>str {
         header_map
             .get(<span class="self">Self</span>::VERCEL_FORWARDED_HEADER)
+            .or_else(|| header_map.get(<span class="self">Self</span>::SENTRY_FORWARDED_HEADER))
             .or_else(|| header_map.get(<span class="self">Self</span>::FORWARDED_HEADER))
             .and_then(|v| v.to_str().ok())
             .unwrap_or(<span class="string">&quot;&quot;</span>)
@@ -207,7 +245,27 @@
         <span class="macro">assert_eq!</span>(forwarded, vercel_ip);
     }
 
-    <span class="doccomment">/// If there&#39;s no `X-Vercel-Forwarded-For`-header then use the normal `X-Forwarded-For`-header.
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_prefer_sentry_forwarded() {
+        <span class="kw">let </span>sentry_ip = <span class="string">&quot;192.158.1.38&quot;</span>;
+        <span class="kw">let </span>other_ip = <span class="string">&quot;111.222.3.44&quot;</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>headermap = HeaderMap::default();
+        headermap.insert(
+            ForwardedFor::SENTRY_FORWARDED_HEADER,
+            HeaderValue::from_str(sentry_ip).unwrap(),
+        );
+        headermap.insert(
+            ForwardedFor::FORWARDED_HEADER,
+            HeaderValue::from_str(other_ip).unwrap(),
+        );
+
+        <span class="kw">let </span>forwarded = ForwardedFor::get_forwarded_for_ip(<span class="kw-2">&amp;</span>headermap);
+
+        <span class="macro">assert_eq!</span>(forwarded, sentry_ip);
+    }
+
+    <span class="doccomment">/// If there&#39;s no vercel or sentry header then use the normal `X-Forwarded-For`-header.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_fall_back_on_forwarded_for_header() {
         <span class="kw">let </span>other_ip = <span class="string">&quot;111.222.3.44&quot;</span>;
