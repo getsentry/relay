@@ -2623,6 +2623,11 @@ impl EnvelopeProcessorService {
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+                performance_score_config: state
+                    .project_state
+                    .config
+                    .performance_score_config
+                    .as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
                     rules: &state.project_state.config.tx_name_rules,
