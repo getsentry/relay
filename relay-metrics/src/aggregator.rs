@@ -489,6 +489,11 @@ impl Aggregator {
 
     /// Converts this aggregator into a vector of [`Bucket`].
     pub fn into_buckets(self) -> Vec<Bucket> {
+        relay_statsd::metric!(
+            gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
+            aggregator = &self.name,
+        );
+
         let bucket_interval = self.config.bucket_interval;
 
         self.buckets
