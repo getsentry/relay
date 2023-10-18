@@ -4,7 +4,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
-use itertools::Itertools;
 use relay_base_schema::project::ProjectKey;
 use relay_system::{
     AsyncResponse, Controller, FromMessage, Interface, NoResponse, Recipient, Sender, Service,
