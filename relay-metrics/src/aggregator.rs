@@ -66,12 +66,12 @@ impl AggregatorRouter {
     }
 
     /// Returns an iterator of references to all the aggregators in the [`AggregatorRouter`].
-    pub fn aggregators_ref(&self) -> impl Iterator<Item = &aggregator::Aggregator> {
+    fn aggregators_ref(&self) -> impl Iterator<Item = &aggregator::Aggregator> {
         std::iter::once(&self.default_aggregator).chain(self.secondary_aggregators.values())
     }
 
     /// Returns an iterator of mutable references to all the aggregators in the [`AggregatorRouter`].
-    pub fn aggregators_mut(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
+    fn aggregators_mut(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
         std::iter::once(&mut self.default_aggregator).chain(self.secondary_aggregators.values_mut())
     }
 
@@ -112,10 +112,11 @@ impl AggregatorRouter {
     pub fn pop_all_flush_buckets(
         &mut self,
         force: bool,
-    ) -> Vec<HashMap<ProjectKey, Vec<HashedBucket>>> {
-        self.aggregators_mut()
-            .map(|agg| agg.pop_flush_buckets(force))
-            .collect_vec()
+    ) -> impl Iterator<Item = (&str, HashMap<ProjectKey, Vec<HashedBucket>>)> {
+        self.aggregators_mut().map(move |agg| {
+            let buckets = agg.pop_flush_buckets(force);
+            (agg.name(), buckets)
+        })
     }
 }
 

@@ -171,48 +171,13 @@ enum AggregatorState {
     ShuttingDown,
 }
 
-/// Service that wraps the [`AggregatorRouter`].
-///
-/// The service will flush a list of buckets to the receiver in regular intervals based on
-/// the given `config` in all of its aggregators.
-pub struct AggregatorService {
-    router: AggregatorRouter,
+struct Flusher {
     max_flush_bytes: usize,
-    max_total_bucket_bytes: Option<usize>,
     flush_partitions: Option<u64>,
-    state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
 }
 
-impl AggregatorService {
-    /// Create a new aggregator service.
-    pub fn new(
-        aggregator_config: AggregatorServiceConfig,
-        secondary_aggregators: Vec<ScopedAggregatorConfig>,
-        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
-    ) -> Self {
-        let max_total_bucket_bytes = aggregator_config.max_total_bucket_bytes;
-        let max_flush_bytes = aggregator_config.max_flush_bytes;
-        let flush_partitions = aggregator_config.flush_partitions;
-
-        if !secondary_aggregators.iter().all(|agg| {
-            agg.config.flush_partitions == flush_partitions
-                && agg.config.max_total_bucket_bytes == max_total_bucket_bytes
-                && agg.config.max_flush_bytes == max_flush_bytes
-        }) {
-            relay_log::error!("aggregatorserviceconfigs are inconsistent");
-        }
-
-        Self {
-            router: AggregatorRouter::new(aggregator_config.aggregator, secondary_aggregators),
-            state: AggregatorState::Running,
-            receiver,
-            max_total_bucket_bytes,
-            max_flush_bytes,
-            flush_partitions,
-        }
-    }
-
+impl Flusher {
     /// Split buckets into N logical partitions, determined by the bucket key.
     fn partition_buckets(
         &self,
@@ -291,6 +256,49 @@ impl AggregatorService {
             aggregator = aggregator_name,
         );
     }
+}
+
+/// Service that wraps the [`AggregatorRouter`].
+///
+/// The service will flush a list of buckets to the receiver in regular intervals based on
+/// the given `config` in all of its aggregators.
+pub struct AggregatorService {
+    router: AggregatorRouter,
+    max_total_bucket_bytes: Option<usize>,
+    state: AggregatorState,
+    flusher: Flusher,
+}
+
+impl AggregatorService {
+    /// Create a new aggregator service.
+    pub fn new(
+        aggregator_config: AggregatorServiceConfig,
+        secondary_aggregators: Vec<ScopedAggregatorConfig>,
+        receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    ) -> Self {
+        let max_total_bucket_bytes = aggregator_config.max_total_bucket_bytes;
+        let max_flush_bytes = aggregator_config.max_flush_bytes;
+        let flush_partitions = aggregator_config.flush_partitions;
+
+        if !secondary_aggregators.iter().all(|agg| {
+            agg.config.flush_partitions == flush_partitions
+                && agg.config.max_total_bucket_bytes == max_total_bucket_bytes
+                && agg.config.max_flush_bytes == max_flush_bytes
+        }) {
+            relay_log::error!("aggregatorserviceconfigs are inconsistent");
+        }
+
+        Self {
+            router: AggregatorRouter::new(aggregator_config.aggregator, secondary_aggregators),
+            state: AggregatorState::Running,
+            max_total_bucket_bytes,
+            flusher: Flusher {
+                receiver,
+                max_flush_bytes,
+                flush_partitions,
+            },
+        }
+    }
 
     /// Flushes all the aggregators and sends the [`FlushBuckets`] message to the receiver.
     ///
@@ -300,21 +308,14 @@ impl AggregatorService {
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush_all(&mut self) {
         let force_flush = matches!(&self.state, &AggregatorState::ShuttingDown);
-
         let flush_buckets = self.router.pop_all_flush_buckets(force_flush);
 
-        // Was unable to do it in one line due to borrow checker constraints.
-        for (name, buckets) in self
-            .router
-            .aggregators_ref()
-            .map(|agg| agg.name())
-            .zip(flush_buckets.into_iter())
-        {
+        for (name, buckets) in flush_buckets {
             if buckets.is_empty() {
                 continue;
             };
 
-            self.try_flush(name, buckets);
+            self.flusher.try_flush(name, buckets)
         }
     }
 
