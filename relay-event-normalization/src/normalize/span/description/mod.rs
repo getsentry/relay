@@ -223,7 +223,7 @@ fn scrub_resource(string: &str) -> Option<String> {
     Some(formatted)
 }
 
-fn scrub_resource_path(string: &str) -> Cow<str> {
+fn scrub_resource_path(string: &str) -> String {
     let mut segments = vec![];
     let mut extension = "";
     for segment in string.split('/') {
@@ -232,21 +232,21 @@ fn scrub_resource_path(string: &str) -> Cow<str> {
             None => (segment, ""),
         };
         extension = ext;
-        segments.push(if invalid_base_name(base) {
+        let base = RESOURCE_NORMALIZER_REGEX.replace_all(base, "$pre*$post");
+        segments.push(if invalid_base_name(&base) {
             Cow::Borrowed("*")
         } else {
-            RESOURCE_NORMALIZER_REGEX.replace_all(base, "$pre*$post")
+            base
         });
     }
 
-    // TODO: optimize
-    let joined = segments.join("/");
-    if extension.is_empty() {
-        joined
-    } else {
-        format!("{joined}.{extension}")
+    let mut joined = segments.join("/");
+    if !extension.is_empty() {
+        joined.push_str(".");
+        joined.push_str(extension);
     }
-    .into()
+
+    joined
 }
 
 const MAX_SEGMENT_LENGTH: usize = 25;
@@ -256,7 +256,7 @@ fn invalid_base_name(segment: &str) -> bool {
         return true;
     }
     for char in segment.chars() {
-        if "&%#=+@".contains(char) {
+        if char.is_numeric() || "&%#=+@".contains(char) {
             return true;
         };
     }
@@ -479,7 +479,7 @@ mod tests {
         resource_webpack,
         "https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js",
         "resource.js",
-        "https://domain.com/path/to/*.js"
+        "https://domain.com/path/to/app-*.*.js"
     );
 
     span_description_test!(
@@ -514,7 +514,7 @@ mod tests {
         random_string1,
         "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
         "resource.img",
-        "*https://.domain.com/*/foo-*"
+        "https://*.domain.com/*/foo-*"
     );
 
     span_description_test!(
@@ -522,14 +522,14 @@ mod tests {
         "http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp",
 
         "resource.script",
-        "https://*/domain.com/*/*/*.jsonp"
+        "http://domain.com/*/*/*.jsonp"
     );
 
     span_description_test!(
         random_string3,
         "jkhdkkncnoglghljlkmcimlnlhkeamab/123.css",
         "resource.link",
-        "*/*.css"
+        "/*/*.css"
     );
 
     span_description_test!(
@@ -615,7 +615,7 @@ mod tests {
         resource_img_comma_with_extension,
         "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
         "resource.img",
-        "https://example.org/*"
+        "https://example.org/p/*/media/photos*/weird-stuff-*-*-*.jpg"
     );
 
     span_description_test!(
@@ -629,7 +629,7 @@ mod tests {
         resource_script_random_path_only,
         "/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB",
         "resource.script",
-        ""
+        "/*/*/LyMTWg/*/QkJWAQ/FSYL/*"
     );
 
     span_description_test!(
