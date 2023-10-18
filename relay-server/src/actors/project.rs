@@ -6,7 +6,10 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, ProjectConfig};
 use relay_filter::matches_any_origin;
-use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier};
+use relay_metrics::aggregator::AggregatorConfig;
+use relay_metrics::{
+    aggregator, Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
+};
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
@@ -379,6 +382,43 @@ enum GetOrFetch<'a> {
     Scheduled(&'a mut StateChannel),
 }
 
+/// Represents either the project state or an aggregation of metrics.
+///
+/// We have to delay rate limiting on metrics until we have a valid project state,
+/// So when we don't have one yet, we hold them in this aggregator until the project state arrives.
+///
+/// TODO: spool queued metrics to disk when the in-memory aggregator becomes too full.
+#[derive(Debug)]
+enum State {
+    Cached(Arc<ProjectState>),
+    Pending(Box<aggregator::Aggregator>),
+}
+
+impl State {
+    fn state_value(&self) -> Option<Arc<ProjectState>> {
+        match self {
+            State::Cached(state) => Some(Arc::clone(state)),
+            State::Pending(_) => None,
+        }
+    }
+
+    /// Sets the cached state using provided `ProjectState`.
+    /// If the variant was pending, the buckets will be returned.
+    fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
+        match std::mem::replace(self, Self::Cached(state)) {
+            State::Pending(agg) => Some(agg.into_buckets()),
+            State::Cached(_) => None,
+        }
+    }
+
+    fn new(config: AggregatorConfig) -> Self {
+        Self::Pending(Box::new(aggregator::Aggregator::named(
+            "metrics-buffer".to_string(),
+            config,
+        )))
+    }
+}
+
 /// Structure representing organization and project configuration for a project key.
 ///
 /// This structure no longer uniquely identifies a project. Instead, it identifies a project key.
@@ -391,7 +431,7 @@ pub struct Project {
     last_envelope_seen: Instant,
     project_key: ProjectKey,
     config: Arc<Config>,
-    state: Option<Arc<ProjectState>>,
+    state: State,
     state_channel: Option<StateChannel>,
     rate_limits: RateLimits,
     last_no_cache: Instant,
@@ -407,12 +447,12 @@ impl Project {
             last_updated_at: Instant::now(),
             last_envelope_seen: Instant::now(),
             project_key: key,
-            config,
-            state: None,
+            state: State::new(config.permissive_aggregator_config()),
             state_channel: None,
             rate_limits: RateLimits::new(),
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
+            config,
         }
     }
 
@@ -431,13 +471,17 @@ impl Project {
         self.reservoir_counters.clone()
     }
 
+    fn state_value(&self) -> Option<Arc<ProjectState>> {
+        self.state.state_value()
+    }
+
     /// If a reservoir rule is no longer in the sampling config, we will remove those counters.
     fn remove_expired_reservoir_rules(&self) {
-        let Some(config) = self
-            .state
-            .as_ref()
-            .and_then(|state| state.config.dynamic_sampling.as_ref())
-        else {
+        let Some(state) = self.state_value() else {
+            return;
+        };
+
+        let Some(config) = state.config.dynamic_sampling.as_ref() else {
             return;
         };
 
@@ -454,7 +498,7 @@ impl Project {
     /// Returns the current [`ExpiryState`] for this project.
     /// If the project state's [`Expiry`] is `Expired`, do not return it.
     pub fn expiry_state(&self) -> ExpiryState {
-        match self.state {
+        match self.state_value() {
             Some(ref state) => match state.check_expiry(self.config.as_ref()) {
                 Expiry::Updated => ExpiryState::Updated(state.clone()),
                 Expiry::Stale => ExpiryState::Stale(state.clone()),
@@ -516,7 +560,7 @@ impl Project {
             return metrics;
         }
 
-        let (Some(state), Some(scoping)) = (&self.state, self.scoping()) else {
+        let (Some(state), Some(scoping)) = (&self.state_value(), self.scoping()) else {
             return metrics;
         };
 
@@ -536,7 +580,7 @@ impl Project {
 
     /// Remove metric buckets that are not allowed to be ingested.
     fn filter_metrics(&self, metrics: &mut Vec<Bucket>) {
-        let Some(state) = &self.state else {
+        let Some(state) = &self.state_value() else {
             return;
         };
 
@@ -573,8 +617,20 @@ impl Project {
     ) {
         if self.metrics_allowed() {
             let buckets = self.rate_limit_metrics(buckets, outcome_aggregator);
+
             if !buckets.is_empty() {
-                aggregator.send(MergeBuckets::new(self.project_key, buckets));
+                match &mut self.state {
+                    State::Cached(_) => {
+                        // We can send metrics straight to the aggregator.
+                        relay_log::debug!("sending metrics straight to aggregator");
+                        aggregator.send(MergeBuckets::new(self.project_key, buckets));
+                    }
+                    State::Pending(inner_agg) => {
+                        // We need to queue the metrics in a temporary aggregator until the project state becomes available.
+                        relay_log::debug!("sending metrics to metrics-buffer");
+                        inner_agg.merge_all(self.project_key, buckets, None);
+                    }
+                }
             }
         } else {
             relay_log::debug!("dropping metric buckets, project disabled");
@@ -706,6 +762,18 @@ impl Project {
         }
     }
 
+    fn set_state(&mut self, state: Arc<ProjectState>, aggregator: Addr<Aggregator>) {
+        let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
+        let buckets = self.state.set_state(state);
+
+        if let Some(buckets) = buckets {
+            if project_enabled && !buckets.is_empty() {
+                relay_log::debug!("sending metrics from metricsbuffer to aggregator");
+                aggregator.send(MergeBuckets::new(self.project_key, buckets));
+            }
+        }
+    }
+
     /// Ensures the project state gets updated.
     ///
     /// This first checks if the state needs to be updated. This is the case if the project state
@@ -732,6 +800,7 @@ impl Project {
     pub fn update_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
+        aggregator: Addr<Aggregator>,
         mut state: Arc<ProjectState>,
         no_cache: bool,
     ) {
@@ -759,7 +828,7 @@ impl Project {
             // If the new state is invalid but the old one still usable, keep the old one.
             ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
             // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.state = Some(state.clone()),
+            _ => self.set_state(state.clone(), aggregator),
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
@@ -790,7 +859,7 @@ impl Project {
     ///
     /// NOTE: This function does not check the expiry of the project state.
     pub fn scoping(&self) -> Option<Scoping> {
-        let state = self.state.as_deref()?;
+        let state = self.state_value()?;
         Some(Scoping {
             organization_id: state.organization_id.unwrap_or(0),
             project_id: state.project_id?,
@@ -803,7 +872,7 @@ impl Project {
 
     /// Runs the checks on incoming envelopes.
     ///
-    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information.
+    /// See, [`crate::actors::project_cache::CheckEnvelope`] for more information
     ///
     /// * checks the rate limits
     /// * validates the envelope meta in `check_request` - determines whether the given request
@@ -947,7 +1016,7 @@ impl Project {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
 
     use relay_common::time::UnixTimestamp;
     use relay_metrics::BucketValue;
@@ -977,10 +1046,10 @@ mod tests {
             let mut project_state = ProjectState::allowed();
             project_state.project_id = Some(ProjectId::new(123));
             let mut project = Project::new(project_key, config.clone());
-            project.state = Some(Arc::new(project_state));
+            project.state = State::Cached(Arc::new(project_state));
 
             // Direct access should always yield a state:
-            assert!(project.state.is_some());
+            assert!(project.state_value().is_some());
 
             if expiry > 0 {
                 // With long expiry, should get a state
@@ -995,6 +1064,7 @@ mod tests {
     #[tokio::test]
     async fn test_stale_cache() {
         let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -1016,16 +1086,21 @@ mod tests {
         project_state.project_id = Some(ProjectId::new(123));
         let mut project = Project::new(project_key, config);
         project.state_channel = Some(channel);
-        project.state = Some(Arc::new(project_state));
+        project.state = State::Cached(Arc::new(project_state));
 
         // The project ID must be set.
-        assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(!project.state_value().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
-        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
+        project.update_state(
+            addr.clone(),
+            aggregator.clone(),
+            Arc::new(ProjectState::err()),
+            false,
+        );
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
-        assert!(!project.state.as_ref().unwrap().invalid());
+        assert!(!project.state_value().unwrap().invalid());
         assert!(project.next_fetch_attempt.is_some());
 
         // This tests that we actually initiate the backoff and the backoff mechanism works:
@@ -1038,7 +1113,12 @@ mod tests {
         // * without backoff it would just panic, not able to call the ProjectCache service
         let channel = StateChannel::new();
         project.state_channel = Some(channel);
-        project.update_state(addr.clone(), Arc::new(ProjectState::err()), false);
+        project.update_state(
+            addr.clone(),
+            aggregator.clone(),
+            Arc::new(ProjectState::err()),
+            false,
+        );
         project.fetch_state(addr, false);
     }
 
@@ -1050,7 +1130,7 @@ mod tests {
         if let Some(config) = config {
             project_state.config = serde_json::from_value(config).unwrap();
         }
-        project.state = Some(Arc::new(project_state));
+        project.state = State::Cached(Arc::new(project_state));
         project
     }
 
@@ -1071,6 +1151,61 @@ mod tests {
         let metrics = project.rate_limit_metrics(vec![create_transaction_metric()], addr);
 
         assert!(metrics.len() == 1);
+    }
+
+    /// Checks that the project doesn't send buckets to the aggregator from its metricsbuffer
+    /// if it haven't received a project state.
+    #[tokio::test]
+    async fn test_metrics_buffer_no_flush_without_state() {
+        // Project without project state.
+        let mut project = Project {
+            state: State::new(Config::default().permissive_aggregator_config()),
+            ..create_project(None)
+        };
+
+        let bucket_state = Arc::new(Mutex::new(false));
+        let (aggregator, handle) = mock_service("aggregator", bucket_state.clone(), |state, _| {
+            *state.lock().unwrap() = true;
+        });
+
+        let buckets = vec![create_transaction_bucket()];
+        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        project.merge_buckets(aggregator, outcome_aggregator, buckets);
+        handle.await.unwrap();
+
+        let buckets_received = *bucket_state.lock().unwrap();
+        assert!(!buckets_received);
+    }
+
+    /// Checks that the metrics-buffer flushes buckets to the aggregator when the project
+    /// receives a project state.
+    #[tokio::test]
+    async fn test_metrics_buffer_flush_with_state() {
+        // Project without project state.
+        let mut project = Project {
+            state: State::new(Config::default().permissive_aggregator_config()),
+            ..create_project(None)
+        };
+
+        let bucket_state = Arc::new(Mutex::new(false));
+        let (aggregator, handle) = mock_service("aggregator", bucket_state.clone(), |state, _| {
+            *state.lock().unwrap() = true;
+        });
+
+        let buckets = vec![create_transaction_bucket()];
+        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        project.merge_buckets(
+            aggregator.clone(),
+            outcome_aggregator.clone(),
+            buckets.clone(),
+        );
+        let project_state = Arc::new(ProjectState::allowed());
+        // set_state should trigger flushing from the metricsbuffer to aggregator.
+        project.set_state(project_state, aggregator);
+        handle.await.unwrap(); // state isnt updated until we await.
+
+        let buckets_received = *bucket_state.lock().unwrap();
+        assert!(buckets_received);
     }
 
     #[tokio::test]

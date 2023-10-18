@@ -41,7 +41,25 @@ mod tests {
     use super::*;
 
     fn _get_patterns() -> GlobPatterns {
-        let patterns_raw = vec!["*healthcheck*".into(), "*/health".into()];
+        let patterns_raw = [
+            "*healthcheck*",
+            "*healthy*",
+            "live",
+            "live[z/-]*",
+            "*[/-]live",
+            "*[/-]live[z/-]*",
+            "ready",
+            "ready[z/-]*",
+            "*[/-]ready",
+            "*[/-]ready[z/-]*",
+            "*heartbeat*",
+            "*/health",
+            "*/healthz",
+            "*/ping",
+        ]
+        .map(|val| val.to_string())
+        .to_vec();
+
         GlobPatterns::new(patterns_raw)
     }
 
@@ -58,6 +76,22 @@ mod tests {
             "a/HEALTH",
             "/health",
             "a/HEALTH",
+            "live",
+            "livez",
+            "live/123",
+            "live-33",
+            "x-live",
+            "abc/live",
+            "abc/live-23",
+            "ready",
+            "123/ready",
+            "readyz",
+            "ready/123",
+            "abc/ready/1234",
+            "abcheartbeat123",
+            "123/health",
+            "123/healthz",
+            "123/ping",
         ];
 
         for name in transaction_names {
@@ -82,6 +116,10 @@ mod tests {
             "/healthz/",
             "/healthx",
             "/healthzx",
+            "service-delivery",
+            "delivery",
+            "notready",
+            "already",
         ];
         let patterns = _get_patterns();
 
