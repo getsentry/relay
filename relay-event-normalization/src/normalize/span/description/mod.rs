@@ -3,29 +3,22 @@ mod sql;
 pub use sql::parse_query;
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 use itertools::Itertools;
-use relay_event_schema::processor::{self, ProcessingResult};
 use relay_event_schema::protocol::Span;
-use relay_protocol::{Annotated, Remark, RemarkType, Value};
 use url::Url;
 
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
-use crate::transactions::SpanDescriptionRule;
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
-/// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
-/// for the span group hash.
-pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptionRule>) {
-    let Some(description) = span.description.as_str() else {
-        return;
-    };
+/// Returns `None` if no Scrubbing can be performed.
+pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
+    let description = span.description.as_str()?;
 
     let db_system = span
         .data
@@ -34,8 +27,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         .and_then(|system| system.as_str());
     let span_origin = span.origin.as_str();
 
-    let scrubbed = span
-        .op
+    span.op
         .as_str()
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
@@ -73,20 +65,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
             }
             ("file", _) => scrub_file(description),
             _ => None,
-        });
-
-    if let Some(scrubbed) = scrubbed {
-        span.data
-            .get_or_insert_with(BTreeMap::new)
-            // We don't care what the cause of scrubbing was, since we assume
-            // that after scrubbing the value is sanitized.
-            .insert(
-                "description.scrubbed".to_owned(),
-                Annotated::new(Value::String(scrubbed)),
-            );
-    }
-
-    apply_span_rename_rules(span, rules).ok(); // Only fails on InvalidTransaction
+        })
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.
@@ -229,90 +208,9 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
     }
 }
 
-/// Applies rules to the span description.
-///
-/// For now, rules are only generated from transaction names, and the
-/// scrubbed value is stored in `span.data[description.scrubbed]` instead of
-/// `span.description` (which remains intact).
-fn apply_span_rename_rules(span: &mut Span, rules: &Vec<SpanDescriptionRule>) -> ProcessingResult {
-    if let Some(op) = span.op.value() {
-        if !op.starts_with("http") {
-            return Ok(());
-        }
-    }
-
-    if rules.is_empty() {
-        return Ok(());
-    }
-
-    // HACK(iker): work-around to scrub the description, in a
-    // context-manager-like approach.
-    //
-    // If data[description.scrubbed] isn't present, we want to scrub
-    // span.description. However, they have different types:
-    // Annotated<Value> vs Annotated<String>. The simplest and fastest
-    // solution I found is to add span.description to span.data if it
-    // doesn't exist already, scrub it, and remove it if we did nothing.
-    let previously_scrubbed = span
-        .data
-        .value()
-        .map(|d| d.get("description.scrubbed"))
-        .is_some();
-    if !previously_scrubbed {
-        if let Some(description) = span.description.clone().value() {
-            span.data
-                .value_mut()
-                .get_or_insert_with(BTreeMap::new)
-                .insert(
-                    "description.scrubbed".to_owned(),
-                    Annotated::new(Value::String(description.to_owned())),
-                );
-        }
-    }
-
-    let mut scrubbed = false;
-
-    if let Some(data) = span.data.value_mut() {
-        if let Some(description) = data.get_mut("description.scrubbed") {
-            processor::apply(description, |name, meta| {
-                if let Value::String(s) = name {
-                    let result = rules.iter().find_map(|rule| {
-                        rule.match_and_apply(Cow::Borrowed(s))
-                            .map(|new_name| (rule.pattern.compiled().pattern(), new_name))
-                    });
-
-                    if let Some((applied_rule, new_name)) = result {
-                        scrubbed = true;
-                        if *s != new_name {
-                            meta.add_remark(Remark::new(
-                                RemarkType::Substituted,
-                                // Setting a different format to not get
-                                // confused by the actual `span.description`.
-                                format!("description.scrubbed:{}", applied_rule),
-                            ));
-                            *name = Value::String(new_name);
-                        }
-                    }
-                }
-
-                Ok(())
-            })?;
-        }
-    }
-
-    if !previously_scrubbed && !scrubbed {
-        span.data
-            .value_mut()
-            .as_mut()
-            .and_then(|data| data.remove("description.scrubbed"));
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use relay_protocol::get_value;
+    use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -322,7 +220,7 @@ mod tests {
 
         // Same output and input means the input was already scrubbed.
         // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
-        ($name:ident, $description_in:literal, $op_in:literal, $output:literal) => {
+        ($name:ident, $description_in:literal, $op_in:literal, $expected:literal) => {
             #[test]
             fn $name() {
                 let json = format!(
@@ -346,23 +244,12 @@ mod tests {
                     .description
                     .set_value(Some($description_in.into()));
 
-                scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-                if $output == "" {
-                    assert!(span
-                        .value()
-                        .and_then(|span| span.data.value())
-                        .and_then(|data| data.get("description.scrubbed"))
-                        .is_none());
+                if $expected == "" {
+                    assert!(scrubbed.is_none());
                 } else {
-                    assert_eq!(
-                        $output,
-                        span.value()
-                            .and_then(|span| span.data.value())
-                            .and_then(|data| data.get("description.scrubbed"))
-                            .and_then(|an_value| an_value.as_str())
-                            .unwrap()
-                    );
+                    assert_eq!(scrubbed.unwrap(), $expected);
                 }
             }
         };
@@ -641,14 +528,8 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
-        scrub_span_description(span, &vec![]);
-        let scrubbed = span
-            .data
-            .value()
-            .and_then(|d| d.get("description.scrubbed"))
-            .and_then(|v| v.value())
-            .and_then(|v| v.as_str());
-        assert_eq!(scrubbed, Some("SELECT %s"));
+        let scrubbed = scrub_span_description(span);
+        assert_eq!(scrubbed.as_deref(), Some("SELECT %s"));
     }
 
     #[test]
@@ -660,8 +541,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
         assert!(scrubbed.is_none());
@@ -679,11 +559,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // Can be scrubbed with db system.
-        assert_eq!(scrubbed.as_str(), Some("SELECT a FROM b"));
+        assert_eq!(scrubbed.as_deref(), Some("SELECT a FROM b"));
     }
 
     #[test]
@@ -696,10 +575,9 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-        assert_eq!(scrubbed.as_str(), Some("INSERTED * 'UAEventData'"));
+        assert_eq!(scrubbed.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
 
     #[test]
@@ -712,11 +590,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         assert_eq!(
-            scrubbed.as_str(),
+            scrubbed.as_deref(),
             Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
         );
     }

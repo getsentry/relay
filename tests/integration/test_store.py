@@ -1230,7 +1230,6 @@ def test_spans(
         "organization_id": 1,
         "retention_days": 90,
         "span": {
-            "data": {"description.scrubbed": "GET *"},
             "description": "GET /api/0/organizations/?member=1",
             "exclusive_time": 500.0,
             "is_segment": False,

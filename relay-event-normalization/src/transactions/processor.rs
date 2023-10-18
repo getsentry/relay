@@ -12,9 +12,7 @@ use relay_event_schema::protocol::{
 };
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
-use crate::normalize::span::description::scrub_span_description;
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
-use crate::SpanDescriptionRule;
 use crate::TransactionNameRule;
 
 /// Configuration for sanitizing unparameterized transaction names.
@@ -28,34 +26,18 @@ pub struct TransactionNameConfig<'r> {
 #[derive(Debug, Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
-    span_desc_rules: Vec<SpanDescriptionRule>,
     timestamp_range: Option<Range<UnixTimestamp>>,
-    enrich_spans: bool,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     /// Creates a new `TransactionsProcessor` instance.
     pub fn new(
         name_config: TransactionNameConfig<'r>,
-        enrich_spans: bool,
-        span_description_rules: Option<&Vec<SpanDescriptionRule>>,
         timestamp_range: Option<Range<UnixTimestamp>>,
     ) -> Self {
-        let mut span_desc_rules = if let Some(span_desc_rules) = span_description_rules {
-            span_desc_rules.clone()
-        } else {
-            vec![]
-        };
-
-        if enrich_spans && !name_config.rules.is_empty() {
-            span_desc_rules.extend(name_config.rules.iter().map(SpanDescriptionRule::from));
-        }
-
         Self {
             name_config,
-            span_desc_rules,
             timestamp_range,
-            enrich_spans,
         }
     }
 
@@ -378,6 +360,7 @@ fn scrub_identifiers_with_regex(
     Ok(did_change)
 }
 
+/// Copies the event's end timestamp into the spans that don't have one.
 fn end_all_spans(event: &mut Event) -> ProcessingResult {
     let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     for span in spans {
@@ -469,10 +452,6 @@ impl Processor for TransactionsProcessor<'_> {
 
         span.op.get_or_insert_with(|| "default".to_owned());
 
-        if self.enrich_spans {
-            scrub_span_description(span, &self.span_desc_rules);
-        }
-
         span.process_child_values(self, state)?;
 
         Ok(())
@@ -562,8 +541,6 @@ mod tests {
 
         let processor = &mut TransactionsProcessor::new(
             TransactionNameConfig::default(),
-            false,
-            None,
             Some(UnixTimestamp::now()..UnixTimestamp::now()),
         );
 
@@ -1677,8 +1654,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
@@ -1743,8 +1718,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
@@ -1833,8 +1806,6 @@ mod tests {
             TransactionNameConfig {
                 rules: rules.as_ref(),
             },
-            false,
-            None,
             None,
         );
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1966,8 +1937,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
@@ -2035,8 +2004,6 @@ mod tests {
                 TransactionNameConfig {
                     rules: rules.as_ref(),
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
@@ -2154,12 +2121,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig { rules: &[rule] },
-                false,
-                None,
-                None,
-            ),
+            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, None),
             ProcessingState::root(),
         )
         .unwrap();
@@ -2386,8 +2348,6 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
@@ -2433,8 +2393,6 @@ mod tests {
                         redaction: RedactionRule::default(),
                     }],
                 },
-                false,
-                None,
                 None,
             ),
             ProcessingState::root(),
