@@ -171,6 +171,13 @@
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
 <a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
@@ -252,6 +259,9 @@
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_ready: bool,
     <span class="doccomment">/// Span description renaming rules.
+    ///
+    /// These are currently not used by Relay, and only here to be forwarded to old
+    /// relays that might still need them.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;Vec&lt;SpanDescriptionRule&gt;&gt;,
 }
@@ -337,7 +347,11 @@
     <span class="doccomment">/// Whether or not a project is ready to mark all URL transactions as &quot;sanitized&quot;.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;is_false&quot;</span>)]
     </span><span class="kw">pub </span>tx_name_ready: bool,
-    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="doccomment">/// Span description renaming rules.
+    ///
+    /// These are currently not used by Relay, and only here to be forwarded to old
+    /// relays that might still need them.
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span><span class="kw">pub </span>span_description_rules: <span class="prelude-ty">Option</span>&lt;Vec&lt;SpanDescriptionRule&gt;&gt;,
 }
 
