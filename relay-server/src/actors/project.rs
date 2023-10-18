@@ -402,7 +402,8 @@ impl State {
         }
     }
 
-    /// Sets the new `ProjectState`. If the variant was pending, the buckets will be returned.
+    /// Sets the cached state using provided `ProjectState`. 
+    /// If the variant was pending, the buckets will be returned.
     fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
         match std::mem::replace(self, Self::Cached(state)) {
             State::Pending(agg) => Some(agg.into_buckets()),
