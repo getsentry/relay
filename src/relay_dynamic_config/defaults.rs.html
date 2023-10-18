@@ -193,6 +193,9 @@
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
 <a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_protocol::RuleCondition;
@@ -209,6 +212,9 @@
 
 <span class="doccomment">/// A list of patterns found in MongoDB queries
 </span><span class="kw">const </span>MONGODB_QUERIES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;*\&quot;$*&quot;</span>, <span class="string">&quot;{*&quot;</span>, <span class="string">&quot;*({*&quot;</span>, <span class="string">&quot;*[{*&quot;</span>];
+
+<span class="doccomment">/// A list of patterns for resource span ops we&#39;d like to ingest.
+</span><span class="kw">const </span>RESOURCE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">&quot;resource.script&quot;</span>, <span class="string">&quot;resource.css&quot;</span>, <span class="string">&quot;resource.link&quot;</span>];
 
 <span class="doccomment">/// Adds configuration for extracting metrics from spans.
 ///
@@ -228,7 +234,7 @@
         <span class="kw">return</span>;
     }
 
-    <span class="kw">let </span>resource_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, <span class="string">&quot;resource*&quot;</span>);
+    <span class="kw">let </span>resource_condition = RuleCondition::glob(<span class="string">&quot;span.op&quot;</span>, RESOURCE_SPAN_OPS);
 
     <span class="comment">// Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.

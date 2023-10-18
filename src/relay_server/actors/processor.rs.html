@@ -4359,6 +4359,10 @@
 <a href="#4359" id="4359">4359</a>
 <a href="#4360" id="4360">4360</a>
 <a href="#4361" id="4361">4361</a>
+<a href="#4362" id="4362">4362</a>
+<a href="#4363" id="4363">4363</a>
+<a href="#4364" id="4364">4364</a>
+<a href="#4365" id="4365">4365</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6632,10 +6636,14 @@
             .and_then(|v| v.get(<span class="string">&quot;span.system&quot;</span>))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        (resource_span_extraction_enabled &amp;&amp; op.contains(<span class="string">&quot;resource.&quot;</span>))
+        (resource_span_extraction_enabled
+            &amp;&amp; (op.contains(<span class="string">&quot;resource.script&quot;</span>)
+                || op.contains(<span class="string">&quot;resource.css&quot;</span>)
+                || op.contains(<span class="string">&quot;resource.link&quot;</span>)))
             || op == <span class="string">&quot;http.client&quot;
             </span>|| op.starts_with(<span class="string">&quot;app.&quot;</span>)
             || op.starts_with(<span class="string">&quot;ui.load&quot;</span>)
+            || op.starts_with(<span class="string">&quot;file&quot;</span>)
             || op.starts_with(<span class="string">&quot;db&quot;</span>)
                 &amp;&amp; !(op.contains(<span class="string">&quot;clickhouse&quot;</span>)
                     || op.contains(<span class="string">&quot;mongodb&quot;</span>)
