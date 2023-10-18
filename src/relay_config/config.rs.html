@@ -2087,6 +2087,61 @@
 <a href="#2087" id="2087">2087</a>
 <a href="#2088" id="2088">2088</a>
 <a href="#2089" id="2089">2089</a>
+<a href="#2090" id="2090">2090</a>
+<a href="#2091" id="2091">2091</a>
+<a href="#2092" id="2092">2092</a>
+<a href="#2093" id="2093">2093</a>
+<a href="#2094" id="2094">2094</a>
+<a href="#2095" id="2095">2095</a>
+<a href="#2096" id="2096">2096</a>
+<a href="#2097" id="2097">2097</a>
+<a href="#2098" id="2098">2098</a>
+<a href="#2099" id="2099">2099</a>
+<a href="#2100" id="2100">2100</a>
+<a href="#2101" id="2101">2101</a>
+<a href="#2102" id="2102">2102</a>
+<a href="#2103" id="2103">2103</a>
+<a href="#2104" id="2104">2104</a>
+<a href="#2105" id="2105">2105</a>
+<a href="#2106" id="2106">2106</a>
+<a href="#2107" id="2107">2107</a>
+<a href="#2108" id="2108">2108</a>
+<a href="#2109" id="2109">2109</a>
+<a href="#2110" id="2110">2110</a>
+<a href="#2111" id="2111">2111</a>
+<a href="#2112" id="2112">2112</a>
+<a href="#2113" id="2113">2113</a>
+<a href="#2114" id="2114">2114</a>
+<a href="#2115" id="2115">2115</a>
+<a href="#2116" id="2116">2116</a>
+<a href="#2117" id="2117">2117</a>
+<a href="#2118" id="2118">2118</a>
+<a href="#2119" id="2119">2119</a>
+<a href="#2120" id="2120">2120</a>
+<a href="#2121" id="2121">2121</a>
+<a href="#2122" id="2122">2122</a>
+<a href="#2123" id="2123">2123</a>
+<a href="#2124" id="2124">2124</a>
+<a href="#2125" id="2125">2125</a>
+<a href="#2126" id="2126">2126</a>
+<a href="#2127" id="2127">2127</a>
+<a href="#2128" id="2128">2128</a>
+<a href="#2129" id="2129">2129</a>
+<a href="#2130" id="2130">2130</a>
+<a href="#2131" id="2131">2131</a>
+<a href="#2132" id="2132">2132</a>
+<a href="#2133" id="2133">2133</a>
+<a href="#2134" id="2134">2134</a>
+<a href="#2135" id="2135">2135</a>
+<a href="#2136" id="2136">2136</a>
+<a href="#2137" id="2137">2137</a>
+<a href="#2138" id="2138">2138</a>
+<a href="#2139" id="2139">2139</a>
+<a href="#2140" id="2140">2140</a>
+<a href="#2141" id="2141">2141</a>
+<a href="#2142" id="2142">2142</a>
+<a href="#2143" id="2143">2143</a>
+<a href="#2144" id="2144">2144</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2103,6 +2158,7 @@
 <span class="kw">use </span>relay_kafka::{
     ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
+<span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
 <span class="kw">use </span>relay_metrics::{
     AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
 };
@@ -4090,6 +4146,60 @@
     <span class="doccomment">/// Maximum rate limit to report to clients in seconds.
     </span><span class="kw">pub fn </span>max_rate_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
         <span class="self">self</span>.values.processing.max_rate_limit.map(u32::into)
+    }
+
+    <span class="doccomment">/// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.
+    ///
+    /// A lossless aggregator can be put in front of any of the configured aggregators without losing data that the configured aggregator would keep.
+    /// This is useful for pre-aggregating metrics together in a single aggregator instance.
+    </span><span class="kw">pub fn </span>permissive_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AggregatorConfig {
+        <span class="kw">let </span>AggregatorConfig {
+            <span class="kw-2">mut </span>bucket_interval,
+            <span class="kw-2">mut </span>max_secs_in_past,
+            <span class="kw-2">mut </span>max_secs_in_future,
+            <span class="kw-2">mut </span>max_name_length,
+            <span class="kw-2">mut </span>max_tag_key_length,
+            <span class="kw-2">mut </span>max_tag_value_length,
+            <span class="kw-2">mut </span>max_project_key_bucket_bytes,
+            ..
+        } = <span class="kw-2">&amp;</span><span class="self">self</span>.default_aggregator_config().aggregator;
+
+        <span class="kw">for </span>secondary_config <span class="kw">in </span><span class="self">self</span>.secondary_aggregator_configs() {
+            <span class="kw">let </span>agg = <span class="kw-2">&amp;</span>secondary_config.config.aggregator;
+
+            bucket_interval = bucket_interval.min(agg.bucket_interval);
+            max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
+            max_secs_in_future = max_secs_in_future.max(agg.max_secs_in_future);
+            max_name_length = max_name_length.max(agg.max_name_length);
+            max_tag_key_length = max_tag_key_length.max(agg.max_tag_key_length);
+            max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
+            max_project_key_bucket_bytes =
+                max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
+        }
+
+        <span class="kw">for </span>agg <span class="kw">in </span><span class="self">self
+            </span>.secondary_aggregator_configs()
+            .iter()
+            .map(|sc| <span class="kw-2">&amp;</span>sc.config)
+            .chain(std::iter::once(<span class="self">self</span>.default_aggregator_config()))
+        {
+            <span class="kw">if </span>agg.aggregator.bucket_interval % bucket_interval != <span class="number">0 </span>{
+                <span class="macro">relay_log::error!</span>(<span class="string">&quot;buckets don&#39;t align&quot;</span>);
+            }
+        }
+
+        AggregatorConfig {
+            bucket_interval,
+            max_secs_in_past,
+            max_secs_in_future,
+            max_name_length,
+            max_tag_key_length,
+            max_tag_value_length,
+            max_project_key_bucket_bytes,
+            initial_delay: <span class="number">30</span>,
+            debounce_delay: <span class="number">10</span>,
+            shift_key: ShiftKey::Project,
+        }
     }
 
     <span class="doccomment">/// Returns configuration for the default metrics [aggregator](relay_metrics::Aggregator).

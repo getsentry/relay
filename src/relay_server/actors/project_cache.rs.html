@@ -1171,6 +1171,8 @@
 <a href="#1171" id="1171">1171</a>
 <a href="#1172" id="1172">1172</a>
 <a href="#1173" id="1173">1173</a>
+<a href="#1174" id="1174">1174</a>
+<a href="#1175" id="1175">1175</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1750,8 +1752,10 @@
         } = message;
 
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
+        <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
         <span class="self">self</span>.get_or_create_project(project_key).update_state(
             project_cache,
+            aggregator,
             state.clone(),
             no_cache,
         );
