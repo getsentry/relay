@@ -27,6 +27,7 @@ mod remove_other;
 pub mod replay;
 mod schema;
 mod statsd;
+mod timestamp;
 mod transactions;
 mod trimming;
 
