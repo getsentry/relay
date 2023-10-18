@@ -179,6 +179,7 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
 }
 
 fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
+    // Remove query parameters or the fragment.
     if string.starts_with("data:") {
         if let Some(pos) = string.find(';') {
             return Some(string[..pos].into());
@@ -189,23 +190,8 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
     } else if let Some(pos) = string.find('#') {
         string = &string[..pos];
     }
-
-    // There can still me commas and semi-colons left in the URL.
-    if let Some(pos) = string.find(';') {
-        string = &string[..pos];
-    } else if let Some(pos) = string.find(',') {
-        string = &string[..pos];
-    }
-
     match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
-        Cow::Owned(scrubbed) => {
-            // We'll still want to normalize the domain.
-            if let Ok(url) = Url::parse(&scrubbed) {
-                let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
-                return Some(format!("{}://{domain}{}", url.scheme(), url.path()));
-            }
-            Some(scrubbed)
-        }
+        Cow::Owned(scrubbed) => Some(scrubbed),
         Cow::Borrowed(string) => {
             // No IDs scrubbed, but we still want to set something.
             // If we managed to parse the URL, we'll try to get an extension.
@@ -213,11 +199,11 @@ fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
                 let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
                 // If there is an extension, we add it to the domain.
                 if let Some(extension) = url.path().rsplit_once('.') {
-                    return Some(format!("{}://{domain}/*.{}", url.scheme(), extension.1));
+                    return Some(format!("{domain}/*.{}", extension.1));
                 }
-                return Some(format!("{}://{domain}/*", url.scheme()));
+                return Some(format!("{domain}/*"));
             }
-            None
+            Some(string.into())
         }
     }
 }
@@ -423,14 +409,14 @@ mod tests {
         resource_query_params2,
         "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://*.domain.com/data/guide*.gif"
+        "https://data.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "https://*.domain.com/*.gif"
+        "*.domain.com/*.gif"
     );
 
     span_description_test!(
@@ -486,28 +472,28 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://*.domain.com/data/guide*.gif"
+        "https://data.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_script_with_no_extension,
         "https://www.domain.com/page?id=1234567890",
         "resource.script",
-        "https://*.domain.com/*"
+        "*.domain.com/*"
     );
 
     span_description_test!(
         resource_script_with_no_domain,
         "/page.js?action=name",
         "resource.script",
-        ""
+        "/page.js"
     );
 
     span_description_test!(
         resource_script_with_no_domain_no_extension,
         "/page?action=name",
         "resource.script",
-        ""
+        "/page"
     );
 
     span_description_test!(
@@ -525,41 +511,6 @@ mod tests {
     );
 
     span_description_test!(db_category_with_not_sql, "{someField:someValue}", "db", "");
-
-    span_description_test!(
-        resource_img_semi_colon,
-        "http://www.foo.com/path/to/resource;param1=test;param2=ing",
-        "resource.img",
-        "http://*.foo.com/*"
-    );
-
-    span_description_test!(
-        resource_img_comma_with_extension,
-        "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
-        "resource.img",
-        "https://example.org/*"
-    );
-
-    span_description_test!(
-        resource_img_path_with_comma,
-        "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
-        "resource.img",
-        ""
-    );
-
-    span_description_test!(
-        resource_script_random_path_only,
-        "/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB",
-        "resource.script",
-        ""
-    );
-
-    span_description_test!(
-        resource_script_normalize_domain,
-        "https://sub.sub.sub.domain.com/resource.js",
-        "resource.script",
-        "https://*.domain.com/*.js"
-    );
 
     #[test]
     fn informed_sql_parser() {
