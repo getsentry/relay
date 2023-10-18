@@ -1,5 +1,11 @@
 # Changelog
 
+## 23.11.0
+
+**Features**:
+
+- Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
+
 ## 23.10.0
 
 **Features**:
