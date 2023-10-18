@@ -120,6 +120,24 @@ impl AggregatorRouter {
     }
 }
 
+impl Drop for AggregatorRouter {
+    fn drop(&mut self) {
+        for agg in self.aggregators_mut() {
+            let remaining_buckets = agg.bucket_count();
+            if remaining_buckets > 0 {
+                relay_log::error!(
+                    tags.aggregator = agg.name(),
+                    "metrics aggregator dropping {remaining_buckets} buckets"
+                );
+                relay_statsd::metric!(
+                    counter(MetricCounters::BucketsDropped) += remaining_buckets as i64,
+                    aggregator = agg.name(),
+                );
+            }
+        }
+    }
+}
+
 /// Splits this bucket if its estimated serialization size exceeds a threshold.
 ///
 /// There are three possible return values:
@@ -720,7 +738,7 @@ impl Aggregator {
     }
 
     /// Like [`Self::new`], but with a provided name.
-    pub(crate) fn named(name: String, config: AggregatorConfig) -> Self {
+    pub fn named(name: String, config: AggregatorConfig) -> Self {
         Self {
             name,
             config,
@@ -742,6 +760,27 @@ impl Aggregator {
     /// Returns `true` if the cost trackers value is larger than the given max cost.
     pub fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
         self.cost_tracker.totals_cost_exceeded(max_total_cost)
+    }
+
+    /// Converts this aggregator into a vector of [`Bucket`].
+    pub fn into_buckets(self) -> Vec<Bucket> {
+        relay_statsd::metric!(
+            gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
+            aggregator = &self.name,
+        );
+
+        let bucket_interval = self.config.bucket_interval;
+
+        self.buckets
+            .into_iter()
+            .map(|(key, entry)| Bucket {
+                timestamp: key.timestamp,
+                width: bucket_interval,
+                name: key.metric_name,
+                value: entry.value,
+                tags: key.tags,
+            })
+            .collect()
     }
 
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
@@ -1084,22 +1123,6 @@ impl fmt::Debug for Aggregator {
             .field("buckets", &self.buckets)
             .field("receiver", &format_args!("Recipient<FlushBuckets>"))
             .finish()
-    }
-}
-
-impl Drop for Aggregator {
-    fn drop(&mut self) {
-        let remaining_buckets = self.bucket_count();
-        if remaining_buckets > 0 {
-            relay_log::error!(
-                tags.aggregator = self.name(),
-                "metrics aggregator dropping {remaining_buckets} buckets"
-            );
-            relay_statsd::metric!(
-                counter(MetricCounters::BucketsDropped) += remaining_buckets as i64,
-                aggregator = self.name(),
-            );
-        }
     }
 }
 
