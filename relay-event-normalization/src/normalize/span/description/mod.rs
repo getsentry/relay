@@ -200,11 +200,12 @@ fn scrub_resource(string: &str) -> Option<String> {
             None => "data:*/*".to_owned(),
         },
         "chrome-extension" => {
-            let path = scrub_resource_identifiers(url.path());
+            let path = scrub_resource_path(url.path());
             format!("chrome-extension://*{path}")
         }
         scheme => {
-            let path = scrub_resource_identifiers(url.path());
+            let path = url.path();
+            let path = scrub_resource_path(path);
             let domain = url
                 .domain()
                 .and_then(|d| normalize_domain(d, url.port()))
@@ -220,8 +221,26 @@ fn scrub_resource(string: &str) -> Option<String> {
     Some(formatted)
 }
 
-fn scrub_resource_identifiers(string: &str) -> Cow<str> {
-    RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post")
+fn scrub_resource_path(string: &str) -> Cow<str> {
+    let mut segments = vec![];
+    for segment in string.split('/') {
+        segments.push(if contains_special_chars(segment) {
+            Cow::Borrowed("*")
+        } else {
+            RESOURCE_NORMALIZER_REGEX.replace_all(segment, "$pre*$post")
+        });
+    }
+
+    Cow::Owned(segments.join("/")) // TODO cow
+}
+
+fn contains_special_chars(segment: &str) -> bool {
+    for char in segment.as_bytes() {
+        if "&%#=+@".as_bytes().contains(char) {
+            return true;
+        };
+    }
+    false
 }
 
 #[cfg(test)]
@@ -467,7 +486,7 @@ mod tests {
         urlencoded_path_segments,
         "https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue",
         "resource.iframe",
-        "domain.com/embed/*"
+        "https://*.domain.com/embed/*"
     );
 
     span_description_test!(
@@ -562,6 +581,41 @@ mod tests {
     );
 
     span_description_test!(db_category_with_not_sql, "{someField:someValue}", "db", "");
+
+    span_description_test!(
+        resource_img_semi_colon,
+        "http://www.foo.com/path/to/resource;param1=test;param2=ing",
+        "resource.img",
+        "http://*.foo.com/*"
+    );
+
+    span_description_test!(
+        resource_img_comma_with_extension,
+        "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
+        "resource.img",
+        "https://example.org/*"
+    );
+
+    span_description_test!(
+        resource_img_path_with_comma,
+        "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
+        "resource.img",
+        "/help/purchase-details/*"
+    );
+
+    span_description_test!(
+        resource_script_random_path_only,
+        "/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB",
+        "resource.script",
+        ""
+    );
+
+    span_description_test!(
+        resource_script_normalize_domain,
+        "https://sub.sub.sub.domain.com/resource.js",
+        "resource.script",
+        "https://*.domain.com/*.js"
+    );
 
     #[test]
     fn informed_sql_parser() {
