@@ -12,18 +12,11 @@ use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
 
-use crate::span::description::parse_query;
+use crate::span::description::{parse_query, scrub_span_description};
 use crate::utils::{
-    extract_http_status_code, extract_transaction_op, get_eventuser_tag, http_status_code_from_span,
+    extract_http_status_code, extract_transaction_op, get_eventuser_tag,
+    http_status_code_from_span, MOBILE_SDKS,
 };
-
-/// Used to decide when to extract mobile-specific span tags.
-const MOBILE_SDKS: [&str; 4] = [
-    "sentry.cocoa",
-    "sentry.dart.flutter",
-    "sentry.java.android",
-    "sentry.javascript.react-native",
-];
 
 /// A list of supported span tags for tag extraction.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -58,38 +51,6 @@ pub enum SpanTagKey {
 }
 
 impl SpanTagKey {
-    /// The key used to write this tag into `span.data`.
-    ///
-    /// This key corresponds to the tag key on span metrics.
-    /// NOTE: This method can be removed once we stop double-writing span tags.
-    pub fn data_key(&self) -> &str {
-        match self {
-            SpanTagKey::Release => "release",
-            SpanTagKey::User => "user",
-            SpanTagKey::Environment => "environment",
-            SpanTagKey::Transaction => "transaction",
-            SpanTagKey::TransactionMethod => "transaction.method",
-            SpanTagKey::TransactionOp => "transaction.op",
-            SpanTagKey::HttpStatusCode => "http.status_code",
-            SpanTagKey::Mobile => "mobile",
-            SpanTagKey::DeviceClass => "device.class",
-
-            SpanTagKey::Action => "span.action",
-            SpanTagKey::Category => "span.category",
-            SpanTagKey::Description => "span.description",
-            SpanTagKey::Domain => "span.domain",
-            SpanTagKey::Group => "span.group",
-            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
-            SpanTagKey::HttpResponseContentLength => "http.response_content_length",
-            SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
-            SpanTagKey::Module => "span.module",
-            SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
-            SpanTagKey::SpanOp => "span.op",
-            SpanTagKey::StatusCode => "span.status_code",
-            SpanTagKey::System => "span.system",
-        }
-    }
-
     /// The key used to write this tag into `span.sentry_keys`.
     ///
     /// This key corresponds to the tag key in the snuba span dataset.
@@ -182,17 +143,6 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
                 .chain(tags.clone())
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
-        );
-
-        // Double write to `span.data` for now. This can be removed once all users of these fields
-        // have switched to `sentry_tags`.
-        let data = span.data.value_mut().get_or_insert_with(Default::default);
-        data.extend(
-            shared_tags
-                .clone()
-                .into_iter()
-                .chain(tags)
-                .map(|(k, v)| (k.data_key().to_owned(), Annotated::new(v.into()))),
         );
     }
 }
@@ -294,13 +244,9 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             span_tags.insert(SpanTagKey::Module, module.to_owned());
         }
 
-        let scrubbed_description = span
-            .data
-            .value()
-            .and_then(|data| data.get("description.scrubbed"))
-            .and_then(|value| value.as_str());
+        let scrubbed_description = scrub_span_description(span);
 
-        let action = match (span_module, span_op.as_str(), scrubbed_description) {
+        let action = match (span_module, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -343,10 +289,13 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
             // HACK: Parse the normalized description to get the normalized domain.
-            scrubbed_description
-                .and_then(|d| d.split_once(' '))
-                .and_then(|(_, d)| Url::parse(d).ok())
-                .and_then(|url| {
+            if let Some(scrubbed) = scrubbed_description.as_deref() {
+                let url = if let Some((_, url)) = scrubbed.split_once(' ') {
+                    url
+                } else {
+                    scrubbed
+                };
+                Url::parse(url).ok().and_then(|url| {
                     url.domain().map(|d| {
                         let mut domain = d.to_lowercase();
                         if let Some(port) = url.port() {
@@ -355,6 +304,9 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                         domain
                     })
                 })
+            } else {
+                None
+            }
         } else if span_op.starts_with("db") {
             span.description
                 .value()
@@ -375,11 +327,11 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
             // group tag mustn't be affected by this, and still be
             // computed from the full, untruncated description.
 
-            let mut span_group = format!("{:?}", md5::compute(scrubbed_desc));
+            let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
             span_group.truncate(16);
             span_tags.insert(SpanTagKey::Group, span_group);
 
-            let truncated = truncate_string(scrubbed_desc.to_owned(), config.max_tag_value_size);
+            let truncated = truncate_string(scrubbed_desc, config.max_tag_value_size);
             span_tags.insert(SpanTagKey::Description, truncated);
         }
 

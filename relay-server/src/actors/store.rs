@@ -1029,7 +1029,7 @@ struct CheckInKafkaMessage {
     sdk: Option<String>,
     /// The project id for the current event.
     project_id: ProjectId,
-    // Number of days to retain.
+    /// Number of days to retain.
     retention_days: u16,
 }
 

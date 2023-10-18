@@ -182,6 +182,12 @@ fn extract_universal_tags(event: &Event, config: &TransactionMetricsConfig) -> C
         tags.insert(CommonTag::HttpStatusCode, status_code);
     }
 
+    if normalize_utils::MOBILE_SDKS.contains(&event.sdk_name()) {
+        if let Some(device_class) = event.tag_value("device.class") {
+            tags.insert(CommonTag::DeviceClass, device_class.to_owned());
+        }
+    }
+
     let custom_tags = &config.extract_custom_tags;
     if !custom_tags.is_empty() {
         // XXX(slow): event tags are a flat array
@@ -457,7 +463,8 @@ mod tests {
             },
             "tags": {
                 "fOO": "bar",
-                "bogus": "absolutely"
+                "bogus": "absolutely",
+                "device.class": "1"
             },
             "measurements": {
                 "foo": {"value": 420.69},
@@ -1315,6 +1322,59 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_device_class_mobile() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "contexts": {
+                "trace": {
+                    "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                    "span_id": "fa90fdead5f74053"
+                }
+            },
+            "measurements": {
+                "frames_frozen": {
+                    "value": 3
+                }
+            },
+            "tags": {
+                "device.class": "2"
+            },
+            "sdk": {
+                "name": "sentry.cocoa"
+            }
+        }
+        "#;
+        let event = Annotated::from_json(json).unwrap();
+
+        let config = TransactionMetricsConfig::default();
+        let extractor = TransactionExtractor {
+            config: &config,
+            generic_tags: &[],
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_result: &SamplingResult::Pending,
+            has_profile: false,
+        };
+
+        let extracted = extractor.extract(event.value().unwrap()).unwrap();
+        let buckets_by_name = extracted
+            .project_metrics
+            .into_iter()
+            .map(|Bucket { name, tags, .. }| (name, tags))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            buckets_by_name["d:transactions/measurements.frames_frozen@none"]["device.class"],
+            "2"
+        );
+        assert_eq!(
+            buckets_by_name["d:transactions/duration@millisecond"]["device.class"],
+            "2"
+        );
     }
 
     /// Helper function to check if the transaction name is set correctly

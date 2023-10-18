@@ -1,6 +1,6 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::RuleCondition;
 
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
@@ -11,6 +11,12 @@ const DISABLED_DATABASES: &[&str] = &["*clickhouse*", "*mongodb*", "*redis*", "*
 
 /// A list of span.op` patterns we want to enable for mobile.
 const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
+
+/// A list of patterns found in MongoDB queries
+const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
+
+/// A list of patterns for resource span ops we'd like to ingest.
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.link"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -30,7 +36,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let resource_condition = RuleCondition::glob("span.op", "resource.*");
+    let resource_condition = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
@@ -40,14 +46,13 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     {
         RuleCondition::all()
     } else {
+        let is_disabled = RuleCondition::glob("span.op", DISABLED_DATABASES);
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
-            | RuleCondition::glob("span.description", "*\"$*");
+            | RuleCondition::glob("span.description", MONGODB_QUERIES);
 
         let mut conditions = RuleCondition::eq("span.op", "http.client")
-            | (RuleCondition::glob("span.op", "db*")
-                & !RuleCondition::glob("span.op", DISABLED_DATABASES)
-                & !(RuleCondition::eq("span.op", "db.sql.query") & is_mongo))
-            | RuleCondition::glob("span.op", MOBILE_OPS);
+            | RuleCondition::glob("span.op", MOBILE_OPS)
+            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo);
 
         if project_config
             .features
@@ -83,21 +88,33 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/http.response_content_length@byte".into(),
             field: Some("span.data.http\\.response_content_length".into()),
-            condition: Some(span_op_conditions.clone() & resource_condition.clone()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.response_content_length", 0),
+            ),
             tags: Default::default(),
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/http.decoded_response_body_length@byte".into(),
             field: Some("span.data.http\\.decoded_response_body_length".into()),
-            condition: Some(span_op_conditions.clone() & resource_condition.clone()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.decoded_response_body_length", 0),
+            ),
             tags: Default::default(),
         },
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/http.response_transfer_size@byte".into(),
             field: Some("span.data.http\\.response_transfer_size".into()),
-            condition: Some(span_op_conditions.clone() & resource_condition.clone()),
+            condition: Some(
+                span_op_conditions.clone()
+                    & resource_condition.clone()
+                    & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
+            ),
             tags: Default::default(),
         },
     ]);

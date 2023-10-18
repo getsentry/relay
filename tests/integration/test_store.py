@@ -1230,16 +1230,6 @@ def test_spans(
         "organization_id": 1,
         "retention_days": 90,
         "span": {
-            "data": {
-                "description.scrubbed": "GET *",
-                "span.category": "http",
-                "span.description": "GET *",
-                "span.group": "37e3d9fab1ae9162",
-                "span.module": "http",
-                "span.op": "http",
-                "transaction": "hi",
-                "transaction.op": "hi",
-            },
             "description": "GET /api/0/organizations/?member=1",
             "exclusive_time": 500.0,
             "is_segment": False,
@@ -1270,10 +1260,6 @@ def test_spans(
         "organization_id": 1,
         "retention_days": 90,
         "span": {
-            "data": {
-                "transaction": "hi",
-                "transaction.op": "hi",
-            },
             "description": "hi",
             "exclusive_time": 2000.0,
             "is_segment": True,

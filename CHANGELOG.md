@@ -2,12 +2,29 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
+
+## 23.11.0
+
+**Features**:
+
+- Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
+
+**Internal**:
+
+- Report global config fetch errors after interval of constant failures elapsed. ([#2628](https://github.com/getsentry/relay/pull/2628))
+
+## 23.10.0
+
 **Features**:
 
 - Scrub span descriptions with encoded data images. ([#2560](https://github.com/getsentry/relay/pull/2560))
 - Accept spans needed for the mobile Starfish module. ([#2570](https://github.com/getsentry/relay/pull/2570))
 - Extract size metrics and blocking status tag for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
 - Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
 - Add support for X-Sentry-Forwarded-For header. ([#2572](https://github.com/getsentry/relay/pull/2572))
 
 **Bug Fixes**:
@@ -17,6 +34,7 @@
 - Use correct field to pick SQL parser for span normalization. ([#2536](https://github.com/getsentry/relay/pull/2536))
 - Prevent stack overflow on SQL serialization. ([#2538](https://github.com/getsentry/relay/pull/2538))
 - Bind exclusively to the port for the HTTP server. ([#2582](https://github.com/getsentry/relay/pull/2582))
+- Scrub resource spans even when there's no domain or extension or when the description is an image. ([#2591](https://github.com/getsentry/relay/pull/2591))
 
 **Internal**:
 
@@ -25,12 +43,14 @@
 - Fix hot-loop burning CPU when upstream service is unavailable. ([#2518](https://github.com/getsentry/relay/pull/2518))
 - Extract new low-cardinality transaction duration metric for statistical detectors. ([#2513](https://github.com/getsentry/relay/pull/2513))
 - Introduce reservoir sampling rule. ([#2550](https://github.com/getsentry/relay/pull/2550))
-- Write span tags to `span.sentry_tags`. ([#2555](https://github.com/getsentry/relay/pull/2555))
+- Write span tags to `span.sentry_tags` instead of `span.data`. ([#2555](https://github.com/getsentry/relay/pull/2555), [#2598](https://github.com/getsentry/relay/pull/2598))
 - Use JSON instead of MsgPack for Kafka spans. ([#2556](https://github.com/getsentry/relay/pull/2556))
 - Add `profile_id` to spans. ([#2569](https://github.com/getsentry/relay/pull/2569))
 - Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571), [#2589](https://github.com/getsentry/relay/pull/2589))
 - Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+- Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
+- Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
 
 ## 23.9.1
 
