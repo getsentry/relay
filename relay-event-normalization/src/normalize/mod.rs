@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::span::tag_extraction::{self, extract_span_tags};
+use crate::timestamp::TimestampProcessor;
 use crate::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
@@ -1019,6 +1020,8 @@ pub fn light_normalize_event(
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+
+        TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
         normalize_security_report(event, config.client_ip, &config.user_agent);
@@ -3705,5 +3708,21 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_reject_stale_transaction() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
+        assert_eq!(
+            light_normalize_event(&mut transaction, LightNormalizationConfig::default())
+                .unwrap_err()
+                .to_string(),
+            "invalid transaction event: timestamp is too stale"
+        );
     }
 }
