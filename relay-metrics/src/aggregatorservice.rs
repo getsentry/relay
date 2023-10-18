@@ -302,11 +302,7 @@ impl AggregatorService {
     fn try_flush_all(&mut self) {
         let force_flush = matches!(&self.state, &AggregatorState::ShuttingDown);
 
-        let flush_buckets: Vec<_> = self
-            .router
-            .aggregators_mut()
-            .map(|agg| agg.pop_flush_buckets(force_flush))
-            .collect_vec();
+        let flush_buckets = self.router.pop_all_flush_buckets(force_flush);
 
         // Was unable to do it in one line due to borrow checker constraints.
         for (name, buckets) in self

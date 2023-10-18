@@ -107,6 +107,16 @@ impl AggregatorRouter {
         self.aggregators_ref()
             .any(|agg| agg.totals_cost_exceeded(max_total_bucket_bytes))
     }
+
+    /// Runs pop_flush_buckets on all the aggregators and returns the result.
+    pub fn pop_all_flush_buckets(
+        &mut self,
+        force: bool,
+    ) -> Vec<HashMap<ProjectKey, Vec<HashedBucket>>> {
+        self.aggregators_mut()
+            .map(|agg| agg.pop_flush_buckets(force))
+            .collect_vec()
+    }
 }
 
 /// Splits this bucket if its estimated serialization size exceeds a threshold.
