@@ -12,9 +12,9 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::aggregator::{self, AggregatorConfig, CappedBucketIter};
+use crate::aggregator::{AggregatorConfig, AggregatorRouter, CappedBucketIter};
 use crate::statsd::MetricHistograms;
-use crate::{Bucket, MetricNamespace, MetricResourceIdentifier};
+use crate::{Bucket, MetricNamespace};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -172,16 +172,12 @@ enum AggregatorState {
     ShuttingDown,
 }
 
-/// Service that routes metrics & metric buckets to the appropriate aggregator.
+/// Service that wraps the [`AggregatorRouter`].
 ///
-/// Each aggregator gets its own configuration.
-/// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
-/// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
 /// The service will flush a list of buckets to the receiver in regular intervals based on
 /// the given `config` in all of its aggregators.
 pub struct AggregatorService {
-    default_aggregator: aggregator::Aggregator,
-    secondary_aggregators: BTreeMap<MetricNamespace, aggregator::Aggregator>,
+    router: AggregatorRouter,
     max_flush_bytes: usize,
     max_total_bucket_bytes: Option<usize>,
     flush_partitions: Option<u64>,
@@ -209,17 +205,7 @@ impl AggregatorService {
         }
 
         Self {
-            default_aggregator: aggregator::Aggregator::new(aggregator_config.aggregator),
-            secondary_aggregators: secondary_aggregators
-                .into_iter()
-                .map(|c| {
-                    let Condition::Eq(Field::Namespace(namespace)) = c.condition;
-                    (
-                        namespace,
-                        aggregator::Aggregator::named(c.name, c.config.aggregator),
-                    )
-                })
-                .collect(),
+            router: AggregatorRouter::new(aggregator_config, secondary_aggregators),
             state: AggregatorState::Running,
             receiver,
             max_total_bucket_bytes,
@@ -317,12 +303,14 @@ impl AggregatorService {
         let force_flush = matches!(&self.state, &AggregatorState::ShuttingDown);
 
         let flush_buckets: Vec<_> = self
+            .router
             .aggregators_mut()
             .map(|agg| agg.pop_flush_buckets(force_flush))
             .collect_vec();
 
         // Was unable to do it in one line due to borrow checker constraints.
         for (name, buckets) in self
+            .router
             .aggregators_ref()
             .map(|agg| agg.name())
             .zip(flush_buckets.into_iter())
@@ -335,59 +323,29 @@ impl AggregatorService {
         }
     }
 
-    fn aggregators_ref(&self) -> impl Iterator<Item = &aggregator::Aggregator> {
-        std::iter::once(&self.default_aggregator).chain(self.secondary_aggregators.values())
-    }
-
-    fn aggregators_mut(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
-        std::iter::once(&mut self.default_aggregator).chain(self.secondary_aggregators.values_mut())
-    }
-
     fn handle_message(&mut self, msg: Aggregator) {
         match msg {
             Aggregator::AcceptsMetrics(_, sender) => self.handle_accepts_metrics(sender),
-            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+            Aggregator::MergeBuckets(msg) => {
+                let MergeBuckets {
+                    project_key,
+                    buckets,
+                } = msg;
+
+                self.router
+                    .handle_merge_buckets(self.max_total_bucket_bytes, project_key, buckets);
+            }
             #[cfg(test)]
             Aggregator::BucketCountInquiry(_, sender) => {
-                sender.send(self.default_aggregator.bucket_count())
+                sender.send(self.router.default_bucket_count())
             }
         }
     }
 
     fn handle_accepts_metrics(&mut self, sender: Sender<bool>) {
         let max_bytes = self.max_total_bucket_bytes;
-
-        let accepts = !self
-            .aggregators_ref()
-            .any(|agg| agg.totals_cost_exceeded(max_bytes));
-
-        sender.send(accepts);
-    }
-
-    fn handle_merge_buckets(&mut self, message: MergeBuckets) {
-        let MergeBuckets {
-            project_key,
-            buckets,
-        } = message;
-
-        let metrics_by_namespace = buckets.into_iter().group_by(|bucket| {
-            MetricResourceIdentifier::parse(&bucket.name)
-                .map(|mri| mri.namespace)
-                .ok()
-        });
-
-        // TODO: Parse MRI only once, move validation from Aggregator here.
-        for (namespace, group) in metrics_by_namespace.into_iter() {
-            let aggregator = namespace
-                .and_then(|ns| self.secondary_aggregators.get_mut(&ns))
-                .unwrap_or(&mut self.default_aggregator);
-
-            aggregator.merge_all(
-                project_key,
-                group.collect::<Vec<Bucket>>(),
-                self.max_total_bucket_bytes,
-            );
-        }
+        let accepts_metrics = !self.router.any_total_cost_exceeded(max_bytes);
+        sender.send(accepts_metrics);
     }
 
     fn handle_shutdown(&mut self, message: Shutdown) {
@@ -672,10 +630,12 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
             aggregator
+                .router
                 .default_aggregator
                 .merge(project_key, bucket1, config.max_total_bucket_bytes)
                 .ok();
             aggregator
+                .router
                 .default_aggregator
                 .merge(project_key, bucket2, config.max_total_bucket_bytes)
                 .ok();

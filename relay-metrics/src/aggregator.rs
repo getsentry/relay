@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::{fmt, mem};
 
 use fnv::FnvHasher;
+use itertools::Itertools;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::{MonotonicResult, UnixTimestamp};
 use serde::{Deserialize, Serialize};
@@ -16,7 +17,10 @@ use tokio::time::Instant;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{aggregator, DistributionValue, HashedBucket};
+use crate::{
+    aggregator, AggregatorServiceConfig, Condition, DistributionValue, Field, HashedBucket,
+    ScopedAggregatorConfig,
+};
 
 /// The fraction of [`AggregatorServiceConfig::max_flush_bytes`](crate::AggregatorServiceConfig) at which buckets will be split. A value of
 /// `2` means that all buckets smaller than half of max_flush_bytes will be moved in their entirety,
@@ -25,6 +29,86 @@ const BUCKET_SPLIT_FACTOR: usize = 32;
 
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
+
+/// Utility that routes metrics & metric buckets to the appropriate aggregator.
+///
+/// Each aggregator gets its own configuration.
+/// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
+/// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
+pub struct AggregatorRouter {
+    default_aggregator: aggregator::Aggregator,
+    secondary_aggregators: BTreeMap<MetricNamespace, aggregator::Aggregator>,
+}
+
+impl AggregatorRouter {
+    /// Creates a new instance of [`AggregatorRouter`].
+    pub fn new(
+        aggregator_config: AggregatorServiceConfig,
+        secondary_aggregators: Vec<ScopedAggregatorConfig>,
+    ) -> Self {
+        Self {
+            default_aggregator: aggregator::Aggregator::new(aggregator_config.aggregator),
+            secondary_aggregators: secondary_aggregators
+                .into_iter()
+                .map(|c| {
+                    let Condition::Eq(Field::Namespace(namespace)) = c.condition;
+                    (
+                        namespace,
+                        aggregator::Aggregator::named(c.name, c.config.aggregator),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn default_bucket_count(&self) -> usize {
+        self.default_aggregator.bucket_count()
+    }
+
+    ///
+    pub fn aggregators_ref(&self) -> impl Iterator<Item = &aggregator::Aggregator> {
+        std::iter::once(&self.default_aggregator).chain(self.secondary_aggregators.values())
+    }
+
+    ///
+    pub fn aggregators_mut(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
+        std::iter::once(&mut self.default_aggregator).chain(self.secondary_aggregators.values_mut())
+    }
+
+    ///
+    pub fn handle_merge_buckets(
+        &mut self,
+        max_total_bucket_bytes: Option<usize>,
+        project_key: ProjectKey,
+        buckets: Vec<Bucket>,
+    ) {
+        let metrics_by_namespace = buckets.into_iter().group_by(|bucket| {
+            MetricResourceIdentifier::parse(&bucket.name)
+                .map(|mri| mri.namespace)
+                .ok()
+        });
+
+        // TODO: Parse MRI only once, move validation from Aggregator here.
+        for (namespace, group) in metrics_by_namespace.into_iter() {
+            let aggregator = namespace
+                .and_then(|ns| self.secondary_aggregators.get_mut(&ns))
+                .unwrap_or(&mut self.default_aggregator);
+
+            aggregator.merge_all(
+                project_key,
+                group.collect::<Vec<Bucket>>(),
+                max_total_bucket_bytes,
+            );
+        }
+    }
+
+    /// Checks if any of the aggregators' total cost exceeds the given limit.
+    pub fn any_total_cost_exceeded(&self, max_total_bucket_bytes: Option<usize>) -> bool {
+        self.aggregators_ref()
+            .any(|agg| agg.totals_cost_exceeded(max_total_bucket_bytes))
+    }
+}
 
 /// Splits this bucket if its estimated serialization size exceeds a threshold.
 ///
