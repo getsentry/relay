@@ -16,7 +16,7 @@ const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
-const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css"];
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.link"];
 
 /// Adds configuration for extracting metrics from spans.
 ///

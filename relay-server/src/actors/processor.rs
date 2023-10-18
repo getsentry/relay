@@ -2272,7 +2272,9 @@ impl EnvelopeProcessorService {
             .and_then(|system| system.as_str())
             .unwrap_or_default();
         (resource_span_extraction_enabled
-            && (op.contains("resource.script") || op.contains("resource.css")))
+            && (op.contains("resource.script")
+                || op.contains("resource.css")
+                || op.contains("resource.link")))
             || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
