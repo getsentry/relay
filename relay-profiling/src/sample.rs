@@ -32,6 +32,8 @@ struct Frame {
     lineno: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     module: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
 }
 
 impl Frame {
