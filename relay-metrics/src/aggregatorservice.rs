@@ -205,7 +205,7 @@ impl AggregatorService {
         }
 
         Self {
-            router: AggregatorRouter::new(aggregator_config, secondary_aggregators),
+            router: AggregatorRouter::new(aggregator_config.aggregator, secondary_aggregators),
             state: AggregatorState::Running,
             receiver,
             max_total_bucket_bytes,

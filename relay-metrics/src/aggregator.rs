@@ -18,8 +18,7 @@ use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{
-    aggregator, AggregatorServiceConfig, Condition, DistributionValue, Field, HashedBucket,
-    ScopedAggregatorConfig,
+    aggregator, Condition, DistributionValue, Field, HashedBucket, ScopedAggregatorConfig,
 };
 
 /// The fraction of [`AggregatorServiceConfig::max_flush_bytes`](crate::AggregatorServiceConfig) at which buckets will be split. A value of
@@ -43,11 +42,11 @@ pub struct AggregatorRouter {
 impl AggregatorRouter {
     /// Creates a new instance of [`AggregatorRouter`].
     pub fn new(
-        aggregator_config: AggregatorServiceConfig,
+        aggregator_config: AggregatorConfig,
         secondary_aggregators: Vec<ScopedAggregatorConfig>,
     ) -> Self {
         Self {
-            default_aggregator: aggregator::Aggregator::new(aggregator_config.aggregator),
+            default_aggregator: aggregator::Aggregator::new(aggregator_config),
             secondary_aggregators: secondary_aggregators
                 .into_iter()
                 .map(|c| {
@@ -66,17 +65,17 @@ impl AggregatorRouter {
         self.default_aggregator.bucket_count()
     }
 
-    ///
+    /// Returns an iterator of references to all the aggregators in the [`AggregatorRouter`].
     pub fn aggregators_ref(&self) -> impl Iterator<Item = &aggregator::Aggregator> {
         std::iter::once(&self.default_aggregator).chain(self.secondary_aggregators.values())
     }
 
-    ///
+    /// Returns an iterator of mutable references to all the aggregators in the [`AggregatorRouter`].
     pub fn aggregators_mut(&mut self) -> impl Iterator<Item = &mut aggregator::Aggregator> {
         std::iter::once(&mut self.default_aggregator).chain(self.secondary_aggregators.values_mut())
     }
 
-    ///
+    /// Merges the given buckets into the aggregators based on the metric namespace of each bucket.
     pub fn handle_merge_buckets(
         &mut self,
         max_total_bucket_bytes: Option<usize>,
