@@ -3707,6 +3707,25 @@
 <a href="#3707" id="3707">3707</a>
 <a href="#3708" id="3708">3708</a>
 <a href="#3709" id="3709">3709</a>
+<a href="#3710" id="3710">3710</a>
+<a href="#3711" id="3711">3711</a>
+<a href="#3712" id="3712">3712</a>
+<a href="#3713" id="3713">3713</a>
+<a href="#3714" id="3714">3714</a>
+<a href="#3715" id="3715">3715</a>
+<a href="#3716" id="3716">3716</a>
+<a href="#3717" id="3717">3717</a>
+<a href="#3718" id="3718">3718</a>
+<a href="#3719" id="3719">3719</a>
+<a href="#3720" id="3720">3720</a>
+<a href="#3721" id="3721">3721</a>
+<a href="#3722" id="3722">3722</a>
+<a href="#3723" id="3723">3723</a>
+<a href="#3724" id="3724">3724</a>
+<a href="#3725" id="3725">3725</a>
+<a href="#3726" id="3726">3726</a>
+<a href="#3727" id="3727">3727</a>
+<a href="#3728" id="3728">3728</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3736,6 +3755,7 @@
 <span class="kw">use </span>smallvec::SmallVec;
 
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
+<span class="kw">use </span><span class="kw">crate</span>::timestamp::TimestampProcessor;
 <span class="kw">use crate</span>::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
@@ -4728,6 +4748,8 @@
 
         <span class="comment">// Check for required and non-empty values
         </span>schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
+
+        TimestampProcessor.process_event(event, meta, ProcessingState::root())<span class="question-mark">?</span>;
 
         <span class="comment">// Process security reports first to ensure all props.
         </span>normalize_security_report(event, config.client_ip, <span class="kw-2">&amp;</span>config.user_agent);
@@ -7414,6 +7436,22 @@
             },
         ]
         &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_reject_stale_transaction() {
+        <span class="kw">let </span>json = <span class="string">r#&quot;{
+  &quot;event_id&quot;: &quot;52df9022835246eeb317dbd739ccd059&quot;,
+  &quot;start_timestamp&quot;: -2,
+  &quot;timestamp&quot;: -1
+}&quot;#</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>transaction = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+        <span class="macro">assert_eq!</span>(
+            light_normalize_event(<span class="kw-2">&amp;mut </span>transaction, LightNormalizationConfig::default())
+                .unwrap_err()
+                .to_string(),
+            <span class="string">&quot;invalid transaction event: timestamp is too stale&quot;
+        </span>);
     }
 }
 </code></pre></div></section></main></body></html>
