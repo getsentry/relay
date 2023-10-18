@@ -1,8 +1,8 @@
 use relay_event_schema::processor::{
-    ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
-use relay_event_schema::protocol::Event;
-use relay_protocol::Meta;
+use relay_event_schema::protocol::{Event, Span};
+use relay_protocol::{Error, Meta};
 
 /// Ensures an event's timestamps are not stale.
 ///
@@ -22,7 +22,7 @@ impl Processor for TimestampProcessor {
         &mut self,
         event: &mut Event,
         _: &mut Meta,
-        _: &ProcessingState,
+        state: &ProcessingState,
     ) -> ProcessingResult {
         if let Some(end_timestamp) = event.timestamp.value() {
             if end_timestamp.into_inner().timestamp_millis() < 0 {
@@ -39,6 +39,36 @@ impl Processor for TimestampProcessor {
             }
         }
 
+        event.process_child_values(self, state)?;
+
+        Ok(())
+    }
+
+    fn process_span(
+        &mut self,
+        span: &mut Span,
+        meta: &mut Meta,
+        _: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        if let Some(start_timestamp) = span.start_timestamp.value() {
+            if start_timestamp.into_inner().timestamp_millis() < 0 {
+                meta.add_error(Error::invalid(format!(
+                    "timestamp is too stale: {}",
+                    start_timestamp
+                )));
+                return Err(ProcessingAction::DeleteValueHard);
+            }
+        }
+        if let Some(end_timestamp) = span.timestamp.value() {
+            if end_timestamp.into_inner().timestamp_millis() < 0 {
+                meta.add_error(Error::invalid(format!(
+                    "timestamp is too stale: {}",
+                    end_timestamp
+                )));
+                return Err(ProcessingAction::DeleteValueHard);
+            }
+        }
+
         Ok(())
     }
 }
@@ -46,8 +76,8 @@ impl Processor for TimestampProcessor {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::{process_value, ProcessingState};
-    use relay_event_schema::protocol::Event;
-    use relay_protocol::Annotated;
+    use relay_event_schema::protocol::{Event, Span};
+    use relay_protocol::{assert_annotated_snapshot, Annotated};
 
     use crate::timestamp::TimestampProcessor;
 
@@ -132,5 +162,70 @@ mod tests {
             .to_string(),
             "invalid transaction event: timestamp is too stale"
         );
+    }
+
+    #[test]
+    fn test_accept_recent_span() {
+        let json = r#"{
+      "span_id": "52df9022835246eeb317dbd739ccd050",
+      "start_timestamp": 1,
+      "timestamp": 2
+    }"#;
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+        assert!(process_value(&mut span, &mut TimestampProcessor, ProcessingState::root()).is_ok());
+    }
+
+    #[test]
+    fn test_reject_stale_span() {
+        let json = r#"{
+      "span_id": "52df9022835246eeb317dbd739ccd050",
+      "start_timestamp": -2,
+      "timestamp": -1
+    }"#;
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+        assert!(process_value(&mut span, &mut TimestampProcessor, ProcessingState::root()).is_ok());
+        assert_annotated_snapshot!(&span, @r###"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                [
+                  "invalid_data",
+                  {
+                    "reason": "timestamp is too stale: 1969-12-31 23:59:58 UTC"
+                  }
+                ]
+              ]
+            }
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_reject_long_running_span() {
+        let json = r#"{
+      "span_id": "52df9022835246eeb317dbd739ccd050",
+      "start_timestamp": -1,
+      "timestamp": 1
+    }"#;
+        let mut span = Annotated::<Span>::from_json(json).unwrap();
+        assert!(process_value(&mut span, &mut TimestampProcessor, ProcessingState::root()).is_ok());
+        assert_annotated_snapshot!(&span, @r###"
+        {
+          "_meta": {
+            "": {
+              "err": [
+                [
+                  "invalid_data",
+                  {
+                    "reason": "timestamp is too stale: 1969-12-31 23:59:59 UTC"
+                  }
+                ]
+              ]
+            }
+          }
+        }
+        "###);
     }
 }
