@@ -8,7 +8,8 @@ use relay_protocol::Meta;
 ///
 /// Stale timestamps are those that happened before January 1, 1970 UTC. The
 /// processor validates the start and end timestamps of an event and returns an
-/// error if any of these are stale.
+/// error if any of these are stale. Additionally, spans with stale timestamps
+/// are removed from the event.
 ///
 /// The processor checks the timestamps individually and it's not responsible
 /// for decisions that relate timestamps together, including but not limited to:
