@@ -402,7 +402,7 @@ impl State {
         }
     }
 
-    /// Sets the cached state using provided `ProjectState`. 
+    /// Sets the cached state using provided `ProjectState`.
     /// If the variant was pending, the buckets will be returned.
     fn set_state(&mut self, state: Arc<ProjectState>) -> Option<Vec<Bucket>> {
         match std::mem::replace(self, Self::Cached(state)) {
@@ -413,7 +413,7 @@ impl State {
 
     fn new(config: AggregatorConfig) -> Self {
         Self::Pending(Box::new(aggregator::Aggregator::named(
-            "pre-aggregator".to_string(),
+            "metrics-buffer".to_string(),
             config,
         )))
     }
@@ -627,7 +627,7 @@ impl Project {
                     }
                     State::Pending(inner_agg) => {
                         // We need to queue the metrics in a temporary aggregator until the project state becomes available.
-                        relay_log::debug!("sending metrics to pre-aggregator");
+                        relay_log::debug!("sending metrics to metrics-buffer");
                         inner_agg.merge_all(self.project_key, buckets, None);
                     }
                 }
@@ -768,7 +768,7 @@ impl Project {
 
         if let Some(buckets) = buckets {
             if project_enabled && !buckets.is_empty() {
-                relay_log::debug!("sending metrics from pre-aggregator to aggregator");
+                relay_log::debug!("sending metrics from metricsbuffer to aggregator");
                 aggregator.send(MergeBuckets::new(self.project_key, buckets));
             }
         }
@@ -1153,10 +1153,10 @@ mod tests {
         assert!(metrics.len() == 1);
     }
 
-    /// Checks that the project doesn't send buckets to the aggregator from its pre-aggregator
+    /// Checks that the project doesn't send buckets to the aggregator from its metricsbuffer
     /// if it haven't received a project state.
     #[tokio::test]
-    async fn test_pre_aggregator_no_flush_without_state() {
+    async fn test_metrics_buffer_no_flush_without_state() {
         // Project without project state.
         let mut project = Project {
             state: State::new(Config::default().permissive_aggregator_config()),
@@ -1177,10 +1177,10 @@ mod tests {
         assert!(!buckets_received);
     }
 
-    /// Checks that the pre-aggregator flushes buckets to the aggregator when the project
+    /// Checks that the metrics-buffer flushes buckets to the aggregator when the project
     /// receives a project state.
     #[tokio::test]
-    async fn test_pre_aggregator_flush_with_state() {
+    async fn test_metrics_buffer_flush_with_state() {
         // Project without project state.
         let mut project = Project {
             state: State::new(Config::default().permissive_aggregator_config()),
@@ -1200,7 +1200,7 @@ mod tests {
             buckets.clone(),
         );
         let project_state = Arc::new(ProjectState::allowed());
-        // set_state should trigger flushing from pre-aggregator to aggregator.
+        // set_state should trigger flushing from the metricsbuffer to aggregator.
         project.set_state(project_state, aggregator);
         handle.await.unwrap(); // state isnt updated until we await.
 
