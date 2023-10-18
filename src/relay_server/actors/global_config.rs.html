@@ -394,6 +394,19 @@
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the Global Config service.
 //!
 //! The global config service is a Relay service to manage [`GlobalConfig`]s,
@@ -407,6 +420,7 @@
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_config::RelayMode;
@@ -416,6 +430,7 @@
 <span class="kw">use </span>reqwest::Method;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>tokio::sync::{mpsc, watch};
+<span class="kw">use </span>tokio::time::Instant;
 
 <span class="kw">use </span><span class="kw">crate</span>::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -543,6 +558,10 @@
     </span>upstream: Addr&lt;UpstreamRelay&gt;,
     <span class="doccomment">/// Handle to avoid multiple outgoing requests.
     </span>fetch_handle: SleepHandle,
+    <span class="doccomment">/// Last instant the global config was successfully fetched in.
+    </span>last_fetched: Instant,
+    <span class="doccomment">/// Interval of upstream fetching failures before reporting such errors.
+    </span>upstream_failure_interval: Duration,
     <span class="doccomment">/// Disables the upstream fetch loop.
     </span>shutdown: bool,
 }
@@ -560,6 +579,8 @@
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
+            last_fetched: Instant::now(),
+            upstream_failure_interval: Duration::from_secs(<span class="number">35</span>),
             shutdown: <span class="bool-val">false</span>,
         }
     }
@@ -623,6 +644,7 @@
                         // subscribers.
                         </span><span class="self">self</span>.global_config_watch.send(Arc::new(global_config)).ok();
                         success = <span class="bool-val">true</span>;
+                        <span class="self">self</span>.last_fetched = Instant::now();
                     }
                     <span class="prelude-val">None </span>=&gt; <span class="macro">relay_log::error!</span>(<span class="string">&quot;global config missing in upstream response&quot;</span>),
                 }
@@ -631,10 +653,14 @@
                     success = <span class="kw">if </span>success { <span class="string">&quot;true&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;false&quot; </span>},
                 );
             }
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(e)) =&gt; <span class="macro">relay_log::error!</span>(
-                error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                <span class="string">&quot;failed to fetch global config from upstream&quot;
-            </span>),
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Err</span>(e)) =&gt; {
+                <span class="kw">if </span><span class="self">self</span>.last_fetched.elapsed() &gt;= <span class="self">self</span>.upstream_failure_interval {
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">&quot;failed to fetch global config from upstream&quot;
+                    </span>);
+                }
+            }
             <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">relay_log::error!</span>(
                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                 <span class="string">&quot;failed to send request to upstream&quot;
