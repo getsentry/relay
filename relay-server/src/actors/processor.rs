@@ -2429,8 +2429,8 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
-        let otel_span_ingestion_enabled =
-            state.project_state.has_feature(Feature::OTelSpanIngestion);
+        let otel_span_ingestion_enabled = true;
+        //state.project_state.has_feature(Feature::OTelSpanIngestion);
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::Span if !otel_span_ingestion_enabled => ItemAction::DropSilently,
             ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
