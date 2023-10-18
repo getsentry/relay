@@ -242,7 +242,7 @@ fn scrub_resource_path(string: &str) -> String {
 
     let mut joined = segments.join("/");
     if !extension.is_empty() {
-        joined.push_str(".");
+        joined.push('.');
         joined.push_str(extension);
     }
 
