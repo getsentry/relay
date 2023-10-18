@@ -1288,6 +1288,19 @@
 <a href="#1288" id="1288">1288</a>
 <a href="#1289" id="1289">1289</a>
 <a href="#1290" id="1290">1290</a>
+<a href="#1291" id="1291">1291</a>
+<a href="#1292" id="1292">1292</a>
+<a href="#1293" id="1293">1293</a>
+<a href="#1294" id="1294">1294</a>
+<a href="#1295" id="1295">1295</a>
+<a href="#1296" id="1296">1296</a>
+<a href="#1297" id="1297">1297</a>
+<a href="#1298" id="1298">1298</a>
+<a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
+<a href="#1303" id="1303">1303</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -2012,6 +2025,7 @@
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             sdk: client.map(str::to_owned),
             payload: item.payload(),
+            routing_key_hint: item.routing_hint(),
         });
 
         <span class="self">self</span>.produce(KafkaTopic::Monitors, organization_id, message)<span class="question-mark">?</span>;
@@ -2311,6 +2325,9 @@
 
 <span class="attr">#[derive(Debug, Serialize)]
 </span><span class="kw">struct </span>CheckInKafkaMessage {
+    <span class="attr">#[serde(skip)]
+    </span>routing_key_hint: <span class="prelude-ty">Option</span>&lt;Uuid&gt;,
+
     <span class="doccomment">/// Raw event payload.
     </span>payload: Bytes,
     <span class="doccomment">/// Time at which the event was received by Relay.
@@ -2390,14 +2407,23 @@
             <span class="self">Self</span>::Attachment(message) =&gt; message.event_id.<span class="number">0</span>,
             <span class="self">Self</span>::AttachmentChunk(message) =&gt; message.event_id.<span class="number">0</span>,
             <span class="self">Self</span>::UserReport(message) =&gt; message.event_id.<span class="number">0</span>,
-            <span class="self">Self</span>::Session(_message) =&gt; Uuid::nil(), <span class="comment">// Explicit random partitioning for sessions
-            </span><span class="self">Self</span>::Metric { .. } =&gt; Uuid::nil(),     <span class="comment">// TODO(ja): Determine a partitioning key
-            </span><span class="self">Self</span>::Profile(_message) =&gt; Uuid::nil(),
             <span class="self">Self</span>::ReplayEvent(message) =&gt; message.replay_id.<span class="number">0</span>,
-            <span class="self">Self</span>::ReplayRecordingNotChunked(_message) =&gt; Uuid::nil(), <span class="comment">// Ensure random partitioning.
-            </span><span class="self">Self</span>::CheckIn(_message) =&gt; Uuid::nil(),
-            <span class="self">Self</span>::Span(<span class="kw">_</span>) =&gt; Uuid::nil(), <span class="comment">// random partitioning
-        </span>};
+
+            <span class="comment">// Monitor check-ins use the hinted UUID passed through from the Envelope.
+            //
+            // XXX(epurkhiser): In the future it would be better if all KafkaMessage&#39;s would
+            // recieve the routing_key_hint form their envelopes.
+            </span><span class="self">Self</span>::CheckIn(message) =&gt; message.routing_key_hint.unwrap_or_else(Uuid::nil),
+
+            <span class="comment">// Random partitioning
+            </span><span class="self">Self</span>::Session(<span class="kw">_</span>)
+            | <span class="self">Self</span>::Profile(<span class="kw">_</span>)
+            | <span class="self">Self</span>::ReplayRecordingNotChunked(<span class="kw">_</span>)
+            | <span class="self">Self</span>::Span(<span class="kw">_</span>) =&gt; Uuid::nil(),
+
+            <span class="comment">// TODO(ja): Determine a partitioning key
+            </span><span class="self">Self</span>::Metric { .. } =&gt; Uuid::nil(),
+        };
 
         <span class="kw">if </span>uuid.is_nil() {
             uuid = Uuid::new_v4();

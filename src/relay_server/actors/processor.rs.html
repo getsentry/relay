@@ -4363,6 +4363,7 @@
 <a href="#4363" id="4363">4363</a>
 <a href="#4364" id="4364">4364</a>
 <a href="#4365" id="4365">4365</a>
+<a href="#4366" id="4366">4366</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -5484,9 +5485,10 @@
                 <span class="kw">return </span>ItemAction::Keep;
             }
 
-            <span class="kw">match </span>relay_monitors::process_check_in(<span class="kw-2">&amp;</span>item.payload()) {
-                <span class="prelude-val">Ok</span>(processed) =&gt; {
-                    item.set_payload(ContentType::Json, processed);
+            <span class="kw">match </span>relay_monitors::process_check_in(<span class="kw-2">&amp;</span>item.payload(), state.project_id) {
+                <span class="prelude-val">Ok</span>(result) =&gt; {
+                    item.set_routing_hint(result.routing_hint);
+                    item.set_payload(ContentType::Json, result.payload);
                     ItemAction::Keep
                 }
                 <span class="prelude-val">Err</span>(error) =&gt; {
