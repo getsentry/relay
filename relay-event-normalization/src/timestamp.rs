@@ -44,8 +44,8 @@ impl Processor for TimestampProcessor {
 
 #[cfg(test)]
 mod tests {
-    use relay_event_schema::protocol::Event;
     use relay_event_schema::processor::{process_value, ProcessingState};
+    use relay_event_schema::protocol::Event;
     use relay_protocol::Annotated;
 
     use crate::timestamp::TimestampProcessor;
@@ -120,7 +120,7 @@ mod tests {
   "start_timestamp": -1,
   "timestamp": 1
 }"#;
-        let mut transaction = Annotated::<Event>::from_json(&json).unwrap();
+        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
         assert_eq!(
             process_value(
                 &mut transaction,
