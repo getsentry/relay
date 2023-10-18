@@ -11,7 +11,7 @@ pub struct Span {
     pub trace_id: String,
     pub span_id: String,
     pub trace_state: Option<String>,
-    pub parent_span_id: String,
+    pub parent_span_id: Option<String>,
     pub name: String,
     pub kind: SpanKind,
     pub start_time_unix_nano: i64,
@@ -154,16 +154,23 @@ impl From<Span> for EventSpan {
         let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
         let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
         let exclusive_time = (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
-        Self {
+        let mut span = EventSpan {
             description: from.name.into(),
             exclusive_time: exclusive_time.into(),
-            parent_span_id: SpanId(from.parent_span_id).into(),
             span_id: SpanId(from.span_id).into(),
             start_timestamp: Timestamp(start_timestamp).into(),
             timestamp: Timestamp(end_timestamp).into(),
             trace_id: TraceId(from.trace_id).into(),
             ..Default::default()
+        };
+        if let Some(parent_span_id) = from.parent_span_id {
+            span.is_segment = false.into();
+            span.parent_span_id = SpanId(parent_span_id).into();
+        } else {
+            span.is_segment = true.into();
+            span.segment_id = span.span_id.clone();
         }
+        span
     }
 }
 
