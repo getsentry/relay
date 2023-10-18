@@ -28,7 +28,7 @@ jobs:
           submodules: recursive
 
       - if: matrix.build-arch == 'aarch64'
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
 
