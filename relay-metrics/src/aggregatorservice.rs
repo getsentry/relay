@@ -629,16 +629,13 @@ mod tests {
         let mut aggregator = AggregatorService::new(config.clone(), vec![], None);
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
-            aggregator
-                .router
-                .default_aggregator
-                .merge(project_key, bucket1, config.max_total_bucket_bytes)
-                .ok();
-            aggregator
-                .router
-                .default_aggregator
-                .merge(project_key, bucket2, config.max_total_bucket_bytes)
-                .ok();
+            let buckets = vec![bucket1, bucket2];
+            aggregator.router.handle_merge_buckets(
+                config.max_total_bucket_bytes,
+                project_key,
+                buckets,
+            );
+
             aggregator.try_flush_all();
         });
         captures
