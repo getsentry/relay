@@ -13,7 +13,14 @@ impl ForwardedFor {
     const VERCEL_FORWARDED_HEADER: &str = "X-Vercel-Forwarded-For";
     const SENTRY_FORWARDED_HEADER: &str = "X-Sentry-Forwarded-For";
 
-    /// We prefer the Vercel header because the normal one could get overwritten as explained here.
+    /// We prefer the SENTRY_FORWARDED_HEADER over the standard header because our infrastructure
+    /// puts the contents of the incoming FORWARDED_HEADER into SENTRY_FORWARDED_HEADER for security
+    /// reasons. This also is a way for users who can't mutate the regular FORWARDED_HEADER to still
+    /// tell Sentry about forwarded ip.
+    ///
+    /// In Vercel environments the FORWARDED_HEADER value could be overwritten (which also makes the
+    /// SENTRY_FORWARDED_HEADER value inaccruate). This leads us to rely on the
+    /// VERCEL_FORWARDED_HEADER as the source of truth instead.
     /// `https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for`
     fn get_forwarded_for_ip(header_map: &HeaderMap) -> &str {
         header_map
