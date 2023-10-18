@@ -14,6 +14,7 @@
 - Accept spans needed for the mobile Starfish module. ([#2570](https://github.com/getsentry/relay/pull/2570))
 - Extract size metrics and blocking status tag for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
 - Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
 
 **Bug Fixes**:
 
