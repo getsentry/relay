@@ -171,6 +171,9 @@ enum AggregatorState {
     ShuttingDown,
 }
 
+/// Responsible for flushing the [`FlushBuckets`] to the receiver.
+///
+/// Main motivation for this struct was to get around some borrowing issues when calling `try_flush`.
 struct Flusher {
     max_flush_bytes: usize,
     flush_partitions: Option<u64>,
@@ -337,7 +340,7 @@ impl AggregatorService {
                 } = msg;
 
                 self.router
-                    .handle_merge_buckets(self.max_total_bucket_bytes, project_key, buckets);
+                    .merge_buckets(self.max_total_bucket_bytes, project_key, buckets);
             }
             #[cfg(test)]
             Aggregator::BucketCountInquiry(_, sender) => {
@@ -634,11 +637,9 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let captures = relay_statsd::with_capturing_test_client(|| {
             let buckets = vec![bucket1, bucket2];
-            aggregator.router.handle_merge_buckets(
-                config.max_total_bucket_bytes,
-                project_key,
-                buckets,
-            );
+            aggregator
+                .router
+                .merge_buckets(config.max_total_bucket_bytes, project_key, buckets);
 
             aggregator.try_flush_all();
         });

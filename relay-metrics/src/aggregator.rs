@@ -29,7 +29,7 @@ const BUCKET_SPLIT_FACTOR: usize = 32;
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
 
-/// Utility that routes metrics & metric buckets to the appropriate aggregator.
+/// Utility that routes metrics to the appropriate aggregator.
 ///
 /// Each aggregator gets its own configuration.
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
@@ -76,7 +76,7 @@ impl AggregatorRouter {
     }
 
     /// Merges the given buckets into the aggregators based on the metric namespace of each bucket.
-    pub fn handle_merge_buckets(
+    pub fn merge_buckets(
         &mut self,
         max_total_bucket_bytes: Option<usize>,
         project_key: ProjectKey,
@@ -108,14 +108,16 @@ impl AggregatorRouter {
             .any(|agg| agg.totals_cost_exceeded(max_total_bucket_bytes))
     }
 
-    /// Runs pop_flush_buckets on all the aggregators and returns the result.
+    /// Runs pop_flush_buckets on all the aggregators and returns the result alongside with the name of the aggregator.
     pub fn pop_all_flush_buckets(
         &mut self,
         force: bool,
     ) -> impl Iterator<Item = (&str, HashMap<ProjectKey, Vec<HashedBucket>>)> {
         self.aggregators_mut().map(move |agg| {
-            let buckets = agg.pop_flush_buckets(force);
-            (agg.name(), buckets)
+            let flush_buckets = agg.pop_flush_buckets(force);
+            let name = agg.name();
+
+            (name, flush_buckets)
         })
     }
 }
