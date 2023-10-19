@@ -6,11 +6,19 @@
 
 - Remove from events spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
 
+**Internal**:
+
+- Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
+
 ## 23.11.0
 
 **Features**:
 
 - Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
+
+**Internal**:
+
+- Report global config fetch errors after interval of constant failures elapsed. ([#2628](https://github.com/getsentry/relay/pull/2628))
 
 ## 23.10.0
 
@@ -21,6 +29,7 @@
 - Extract size metrics and blocking status tag for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
 - Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
 - Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+- Add support for X-Sentry-Forwarded-For header. ([#2572](https://github.com/getsentry/relay/pull/2572))
 
 **Bug Fixes**:
 
@@ -44,6 +53,7 @@
 - Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571), [#2589](https://github.com/getsentry/relay/pull/2589))
 - Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+- Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
 - Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
 
 ## 23.9.1

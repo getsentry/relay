@@ -11,6 +11,7 @@
 
 use std::borrow::Cow;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_config::Config;
 use relay_config::RelayMode;
@@ -20,6 +21,7 @@ use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Serv
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
+use tokio::time::Instant;
 
 use crate::actors::upstream::{
     RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -147,6 +149,10 @@ pub struct GlobalConfigService {
     upstream: Addr<UpstreamRelay>,
     /// Handle to avoid multiple outgoing requests.
     fetch_handle: SleepHandle,
+    /// Last instant the global config was successfully fetched in.
+    last_fetched: Instant,
+    /// Interval of upstream fetching failures before reporting such errors.
+    upstream_failure_interval: Duration,
     /// Disables the upstream fetch loop.
     shutdown: bool,
 }
@@ -164,6 +170,8 @@ impl GlobalConfigService {
             internal_rx,
             upstream,
             fetch_handle: SleepHandle::idle(),
+            last_fetched: Instant::now(),
+            upstream_failure_interval: Duration::from_secs(35),
             shutdown: false,
         }
     }
@@ -227,6 +235,7 @@ impl GlobalConfigService {
                         // subscribers.
                         self.global_config_watch.send(Arc::new(global_config)).ok();
                         success = true;
+                        self.last_fetched = Instant::now();
                     }
                     None => relay_log::error!("global config missing in upstream response"),
                 }
@@ -235,10 +244,14 @@ impl GlobalConfigService {
                     success = if success { "true" } else { "false" },
                 );
             }
-            Ok(Err(e)) => relay_log::error!(
-                error = &e as &dyn std::error::Error,
-                "failed to fetch global config from upstream"
-            ),
+            Ok(Err(e)) => {
+                if self.last_fetched.elapsed() >= self.upstream_failure_interval {
+                    relay_log::error!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to fetch global config from upstream"
+                    );
+                }
+            }
             Err(e) => relay_log::error!(
                 error = &e as &dyn std::error::Error,
                 "failed to send request to upstream"
