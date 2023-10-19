@@ -198,7 +198,7 @@ mod tests {
                 [
                   "invalid_data",
                   {
-                    "reason": "timestamp is too stale: 1969-12-31 23:59:58 UTC"
+                    "reason": "start_timestamp is too stale: 1969-12-31 23:59:58 UTC"
                   }
                 ]
               ]
@@ -225,7 +225,7 @@ mod tests {
                 [
                   "invalid_data",
                   {
-                    "reason": "timestamp is too stale: 1969-12-31 23:59:59 UTC"
+                    "reason": "start_timestamp is too stale: 1969-12-31 23:59:59 UTC"
                   }
                 ]
               ]
