@@ -488,58 +488,59 @@ fn normalize_performance_score(
     event: &mut Event,
     performance_score_config: Option<&PerformanceScoreConfig>,
 ) {
-    if let Some(performance_score_config) = performance_score_config {
-        for profile in &performance_score_config.profiles {
-            if let Some(condition) = &profile.condition {
-                if !condition.matches(event) {
-                    continue;
+    let Some(performance_score_config) = performance_score_config else {
+        return;
+    };
+    for profile in &performance_score_config.profiles {
+        if let Some(condition) = &profile.condition {
+            if !condition.matches(event) {
+                continue;
+            }
+            if let Some(measurements) = event.measurements.value_mut() {
+                if !profile
+                    .score_components
+                    .iter()
+                    .all(|c| measurements.contains_key(c.measurement.as_str()))
+                {
+                    // Check all measurements exist, otherwise don't add any score components.
+                    break;
                 }
-                if let Some(measurements) = event.measurements.value_mut() {
-                    if !profile
-                        .score_components
-                        .iter()
-                        .all(|c| measurements.contains_key(c.measurement.as_str()))
-                    {
-                        // Check all measurements exist, otherwise don't add any score components.
-                        break;
-                    }
-                    let mut score_total = 0.0;
-                    for component in &profile.score_components {
-                        if let Some(value) = measurements.get_value(component.measurement.as_str())
-                        {
-                            let subscore =
-                                utils::calculate_cdf_score(value, component.p10, component.p50)
-                                    * component.weight;
-                            score_total += subscore;
+                let mut score_total = 0.0;
+                for component in &profile.score_components {
+                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                        let subscore =
+                            utils::calculate_cdf_score(value, component.p10, component.p50)
+                                * component.weight;
+                        score_total += subscore;
 
-                            measurements.insert(
-                                format!("measurements.score.{}", component.measurement),
-                                Measurement {
-                                    value: subscore.into(),
-                                    unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                                }
-                                .into(),
-                            );
-                            measurements.insert(
-                                format!("measurements.score.weight.{}", component.measurement),
-                                Measurement {
-                                    value: component.weight.into(),
-                                    unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                                }
-                                .into(),
-                            );
-                        }
+                        measurements.insert(
+                            format!("measurements.score.{}", component.measurement),
+                            Measurement {
+                                value: subscore.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                        measurements.insert(
+                            format!("measurements.score.weight.{}", component.measurement),
+                            Measurement {
+                                value: component.weight.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
                     }
-
-                    measurements.insert(
-                        "measurements.score.total".to_owned(),
-                        Measurement {
-                            value: score_total.into(),
-                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                        }
-                        .into(),
-                    );
                 }
+
+                measurements.insert(
+                    "measurements.score.total".to_owned(),
+                    Measurement {
+                        value: score_total.into(),
+                        unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                    }
+                    .into(),
+                );
+                break; // Measurements have successfully been added, skip any other profiles.
             }
         }
     }
