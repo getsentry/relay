@@ -966,39 +966,6 @@
 <a href="#966" id="966">966</a>
 <a href="#967" id="967">967</a>
 <a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
-<a href="#1000" id="1000">1000</a>
-<a href="#1001" id="1001">1001</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
 <span class="kw">use </span>std::ops::Range;
 
@@ -1015,7 +982,7 @@
 
 <span class="kw">const </span>MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() <span class="kw">as </span>u64;
 
-<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
+<span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 </span><span class="kw">struct </span>Frame {
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>abs_path: <span class="prelude-ty">Option</span>&lt;String&gt;,
@@ -1033,6 +1000,8 @@
     </span>lineno: <span class="prelude-ty">Option</span>&lt;u32&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
     </span>module: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>platform: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="kw">impl </span>Frame {
@@ -1536,14 +1505,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>profile = generate_profile();
 
         profile.profile.frames.push(Frame {
-            abs_path: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            colno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            filename: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            function: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            in_app: <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-            instruction_addr: <span class="prelude-val">Some</span>(Addr(<span class="number">0</span>)),
-            lineno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            module: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+            ..Default::default()
         });
         profile.metadata.transaction = <span class="prelude-val">Some</span>(TransactionMetadata {
             active_thread_id: <span class="number">1</span>,
@@ -1594,14 +1556,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>profile = generate_profile();
 
         profile.profile.frames.push(Frame {
-            abs_path: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            colno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            filename: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            function: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            in_app: <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-            instruction_addr: <span class="prelude-val">Some</span>(Addr(<span class="number">0</span>)),
-            lineno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            module: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+            ..Default::default()
         });
         profile.metadata.transaction = <span class="prelude-val">Some</span>(TransactionMetadata {
             active_thread_id: <span class="number">1</span>,
@@ -1663,14 +1618,7 @@
 
         profile.metadata.transactions.push(transaction.clone());
         profile.profile.frames.push(Frame {
-            abs_path: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            colno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            filename: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            function: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            in_app: <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-            instruction_addr: <span class="prelude-val">Some</span>(Addr(<span class="number">0</span>)),
-            lineno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            module: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+            ..Default::default()
         });
         profile.profile.stacks.push(<span class="macro">vec!</span>[<span class="number">0</span>]);
         profile.profile.samples.extend(<span class="macro">vec!</span>[
@@ -1730,14 +1678,7 @@
 
         profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);
         profile.profile.frames.push(Frame {
-            abs_path: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            colno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            filename: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            function: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            in_app: <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-            instruction_addr: <span class="prelude-val">Some</span>(Addr(<span class="number">0</span>)),
-            lineno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            module: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+            ..Default::default()
         });
         profile.profile.stacks = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">0</span>], <span class="macro">vec!</span>[]];
         profile.profile.samples = <span class="macro">vec!</span>[
@@ -1850,14 +1791,7 @@
 
         profile.metadata.transaction = <span class="prelude-val">Some</span>(transaction);
         profile.profile.frames.push(Frame {
-            abs_path: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            colno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            filename: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            function: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
-            in_app: <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-            instruction_addr: <span class="prelude-val">Some</span>(Addr(<span class="number">0</span>)),
-            lineno: <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            module: <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>.to_string()),
+            ..Default::default()
         });
         profile.profile.stacks = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">0</span>]];
 
