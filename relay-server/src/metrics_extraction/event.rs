@@ -444,7 +444,7 @@ mod tests {
                     "parent_span_id": "9756d8d7b2b364ff",
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
-                        "http.decoded_response_body_length": 128950,
+                        "http.decoded_response_content_length": 128950,
                         "http.response_content_length": 36170,
                         "http.response_transfer_size": 36470,
                         "resource.render_blocking_status": "blocking"
@@ -460,7 +460,7 @@ mod tests {
                     "op": "resource.link",
                     "description": "domain.com/zero-length-00",
                     "data": {
-                        "http.decoded_response_body_length": 0,
+                        "http.decoded_response_content_length": 0,
                         "http.response_content_length": 0,
                         "http.response_transfer_size": 0
                     }
@@ -983,7 +983,7 @@ mod tests {
                     "parent_span_id": "9756d8d7b2b364ff",
                     "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
                     "data": {
-                        "http.decoded_response_body_length": 128950,
+                        "http.decoded_response_content_length": 128950,
                         "http.response_content_length": 36170,
                         "http.response_transfer_size": 36470,
                         "resource.render_blocking_status": "blocking"
