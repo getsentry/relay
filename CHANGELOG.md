@@ -5,7 +5,7 @@
 **Internal**:
 
 - Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
-- Remove `AggregationService` and rename `RouterService` to `AggregationService`. ([#2611](https://github.com/getsentry/relay/pull/2611))
+- Separate metrics aggregation routing from aggregation service. ([#2611](https://github.com/getsentry/relay/pull/2611))
 - Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
 
 ## 23.11.0
