@@ -19,6 +19,7 @@ use crate::{Bucket, MetricNamespace};
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
 
 /// A Bucket and its hashed key.
+///
 /// This is cheaper to pass around than a (BucketKey, Bucket) pair.
 pub struct HashedBucket {
     hashed_key: u64,

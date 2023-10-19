@@ -29,11 +29,14 @@ const BUCKET_SPLIT_FACTOR: usize = 32;
 /// The average size of values when serialized.
 const AVG_VALUE_SIZE: usize = 8;
 
+/// Static overhead used when calculating approximate serialized size of a bucket without value.
+const STATIC_OVERHEAD_SIZE: usize = 50;
+
 /// Utility that routes metrics to the appropriate aggregator.
 ///
 /// Each aggregator gets its own configuration.
 /// Metrics are routed to the first aggregator which matches the configuration's [`Condition`].
-/// If no condition matches, the metric/bucket is routed to the `default_aggregator`.
+/// If no condition matches, the metrics are routed to the `default_aggregator`.
 pub struct AggregatorRouter {
     default_aggregator: aggregator::Aggregator,
     secondary_aggregators: BTreeMap<MetricNamespace, aggregator::Aggregator>,
@@ -124,7 +127,7 @@ impl AggregatorRouter {
 
 impl Drop for AggregatorRouter {
     fn drop(&mut self) {
-        for agg in self.aggregators_mut() {
+        for agg in self.aggregators_ref() {
             let remaining_buckets = agg.bucket_count();
             if remaining_buckets > 0 {
                 relay_log::error!(
@@ -203,7 +206,7 @@ fn split_at(mut bucket: Bucket, size: usize) -> (Option<Bucket>, Option<Bucket>)
 /// Note that this does not match the exact size of the serialized payload. Instead, the size is
 /// approximated through tags and a static overhead.
 fn estimate_base_size(bucket: &Bucket) -> usize {
-    50 + bucket.name.len() + aggregator::tags_cost(&bucket.tags)
+    STATIC_OVERHEAD_SIZE + bucket.name.len() + aggregator::tags_cost(&bucket.tags)
 }
 
 /// Estimates the number of bytes needed to serialize the bucket.
