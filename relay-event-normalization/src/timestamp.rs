@@ -91,6 +91,17 @@ mod tests {
         assert!(
             process_value(&mut error, &mut TimestampProcessor, ProcessingState::root()).is_ok()
         );
+        assert_eq!(
+            error
+                .value()
+                .unwrap()
+                .timestamp
+                .value()
+                .unwrap()
+                .into_inner()
+                .timestamp(),
+            1
+        );
     }
 
     #[test]
@@ -173,6 +184,26 @@ mod tests {
     }"#;
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         assert!(process_value(&mut span, &mut TimestampProcessor, ProcessingState::root()).is_ok());
+        assert_eq!(
+            span.value()
+                .unwrap()
+                .start_timestamp
+                .value()
+                .unwrap()
+                .into_inner()
+                .timestamp(),
+            1
+        );
+        assert_eq!(
+            span.value()
+                .unwrap()
+                .timestamp
+                .value()
+                .unwrap()
+                .into_inner()
+                .timestamp(),
+            2
+        );
     }
 
     #[test]
