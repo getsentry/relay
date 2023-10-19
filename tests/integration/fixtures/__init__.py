@@ -149,6 +149,56 @@ class SentryLike:
         response.raise_for_status()
         return response.json()
 
+    def send_nel_event(
+        self,
+        project_id,
+        payload=None,
+        headers=None,
+        dsn_key_idx=0,
+        dsn_key=None,
+    ):
+
+        if payload is None:
+            payload = [
+                {
+                    "age": 1200000,
+                    "body": {
+                        "elapsed_time": 37,
+                        "method": "GET",
+                        "phase": "application",
+                        "protocol": "http/1.1",
+                        "referrer": "https://example.com/nel/",
+                        "sampling_fraction": 1,
+                        "server_ip": "123.123.123.123",
+                        "status_code": 500,
+                        "type": "http.error",
+                    },
+                    "type": "network-error",
+                    "url": "https://example.com/index.html",
+                    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+                }
+            ]
+
+        if isinstance(payload, list):
+            kwargs = {"json": payload}
+        else:
+            raise ValueError(f"Invalid type {type(payload)} for payload.")
+
+        headers = {
+            "Content-Type": "application/reports+json",
+            **(headers or {}),
+        }
+
+        if dsn_key is None:
+            dsn_key = self.get_dsn_public_key(project_id, dsn_key_idx)
+
+        url = f"/api/{project_id}/nel/?sentry_key={dsn_key}"
+
+        response = self.post(url, headers=headers, **kwargs)
+        response.raise_for_status()
+
+        return
+
     def send_options(self, project_id, headers=None, dsn_key_idx=0):
         headers = {
             "X-Sentry-Auth": self.get_auth_header(project_id, dsn_key_idx),
