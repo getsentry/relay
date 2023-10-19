@@ -292,7 +292,7 @@ fn scrub_resource_segment(segment: &str) -> Cow<str> {
     }
 
     if all_alphabetic && found_uppercase {
-        // Assume random string identifier
+        // Assume random string identifier.
         return Cow::Borrowed("*");
     }
 
