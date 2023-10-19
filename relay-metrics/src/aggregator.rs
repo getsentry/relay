@@ -19,23 +19,6 @@ use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::{aggregator, Condition, Field};
 
-/// A Bucket and its hashed key.
-///
-/// This is cheaper to pass around than a (BucketKey, Bucket) pair.
-pub struct HashedBucket {
-    /// The hasked key of the [`Bucket`].
-    pub hashed_key: u64,
-    /// A [`Bucket`].
-    pub bucket: Bucket,
-}
-
-impl HashedBucket {
-    /// Creates a new [`HashedBucket`] instance.
-    pub fn new(hashed_key: u64, bucket: Bucket) -> Self {
-        Self { hashed_key, bucket }
-    }
-}
-
 /// Utility that routes metrics to the appropriate aggregator.
 ///
 /// Each aggregator gets its own configuration.
@@ -437,6 +420,23 @@ pub struct ScopedAggregatorConfig {
     pub config: AggregatorConfig,
 }
 
+/// Condition that needs to be met for a metric or bucket to be routed to a
+/// secondary aggregator.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "op", rename_all = "lowercase")]
+pub enum Condition {
+    /// Checks for equality on a specific field.
+    Eq(Field),
+}
+
+/// Defines a field and a field value to compare to when a [`Condition`] is evaluated.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "field", content = "value", rename_all = "lowercase")]
+pub enum Field {
+    /// Field that allows comparison to a metric or bucket's namespace.
+    Namespace(MetricNamespace),
+}
+
 /// Bucket in the [`Aggregator`] with a defined flush time.
 ///
 /// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush
@@ -481,6 +481,16 @@ impl Ord for QueuedBucket {
         // Comparing order is reversed to convert the max heap into a min heap
         other.flush_at.cmp(&self.flush_at)
     }
+}
+
+/// A Bucket and its hashed key.
+///
+/// This is cheaper to pass around than a (BucketKey, Bucket) pair.
+pub struct HashedBucket {
+    /// The hasked key of the [`Bucket`].
+    pub hashed_key: u64,
+    /// A [`Bucket`].
+    pub bucket: Bucket,
 }
 
 #[derive(Default)]
@@ -701,7 +711,10 @@ impl Aggregator {
                         buckets
                             .entry(key.project_key)
                             .or_default()
-                            .push(HashedBucket::new(key.hash64(), bucket));
+                            .push(HashedBucket {
+                                hashed_key: key.hash64(),
+                                bucket,
+                            });
 
                         false
                     } else {
