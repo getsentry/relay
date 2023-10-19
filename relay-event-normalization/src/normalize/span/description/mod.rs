@@ -275,11 +275,25 @@ fn scrub_resource_segment(segment: &str) -> Cow<str> {
         return Cow::Borrowed("*");
     }
 
+    let mut all_alphabetic = true;
+    let mut found_uppercase = false;
+
     // Do not accept segments with special characters.
     for char in segment.chars() {
+        if !char.is_ascii_alphabetic() {
+            all_alphabetic = false;
+        }
+        if char.is_ascii_uppercase() {
+            found_uppercase = true;
+        }
         if char.is_numeric() || "&%#=+@".contains(char) {
             return Cow::Borrowed("*");
         };
+    }
+
+    if all_alphabetic && found_uppercase {
+        // Assume random string identifier
+        return Cow::Borrowed("*");
     }
 
     segment
@@ -650,7 +664,7 @@ mod tests {
         resource_script_random_path_only,
         "/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB",
         "resource.script",
-        "/*/*/LyMTWg/*/QkJWAQ/FSYL/*"
+        "/*/*/*/*/*/*/*"
     );
 
     span_description_test!(
