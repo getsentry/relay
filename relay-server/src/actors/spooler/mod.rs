@@ -45,6 +45,7 @@ use sqlx::sqlite::{
     SqliteSynchronous,
 };
 use sqlx::{Pool, Row, Sqlite};
+use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
 use crate::actors::outcome::TrackOutcome;
@@ -79,7 +80,10 @@ pub enum BufferError {
     FileSizeReadFailed(sqlx::Error),
 
     #[error("failed to setup the database: {0}")]
-    SetupFailed(sqlx::Error),
+    SqlxSetupFailed(sqlx::Error),
+
+    #[error("failed to setup the spool buffer: {0}")]
+    BufferSetupFailed(String),
 
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
@@ -662,6 +666,26 @@ pub struct BufferService {
 impl BufferService {
     /// Set up the database and return the current number of envelopes.
     async fn setup(path: &PathBuf) -> Result<(), BufferError> {
+        if path.is_absolute() {
+            let mut dir = path.clone();
+            dir.pop();
+
+            if !dir.exists() {
+                relay_log::debug!("creating directory for spooling file: {}", dir.display());
+                DirBuilder::new()
+                    .recursive(true)
+                    .create(dir)
+                    .await
+                    .map_err(|e| BufferError::BufferSetupFailed(e.to_string()))?;
+            }
+        } else {
+            // sqlx doesn't support relative paths and Sqlite initialization
+            // fails. Maybe: https://github.com/launchbadge/sqlx/issues/1260
+            return Err(BufferError::BufferSetupFailed(
+                "relative paths for spooling are not supported".to_string(),
+            ));
+        }
+
         let options = SqliteConnectOptions::new()
             .filename(path)
             .journal_mode(SqliteJournalMode::Wal)
@@ -670,7 +694,7 @@ impl BufferService {
         let db = SqlitePoolOptions::new()
             .connect_with(options)
             .await
-            .map_err(BufferError::SetupFailed)?;
+            .map_err(BufferError::SqlxSetupFailed)?;
 
         sqlx::migrate!("../migrations").run(&db).await?;
         Ok(())
@@ -726,7 +750,7 @@ impl BufferService {
             .min_connections(config.spool_envelopes_min_connections())
             .connect_with(options)
             .await
-            .map_err(BufferError::SetupFailed)?;
+            .map_err(BufferError::SqlxSetupFailed)?;
 
         let mut on_disk = OnDisk {
             dequeue_attempts: 0,
