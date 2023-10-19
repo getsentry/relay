@@ -23,17 +23,15 @@ mod macros;
 mod meta;
 mod size;
 mod traits;
-mod utils;
 mod value;
 
 pub use self::annotated::*;
-pub use self::condition::*;
+pub use self::condition::RuleCondition;
 pub use self::impls::*;
 pub use self::macros::*;
 pub use self::meta::*;
 pub use self::size::*;
 pub use self::traits::*;
-pub use self::utils::*;
 pub use self::value::*;
 
 #[cfg(feature = "derive")]
