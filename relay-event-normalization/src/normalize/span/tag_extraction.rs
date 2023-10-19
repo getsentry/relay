@@ -360,6 +360,18 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                 );
             }
 
+            if let Some(http_decoded_response_content_length) = span
+                .data
+                .value()
+                .and_then(|data| data.get("http.decoded_response_content_length"))
+                .and_then(|value| value.as_str())
+            {
+                span_tags.insert(
+                    SpanTagKey::HttpDecodedResponseBodyLength,
+                    http_decoded_response_content_length.to_owned(),
+                );
+            }
+
             if let Some(http_response_transfer_size) = span
                 .data
                 .value()
