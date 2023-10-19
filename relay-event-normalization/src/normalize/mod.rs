@@ -494,7 +494,7 @@ fn normalize_performance_score(
                 if !condition.matches(event) {
                     continue;
                 }
-                if let Annotated(Some(ref mut measurements), _) = event.measurements {
+                if let Some(measurements) = event.measurements.value_mut() {
                     if !profile
                         .score_components
                         .iter()
