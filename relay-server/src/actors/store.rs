@@ -722,6 +722,7 @@ impl StoreService {
             start_time: UnixTimestamp::from_instant(start_time).as_secs(),
             sdk: client.map(str::to_owned),
             payload: item.payload(),
+            routing_key_hint: item.routing_hint(),
         });
 
         self.produce(KafkaTopic::Monitors, organization_id, message)?;
@@ -1021,6 +1022,9 @@ struct ProfileKafkaMessage {
 
 #[derive(Debug, Serialize)]
 struct CheckInKafkaMessage {
+    #[serde(skip)]
+    routing_key_hint: Option<Uuid>,
+
     /// Raw event payload.
     payload: Bytes,
     /// Time at which the event was received by Relay.
@@ -1100,13 +1104,22 @@ impl Message for KafkaMessage<'_> {
             Self::Attachment(message) => message.event_id.0,
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
-            Self::Session(_message) => Uuid::nil(), // Explicit random partitioning for sessions
-            Self::Metric { .. } => Uuid::nil(),     // TODO(ja): Determine a partitioning key
-            Self::Profile(_message) => Uuid::nil(),
             Self::ReplayEvent(message) => message.replay_id.0,
-            Self::ReplayRecordingNotChunked(_message) => Uuid::nil(), // Ensure random partitioning.
-            Self::CheckIn(_message) => Uuid::nil(),
-            Self::Span(_) => Uuid::nil(), // random partitioning
+
+            // Monitor check-ins use the hinted UUID passed through from the Envelope.
+            //
+            // XXX(epurkhiser): In the future it would be better if all KafkaMessage's would
+            // recieve the routing_key_hint form their envelopes.
+            Self::CheckIn(message) => message.routing_key_hint.unwrap_or_else(Uuid::nil),
+
+            // Random partitioning
+            Self::Session(_)
+            | Self::Profile(_)
+            | Self::ReplayRecordingNotChunked(_)
+            | Self::Span(_) => Uuid::nil(),
+
+            // TODO(ja): Determine a partitioning key
+            Self::Metric { .. } => Uuid::nil(),
         };
 
         if uuid.is_nil() {

@@ -79,6 +79,9 @@ pub struct ProjectConfig {
     #[serde(skip_serializing_if = "is_false")]
     pub tx_name_ready: bool,
     /// Span description renaming rules.
+    ///
+    /// These are currently not used by Relay, and only here to be forwarded to old
+    /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
 }
@@ -164,6 +167,10 @@ pub struct LimitedProjectConfig {
     /// Whether or not a project is ready to mark all URL transactions as "sanitized".
     #[serde(skip_serializing_if = "is_false")]
     pub tx_name_ready: bool,
+    /// Span description renaming rules.
+    ///
+    /// These are currently not used by Relay, and only here to be forwarded to old
+    /// relays that might still need them.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span_description_rules: Option<Vec<SpanDescriptionRule>>,
 }

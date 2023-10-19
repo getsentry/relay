@@ -17,7 +17,7 @@ use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
-/// Returns `None` if no Scrubbing can be performed.
+/// Returns `None` if no scrubbing can be performed.
 pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
     let description = span.description.as_str()?;
 
