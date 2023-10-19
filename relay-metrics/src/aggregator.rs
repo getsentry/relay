@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
 
+use crate::aggregator;
 use crate::bucket::{Bucket, BucketValue};
 use crate::protocol::{self, MetricNamespace, MetricResourceIdentifier};
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{aggregator, Condition, Field};
 
 /// Utility that routes metrics to the appropriate aggregator.
 ///
@@ -611,21 +611,6 @@ pub struct Aggregator {
 }
 
 impl Aggregator {
-    /// Create a new aggregator.
-    pub fn new(config: AggregatorConfig) -> Self {
-        Self::named("default".to_owned(), config)
-    }
-
-    /// Like [`Self::new`], but with a provided name.
-    pub fn named(name: String, config: AggregatorConfig) -> Self {
-        Self {
-            name,
-            config,
-            buckets: HashMap::new(),
-            cost_tracker: CostTracker::default(),
-        }
-    }
-
     /// Returns the name of the aggregator.
     pub fn name(&self) -> &str {
         self.name.as_str()
@@ -994,6 +979,21 @@ impl Aggregator {
                     }
                 }
             }
+        }
+    }
+
+    /// Create a new aggregator.
+    pub fn new(config: AggregatorConfig) -> Self {
+        Self::named("default".to_owned(), config)
+    }
+
+    /// Like [`Self::new`], but with a provided name.
+    pub fn named(name: String, config: AggregatorConfig) -> Self {
+        Self {
+            name,
+            config,
+            buckets: HashMap::new(),
+            cost_tracker: CostTracker::default(),
         }
     }
 }

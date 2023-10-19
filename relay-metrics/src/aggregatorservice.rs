@@ -16,7 +16,7 @@ use crate::aggregator::{
     self, AggregatorConfig, AggregatorRouter, HashedBucket, ScopedAggregatorConfig,
 };
 use crate::statsd::MetricHistograms;
-use crate::{Bucket, BucketValue, DistributionValue, MetricNamespace};
+use crate::{Bucket, BucketValue, DistributionValue};
 
 /// Interval for the flush cycle of the [`AggregatorService`].
 const FLUSH_INTERVAL: Duration = Duration::from_millis(100);
@@ -541,7 +541,7 @@ mod tests {
     use relay_common::time::UnixTimestamp;
     use relay_system::{FromMessage, Interface};
 
-    use crate::aggregator::AggregatorConfig;
+    use crate::aggregator::{AggregatorConfig, Condition};
     use crate::{BucketCountInquiry, BucketValue};
 
     #[test]
