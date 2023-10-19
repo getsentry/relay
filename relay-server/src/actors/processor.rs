@@ -2428,6 +2428,18 @@ impl EnvelopeProcessorService {
         Ok(span)
     }
 
+    fn filter_spans(&self, state: &mut ProcessEnvelopeState) {
+        let otel_span_ingestion_enabled =
+            state.project_state.has_feature(Feature::OTelSpanIngestion);
+        state.managed_envelope.retain_items(|item| match item.ty() {
+            ItemType::OtelSpan if !otel_span_ingestion_enabled => {
+                relay_log::warn!("dropping span because feature is disabled");
+                ItemAction::DropSilently
+            }
+            _ => ItemAction::Keep,
+        });
+    }
+
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
         let mut items: Vec<Item> = Vec::new();
@@ -2710,6 +2722,7 @@ impl EnvelopeProcessorService {
         self.process_user_reports(state);
         self.process_replays(state)?;
         self.filter_profiles(state);
+        self.filter_spans(state);
 
         if state.creates_event() {
             // Some envelopes only create events in processing relays; for example, unreal events.
