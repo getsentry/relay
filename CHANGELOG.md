@@ -2,12 +2,6 @@
 
 ## Unreleased
 
-**Internal**:
-
-- Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
-
-## 23.11.0
-
 **Features**:
 
 - Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
@@ -15,6 +9,9 @@
 **Internal**:
 
 - Report global config fetch errors after interval of constant failures elapsed. ([#2628](https://github.com/getsentry/relay/pull/2628))
+- Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
+- Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
+- Scrub random strings in resource span descriptions. ([#2614](https://github.com/getsentry/relay/pull/2614))
 
 ## 23.10.0
 
@@ -49,7 +46,6 @@
 - Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571), [#2589](https://github.com/getsentry/relay/pull/2589))
 - Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
-- Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
 - Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
 
 ## 23.9.1
