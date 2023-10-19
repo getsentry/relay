@@ -16,7 +16,7 @@ use crate::regexes::{
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
 /// Dummy URL used to parse relative URLs.
-static DUMMY_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
+static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
 
 /// Maximum length of a resource URL segment.
 ///
@@ -202,7 +202,7 @@ fn scrub_resource(string: &str) -> Option<String> {
         Ok(url) => (url, UrlType::Full),
         Err(url::ParseError::RelativeUrlWithoutBase) => {
             // Try again, with base URL
-            match Url::options().base_url(Some(&DUMMY_URL)).parse(string) {
+            match Url::options().base_url(Some(&DUMMY_BASE_URL)).parse(string) {
                 Ok(url) => (
                     url,
                     if string.starts_with('/') {
@@ -555,7 +555,6 @@ mod tests {
     span_description_test!(
         random_string2,
         "http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp",
-
         "resource.script",
         "http://domain.com/*/*/*.jsonp"
     );
