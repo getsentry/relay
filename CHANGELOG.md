@@ -1,9 +1,12 @@
 # Changelog
 
-**Internal**
+## Unreleased
+
+**Internal**:
 
 - Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
 - Remove `AggregationService` and rename `RouterService` to `AggregationService`. ([#2611](https://github.com/getsentry/relay/pull/2611))
+- Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
 
 ## 23.11.0
 
@@ -24,6 +27,7 @@
 - Extract size metrics and blocking status tag for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
 - Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
 - Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+- Add support for X-Sentry-Forwarded-For header. ([#2572](https://github.com/getsentry/relay/pull/2572))
 
 **Bug Fixes**:
 

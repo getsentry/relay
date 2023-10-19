@@ -1119,9 +1119,10 @@ impl EnvelopeProcessorService {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload()) {
-                Ok(processed) => {
-                    item.set_payload(ContentType::Json, processed);
+            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
+                Ok(result) => {
+                    item.set_routing_hint(result.routing_hint);
+                    item.set_payload(ContentType::Json, result.payload);
                     ItemAction::Keep
                 }
                 Err(error) => {
@@ -2271,10 +2272,14 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        (resource_span_extraction_enabled && op.contains("resource."))
+        (resource_span_extraction_enabled
+            && (op.contains("resource.script")
+                || op.contains("resource.css")
+                || op.contains("resource.link")))
             || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
+            || op.starts_with("file")
             || op.starts_with("db")
                 && !(op.contains("clickhouse")
                     || op.contains("mongodb")
