@@ -5,29 +5,29 @@ use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
 
 use relay_config::Config;
-use relay_event_schema::protocol::{EventId, Span as EventSpan};
-use relay_protocol::Annotated;
-use relay_spans::Span;
+use relay_event_schema::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
+use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
 
 async fn handle(
     state: ServiceState,
+    content_type: RawContentType,
     meta: RequestMeta,
-    extract::Json(span): extract::Json<Span>,
+    body: Bytes,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
-    println!("{:#?}", span);
+    if !content_type.as_ref().starts_with("application/json") {
+        return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
 
-    // Convert to an Event span.
-    let event_span: Annotated<EventSpan> = Annotated::new(span.into());
+    if body.is_empty() {
+        return Err(BadStoreRequest::EmptyBody);
+    }
 
-    // Pack into an envelope for further processing.
-    let span_json = event_span.to_json().map_err(BadStoreRequest::InvalidJson)?;
-    let mut item = Item::new(ItemType::Span);
-    item.set_payload(ContentType::Json, span_json);
+    let mut item = Item::new(ItemType::OtelSpan);
+    item.set_payload(ContentType::Json, body);
     let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
     envelope.add_item(item);
     common::handle_envelope(&state, envelope).await?;

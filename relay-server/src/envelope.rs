@@ -111,6 +111,8 @@ pub enum ItemType {
     CheckIn,
     /// A standalone span.
     Span,
+    /// A standalone OpenTelemetry span.
+    OtelSpan,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -154,6 +156,7 @@ impl fmt::Display for ItemType {
             Self::ReplayRecording => write!(f, "replay_recording"),
             Self::CheckIn => write!(f, "check_in"),
             Self::Span => write!(f, "span"),
+            Self::OtelSpan => write!(f, "otel_span"),
             Self::Unknown(s) => s.fmt(f),
         }
     }
@@ -555,7 +558,8 @@ impl Item {
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Unknown(_) => None,
-            ItemType::Span => None, // No outcomes, for now
+            ItemType::Span => None,     // No outcomes, for now
+            ItemType::OtelSpan => None, // No outcomes, for now
         }
     }
 
@@ -715,7 +719,8 @@ impl Item {
             | ItemType::ReplayRecording
             | ItemType::Profile
             | ItemType::CheckIn
-            | ItemType::Span => false,
+            | ItemType::Span
+            | ItemType::OtelSpan => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
             // item types added that create events.
@@ -746,6 +751,7 @@ impl Item {
             ItemType::Profile => true,
             ItemType::CheckIn => false,
             ItemType::Span => false,
+            ItemType::OtelSpan => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
             // whether it requires an event or not. Depending on the strategy, this can cause two

@@ -1662,6 +1662,7 @@ impl EnvelopeProcessorService {
             ItemType::ReplayRecording => false,
             ItemType::CheckIn => false,
             ItemType::Span => false,
+            ItemType::OtelSpan => false,
 
             // Without knowing more, `Unknown` items are allowed to be repeated
             ItemType::Unknown(_) => false,
@@ -2429,25 +2430,43 @@ impl EnvelopeProcessorService {
 
     #[cfg(feature = "processing")]
     fn process_spans(&self, state: &mut ProcessEnvelopeState) {
-        let otel_span_ingestion_enabled = true;
-        //state.project_state.has_feature(Feature::OTelSpanIngestion);
+        let mut items: Vec<Item> = Vec::new();
         state.managed_envelope.retain_items(|item| match item.ty() {
-            ItemType::Span if !otel_span_ingestion_enabled => ItemAction::DropSilently,
-            ItemType::Span => match Annotated::<Span>::from_json_bytes(&item.payload()) {
-                Ok(span) => match self.validate_span(span) {
-                    Ok(_) => ItemAction::Keep,
+            ItemType::OtelSpan => {
+                let span: relay_spans::Span = match serde_json::from_slice(&item.payload()) {
+                    Ok(span) => span,
+                    Err(e) => {
+                        relay_log::error!("Invalid span: {e}");
+                        return ItemAction::DropSilently;
+                    }
+                };
+                let event_span: Annotated<Span> = Annotated::new(span.into());
+                match self.validate_span(event_span) {
+                    Ok(span) => {
+                        let payload: Bytes = match span.to_json() {
+                            Ok(payload) => payload.into(),
+                            Err(e) => {
+                                relay_log::error!("Invalid span: {e}");
+                                return ItemAction::DropSilently;
+                            }
+                        };
+                        let mut new_item = Item::new(ItemType::Span);
+                        new_item.set_payload(ContentType::Json, payload);
+                        items.push(new_item);
+                        ItemAction::DropSilently
+                    }
                     Err(e) => {
                         relay_log::error!("Invalid span: {e}");
                         ItemAction::DropSilently
                     }
-                },
-                Err(e) => {
-                    relay_log::error!("Invalid span: {e}");
-                    ItemAction::DropSilently
                 }
-            },
+            }
             _ => ItemAction::Keep,
         });
+        let envelope = state.managed_envelope.envelope_mut();
+        for item in items {
+            envelope.add_item(item);
+        }
     }
 
     /// Computes the sampling decision on the incoming event

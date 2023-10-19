@@ -68,6 +68,11 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
                     return false;
                 }
             }
+            ItemType::OtelSpan => {
+                if item.len() > config.max_span_size() {
+                    return false;
+                }
+            }
             ItemType::Unknown(_) => (),
         }
     }

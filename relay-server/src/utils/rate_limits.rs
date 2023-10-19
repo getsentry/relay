@@ -108,6 +108,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::ClientReport => None,
         ItemType::CheckIn => None,
         ItemType::Span => None,
+        ItemType::OtelSpan => None,
         ItemType::Unknown(_) => None,
     }
 }
