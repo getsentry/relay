@@ -95,7 +95,7 @@ impl Processor for TimestampProcessor {
 #[cfg(test)]
 mod tests {
     use relay_event_schema::processor::{process_value, ProcessingState};
-    use relay_event_schema::protocol::{Breadcrumb, Event, Span, Timestamp};
+    use relay_event_schema::protocol::{Breadcrumb, Event, Span};
     use relay_protocol::{assert_annotated_snapshot, get_value, Annotated};
 
     use crate::timestamp::TimestampProcessor;
@@ -267,15 +267,7 @@ mod tests {
         )
         .is_ok());
         assert_eq!(
-            breadcrumb
-                .value()
-                .unwrap()
-                .timestamp
-                .clone()
-                .into_value()
-                .unwrap()
-                .into_inner()
-                .timestamp(),
+            get_value!(breadcrumb.timestamp!).into_inner().timestamp(),
             1
         );
     }
