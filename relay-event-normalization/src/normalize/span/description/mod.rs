@@ -15,6 +15,14 @@ use crate::regexes::{
 };
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 
+/// Dummy URL used to parse relative URLs.
+static DUMMY_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
+
+/// Maximum length of a resource URL segment.
+///
+/// Segments longer than this are treated as identifiers.
+const MAX_SEGMENT_LENGTH: usize = 25;
+
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
@@ -179,15 +187,30 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
     Some(scrubbed)
 }
 
-static DUMMY_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
+enum UrlType {
+    /// A full URL including scheme and domain.
+    Full,
+    /// Missing domain, starts with `/`.
+    Absolute,
+    /// Missing domain, does not start with `/`.
+    Relative,
+}
 
+/// Scrubber for spans with `span.op` "resource.*".
 fn scrub_resource(string: &str) -> Option<String> {
-    let (url, is_relative) = match Url::parse(string) {
-        Ok(url) => (url, false),
+    let (url, ty) = match Url::parse(string) {
+        Ok(url) => (url, UrlType::Full),
         Err(url::ParseError::RelativeUrlWithoutBase) => {
             // Try again, with base URL
             match Url::options().base_url(Some(&DUMMY_URL)).parse(string) {
-                Ok(url) => (url, true),
+                Ok(url) => (
+                    url,
+                    if string.starts_with('/') {
+                        UrlType::Absolute
+                    } else {
+                        UrlType::Relative
+                    },
+                ),
                 Err(_) => return None,
             }
         }
@@ -196,7 +219,7 @@ fn scrub_resource(string: &str) -> Option<String> {
         }
     };
 
-    let mut formatted = match url.scheme() {
+    let formatted = match url.scheme() {
         "data" => match url.path().split_once(';') {
             Some((ty, _data)) => format!("data:{ty}"),
             None => "data:*/*".to_owned(),
@@ -216,30 +239,25 @@ fn scrub_resource(string: &str) -> Option<String> {
         }
     };
 
-    if is_relative {
-        formatted = formatted.replace("http://replace_me", "");
-    }
+    // Remove previously inserted dummy URL if necessary:
+    let formatted = match ty {
+        UrlType::Full => formatted,
+        UrlType::Absolute => formatted.replace("http://replace_me", ""),
+        UrlType::Relative => formatted.replace("http://replace_me/", ""),
+    };
 
     Some(formatted)
 }
 
-fn scrub_resource_path(string: &str) -> String {
-    let mut segments = vec![];
-    let mut extension = "";
-    for segment in string.split('/') {
-        let (base, ext) = match segment.rsplit_once('.') {
-            Some(p) => p,
-            None => (segment, ""),
-        };
-        extension = ext;
-        let base = RESOURCE_NORMALIZER_REGEX.replace_all(base, "$pre*$post");
-        segments.push(if invalid_base_name(&base) {
-            Cow::Borrowed("*")
-        } else {
-            base
-        });
+fn scrub_resource_path(path: &str) -> String {
+    let (mut base_path, mut extension) = path.rsplit_once('.').unwrap_or((path, ""));
+    if extension.contains('/') {
+        // Not really an extension
+        base_path = path;
+        extension = "";
     }
 
+    let mut segments = base_path.split('/').map(scrub_resource_segment);
     let mut joined = segments.join("/");
     if !extension.is_empty() {
         joined.push('.');
@@ -249,19 +267,22 @@ fn scrub_resource_path(string: &str) -> String {
     joined
 }
 
-const MAX_SEGMENT_LENGTH: usize = 25;
+fn scrub_resource_segment(segment: &str) -> Cow<str> {
+    let segment = RESOURCE_NORMALIZER_REGEX.replace_all(segment, "$pre*$post");
 
-fn invalid_base_name(segment: &str) -> bool {
+    // Crude heuristic: treat long segments as idendifiers.
     if segment.len() > MAX_SEGMENT_LENGTH {
-        return true;
+        return Cow::Borrowed("*");
     }
+
+    // Do not accept segments with special characters.
     for char in segment.chars() {
         if char.is_numeric() || "&%#=+@".contains(char) {
-            return true;
+            return Cow::Borrowed("*");
         };
     }
 
-    false
+    segment
 }
 
 #[cfg(test)]
@@ -486,14 +507,14 @@ mod tests {
         resource_vite,
         "webroot/assets/Profile-73f6525d.js",
         "resource.js",
-        "/webroot/assets/Profile-*.js"
+        "webroot/assets/Profile-*.js"
     );
 
     span_description_test!(
         resource_vite_css,
         "webroot/assets/Shop-1aff80f7.css",
         "resource.css",
-        "/webroot/assets/Shop-*.css"
+        "webroot/assets/Shop-*.css"
     );
 
     span_description_test!(
@@ -529,7 +550,7 @@ mod tests {
         random_string3,
         "jkhdkkncnoglghljlkmcimlnlhkeamab/123.css",
         "resource.link",
-        "/*/*.css"
+        "*/*.css"
     );
 
     span_description_test!(
@@ -637,6 +658,27 @@ mod tests {
         "https://sub.sub.sub.domain.com/resource.js",
         "resource.script",
         "https://*.domain.com/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_extension_in_segment,
+        "https://domain.com/foo.bar/resource.js",
+        "resource.script",
+        "https://domain.com/foo.bar/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_missing_scheme,
+        "domain.com/foo.bar/resource.js",
+        "resource.script",
+        "domain.com/foo.bar/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_missing_scheme_integer_id,
+        "domain.com/zero-length-00",
+        "resource.script",
+        "domain.com/zero-length-*"
     );
 
     #[test]
