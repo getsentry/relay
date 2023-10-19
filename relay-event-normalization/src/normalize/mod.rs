@@ -480,7 +480,7 @@ fn normalize_measurements(
     }
 }
 
-/// Computes performance score measurements
+/// Computes performance score measurements.
 ///
 /// This computes score from vital measurements, using config options to define how it is
 /// calculated.
