@@ -1,5 +1,6 @@
 //! Span description scrubbing logic.
 mod sql;
+use once_cell::sync::Lazy;
 pub use sql::parse_query;
 
 use std::borrow::Cow;
@@ -13,6 +14,14 @@ use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
+
+/// Dummy URL used to parse relative URLs.
+static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
+
+/// Maximum length of a resource URL segment.
+///
+/// Segments longer than this are treated as identifiers.
+const MAX_SEGMENT_LENGTH: usize = 25;
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
@@ -48,7 +57,7 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                     sql::scrub_queries(db_system, description)
                 }
             }
-            ("resource", _) => scrub_resource_identifiers(description),
+            ("resource", _) => scrub_resource(description),
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
@@ -178,34 +187,116 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
     Some(scrubbed)
 }
 
-fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
-    // Remove query parameters or the fragment.
-    if string.starts_with("data:") {
-        if let Some(pos) = string.find(';') {
-            return Some(string[..pos].into());
-        }
-        return Some("data:*/*".into());
-    } else if let Some(pos) = string.find('?') {
-        string = &string[..pos];
-    } else if let Some(pos) = string.find('#') {
-        string = &string[..pos];
-    }
-    match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
-        Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(string) => {
-            // No IDs scrubbed, but we still want to set something.
-            // If we managed to parse the URL, we'll try to get an extension.
-            if let Ok(url) = Url::parse(string) {
-                let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
-                // If there is an extension, we add it to the domain.
-                if let Some(extension) = url.path().rsplit_once('.') {
-                    return Some(format!("{domain}/*.{}", extension.1));
-                }
-                return Some(format!("{domain}/*"));
+enum UrlType {
+    /// A full URL including scheme and domain.
+    Full,
+    /// Missing domain, starts with `/`.
+    Absolute,
+    /// Missing domain, does not start with `/`.
+    Relative,
+}
+
+/// Scrubber for spans with `span.op` "resource.*".
+fn scrub_resource(string: &str) -> Option<String> {
+    let (url, ty) = match Url::parse(string) {
+        Ok(url) => (url, UrlType::Full),
+        Err(url::ParseError::RelativeUrlWithoutBase) => {
+            // Try again, with base URL
+            match Url::options().base_url(Some(&DUMMY_BASE_URL)).parse(string) {
+                Ok(url) => (
+                    url,
+                    if string.starts_with('/') {
+                        UrlType::Absolute
+                    } else {
+                        UrlType::Relative
+                    },
+                ),
+                Err(_) => return None,
             }
-            Some(string.into())
         }
+        Err(_) => {
+            return None;
+        }
+    };
+
+    let formatted = match url.scheme() {
+        "data" => match url.path().split_once(';') {
+            Some((ty, _data)) => format!("data:{ty}"),
+            None => "data:*/*".to_owned(),
+        },
+        "chrome-extension" => {
+            let path = scrub_resource_path(url.path());
+            format!("chrome-extension://*{path}")
+        }
+        scheme => {
+            let path = url.path();
+            let path = scrub_resource_path(path);
+            let domain = url
+                .domain()
+                .and_then(|d| normalize_domain(d, url.port()))
+                .unwrap_or("".into());
+            format!("{scheme}://{domain}{path}")
+        }
+    };
+
+    // Remove previously inserted dummy URL if necessary:
+    let formatted = match ty {
+        UrlType::Full => formatted,
+        UrlType::Absolute => formatted.replace("http://replace_me", ""),
+        UrlType::Relative => formatted.replace("http://replace_me/", ""),
+    };
+
+    Some(formatted)
+}
+
+fn scrub_resource_path(path: &str) -> String {
+    let (mut base_path, mut extension) = path.rsplit_once('.').unwrap_or((path, ""));
+    if extension.contains('/') {
+        // Not really an extension
+        base_path = path;
+        extension = "";
     }
+
+    let mut segments = base_path.split('/').map(scrub_resource_segment);
+    let mut joined = segments.join("/");
+    if !extension.is_empty() {
+        joined.push('.');
+        joined.push_str(extension);
+    }
+
+    joined
+}
+
+fn scrub_resource_segment(segment: &str) -> Cow<str> {
+    let segment = RESOURCE_NORMALIZER_REGEX.replace_all(segment, "$pre*$post");
+
+    // Crude heuristic: treat long segments as idendifiers.
+    if segment.len() > MAX_SEGMENT_LENGTH {
+        return Cow::Borrowed("*");
+    }
+
+    let mut all_alphabetic = true;
+    let mut found_uppercase = false;
+
+    // Do not accept segments with special characters.
+    for char in segment.chars() {
+        if !char.is_ascii_alphabetic() {
+            all_alphabetic = false;
+        }
+        if char.is_ascii_uppercase() {
+            found_uppercase = true;
+        }
+        if char.is_numeric() || "&%#=+@".contains(char) {
+            return Cow::Borrowed("*");
+        };
+    }
+
+    if all_alphabetic && found_uppercase {
+        // Assume random string identifier.
+        return Cow::Borrowed("*");
+    }
+
+    segment
 }
 
 #[cfg(test)]
@@ -249,7 +340,7 @@ mod tests {
                 if $expected == "" {
                     assert!(scrubbed.is_none());
                 } else {
-                    assert_eq!(scrubbed.unwrap(), $expected);
+                    assert_eq!($expected, scrubbed.unwrap());
                 }
             }
         };
@@ -374,7 +465,7 @@ mod tests {
         resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
-        "https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.chunk.js-*.map"
+        "https://example.com/static/chunks/*.map"
     );
 
     span_description_test!(
@@ -395,7 +486,7 @@ mod tests {
         integer_in_resource,
         "https://example.com/assets/this_is-a_good_resource-123-scrub_me.js",
         "resource.css",
-        "https://example.com/assets/this_is-a_good_resource-*-scrub_me.js"
+        "https://example.com/assets/*.js"
     );
 
     span_description_test!(
@@ -409,14 +500,14 @@ mod tests {
         resource_query_params2,
         "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://data.domain.com/data/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "*.domain.com/*.gif"
+        "https://*.domain.com/data/guide.gif"
     );
 
     span_description_test!(
@@ -438,6 +529,41 @@ mod tests {
         "webroot/assets/Shop-1aff80f7.css",
         "resource.css",
         "webroot/assets/Shop-*.css"
+    );
+
+    span_description_test!(
+        chrome_extension,
+        "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
+        "resource.other",
+        "chrome-extension://*/img/assets/icon-*k.svg"
+    );
+
+    span_description_test!(
+        urlencoded_path_segments,
+        "https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue",
+        "resource.iframe",
+        "https://*.domain.com/embed/*"
+    );
+
+    span_description_test!(
+        random_string1,
+        "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
+        "resource.img",
+        "https://*.domain.com/*/foo-*"
+    );
+
+    span_description_test!(
+        random_string2,
+        "http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp",
+        "resource.script",
+        "http://domain.com/*/*/*.jsonp"
+    );
+
+    span_description_test!(
+        random_string3,
+        "jkhdkkncnoglghljlkmcimlnlhkeamab/123.css",
+        "resource.link",
+        "*/*.css"
     );
 
     span_description_test!(
@@ -472,14 +598,14 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://data.domain.com/data/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_script_with_no_extension,
         "https://www.domain.com/page?id=1234567890",
         "resource.script",
-        "*.domain.com/*"
+        "https://*.domain.com/page"
     );
 
     span_description_test!(
@@ -511,6 +637,62 @@ mod tests {
     );
 
     span_description_test!(db_category_with_not_sql, "{someField:someValue}", "db", "");
+
+    span_description_test!(
+        resource_img_semi_colon,
+        "http://www.foo.com/path/to/resource;param1=test;param2=ing",
+        "resource.img",
+        "http://*.foo.com/path/to/*"
+    );
+
+    span_description_test!(
+        resource_img_comma_with_extension,
+        "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
+        "resource.img",
+        "https://example.org/p/*/media/photos*/weird-stuff-*-*-*.jpg"
+    );
+
+    span_description_test!(
+        resource_img_path_with_comma,
+        "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
+        "resource.img",
+        "/help/purchase-details/*"
+    );
+
+    span_description_test!(
+        resource_script_random_path_only,
+        "/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB",
+        "resource.script",
+        "/*/*/*/*/*/*/*"
+    );
+
+    span_description_test!(
+        resource_script_normalize_domain,
+        "https://sub.sub.sub.domain.com/resource.js",
+        "resource.script",
+        "https://*.domain.com/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_extension_in_segment,
+        "https://domain.com/foo.bar/resource.js",
+        "resource.script",
+        "https://domain.com/foo.bar/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_missing_scheme,
+        "domain.com/foo.bar/resource.js",
+        "resource.script",
+        "domain.com/foo.bar/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_missing_scheme_integer_id,
+        "domain.com/zero-length-00",
+        "resource.script",
+        "domain.com/zero-length-*"
+    );
 
     #[test]
     fn informed_sql_parser() {

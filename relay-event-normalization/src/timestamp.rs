@@ -53,7 +53,7 @@ impl Processor for TimestampProcessor {
         if let Some(start_timestamp) = span.start_timestamp.value() {
             if start_timestamp.into_inner().timestamp_millis() < 0 {
                 meta.add_error(Error::invalid(format!(
-                    "timestamp is too stale: {}",
+                    "start_timestamp is too stale: {}",
                     start_timestamp
                 )));
                 return Err(ProcessingAction::DeleteValueHard);
@@ -96,7 +96,7 @@ impl Processor for TimestampProcessor {
 mod tests {
     use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::{Breadcrumb, Event, Span, Timestamp};
-    use relay_protocol::{assert_annotated_snapshot, Annotated};
+    use relay_protocol::{assert_annotated_snapshot, get_value, Annotated};
 
     use crate::timestamp::TimestampProcessor;
 
@@ -110,17 +110,7 @@ mod tests {
         assert!(
             process_value(&mut error, &mut TimestampProcessor, ProcessingState::root()).is_ok()
         );
-        assert_eq!(
-            error
-                .value()
-                .unwrap()
-                .timestamp
-                .value()
-                .unwrap()
-                .into_inner()
-                .timestamp(),
-            1
-        );
+        assert_eq!(get_value!(error.timestamp!).into_inner().timestamp(), 1);
     }
 
     #[test]
@@ -204,25 +194,10 @@ mod tests {
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         assert!(process_value(&mut span, &mut TimestampProcessor, ProcessingState::root()).is_ok());
         assert_eq!(
-            span.value()
-                .unwrap()
-                .start_timestamp
-                .value()
-                .unwrap()
-                .into_inner()
-                .timestamp(),
+            get_value!(span.start_timestamp!).into_inner().timestamp(),
             1
         );
-        assert_eq!(
-            span.value()
-                .unwrap()
-                .timestamp
-                .value()
-                .unwrap()
-                .into_inner()
-                .timestamp(),
-            2
-        );
+        assert_eq!(get_value!(span.timestamp!).into_inner().timestamp(), 2);
     }
 
     #[test]
@@ -242,7 +217,7 @@ mod tests {
                 [
                   "invalid_data",
                   {
-                    "reason": "timestamp is too stale: 1969-12-31 23:59:58 UTC"
+                    "reason": "start_timestamp is too stale: 1969-12-31 23:59:58 UTC"
                   }
                 ]
               ]
@@ -269,7 +244,7 @@ mod tests {
                 [
                   "invalid_data",
                   {
-                    "reason": "timestamp is too stale: 1969-12-31 23:59:59 UTC"
+                    "reason": "start_timestamp is too stale: 1969-12-31 23:59:59 UTC"
                   }
                 ]
               ]

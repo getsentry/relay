@@ -14,7 +14,7 @@ use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct Frame {
     #[serde(skip_serializing_if = "Option::is_none")]
     abs_path: Option<String>,
@@ -32,6 +32,8 @@ struct Frame {
     lineno: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     module: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
 }
 
 impl Frame {
@@ -535,14 +537,7 @@ mod tests {
         let mut profile = generate_profile();
 
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
@@ -593,14 +588,7 @@ mod tests {
         let mut profile = generate_profile();
 
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
@@ -662,14 +650,7 @@ mod tests {
 
         profile.metadata.transactions.push(transaction.clone());
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -729,14 +710,7 @@ mod tests {
 
         profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.profile.stacks = vec![vec![0], vec![]];
         profile.profile.samples = vec![
@@ -849,14 +823,7 @@ mod tests {
 
         profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.profile.stacks = vec![vec![0]];
 
