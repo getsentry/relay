@@ -115,6 +115,7 @@ pub struct AnyValue {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Value {
     StringValue(String),
     BoolValue(bool),
@@ -138,7 +139,7 @@ pub struct KeyValueList {
 #[derive(Debug, Deserialize)]
 pub struct KeyValue {
     pub key: String,
-    pub value: Option<AnyValue>,
+    pub value: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
