@@ -14,7 +14,7 @@ use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct Frame {
     #[serde(skip_serializing_if = "Option::is_none")]
     abs_path: Option<String>,
