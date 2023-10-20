@@ -2999,7 +2999,7 @@ mod tests {
             "profiles": [
                 {
                     "name": "Desktop",
-                    "score_components": [
+                    "scoreComponents": [
                         {
                             "measurement": "fcp",
                             "weight": 0.15,
@@ -3134,7 +3134,7 @@ mod tests {
             "profiles": [
                 {
                     "name": "Desktop",
-                    "score_components": [
+                    "scoreComponents": [
                         {
                             "measurement": "a",
                             "weight": 0.15,
