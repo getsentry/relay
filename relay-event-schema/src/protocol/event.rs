@@ -663,6 +663,7 @@ impl Getter for Event {
             "contexts.device.brand" => self.context::<DeviceContext>()?.brand.as_str()?.into(),
             "contexts.device.charging" => self.context::<DeviceContext>()?.charging.value()?.into(),
             "contexts.device.family" => self.context::<DeviceContext>()?.family.as_str()?.into(),
+            "contexts.device.locale" => self.context::<DeviceContext>()?.locale.as_str()?.into(),
             "contexts.device.online" => self.context::<DeviceContext>()?.online.value()?.into(),
             "contexts.device.orientation" => self
                 .context::<DeviceContext>()?
@@ -678,6 +679,16 @@ impl Getter for Event {
             "contexts.device.screen_dpi" => {
                 self.context::<DeviceContext>()?.screen_dpi.value()?.into()
             }
+            "contexts.device.screen_width_pixels" => self
+                .context::<DeviceContext>()?
+                .screen_width_pixels
+                .value()?
+                .into(),
+            "contexts.device.screen_height_pixels" => self
+                .context::<DeviceContext>()?
+                .screen_height_pixels
+                .value()?
+                .into(),
             "contexts.device.simulator" => {
                 self.context::<DeviceContext>()?.simulator.value()?.into()
             }
@@ -691,6 +702,7 @@ impl Getter for Event {
             "contexts.browser.version" => {
                 self.context::<BrowserContext>()?.version.as_str()?.into()
             }
+            "contexts.device.uuid" => self.context::<DeviceContext>()?.uuid.value()?.into(),
             "contexts.trace.status" => self
                 .context::<TraceContext>()?
                 .status
@@ -748,6 +760,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use relay_protocol::{ErrorKind, Map, Meta};
     use similar_asserts::assert_eq;
+    use uuid::uuid;
 
     use super::*;
     use crate::protocol::{Headers, IpAddr, JsonLenientString, PairList, TagEntry};
@@ -1065,6 +1078,10 @@ mod tests {
                     family: Annotated::new("iphone-fam".to_string()),
                     model: Annotated::new("iphone7,3".to_string()),
                     screen_dpi: Annotated::new(560),
+                    screen_width_pixels: Annotated::new(1920),
+                    screen_height_pixels: Annotated::new(1080),
+                    locale: Annotated::new("US".into()),
+                    uuid: Annotated::new(uuid!("abadcade-feed-dead-beef-baddadfeeded")),
                     charging: Annotated::new(true),
                     ..DeviceContext::default()
                 });
@@ -1136,6 +1153,22 @@ mod tests {
         assert_eq!(
             Some(Val::Bool(true)),
             event.get_value("event.contexts.device.charging")
+        );
+        assert_eq!(
+            Some(Val::U64(1920)),
+            event.get_value("event.contexts.device.screen_width_pixels")
+        );
+        assert_eq!(
+            Some(Val::U64(1080)),
+            event.get_value("event.contexts.device.screen_height_pixels")
+        );
+        assert_eq!(
+            Some(Val::String("US")),
+            event.get_value("event.contexts.device.locale")
+        );
+        assert_eq!(
+            Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-baddadfeeded"))),
+            event.get_value("event.contexts.device.uuid")
         );
     }
 
