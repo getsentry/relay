@@ -1083,6 +1083,7 @@ pub struct PerformanceScoreWeightedComponent {
 /// A profile contains weights for a score of 100% and match against an event using a condition.
 /// eg. Desktop vs. Mobile(web) profiles for better web vital score calculation.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PerformanceScoreProfile {
     /// Name of the profile, used for debugging and faceting multiple profiles
     pub name: Option<String>,
