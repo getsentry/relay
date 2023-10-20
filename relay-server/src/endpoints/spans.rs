@@ -5,7 +5,6 @@ use axum::routing::{post, MethodRouter};
 use bytes::Bytes;
 
 use relay_config::Config;
-use relay_event_schema::protocol::EventId;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
@@ -28,7 +27,7 @@ async fn handle(
 
     let mut item = Item::new(ItemType::OtelSpan);
     item.set_payload(ContentType::Json, body);
-    let mut envelope = Envelope::from_request(Some(EventId::new()), meta);
+    let mut envelope = Envelope::from_request(None, meta);
     envelope.add_item(item);
     common::handle_envelope(&state, envelope).await?;
 
