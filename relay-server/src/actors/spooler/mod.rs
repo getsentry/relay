@@ -668,20 +668,11 @@ impl BufferService {
     ///
     /// The directories and spool file will be created if they don't already
     /// exist.
-    async fn setup(mut path: PathBuf) -> Result<(), BufferError> {
-        path.pop();
-
-        if !path.exists() {
-            relay_log::debug!("creating directory for spooling file: {}", path.display());
-            DirBuilder::new()
-                .recursive(true)
-                .create(&path)
-                .await
-                .map_err(BufferError::FileSetupError)?;
-        }
+    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
+        BufferService::create_spool_directory(path.clone()).await?;
 
         let options = SqliteConnectOptions::new()
-            .filename(&path)
+            .filename(path)
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
@@ -691,6 +682,20 @@ impl BufferService {
             .map_err(BufferError::SqlxSetupFailed)?;
 
         sqlx::migrate!("../migrations").run(&db).await?;
+        Ok(())
+    }
+
+    /// Creates the directories for the spool file.
+    async fn create_spool_directory(mut path: PathBuf) -> Result<(), BufferError> {
+        path.pop();
+        if !path.exists() {
+            relay_log::debug!("creating directory for spooling file: {}", path.display());
+            DirBuilder::new()
+                .recursive(true)
+                .create(&path)
+                .await
+                .map_err(BufferError::FileSetupError)?;
+        }
         Ok(())
     }
 
@@ -711,7 +716,7 @@ impl BufferService {
         );
         relay_log::info!("max disk size {}", config.spool_envelopes_max_disk_size());
 
-        Self::setup(path.clone()).await?;
+        Self::setup(&path).await?;
 
         let options = SqliteConnectOptions::new()
             .filename(&path)
@@ -993,6 +998,29 @@ mod tests {
             ..
         } = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn create_spool_directory_path() {
+        let parent_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let target_dir = parent_dir
+            .join("subdir1")
+            .join("subdir2")
+            .join("spool-file");
+        let buffer_guard: Arc<_> = BufferGuard::new(1).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": target_dir,
+                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
