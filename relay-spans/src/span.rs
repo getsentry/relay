@@ -14,8 +14,11 @@ use crate::status_codes;
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Span {
+    /// Trace ID
     pub trace_id: String,
+    /// Span ID
     pub span_id: String,
+    /// Trace state
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub trace_state: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -102,7 +105,9 @@ impl From<Span> for EventSpan {
             description: from.name.clone().into(),
             exclusive_time: exclusive_time.into(),
             span_id: SpanId(from.span_id.clone()).into(),
+            parent_span_id: SpanId(from.parent_span_id.clone()).into(),
             start_timestamp: Timestamp(start_timestamp).into(),
+            is_segment: from.parent_span_id.is_empty().into(),
             timestamp: Timestamp(end_timestamp).into(),
             trace_id: TraceId(from.trace_id.clone()).into(),
             ..Default::default()
@@ -110,11 +115,7 @@ impl From<Span> for EventSpan {
         if let Ok(status) = SpanStatus::from_str(from.sentry_status()) {
             span.status = status.into();
         }
-        if let Some(parent_span_id) = from.parent_span_id {
-            span.is_segment = false.into();
-            span.parent_span_id = SpanId(parent_span_id).into();
-        } else {
-            span.is_segment = true.into();
+        if from.parent_span_id.is_empty() {
             span.segment_id = span.span_id.clone();
         }
         span
@@ -149,30 +150,6 @@ pub enum SpanKind {
     Consumer = 5,
 }
 
-impl SpanKind {
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            SpanKind::Unspecified => "SPAN_KIND_UNSPECIFIED",
-            SpanKind::Internal => "SPAN_KIND_INTERNAL",
-            SpanKind::Server => "SPAN_KIND_SERVER",
-            SpanKind::Client => "SPAN_KIND_CLIENT",
-            SpanKind::Producer => "SPAN_KIND_PRODUCER",
-            SpanKind::Consumer => "SPAN_KIND_CONSUMER",
-        }
-    }
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "SPAN_KIND_UNSPECIFIED" => Some(Self::Unspecified),
-            "SPAN_KIND_INTERNAL" => Some(Self::Internal),
-            "SPAN_KIND_SERVER" => Some(Self::Server),
-            "SPAN_KIND_CLIENT" => Some(Self::Client),
-            "SPAN_KIND_PRODUCER" => Some(Self::Producer),
-            "SPAN_KIND_CONSUMER" => Some(Self::Consumer),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct Status {
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -187,24 +164,6 @@ pub enum StatusCode {
     Unset = 0,
     Ok = 1,
     Error = 2,
-}
-
-impl StatusCode {
-    pub fn as_str_name(&self) -> &'static str {
-        match self {
-            StatusCode::Unset => "STATUS_CODE_UNSET",
-            StatusCode::Ok => "STATUS_CODE_OK",
-            StatusCode::Error => "STATUS_CODE_ERROR",
-        }
-    }
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
-        match value {
-            "STATUS_CODE_UNSET" => Some(Self::Unset),
-            "STATUS_CODE_OK" => Some(Self::Ok),
-            "STATUS_CODE_ERROR" => Some(Self::Error),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -262,14 +221,6 @@ pub struct KeyValueList {
 pub struct KeyValue {
     pub key: String,
     pub value: AnyValue,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InstrumentationScope {
-    pub name: String,
-    pub version: String,
-    pub attributes: Vec<KeyValue>,
-    pub dropped_attributes_count: u32,
 }
 
 #[cfg(test)]
