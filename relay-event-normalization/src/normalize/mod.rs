@@ -1082,7 +1082,7 @@ pub struct PerformanceScoreWeightedComponent {
     pub p50: f64,
 }
 
-/// Defines a profile for performance score
+/// Defines a profile for performance score.
 ///
 /// A profile contains weights for a score of 100% and match against an event using a condition.
 /// eg. Desktop vs. Mobile(web) profiles for better web vital score calculation.
