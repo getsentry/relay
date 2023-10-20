@@ -6,7 +6,6 @@ local pipedream = import 'github.com/getsentry/gocd-jsonnet/libs/pipedream.libso
 
 local pipedream_config = {
   name: 'relay',
-  auto_deploy: true,
   materials: {
     relay_repo: {
       git: 'git@github.com:getsentry/relay.git',
