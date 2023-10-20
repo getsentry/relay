@@ -2430,7 +2430,7 @@ impl EnvelopeProcessorService {
 
     fn filter_spans(&self, state: &mut ProcessEnvelopeState) {
         let otel_span_ingestion_enabled =
-            state.project_state.has_feature(Feature::OTelSpanIngestion);
+            state.project_state.has_feature(Feature::OtelSpanIngestion);
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::OtelSpan if !otel_span_ingestion_enabled => {
                 relay_log::warn!("dropping span because feature is disabled");

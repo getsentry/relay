@@ -33,7 +33,7 @@ pub enum Feature {
     SpanMetricsExtractionResource,
     /// Enable OTel span ingestion.
     #[serde(rename = "organizations:otel-span-ingestion")]
-    OTelSpanIngestion,
+    OtelSpanIngestion,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
