@@ -82,8 +82,8 @@ pub enum BufferError {
     #[error("failed to setup the database: {0}")]
     SqlxSetupFailed(sqlx::Error),
 
-    #[error("failed to setup the spool buffer: {0}")]
-    BufferSetupFailed(String),
+    #[error("failed to create the spool buffer: {0}")]
+    FileSetupError(std::io::Error),
 
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
@@ -665,29 +665,23 @@ pub struct BufferService {
 
 impl BufferService {
     /// Set up the database and return the current number of envelopes.
-    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
-        if path.is_absolute() {
-            let mut dir = path.clone();
-            dir.pop();
+    ///
+    /// The directories and spool file will be created if they don't already
+    /// exist.
+    async fn setup(mut path: PathBuf) -> Result<(), BufferError> {
+        path.pop();
 
-            if !dir.exists() {
-                relay_log::debug!("creating directory for spooling file: {}", dir.display());
-                DirBuilder::new()
-                    .recursive(true)
-                    .create(dir)
-                    .await
-                    .map_err(|e| BufferError::BufferSetupFailed(e.to_string()))?;
-            }
-        } else {
-            // sqlx doesn't support relative paths and Sqlite initialization
-            // fails. Maybe: https://github.com/launchbadge/sqlx/issues/1260
-            return Err(BufferError::BufferSetupFailed(
-                "relative paths for spooling are not supported".to_string(),
-            ));
+        if !path.exists() {
+            relay_log::debug!("creating directory for spooling file: {}", path.display());
+            DirBuilder::new()
+                .recursive(true)
+                .create(&path)
+                .await
+                .map_err(BufferError::FileSetupError)?;
         }
 
         let options = SqliteConnectOptions::new()
-            .filename(path)
+            .filename(&path)
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
@@ -717,7 +711,7 @@ impl BufferService {
         );
         relay_log::info!("max disk size {}", config.spool_envelopes_max_disk_size());
 
-        Self::setup(&path).await?;
+        Self::setup(path.clone()).await?;
 
         let options = SqliteConnectOptions::new()
             .filename(&path)
