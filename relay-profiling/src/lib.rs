@@ -99,6 +99,7 @@ use std::time::Duration;
 
 use relay_event_schema::protocol::{Event, EventId};
 use serde::Deserialize;
+use serde_json::Deserializer;
 
 use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
 
@@ -127,7 +128,8 @@ struct MinimalProfile {
 }
 
 fn minimal_profile_from_json(payload: &[u8]) -> Result<MinimalProfile, ProfileError> {
-    serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)
+    let d = &mut Deserializer::from_slice(payload);
+    serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)
 }
 
 pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
@@ -140,14 +142,16 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
     };
     match profile.version {
         sample::Version::V1 => {
-            let _: sample::ProfileMetadata = match serde_json::from_slice(payload) {
+            let d = &mut Deserializer::from_slice(payload);
+            let _: sample::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                 Ok(profile) => profile,
                 Err(err) => {
                     relay_log::warn!(
                         error = &err as &dyn Error,
-                        "invalid sample ({:?}) profile: {}",
+                        "invalid sample (v{:?}) profile for {}. invalid key: {}",
                         profile.version,
-                        profile.platform
+                        profile.platform,
+                        err.path(),
                     );
                     return Err(ProfileError::InvalidJson(err));
                 }
@@ -155,10 +159,15 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
         }
         _ => match profile.platform.as_str() {
             "android" => {
-                let _: android::ProfileMetadata = match serde_json::from_slice(payload) {
+                let d = &mut Deserializer::from_slice(payload);
+                let _: android::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                     Ok(profile) => profile,
                     Err(err) => {
-                        relay_log::warn!(error = &err as &dyn Error, "invalid android profile");
+                        relay_log::warn!(
+                            error = &err as &dyn Error,
+                            "invalid android profile. invalid key: {}",
+                            err.path(),
+                        );
                         return Err(ProfileError::InvalidJson(err));
                     }
                 };
@@ -195,7 +204,24 @@ pub fn expand_profile(
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    processed_payload.map(|payload| (profile.event_id, payload))
+    match processed_payload {
+        Ok(payload) => Ok((profile.event_id, payload)),
+        Err(err) => match err {
+            ProfileError::InvalidJson(err) => {
+                relay_log::warn!(
+                    error = &err as &dyn Error,
+                    "invalid profile. platform: {}, invalid key: {}",
+                    profile.platform,
+                    err.path()
+                );
+                Err(ProfileError::InvalidJson(err))
+            }
+            _ => {
+                relay_log::debug!(error = &err as &dyn Error, "invalid profile");
+                Err(err)
+            }
+        },
+    }
 }
 
 #[cfg(test)]
