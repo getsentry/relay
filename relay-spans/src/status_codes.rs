@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use once_cell::sync::Lazy;
 
+/// HTTP maps some HTTP codes to Sentry's span statuses.
+/// See possible mapping in https://develop.sentry.dev/sdk/event-payloads/span/.
 pub static HTTP: Lazy<BTreeMap<i64, &str>> = Lazy::new(|| {
     BTreeMap::from([
         (400, "failed_precondition"),
@@ -18,6 +20,8 @@ pub static HTTP: Lazy<BTreeMap<i64, &str>> = Lazy::new(|| {
     ])
 });
 
+/// GRPC maps some GRPC codes to Sentry's span statuses.
+/// See description in grpc documentation.
 pub static GRPC: Lazy<BTreeMap<i64, &str>> = Lazy::new(|| {
     BTreeMap::from([
         (1, "cancelled"),

@@ -10,34 +10,78 @@ use relay_protocol::{Annotated, Object, Value};
 use crate::status_codes;
 
 /// This is a serde implementation of https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto.
-
+/// A Span represents a single operation performed by a single component of the system.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Span {
-    /// Trace ID
+    /// A unique identifier for a trace. All spans from the same trace share
+    /// the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
+    /// of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
+    /// is zero-length and thus is also invalid).
+    ///
+    /// This field is required.
     pub trace_id: String,
-    /// Span ID
+    /// A unique identifier for a span within a trace, assigned when the span
+    /// is created. The ID is an 8-byte array. An ID with all zeroes OR of length
+    /// other than 8 bytes is considered invalid (empty string in OTLP/JSON
+    /// is zero-length and thus is also invalid).
+    ///
+    /// This field is required.
     pub span_id: String,
-    /// Trace state
+    /// trace_state conveys information about request position in multiple distributed tracing graphs.
+    /// It is a trace_state in w3c-trace-context format: <https://www.w3.org/TR/trace-context/#tracestate-header>
+    /// See also <https://github.com/w3c/distributed-tracing> for more details about this field.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub trace_state: String,
+    /// The `span_id` of this span's parent span. If this is a root span, then this
+    /// field must be empty. The ID is an 8-byte array.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub parent_span_id: String,
+    /// A description of the span's operation.
+    ///
+    /// For example, the name can be a qualified method name or a file name
+    /// and a line number where the operation is called. A best practice is to use
+    /// the same display name at the same call point in an application.
+    /// This makes it easier to correlate spans in different traces.
+    ///
+    /// This field is semantically required to be set to non-empty string.
+    /// Empty value is equivalent to an unknown span name.
+    ///
+    /// This field is required.
     pub name: String,
+    /// Distinguishes between spans generated in a particular context. For example,
+    /// two spans with the same name may be distinguished using `CLIENT` (caller)
+    /// and `SERVER` (callee) to identify queueing latency associated with the span.
     pub kind: SpanKind,
+    /// Timestamp when the span started in nanoseconds.
     pub start_time_unix_nano: i64,
+    /// Timestamp when the span ended in nanoseconds.
     pub end_time_unix_nano: i64,
+    /// Arbitrary additional data on a span, like `extra` on the top-level event.
     pub attributes: Vec<KeyValue>,
+    /// dropped_attributes_count is the number of attributes that were discarded. Attributes
+    /// can be discarded because their keys are too long or because there are too many
+    /// attributes. If this value is 0, then no attributes were dropped.
     pub dropped_attributes_count: u32,
+    /// events is a collection of Event items.``
     pub events: Vec<Event>,
+    /// dropped_events_count is the number of dropped events. If the value is 0, then no
+    /// events were dropped.
     pub dropped_events_count: u32,
+    /// links is a collection of Links, which are references from this span to a span
+    /// in the same or different trace.
     pub links: Vec<Link>,
+    /// links is a collection of Links, which are references from this span to a span
+    /// in the same or different trace.
     pub dropped_links_count: u32,
+    /// An optional final status for this span. Semantically when Status isn't set, it means
+    /// span's status code is unset, i.e. assume STATUS_CODE_UNSET (code = 0).
     #[serde(default)]
     pub status: Status,
 }
 
 impl Span {
+    /// sentry_status() returns a status as defined by Sentry based on the span status.
     pub fn sentry_status(&self) -> &'static str {
         let status_code = self.status.code.clone();
 
