@@ -14,7 +14,7 @@ use crate::{
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
 /// scrubber should be able to strip more.
 static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
-    "(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value)"
+    "(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value | $request.headers.user-agent)"
         .parse()
         .unwrap()
 });
@@ -274,10 +274,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_default_pii_config() {
-        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r#"
+        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -289,7 +289,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -299,10 +299,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -314,7 +314,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -324,7 +324,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "rules": {
             "strip-fields": {
@@ -337,7 +337,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -350,7 +350,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -360,10 +360,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) && !foobar": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -375,7 +375,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -387,10 +387,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..Default::default()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
@@ -398,7 +398,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1256,7 +1256,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "rules": {
             "strip-fields": {
@@ -1269,7 +1269,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -1282,7 +1282,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
 
         let pii_config = pii_config.unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());

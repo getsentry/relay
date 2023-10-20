@@ -754,6 +754,35 @@ mod tests {
     }
 
     #[test]
+    fn test_ignore_user_agent_ip_scrubbing() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "headers": [
+                        ["User-Agent", "127.0.0.1"],
+                        ["X-Client-Ip", "10.0.0.1"]
+                    ]
+                },
+            })
+            .into(),
+        );
+
+        let scrubbing_config = DataScrubbingConfig {
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            scrub_defaults: true,
+            ..Default::default()
+        };
+
+        let pii_config = to_pii_config(&scrubbing_config).unwrap();
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+
+        assert_debug_snapshot!(&data);
+    }
+
+    #[test]
     fn test_remove_debugmeta_path() {
         let config = serde_json::from_str::<PiiConfig>(
             r#"
