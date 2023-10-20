@@ -1065,7 +1065,7 @@ impl<'a> DynamicMeasurementsConfig<'a> {
     }
 }
 
-/// Defines a weighted component for a performance score
+/// Defines a weighted component for a performance score.
 ///
 /// Weight is the % of score it can take up (eg. LCP is a max of 35% weight for desktops)
 /// Currently also contains (p10, p50) which are used for log CDF normalization of the weight score
