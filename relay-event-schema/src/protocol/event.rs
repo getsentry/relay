@@ -1064,6 +1064,8 @@ mod tests {
                     name: Annotated::new("iphone".to_string()),
                     family: Annotated::new("iphone-fam".to_string()),
                     model: Annotated::new("iphone7,3".to_string()),
+                    screen_dpi: Annotated::new(560),
+                    charging: Annotated::new(true),
                     ..DeviceContext::default()
                 });
                 contexts.add(OsContext {
@@ -1122,6 +1124,18 @@ mod tests {
         assert_eq!(
             Some(Val::String("1.87.0")),
             event.get_value("event.sdk.version")
+        );
+        assert_eq!(
+            Some(Val::String("17.4.0")),
+            event.get_value("event.contexts.os.kernel_version")
+        );
+        assert_eq!(
+            Some(Val::I64(560)),
+            event.get_value("event.contexts.device.screen_dpi")
+        );
+        assert_eq!(
+            Some(Val::Bool(true)),
+            event.get_value("event.contexts.device.charging")
         );
     }
 
