@@ -162,7 +162,7 @@ impl<S: AsRef<str> + Default> RawUserAgentInfo<S> {
 
 impl RawUserAgentInfo<String> {
     /// The name of the user agent HTTP header.
-    pub const USER_AGENT: &str = "User-Agent";
+    pub const USER_AGENT: &'static str = "User-Agent";
 
     /// Converts to a borrowed `RawUserAgentInfo`.
     pub fn as_deref(&self) -> RawUserAgentInfo<&str> {
@@ -248,10 +248,10 @@ impl ClientHints<String> {
     ///
     /// `Sec-CH-UA-Platform` is a low entropy hint. Unless blocked by a user agent permission
     /// policy, it is sent by default (without the server opting in by sending `Accept-CH`).
-    pub const SEC_CH_UA_PLATFORM: &str = "SEC-CH-UA-Platform";
+    pub const SEC_CH_UA_PLATFORM: &'static str = "SEC-CH-UA-Platform";
 
     /// Provides the version of the operating system on which the user agent is running.
-    pub const SEC_CH_UA_PLATFORM_VERSION: &str = "SEC-CH-UA-Platform-Version";
+    pub const SEC_CH_UA_PLATFORM_VERSION: &'static str = "SEC-CH-UA-Platform-Version";
 
     /// Provides the user agent's branding and significant version information.
     ///
@@ -270,10 +270,10 @@ impl ClientHints<String> {
     ///
     /// `Sec-CH-UA` is a low entropy hint. Unless blocked by a user agent permission policy, it is
     /// sent by default (without the server opting in by sending `Accept-CH`).
-    pub const SEC_CH_UA: &str = "SEC-CH-UA";
+    pub const SEC_CH_UA: &'static str = "SEC-CH-UA";
 
     /// Indicates the device model on which the browser is running.
-    pub const SEC_CH_UA_MODEL: &str = "SEC-CH-UA-Model";
+    pub const SEC_CH_UA_MODEL: &'static str = "SEC-CH-UA-Model";
 
     /// Returns an instance of `ClientHints` that borrows from the original data.
     pub fn as_deref(&self) -> ClientHints<&str> {
