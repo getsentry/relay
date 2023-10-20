@@ -156,8 +156,9 @@ pub fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
     Some(op.to_string())
 }
 
-/// Error function
-/// <https://en.wikipedia.org/wiki/Error_function>
+/// The Gauss error function.
+/// 
+/// See <https://en.wikipedia.org/wiki/Error_function>.
 fn erf(x: f64) -> f64 {
     // constants
     let a1 = 0.254829592;
