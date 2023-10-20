@@ -12,6 +12,7 @@
 - Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
 - Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
 - Scrub random strings in resource span descriptions. ([#2614](https://github.com/getsentry/relay/pull/2614))
+- Extend the number of supported fields for the `Event` `Getter`. ([#2640](https://github.com/getsentry/relay/pull/2640))
 
 ## 23.10.0
 
