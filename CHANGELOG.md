@@ -5,7 +5,8 @@
 **Features**:
 
 - Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
-- Remove from events spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
 
 **Internal**:
 
