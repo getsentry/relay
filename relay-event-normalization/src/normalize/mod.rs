@@ -497,6 +497,7 @@ fn normalize_performance_score(
                 continue;
             }
             if let Some(measurements) = event.measurements.value_mut() {
+                let mut should_add_total = false;
                 if !profile
                     .score_components
                     .iter()
@@ -512,6 +513,7 @@ fn normalize_performance_score(
                             utils::calculate_cdf_score(value, component.p10, component.p50)
                                 * component.weight;
                         score_total += subscore;
+                        should_add_total = true;
 
                         measurements.insert(
                             format!("score.{}", component.measurement),
@@ -532,14 +534,16 @@ fn normalize_performance_score(
                     }
                 }
 
-                measurements.insert(
-                    "score.total".to_owned(),
-                    Measurement {
-                        value: score_total.into(),
-                        unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
-                    }
-                    .into(),
-                );
+                if should_add_total {
+                    measurements.insert(
+                        "score.total".to_owned(),
+                        Measurement {
+                            value: score_total.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
+                }
                 break; // Measurements have successfully been added, skip any other profiles.
             }
         }
