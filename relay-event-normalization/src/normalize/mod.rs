@@ -3039,7 +3039,6 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_measurements(&mut event, None, None);
         normalize_performance_score(&mut event, Some(&performance_score_config));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
@@ -3057,7 +3056,6 @@ mod tests {
           "measurements": {
             "cls": {
               "value": 0.11,
-              "unit": "none",
             },
             "fcp": {
               "value": 1237.0,
@@ -3162,7 +3160,6 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_measurements(&mut event, None, None);
         normalize_performance_score(&mut event, Some(&performance_score_config));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
