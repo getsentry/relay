@@ -514,7 +514,7 @@ fn normalize_performance_score(
                         score_total += subscore;
 
                         measurements.insert(
-                            format!("measurements.score.{}", component.measurement),
+                            format!("score.{}", component.measurement),
                             Measurement {
                                 value: subscore.into(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -522,7 +522,7 @@ fn normalize_performance_score(
                             .into(),
                         );
                         measurements.insert(
-                            format!("measurements.score.weight.{}", component.measurement),
+                            format!("score.weight.{}", component.measurement),
                             Measurement {
                                 value: component.weight.into(),
                                 unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -533,7 +533,7 @@ fn normalize_performance_score(
                 }
 
                 measurements.insert(
-                    "measurements.score.total".to_owned(),
+                    "score.total".to_owned(),
                     Measurement {
                         value: score_total.into(),
                         unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
@@ -3067,39 +3067,39 @@ mod tests {
               "value": 6596.0,
               "unit": "millisecond",
             },
-            "measurements.score.cls": {
+            "score.cls": {
               "value": 0.21864170607444863,
               "unit": "ratio",
             },
-            "measurements.score.fcp": {
+            "score.fcp": {
               "value": 0.10750855443790831,
               "unit": "ratio",
             },
-            "measurements.score.fid": {
+            "score.fid": {
               "value": 0.19657361348282545,
               "unit": "ratio",
             },
-            "measurements.score.lcp": {
+            "score.lcp": {
               "value": 0.009238896571386584,
               "unit": "ratio",
             },
-            "measurements.score.total": {
+            "score.total": {
               "value": 0.531962770566569,
               "unit": "ratio",
             },
-            "measurements.score.weight.cls": {
+            "score.weight.cls": {
               "value": 0.25,
               "unit": "ratio",
             },
-            "measurements.score.weight.fcp": {
+            "score.weight.fcp": {
               "value": 0.15,
               "unit": "ratio",
             },
-            "measurements.score.weight.fid": {
+            "score.weight.fid": {
               "value": 0.3,
               "unit": "ratio",
             },
-            "measurements.score.weight.lcp": {
+            "score.weight.lcp": {
               "value": 0.3,
               "unit": "ratio",
             },

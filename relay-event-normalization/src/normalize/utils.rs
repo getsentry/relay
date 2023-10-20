@@ -176,9 +176,12 @@ fn erf(x: f64) -> f64 {
     sign * y
 }
 
+/// Sigma function for CDF score calculation
+fn calculate_cdf_sigma(p10: f64, p50: f64) -> f64 {
+    (p10.ln() - p50.ln()).abs() / (SQRT_2 * 0.9061938024368232)
+}
+
 /// Calculates a log-normal CDF score based on a log-normal with a specific p10 and p50
 pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
-    let sigma = |p10: f64, p50: f64| (p10.ln() - p50.ln()).abs() / (SQRT_2 * 0.9061938024368232);
-
-    0.5 * (1.0 - erf((f64::ln(value) - f64::ln(p50)) / (SQRT_2 * sigma(p50, p10))))
+    0.5 * (1.0 - erf((f64::ln(value) - f64::ln(p50)) / (SQRT_2 * calculate_cdf_sigma(p50, p10))))
 }
