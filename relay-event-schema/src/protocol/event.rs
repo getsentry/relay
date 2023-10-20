@@ -650,10 +650,41 @@ impl Getter for Event {
             "user.geo.region" => self.user.value()?.geo.value()?.region.as_str()?.into(),
             "user.geo.subdivision" => self.user.value()?.geo.value()?.subdivision.as_str()?.into(),
             "request.method" => self.request.value()?.method.as_str()?.into(),
+            "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
+            "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
 
             // Partial implementation of contexts.
-            "contexts.device.name" => self.context::<DeviceContext>()?.name.as_str()?.into(),
+            "contexts.device.arch" => self.context::<DeviceContext>()?.arch.as_str()?.into(),
+            "contexts.device.battery_level" => self
+                .context::<DeviceContext>()?
+                .battery_level
+                .value()?
+                .into(),
+            "contexts.device.brand" => self.context::<DeviceContext>()?.brand.as_str()?.into(),
+            "contexts.device.charging" => self.context::<DeviceContext>()?.charging.value()?.into(),
             "contexts.device.family" => self.context::<DeviceContext>()?.family.as_str()?.into(),
+            "contexts.device.online" => self.context::<DeviceContext>()?.online.value()?.into(),
+            "contexts.device.orientation" => self
+                .context::<DeviceContext>()?
+                .orientation
+                .as_str()?
+                .into(),
+            "contexts.device.name" => self.context::<DeviceContext>()?.name.as_str()?.into(),
+            "contexts.device.screen_density" => self
+                .context::<DeviceContext>()?
+                .screen_density
+                .value()?
+                .into(),
+            "contexts.device.screen_dpi" => {
+                self.context::<DeviceContext>()?.screen_dpi.value()?.into()
+            }
+            "contexts.device.simulator" => {
+                self.context::<DeviceContext>()?.simulator.value()?.into()
+            }
+            "contexts.os.build" => self.context::<OsContext>()?.build.as_str()?.into(),
+            "contexts.os.kernel_version" => {
+                self.context::<OsContext>()?.kernel_version.as_str()?.into()
+            }
             "contexts.os.name" => self.context::<OsContext>()?.name.as_str()?.into(),
             "contexts.os.version" => self.context::<OsContext>()?.version.as_str()?.into(),
             "contexts.browser.name" => self.context::<BrowserContext>()?.name.as_str()?.into(),
@@ -998,6 +1029,11 @@ mod tests {
                 segment: Annotated::new("user-seg".into()),
                 ..Default::default()
             }),
+            client_sdk: Annotated::new(ClientSdkInfo {
+                name: Annotated::new("sentry-javascript".into()),
+                version: Annotated::new("1.87.0".into()),
+                ..Default::default()
+            }),
             exceptions: Annotated::new(Values {
                 values: Annotated::new(vec![Annotated::new(Exception {
                     value: Annotated::new(JsonLenientString::from(
@@ -1079,6 +1115,14 @@ mod tests {
             event.get_value("event.tags.custom")
         );
         assert_eq!(None, event.get_value("event.tags.doesntexist"));
+        assert_eq!(
+            Some(Val::String("sentry-javascript")),
+            event.get_value("event.sdk.name")
+        );
+        assert_eq!(
+            Some(Val::String("1.87.0")),
+            event.get_value("event.sdk.version")
+        );
     }
 
     #[test]
