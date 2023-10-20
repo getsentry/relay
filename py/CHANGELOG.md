@@ -4,6 +4,8 @@
 
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
 - Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+- Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
 - Add `PerformanceScoreConfig` config and performance score calculations to measurements for frontend events. ([#2632](https://github.com/getsentry/relay/pull/2632))
 
 ## 0.8.31
