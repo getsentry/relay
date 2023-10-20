@@ -9,7 +9,7 @@ use relay_protocol::{Annotated, Object, Value};
 
 use crate::status_codes;
 
-/// This is a serde implementation of https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto.
+/// This is a serde implementation of <https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto>.
 /// A Span represents a single operation performed by a single component of the system.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +29,7 @@ pub struct Span {
     /// This field is required.
     pub span_id: String,
     /// trace_state conveys information about request position in multiple distributed tracing graphs.
-    /// It is a trace_state in w3c-trace-context format: <https://www.w3.org/TR/trace-context/#tracestate-header>
+    /// It is a trace_state in w3c-trace-context format: <https://www.w3.org/TR/trace-context/#tracestate-header>.
     /// See also <https://github.com/w3c/distributed-tracing> for more details about this field.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub trace_state: String,

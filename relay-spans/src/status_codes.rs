@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use once_cell::sync::Lazy;
 
 /// HTTP maps some HTTP codes to Sentry's span statuses.
-/// See possible mapping in https://develop.sentry.dev/sdk/event-payloads/span/.
+/// See possible mapping in <https://develop.sentry.dev/sdk/event-payloads/span/>.
 pub static HTTP: Lazy<BTreeMap<i64, &str>> = Lazy::new(|| {
     BTreeMap::from([
         (400, "failed_precondition"),
