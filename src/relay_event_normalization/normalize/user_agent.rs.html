@@ -1254,7 +1254,7 @@
 
 <span class="kw">impl </span>RawUserAgentInfo&lt;String&gt; {
     <span class="doccomment">/// The name of the user agent HTTP header.
-    </span><span class="kw">pub const </span>USER_AGENT: <span class="kw-2">&amp;</span>str = <span class="string">&quot;User-Agent&quot;</span>;
+    </span><span class="kw">pub const </span>USER_AGENT: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;User-Agent&quot;</span>;
 
     <span class="doccomment">/// Converts to a borrowed `RawUserAgentInfo`.
     </span><span class="kw">pub fn </span>as_deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RawUserAgentInfo&lt;<span class="kw-2">&amp;</span>str&gt; {
@@ -1340,10 +1340,10 @@
     ///
     /// `Sec-CH-UA-Platform` is a low entropy hint. Unless blocked by a user agent permission
     /// policy, it is sent by default (without the server opting in by sending `Accept-CH`).
-    </span><span class="kw">pub const </span>SEC_CH_UA_PLATFORM: <span class="kw-2">&amp;</span>str = <span class="string">&quot;SEC-CH-UA-Platform&quot;</span>;
+    </span><span class="kw">pub const </span>SEC_CH_UA_PLATFORM: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;SEC-CH-UA-Platform&quot;</span>;
 
     <span class="doccomment">/// Provides the version of the operating system on which the user agent is running.
-    </span><span class="kw">pub const </span>SEC_CH_UA_PLATFORM_VERSION: <span class="kw-2">&amp;</span>str = <span class="string">&quot;SEC-CH-UA-Platform-Version&quot;</span>;
+    </span><span class="kw">pub const </span>SEC_CH_UA_PLATFORM_VERSION: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;SEC-CH-UA-Platform-Version&quot;</span>;
 
     <span class="doccomment">/// Provides the user agent&#39;s branding and significant version information.
     ///
@@ -1362,10 +1362,10 @@
     ///
     /// `Sec-CH-UA` is a low entropy hint. Unless blocked by a user agent permission policy, it is
     /// sent by default (without the server opting in by sending `Accept-CH`).
-    </span><span class="kw">pub const </span>SEC_CH_UA: <span class="kw-2">&amp;</span>str = <span class="string">&quot;SEC-CH-UA&quot;</span>;
+    </span><span class="kw">pub const </span>SEC_CH_UA: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;SEC-CH-UA&quot;</span>;
 
     <span class="doccomment">/// Indicates the device model on which the browser is running.
-    </span><span class="kw">pub const </span>SEC_CH_UA_MODEL: <span class="kw-2">&amp;</span>str = <span class="string">&quot;SEC-CH-UA-Model&quot;</span>;
+    </span><span class="kw">pub const </span>SEC_CH_UA_MODEL: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;SEC-CH-UA-Model&quot;</span>;
 
     <span class="doccomment">/// Returns an instance of `ClientHints` that borrows from the original data.
     </span><span class="kw">pub fn </span>as_deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClientHints&lt;<span class="kw-2">&amp;</span>str&gt; {
