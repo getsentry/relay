@@ -44,7 +44,7 @@ pub struct Span {
     /// (such as a runtime representation of an OpenTelemetry span), the high 24 bits MUST
     /// be set to zero.
     ///
-    /// See https://www.w3.org/TR/trace-context-2/#trace-flags for the flag definitions.
+    /// See <https://www.w3.org/TR/trace-context-2/#trace-flags> for the flag definitions.
     #[serde(default)]
     pub flags: u32,
     /// A description of the span's operation.
@@ -77,12 +77,7 @@ pub struct Span {
     /// This field is semantically required and it is expected that end_time >= start_time.
     pub end_time_unix_nano: i64,
     /// attributes is a collection of key/value pairs. Note, global attributes
-    /// like server name can be set using the resource API. Examples of attributes:
-    ///
-    ///      "/http/user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36"
-    ///      "/http/server_latency": 300
-    ///      "example.com/myattribute": true
-    ///      "example.com/score": 10.239
+    /// like server name can be set using the resource API.
     ///
     /// The OpenTelemetry API specification further restricts the allowed value types:
     /// <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/common/README.md#attribute>
