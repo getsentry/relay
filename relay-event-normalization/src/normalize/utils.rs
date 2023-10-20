@@ -176,7 +176,7 @@ fn erf(x: f64) -> f64 {
     sign * y
 }
 
-/// Sigma function for CDF score calculation
+/// Sigma function for CDF score calculation.
 fn calculate_cdf_sigma(p10: f64, p50: f64) -> f64 {
     (p10.ln() - p50.ln()).abs() / (SQRT_2 * 0.9061938024368232)
 }
