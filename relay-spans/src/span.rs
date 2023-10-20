@@ -226,7 +226,7 @@ pub struct KeyValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::Annotated;
+    use relay_protocol::{get_path, Annotated};
 
     #[test]
     fn parse_span() {
@@ -288,16 +288,8 @@ mod tests {
         let otel_span: Span = serde_json::from_str(json).unwrap();
         let event_span: Annotated<EventSpan> = Annotated::new(otel_span.into());
         assert_eq!(
-            event_span
-                .value()
-                .unwrap()
-                .data
-                .value()
-                .unwrap()
-                .get("sentry.environment")
-                .unwrap()
-                .as_str(),
-            Some("test")
+            get_path!(event_span.data["sentry.environment"]),
+            Some(&Annotated::new("test".into()))
         );
     }
 }
