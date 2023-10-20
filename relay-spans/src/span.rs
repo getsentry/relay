@@ -34,6 +34,93 @@ pub struct Span {
     pub status: Status,
 }
 
+impl Span {
+    pub fn sentry_status(&self) -> &'static str {
+        let status_code = self.status.code.clone();
+
+        if status_code == StatusCode::Unset || status_code == StatusCode::Ok {
+            return "ok";
+        }
+
+        if let Some(code) = self
+            .attributes
+            .clone()
+            .into_iter()
+            .find(|a| a.key == "http.status_code")
+        {
+            if let Some(code_value) = code.value.to_i64() {
+                if let Some(sentry_status) = status_codes::HTTP.get(&code_value) {
+                    return sentry_status;
+                }
+            }
+        }
+
+        if let Some(code) = self
+            .attributes
+            .clone()
+            .into_iter()
+            .find(|a| a.key == "rpc.grpc.status_code")
+        {
+            if let Some(code_value) = code.value.to_i64() {
+                if let Some(sentry_status) = status_codes::GRPC.get(&code_value) {
+                    return sentry_status;
+                }
+            }
+        }
+
+        "unknown_error"
+    }
+}
+
+impl From<Span> for EventSpan {
+    fn from(from: Span) -> Self {
+        let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
+        let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
+        let exclusive_time = (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
+        let mut attributes: Object<Value> = Object::new();
+        for attribute in from.attributes.clone() {
+            match attribute.value {
+                AnyValue::Array(_) => todo!(),
+                AnyValue::Bool(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+                AnyValue::Bytes(_) => todo!(),
+                AnyValue::Double(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+                AnyValue::Int(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+                AnyValue::Kvlist(_) => todo!(),
+                AnyValue::String(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+            };
+        }
+        let mut span = EventSpan {
+            data: attributes.into(),
+            description: from.name.clone().into(),
+            exclusive_time: exclusive_time.into(),
+            span_id: SpanId(from.span_id.clone()).into(),
+            start_timestamp: Timestamp(start_timestamp).into(),
+            timestamp: Timestamp(end_timestamp).into(),
+            trace_id: TraceId(from.trace_id.clone()).into(),
+            ..Default::default()
+        };
+        if let Ok(status) = SpanStatus::from_str(from.sentry_status()) {
+            span.status = status.into();
+        }
+        if let Some(parent_span_id) = from.parent_span_id {
+            span.is_segment = false.into();
+            span.parent_span_id = SpanId(parent_span_id).into();
+        } else {
+            span.is_segment = true.into();
+            span.segment_id = span.span_id.clone();
+        }
+        span
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Event {
     pub time_unix_nano: u64,
@@ -183,93 +270,6 @@ pub struct InstrumentationScope {
     pub version: String,
     pub attributes: Vec<KeyValue>,
     pub dropped_attributes_count: u32,
-}
-
-impl From<Span> for EventSpan {
-    fn from(from: Span) -> Self {
-        let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
-        let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
-        let exclusive_time = (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
-        let mut attributes: Object<Value> = Object::new();
-        for attribute in from.attributes.clone() {
-            match attribute.value {
-                AnyValue::Array(_) => todo!(),
-                AnyValue::Bool(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
-                }
-                AnyValue::Bytes(_) => todo!(),
-                AnyValue::Double(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
-                }
-                AnyValue::Int(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
-                }
-                AnyValue::Kvlist(_) => todo!(),
-                AnyValue::String(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
-                }
-            };
-        }
-        let mut span = EventSpan {
-            data: attributes.into(),
-            description: from.name.clone().into(),
-            exclusive_time: exclusive_time.into(),
-            span_id: SpanId(from.span_id.clone()).into(),
-            start_timestamp: Timestamp(start_timestamp).into(),
-            timestamp: Timestamp(end_timestamp).into(),
-            trace_id: TraceId(from.trace_id.clone()).into(),
-            ..Default::default()
-        };
-        if let Ok(status) = SpanStatus::from_str(from.sentry_status()) {
-            span.status = status.into();
-        }
-        if let Some(parent_span_id) = from.parent_span_id {
-            span.is_segment = false.into();
-            span.parent_span_id = SpanId(parent_span_id).into();
-        } else {
-            span.is_segment = true.into();
-            span.segment_id = span.span_id.clone();
-        }
-        span
-    }
-}
-
-impl Span {
-    pub fn sentry_status(&self) -> &'static str {
-        let status_code = self.status.code.clone();
-
-        if status_code == StatusCode::Unset || status_code == StatusCode::Ok {
-            return "ok";
-        }
-
-        if let Some(code) = self
-            .attributes
-            .clone()
-            .into_iter()
-            .find(|a| a.key == "http.status_code")
-        {
-            if let Some(code_value) = code.value.to_i64() {
-                if let Some(sentry_status) = status_codes::HTTP.get(&code_value) {
-                    return sentry_status;
-                }
-            }
-        }
-
-        if let Some(code) = self
-            .attributes
-            .clone()
-            .into_iter()
-            .find(|a| a.key == "rpc.grpc.status_code")
-        {
-            if let Some(code_value) = code.value.to_i64() {
-                if let Some(sentry_status) = status_codes::GRPC.get(&code_value) {
-                    return sentry_status;
-                }
-            }
-        }
-
-        "unknown_error"
-    }
 }
 
 #[cfg(test)]
