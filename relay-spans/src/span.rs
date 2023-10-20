@@ -19,7 +19,7 @@ pub struct Span {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub trace_state: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub parent_span_id: Option<String>,
+    pub parent_span_id: String,
     pub name: String,
     pub kind: SpanKind,
     pub start_time_unix_nano: i64,
