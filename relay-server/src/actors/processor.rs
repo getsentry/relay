@@ -2448,7 +2448,7 @@ impl EnvelopeProcessorService {
                 let span: relay_spans::Span = match serde_json::from_slice(&item.payload()) {
                     Ok(span) => span,
                     Err(e) => {
-                        relay_log::error!("Invalid span: {e}");
+                        relay_log::error!(error = &e as &dyn Error, "failed to parse OTel span");
                         return ItemAction::DropSilently;
                     }
                 };
@@ -2458,7 +2458,10 @@ impl EnvelopeProcessorService {
                         let payload: Bytes = match span.to_json() {
                             Ok(payload) => payload.into(),
                             Err(e) => {
-                                relay_log::error!("Invalid span: {e}");
+                                relay_log::error!(
+                                    error = &e as &dyn Error,
+                                    "Failed to serialize OTel span"
+                                );
                                 return ItemAction::DropSilently;
                             }
                         };
