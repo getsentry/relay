@@ -165,6 +165,8 @@ pub struct LimitedProjectConfig {
     pub measurements: Option<MeasurementsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub performance_score_config: Option<PerformanceScoreConfig>,
     #[serde(skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
     #[serde(skip_serializing_if = "Vec::is_empty")]
