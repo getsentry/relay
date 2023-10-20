@@ -3918,6 +3918,7 @@ version = "23.9.1"
 dependencies = [
  "chrono",
  "enumset",
+ "once_cell",
  "relay-event-schema",
  "relay-protocol",
  "serde",

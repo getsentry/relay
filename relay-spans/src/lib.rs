@@ -1,11 +1,15 @@
-use chrono::{TimeZone, Utc};
+use std::str::FromStr;
 
+use chrono::{TimeZone, Utc};
 use serde::Deserialize;
 use serde_repr::Deserialize_repr;
 
-use relay_event_schema::protocol::{Span as EventSpan, SpanId, Timestamp, TraceId};
+use relay_event_schema::protocol::{Span as EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
+use relay_protocol::{Annotated, Object, Value};
 
-#[derive(Debug, Deserialize)]
+mod status_codes;
+
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Span {
     pub trace_id: String,
@@ -28,7 +32,7 @@ pub struct Span {
     pub status: Status,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Event {
     pub time_unix_nano: u64,
     pub name: String,
@@ -36,7 +40,7 @@ pub struct Event {
     pub dropped_attributes_count: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Link {
     pub trace_id: String,
     pub span_id: String,
@@ -45,7 +49,7 @@ pub struct Link {
     pub dropped_attributes_count: u32,
 }
 
-#[derive(Debug, Deserialize_repr)]
+#[derive(Clone, Debug, Deserialize_repr)]
 #[repr(u32)]
 pub enum SpanKind {
     Unspecified = 0,
@@ -80,14 +84,14 @@ impl SpanKind {
     }
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Clone, Debug, Deserialize, Default)]
 pub struct Status {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub message: String,
     pub code: StatusCode,
 }
 
-#[derive(Debug, Deserialize_repr, Default)]
+#[derive(Clone, Debug, Deserialize_repr, Default, PartialEq)]
 #[repr(u32)]
 pub enum StatusCode {
     #[default]
@@ -114,29 +118,52 @@ impl StatusCode {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AnyValue {
-    StringValue(String),
-    BoolValue(bool),
-    IntValue(i64),
-    DoubleValue(f64),
     ArrayValue(ArrayValue),
-    KvlistValue(KeyValueList),
+    BoolValue(bool),
     BytesValue(Vec<u8>),
+    DoubleValue(f64),
+    IntValue(i64),
+    KvlistValue(KeyValueList),
+    StringValue(String),
 }
 
-#[derive(Debug, Deserialize)]
+impl AnyValue {
+    pub fn to_i64(self) -> Option<i64> {
+        match self {
+            AnyValue::IntValue(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn to_string(self) -> Option<String> {
+        match self {
+            AnyValue::StringValue(v) => Some(v),
+            AnyValue::BoolValue(v) => Some(v.to_string()),
+            AnyValue::IntValue(v) => Some(v.to_string()),
+            AnyValue::DoubleValue(v) => Some(v.to_string()),
+            AnyValue::BytesValue(v) => match String::from_utf8(v) {
+                Ok(v) => Some(v),
+                Err(_) => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct ArrayValue {
     pub values: Vec<AnyValue>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct KeyValueList {
     pub values: Vec<KeyValue>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct KeyValue {
     pub key: String,
     pub value: AnyValue,
@@ -155,15 +182,39 @@ impl From<Span> for EventSpan {
         let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
         let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
         let exclusive_time = (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
+        let mut attributes: Object<Value> = Object::new();
+        for attribute in from.attributes.clone() {
+            match attribute.value {
+                AnyValue::ArrayValue(_) => todo!(),
+                AnyValue::BoolValue(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+                AnyValue::BytesValue(_) => todo!(),
+                AnyValue::DoubleValue(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+                AnyValue::IntValue(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+                AnyValue::KvlistValue(_) => todo!(),
+                AnyValue::StringValue(v) => {
+                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                }
+            };
+        }
         let mut span = EventSpan {
-            description: from.name.into(),
+            data: attributes.into(),
+            description: from.name.clone().into(),
             exclusive_time: exclusive_time.into(),
-            span_id: SpanId(from.span_id).into(),
+            span_id: SpanId(from.span_id.clone()).into(),
             start_timestamp: Timestamp(start_timestamp).into(),
             timestamp: Timestamp(end_timestamp).into(),
-            trace_id: TraceId(from.trace_id).into(),
+            trace_id: TraceId(from.trace_id.clone()).into(),
             ..Default::default()
         };
+        if let Ok(status) = SpanStatus::from_str(from.sentry_status()) {
+            span.status = status.into();
+        }
         if let Some(parent_span_id) = from.parent_span_id {
             span.is_segment = false.into();
             span.parent_span_id = SpanId(parent_span_id).into();
@@ -172,6 +223,44 @@ impl From<Span> for EventSpan {
             span.segment_id = span.span_id.clone();
         }
         span
+    }
+}
+
+impl Span {
+    pub fn sentry_status(&self) -> &'static str {
+        let status_code = self.status.code.clone();
+
+        if status_code == StatusCode::Unset || status_code == StatusCode::Ok {
+            return "ok";
+        }
+
+        if let Some(code) = self
+            .attributes
+            .clone()
+            .into_iter()
+            .find(|a| a.key == "http.status_code")
+        {
+            if let Some(code_value) = code.value.to_i64() {
+                if let Some(sentry_status) = status_codes::HTTP.get(&code_value) {
+                    return sentry_status;
+                }
+            }
+        }
+
+        if let Some(code) = self
+            .attributes
+            .clone()
+            .into_iter()
+            .find(|a| a.key == "rpc.grpc.status_code")
+        {
+            if let Some(code_value) = code.value.to_i64() {
+                if let Some(sentry_status) = status_codes::GRPC.get(&code_value) {
+                    return sentry_status;
+                }
+            }
+        }
+
+        "unknown_error"
     }
 }
 
