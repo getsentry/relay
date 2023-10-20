@@ -14,6 +14,11 @@ local pipedream_config = {
       destination: 'relay',
     },
   },
+  rollback: {
+    material_name: 'relay_repo',
+    stage: 'deploy-production',
+    elastic_profile_id: 'relay',
+  },
 };
 
 pipedream.render(pipedream_config, relay)
