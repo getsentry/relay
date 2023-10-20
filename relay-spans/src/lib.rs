@@ -10,7 +10,9 @@ use relay_event_schema::protocol::{Span as EventSpan, SpanId, Timestamp, TraceId
 pub struct Span {
     pub trace_id: String,
     pub span_id: String,
-    pub trace_state: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub trace_state: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub parent_span_id: Option<String>,
     pub name: String,
     pub kind: SpanKind,
@@ -22,7 +24,8 @@ pub struct Span {
     pub dropped_events_count: u32,
     pub links: Vec<Link>,
     pub dropped_links_count: u32,
-    pub status: Option<Status>,
+    #[serde(default)]
+    pub status: Status,
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,15 +80,17 @@ impl SpanKind {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct Status {
-    pub message: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub message: String,
     pub code: StatusCode,
 }
 
-#[derive(Debug, Deserialize_repr)]
+#[derive(Debug, Deserialize_repr, Default)]
 #[repr(u32)]
 pub enum StatusCode {
+    #[default]
     Unset = 0,
     Ok = 1,
     Error = 2,
@@ -110,13 +115,8 @@ impl StatusCode {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct AnyValue {
-    pub value: Option<Value>,
-}
-
-#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum Value {
+pub enum AnyValue {
     StringValue(String),
     BoolValue(bool),
     IntValue(i64),
@@ -139,7 +139,7 @@ pub struct KeyValueList {
 #[derive(Debug, Deserialize)]
 pub struct KeyValue {
     pub key: String,
-    pub value: Option<Value>,
+    pub value: AnyValue,
 }
 
 #[derive(Debug, Deserialize)]
