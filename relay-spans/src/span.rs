@@ -9,6 +9,8 @@ use relay_protocol::{Annotated, Object, Value};
 
 use crate::status_codes;
 
+/// This is a serde implementation of https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto.
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Span {
