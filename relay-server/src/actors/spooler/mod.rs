@@ -1012,7 +1012,6 @@ mod tests {
             "spool": {
                 "envelopes": {
                     "path": target_dir,
-                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
                 }
             }
         }))
