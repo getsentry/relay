@@ -486,12 +486,12 @@ fn normalize_measurements(
 /// calculated.
 fn normalize_performance_score(
     event: &mut Event,
-    performance_score_config: Option<&PerformanceScoreConfig>,
+    performance_score: Option<&PerformanceScoreConfig>,
 ) {
-    let Some(performance_score_config) = performance_score_config else {
+    let Some(performance_score) = performance_score else {
         return;
     };
-    for profile in &performance_score_config.profiles {
+    for profile in &performance_score.profiles {
         if let Some(condition) = &profile.condition {
             if !condition.matches(event) {
                 continue;
@@ -973,7 +973,7 @@ pub struct LightNormalizationConfig<'a> {
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 
     /// Configuration for generating performance score measurements for web vitals
-    pub performance_score_config: Option<&'a PerformanceScoreConfig>,
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
 
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
@@ -1003,7 +1003,7 @@ impl Default for LightNormalizationConfig<'_> {
             light_normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
-            performance_score_config: Default::default(),
+            performance_score: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
             measurements: None,
@@ -1197,7 +1197,7 @@ pub fn light_normalize_event(
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(event, config.measurements, config.max_name_and_unit_len); // Measurements are part of the metric extraction
-        normalize_performance_score(event, config.performance_score_config);
+        normalize_performance_score(event, config.performance_score);
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
@@ -2999,7 +2999,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        let performance_score_config: PerformanceScoreConfig = serde_json::from_value(json!({
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
             "profiles": [
                 {
                     "name": "Desktop",
@@ -3039,7 +3039,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score_config));
+        normalize_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {
@@ -3132,7 +3132,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
 
-        let performance_score_config: PerformanceScoreConfig = serde_json::from_value(json!({
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
             "profiles": [
                 {
                     "name": "Desktop",
@@ -3160,7 +3160,7 @@ mod tests {
         }))
         .unwrap();
 
-        normalize_performance_score(&mut event, Some(&performance_score_config));
+        normalize_performance_score(&mut event, Some(&performance_score));
 
         insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
         {

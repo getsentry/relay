@@ -57,7 +57,7 @@ pub struct ProjectConfig {
     pub breakdowns_v2: Option<BreakdownsConfig>,
     /// Configuration for performance score calculations. Will be emitted only if present.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub performance_score_config: Option<PerformanceScoreConfig>,
+    pub performance_score: Option<PerformanceScoreConfig>,
     /// Configuration for extracting metrics from sessions.
     #[serde(skip_serializing_if = "SessionMetricsConfig::is_disabled")]
     pub session_metrics: SessionMetricsConfig,
@@ -114,7 +114,7 @@ impl Default for ProjectConfig {
             dynamic_sampling: None,
             measurements: None,
             breakdowns_v2: None,
-            performance_score_config: Default::default(),
+            performance_score: Default::default(),
             session_metrics: SessionMetricsConfig::default(),
             transaction_metrics: None,
             metric_extraction: Default::default(),
@@ -166,7 +166,7 @@ pub struct LimitedProjectConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakdowns_v2: Option<BreakdownsConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub performance_score_config: Option<PerformanceScoreConfig>,
+    pub performance_score: Option<PerformanceScoreConfig>,
     #[serde(skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
     #[serde(skip_serializing_if = "Vec::is_empty")]
