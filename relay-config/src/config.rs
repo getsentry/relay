@@ -14,10 +14,10 @@ use relay_common::Dsn;
 use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfig, KafkaConfigParam, KafkaTopic, TopicAssignments,
 };
-use relay_metrics::aggregator::{AggregatorConfig, ShiftKey};
-use relay_metrics::{
-    AggregatorServiceConfig, Condition, Field, MetricNamespace, ScopedAggregatorConfig,
+use relay_metrics::aggregator::{
+    AggregatorConfig, Condition, Field, ScopedAggregatorConfig, ShiftKey,
 };
+use relay_metrics::{AggregatorServiceConfig, MetricNamespace};
 use relay_redis::RedisConfig;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -2021,7 +2021,7 @@ impl Config {
         } = &self.default_aggregator_config().aggregator;
 
         for secondary_config in self.secondary_aggregator_configs() {
-            let agg = &secondary_config.config.aggregator;
+            let agg = &secondary_config.config;
 
             bucket_interval = bucket_interval.min(agg.bucket_interval);
             max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
@@ -2031,17 +2031,6 @@ impl Config {
             max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
             max_project_key_bucket_bytes =
                 max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
-        }
-
-        for agg in self
-            .secondary_aggregator_configs()
-            .iter()
-            .map(|sc| &sc.config)
-            .chain(std::iter::once(self.default_aggregator_config()))
-        {
-            if agg.aggregator.bucket_interval % bucket_interval != 0 {
-                relay_log::error!("buckets don't align");
-            }
         }
 
         AggregatorConfig {
@@ -2069,14 +2058,14 @@ impl Config {
     }
 
     /// Returns aggregator config for a given metrics namespace.
-    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorServiceConfig {
+    pub fn aggregator_config_for(&self, namespace: MetricNamespace) -> &AggregatorConfig {
         for entry in &self.values.secondary_aggregators {
             match entry.condition {
                 Condition::Eq(Field::Namespace(ns)) if ns == namespace => return &entry.config,
                 _ => (),
             }
         }
-        &self.values.aggregator
+        &self.values.aggregator.aggregator
     }
 
     /// Return the statically configured Relays.
