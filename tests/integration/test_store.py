@@ -746,8 +746,6 @@ def test_processing_quota_transaction_indexing(
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):
-    evt = threading.Event()
-
     def server_error(*args, **kwargs):
         # simulate a bug in sentry
         evt.set()
@@ -760,10 +758,12 @@ def test_events_buffered_before_auth(relay, mini_sentry):
     # keep max backoff as short as the configuration allows (1 sec)
     relay_options = {"http": {"max_retry_interval": 1}}
     relay = relay(mini_sentry, relay_options, wait_health_check=False)
-    assert evt.wait(1)  # wait for relay to start authenticating
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
+
+    evt = threading.Event()
+    assert evt.wait(1)  # wait for relay to start authenticating
 
     try:
         relay.send_event(project_id)
