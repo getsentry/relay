@@ -1161,17 +1161,9 @@ impl EnvelopeProcessorService {
                             )))
                         }
                     }
-                    Err(err) => {
-                        match err {
-                            relay_profiling::ProfileError::InvalidJson(_) => {
-                                relay_log::warn!(error = &err as &dyn Error, "invalid profile");
-                            }
-                            _ => relay_log::debug!(error = &err as &dyn Error, "invalid profile"),
-                        };
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )))
-                    }
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
             _ => ItemAction::Keep,

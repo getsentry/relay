@@ -62,7 +62,7 @@ struct ThreadMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    priority: Option<u32>,
+    priority: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
