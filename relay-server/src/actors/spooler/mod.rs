@@ -31,7 +31,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
