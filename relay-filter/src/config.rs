@@ -199,7 +199,7 @@ impl LegacyBrowsersFilterConfig {
 /// Configuration for a generic filter.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GenericFilterConfig {
+pub(crate) struct GenericFilterConfig {
     /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
     /// The condition for the filter.
@@ -214,6 +214,9 @@ impl GenericFilterConfig {
 }
 
 /// Configuration for a set of ordered filters.
+///
+/// We use a vector in order to guarantee consistent total ordering of filters that is required
+/// by the matching algorithm.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct OrderedFilters(pub Vec<(String, GenericFilterConfig)>);
 
@@ -269,16 +272,13 @@ impl<'de> Deserialize<'de> for OrderedFilters {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(OrderedFiltersVisitor())
+        deserializer.deserialize_map(OrderedFiltersVisitor)
     }
 }
 
 /// Configuration for generic filters.
-///
-/// We use a vector in order to guarantee consistent total ordering of filters that is required
-/// by the matching algorithm.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct GenericFiltersConfig {
+pub(crate) struct GenericFiltersConfig {
     /// Version of the filters configuration.
     pub version: u16,
     /// Filters configuration as an ordered map.
@@ -337,7 +337,7 @@ pub struct FiltersConfig {
 
     /// Configuration for generic filters.
     #[serde(default, skip_serializing_if = "GenericFiltersConfig::is_empty")]
-    pub generic: GenericFiltersConfig,
+    pub(crate) generic: GenericFiltersConfig,
 }
 
 impl FiltersConfig {

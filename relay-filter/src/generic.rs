@@ -8,18 +8,32 @@ use crate::{FilterStatKey, GenericFiltersConfig};
 use relay_event_schema::protocol::Event;
 use relay_protocol::RuleCondition;
 
-/// Maximum version of the generic filters schema.
+/// Maximum supported version of the generic filters schema. If the version in the project config
+/// is higher, no generic filters are applied.
 pub const VERSION: u16 = 1;
 
+fn is_enabled(config: &GenericFiltersConfig) -> bool {
+    config.version > 0 && config.version <= VERSION
+}
+
 /// Checks events by patterns in their error messages.
-pub fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
+fn matches(event: &Event, condition: Option<&RuleCondition>) -> bool {
     // TODO: the condition DSL needs to be extended to support more complex semantics, such as
     //  collections operations.
     condition.map_or(false, |condition| condition.matches(event))
 }
 
 /// Filters events by patterns in their error messages.
-pub fn should_filter(event: &Event, config: &GenericFiltersConfig) -> Result<(), FilterStatKey> {
+pub(crate) fn should_filter(
+    event: &Event,
+    config: &GenericFiltersConfig,
+) -> Result<(), FilterStatKey> {
+    // We check if the configuration is enabled, since we support only configuration with a version
+    // <= than the maximum one in this Relay instance.
+    if !is_enabled(config) {
+        return Ok(());
+    }
+
     for (filter_name, filter_config) in config.filters.0.iter() {
         if !filter_config.is_empty() && matches(event, filter_config.condition.as_ref()) {
             return Err(FilterStatKey::GenericFilter(filter_name.clone()));
@@ -31,7 +45,7 @@ pub fn should_filter(event: &Event, config: &GenericFiltersConfig) -> Result<(),
 
 #[cfg(test)]
 mod tests {
-    use crate::generic_filters::should_filter;
+    use crate::generic::{should_filter, VERSION};
     use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, OrderedFilters};
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
@@ -57,7 +71,7 @@ mod tests {
     }
 
     #[test]
-    fn test_should_filter_event() {
+    fn test_should_filter_match_rules() {
         let config = GenericFiltersConfig {
             version: 1,
             filters: OrderedFilters(mock_filters()),
@@ -84,6 +98,14 @@ mod tests {
                 "helloTransactions".to_string()
             ))
         );
+    }
+
+    #[test]
+    fn test_should_filter_fifo_match_rules() {
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: OrderedFilters(mock_filters()),
+        };
 
         // Matching both rules (first is taken).
         let event = Event {
@@ -95,10 +117,34 @@ mod tests {
             should_filter(&event, &config),
             Err(FilterStatKey::GenericFilter("firstReleases".to_string()))
         );
+    }
+
+    #[test]
+    fn test_should_filter_match_no_rules() {
+        let config = GenericFiltersConfig {
+            version: 1,
+            filters: OrderedFilters(mock_filters()),
+        };
 
         // Matching no rule.
         let event = Event {
             transaction: Annotated::new("/world".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(should_filter(&event, &config), Ok(()));
+    }
+
+    #[test]
+    fn test_should_filter_with_higher_config_version() {
+        let config = GenericFiltersConfig {
+            // We simulate receiving a higher configuration version, which we don't support.
+            version: VERSION + 1,
+            filters: OrderedFilters(mock_filters()),
+        };
+
+        let event = Event {
+            release: Annotated::new(LenientString("1.0".to_string())),
+            transaction: Annotated::new("/hello".to_string()),
             ..Default::default()
         };
         assert_eq!(should_filter(&event, &config), Ok(()));

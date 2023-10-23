@@ -3620,7 +3620,6 @@ dependencies = [
  "relay-common",
  "relay-event-schema",
  "relay-protocol",
- "relay-sampling",
  "relay-ua",
  "serde",
  "serde_json",
