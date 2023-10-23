@@ -11,8 +11,9 @@ pub enum Feature {
     /// Enables data scrubbing of replay recording payloads.
     #[serde(rename = "organizations:session-replay-recording-scrubbing")]
     SessionReplayRecordingScrubbing,
-    /// Enables new User Feedback ingest. TODO(jferg): rename to UserFeedbackIngest
-    /// once old UserReport logic is deprecated.
+    /// Enables new User Feedback ingest.
+    ///
+    /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
     #[serde(rename = "organizations:user-feedback-ingest")]
     UserReportV2Ingest,
     /// Enables device.class synthesis
