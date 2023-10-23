@@ -396,6 +396,7 @@ mod tests {
     use std::str::FromStr;
 
     use chrono::{TimeZone, Utc};
+    use relay_protocol::RuleCondition;
     use similar_asserts::assert_eq;
     use uuid::Uuid;
 
@@ -405,7 +406,6 @@ mod tests {
     use crate::dsc::TraceUserContext;
     use crate::evaluation::MatchedRuleIds;
     use crate::DynamicSamplingContext;
-    use relay_protocol::RuleCondition;
 
     use super::*;
 
