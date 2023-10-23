@@ -237,7 +237,7 @@ impl Serialize for OrderedFilters {
     }
 }
 
-struct OrderedFiltersVisitor();
+struct OrderedFiltersVisitor;
 
 impl<'de> Visitor<'de> for OrderedFiltersVisitor {
     type Value = OrderedFilters;
