@@ -31,6 +31,8 @@ expression: SerializableAnnotated(&event)
       "manufacturer": "Google",
       "brand": "google",
       "screen_resolution": null,
+      "screen_width_pixels": null,
+      "screen_height_pixels": null,
       "screen_density": null,
       "screen_dpi": null,
       "online": true,
@@ -48,8 +50,6 @@ expression: SerializableAnnotated(&event)
       "archs": [
         "x86"
       ],
-      "screen_height_pixels": null,
-      "screen_width_pixels": null,
       "type": "device"
     },
     "os": {
