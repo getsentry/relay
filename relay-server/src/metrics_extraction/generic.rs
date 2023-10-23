@@ -32,12 +32,12 @@ where
     };
 
     for metric_spec in &config.metrics {
-        if dbg!(metric_spec).category != instance.category() {
+        if metric_spec.category != instance.category() {
             continue;
         }
 
         if let Some(ref condition) = &metric_spec.condition {
-            if !dbg!(condition.matches(instance)) {
+            if condition.matches(instance) {
                 continue;
             }
         }

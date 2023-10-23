@@ -18,6 +18,9 @@ const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.link"];
 
+// TODO: docs
+const MAX_EXCLUSIVE_TIME_MOBILE_MS: u64 = 180_000;
+
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
@@ -154,6 +157,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             }))
             .collect(),
         },
+        // Mobile-specific tags:
         TagMapping {
             metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
             tags: ["release", "device.class"] // TODO: sentry PR for static strings
@@ -164,6 +168,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
                 })
                 .into(),
+        },
+        // Inlier-outlier tagging for mobile:
+        TagMapping {
+            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
+            tags: [TagSpec {
+                key: "inlier".into(),
+                field: None,
+                value: Some("inlier".into()),
+                condition: Some(
+                    RuleCondition::glob("span.op", MOBILE_OPS)
+                        & RuleCondition::gt("span.exclusive_time", MAX_EXCLUSIVE_TIME_MOBILE_MS),
+                ),
+            }]
+            .into(),
         },
         // Resource-specific tags:
         TagMapping {
