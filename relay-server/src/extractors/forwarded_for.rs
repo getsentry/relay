@@ -9,9 +9,9 @@ use axum::http::HeaderMap;
 pub struct ForwardedFor(String);
 
 impl ForwardedFor {
-    const FORWARDED_HEADER: &str = "X-Forwarded-For";
-    const VERCEL_FORWARDED_HEADER: &str = "X-Vercel-Forwarded-For";
-    const SENTRY_FORWARDED_HEADER: &str = "X-Sentry-Forwarded-For";
+    const FORWARDED_HEADER: &'static str = "X-Forwarded-For";
+    const VERCEL_FORWARDED_HEADER: &'static str = "X-Vercel-Forwarded-For";
+    const SENTRY_FORWARDED_HEADER: &'static str = "X-Sentry-Forwarded-For";
 
     /// We prefer the SENTRY_FORWARDED_HEADER over the standard header because our infrastructure
     /// puts the contents of the incoming FORWARDED_HEADER into SENTRY_FORWARDED_HEADER for security
