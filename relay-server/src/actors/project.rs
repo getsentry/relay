@@ -745,9 +745,8 @@ impl Project {
     /// forces an update. This does nothing if an update is already running in
     /// the background.
     ///
-    /// Independent of updating, _stale_ states are passed to the sender
-    /// immediately as long as they are in the [grace
-    /// period](Config::project_grace_period).
+    /// Independent of updating, _stale_ states are passed to the sender immediately
+    /// as long as they are in the [grace period](Config::project_grace_period).
     pub fn get_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
