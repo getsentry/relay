@@ -385,6 +385,14 @@
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>screen_resolution: Annotated&lt;String&gt;,
 
+    <span class="doccomment">/// Width of the screen in pixels.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>screen_width_pixels: Annotated&lt;u64&gt;,
+
+    <span class="doccomment">/// Height of the screen in pixels.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>screen_height_pixels: Annotated&lt;u64&gt;,
+
     <span class="doccomment">/// Device screen density.
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>screen_density: Annotated&lt;f64&gt;,
@@ -441,6 +449,10 @@
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>timezone: Annotated&lt;String&gt;,
 
+    <span class="doccomment">/// ISO 639-1 code of the locale the device is set to.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>locale: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Number of &quot;logical processors&quot;.
     ///
     /// For example, 8.
@@ -488,18 +500,6 @@
 
     <span class="doccomment">/// Whether location support is available on the device.
     </span><span class="kw">pub </span>supports_location_service: Annotated&lt;bool&gt;,
-
-    <span class="doccomment">/// Width of the screen in pixels.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
-    </span><span class="kw">pub </span>screen_width_pixels: Annotated&lt;u64&gt;,
-
-    <span class="doccomment">/// Height of the screen in pixels.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
-    </span><span class="kw">pub </span>screen_height_pixels: Annotated&lt;u64&gt;,
-
-    <span class="doccomment">/// Locale of the device.
-    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
-    </span><span class="kw">pub </span>locale: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// UUID of the device.
     </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
@@ -562,6 +562,8 @@
   &quot;manufacturer&quot;: &quot;Apple&quot;,
   &quot;brand&quot;: &quot;iphone&quot;,
   &quot;screen_resolution&quot;: &quot;800x600&quot;,
+  &quot;screen_width_pixels&quot;: 1920,
+  &quot;screen_height_pixels&quot;: 1080,
   &quot;screen_density&quot;: 1.1,
   &quot;screen_dpi&quot;: 1,
   &quot;online&quot;: true,
@@ -577,6 +579,7 @@
   &quot;external_free_storage&quot;: 2097152,
   &quot;boot_time&quot;: &quot;2018-02-08T12:52:12Z&quot;,
   &quot;timezone&quot;: &quot;Europe/Vienna&quot;,
+  &quot;locale&quot;: &quot;de-AT&quot;,
   &quot;processor_count&quot;: 8,
   &quot;cpu_description&quot;: &quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;,
   &quot;processor_frequency&quot;: 2400,
@@ -588,9 +591,6 @@
   &quot;supports_gyroscope&quot;: true,
   &quot;supports_audio&quot;: true,
   &quot;supports_location_service&quot;: true,
-  &quot;screen_width_pixels&quot;: 1920,
-  &quot;screen_height_pixels&quot;: 1080,
-  &quot;locale&quot;: &quot;US&quot;,
   &quot;uuid&quot;: &quot;abadcade-feed-dead-beef-baddadfeeded&quot;,
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;device&quot;
@@ -607,6 +607,8 @@
             manufacturer: Annotated::new(<span class="string">&quot;Apple&quot;</span>.to_string()),
             brand: Annotated::new(<span class="string">&quot;iphone&quot;</span>.to_string()),
             screen_resolution: Annotated::new(<span class="string">&quot;800x600&quot;</span>.to_string()),
+            screen_width_pixels: Annotated::new(<span class="number">1920</span>),
+            screen_height_pixels: Annotated::new(<span class="number">1080</span>),
             screen_density: Annotated::new(<span class="number">1.1</span>),
             screen_dpi: Annotated::new(<span class="number">1</span>),
             online: Annotated::new(<span class="bool-val">true</span>),
@@ -621,6 +623,7 @@
             external_free_storage: Annotated::new(<span class="number">2_097_152</span>),
             boot_time: Annotated::new(<span class="string">&quot;2018-02-08T12:52:12Z&quot;</span>.to_string()),
             timezone: Annotated::new(<span class="string">&quot;Europe/Vienna&quot;</span>.to_string()),
+            locale: Annotated::new(<span class="string">&quot;de-AT&quot;</span>.to_string()),
             processor_count: Annotated::new(<span class="number">8</span>),
             cpu_description: Annotated::new(
                 <span class="string">&quot;Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz&quot;</span>.to_string(),
@@ -634,9 +637,6 @@
             supports_gyroscope: Annotated::new(<span class="bool-val">true</span>),
             supports_audio: Annotated::new(<span class="bool-val">true</span>),
             supports_location_service: Annotated::new(<span class="bool-val">true</span>),
-            screen_width_pixels: Annotated::new(<span class="number">1920</span>),
-            screen_height_pixels: Annotated::new(<span class="number">1080</span>),
-            locale: Annotated::new(<span class="string">&quot;US&quot;</span>.to_string()),
             uuid: Annotated::new(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-baddadfeeded&quot;</span>)),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();

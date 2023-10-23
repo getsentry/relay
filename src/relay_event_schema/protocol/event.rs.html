@@ -1194,6 +1194,13 @@
 <a href="#1194" id="1194">1194</a>
 <a href="#1195" id="1195">1195</a>
 <a href="#1196" id="1196">1196</a>
+<a href="#1197" id="1197">1197</a>
+<a href="#1198" id="1198">1198</a>
+<a href="#1199" id="1199">1199</a>
+<a href="#1200" id="1200">1200</a>
+<a href="#1201" id="1201">1201</a>
+<a href="#1202" id="1202">1202</a>
+<a href="#1203" id="1203">1203</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1208,7 +1215,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
-    Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
+    AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
     LenientString, Level, LogEntry, Measurements, Metrics, OsContext, RelayInfo, Request,
     ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext,
@@ -1850,7 +1857,10 @@
             <span class="string">&quot;sdk.version&quot; </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
 
             <span class="comment">// Partial implementation of contexts.
-            </span><span class="string">&quot;contexts.device.arch&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.arch.as_str()<span class="question-mark">?</span>.into(),
+            </span><span class="string">&quot;contexts.app.in_foreground&quot; </span>=&gt; {
+                <span class="self">self</span>.context::&lt;AppContext&gt;()<span class="question-mark">?</span>.in_foreground.value()<span class="question-mark">?</span>.into()
+            }
+            <span class="string">&quot;contexts.device.arch&quot; </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.arch.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;contexts.device.battery_level&quot; </span>=&gt; <span class="self">self
                 </span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?
                 </span>.battery_level
@@ -1911,6 +1921,10 @@
                 </span>.status_code
                 .value()<span class="question-mark">?
                 </span>.into(),
+            <span class="string">&quot;contexts.unreal.crash_type&quot; </span>=&gt; <span class="kw">match </span><span class="self">self</span>.contexts.value()<span class="question-mark">?</span>.get_key(<span class="string">&quot;unreal&quot;</span>)<span class="question-mark">? </span>{
+                <span class="kw">super</span>::Context::Other(context) =&gt; context.get(<span class="string">&quot;crash_type&quot;</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>.into(),
+                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+            },
 
             <span class="comment">// Computed fields (see Discover)
             </span><span class="string">&quot;duration&quot; </span>=&gt; {
