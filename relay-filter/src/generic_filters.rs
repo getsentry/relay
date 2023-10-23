@@ -8,7 +8,7 @@ use crate::{FilterStatKey, GenericFiltersConfig};
 use relay_event_schema::protocol::Event;
 use relay_protocol::RuleCondition;
 
-/// Version of the generic filters schema.
+/// Maximum version of the generic filters schema.
 pub const VERSION: u16 = 1;
 
 /// Checks events by patterns in their error messages.
