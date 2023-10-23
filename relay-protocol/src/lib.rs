@@ -16,8 +16,9 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+pub mod condition;
+
 mod annotated;
-mod condition;
 mod impls;
 mod macros;
 mod meta;
