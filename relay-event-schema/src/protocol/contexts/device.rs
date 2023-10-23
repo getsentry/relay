@@ -1,6 +1,7 @@
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 
@@ -161,6 +162,22 @@ pub struct DeviceContext {
     /// Whether location support is available on the device.
     pub supports_location_service: Annotated<bool>,
 
+    /// Width of the screen in pixels.
+    #[metastructure(pii = "maybe")]
+    pub screen_width_pixels: Annotated<u64>,
+
+    /// Height of the screen in pixels.
+    #[metastructure(pii = "maybe")]
+    pub screen_height_pixels: Annotated<u64>,
+
+    /// Locale of the device.
+    #[metastructure(pii = "maybe")]
+    pub locale: Annotated<String>,
+
+    /// UUID of the device.
+    #[metastructure(pii = "maybe")]
+    pub uuid: Annotated<Uuid>,
+
     /// Additional arbitrary fields for forwards compatibility
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
     pub other: Object<Value>,
@@ -200,6 +217,7 @@ impl super::DefaultContext for DeviceContext {
 #[cfg(test)]
 mod tests {
     use relay_protocol::{Annotated, Object, Value};
+    use uuid::uuid;
 
     use super::*;
     use crate::protocol::Context;
@@ -243,6 +261,10 @@ mod tests {
   "supports_gyroscope": true,
   "supports_audio": true,
   "supports_location_service": true,
+  "screen_width_pixels": 1920,
+  "screen_height_pixels": 1080,
+  "locale": "US",
+  "uuid": "abadcade-feed-dead-beef-baddadfeeded",
   "other": "value",
   "type": "device"
 }"#;
@@ -285,6 +307,10 @@ mod tests {
             supports_gyroscope: Annotated::new(true),
             supports_audio: Annotated::new(true),
             supports_location_service: Annotated::new(true),
+            screen_width_pixels: Annotated::new(1920),
+            screen_height_pixels: Annotated::new(1080),
+            locale: Annotated::new("US".to_string()),
+            uuid: Annotated::new(uuid!("abadcade-feed-dead-beef-baddadfeeded")),
             other: {
                 let mut map = Object::new();
                 map.insert(

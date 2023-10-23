@@ -45,11 +45,11 @@ expression: SerializableAnnotated(&event)
       "external_free_storage": 534702080,
       "boot_time": null,
       "timezone": null,
+      "screen_width_pixels": null,
+      "screen_height_pixels": null,
       "archs": [
         "x86"
       ],
-      "screen_height_pixels": null,
-      "screen_width_pixels": null,
       "type": "device"
     },
     "os": {
