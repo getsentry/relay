@@ -3,14 +3,11 @@
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
-use std::fmt;
 use std::str::FromStr;
 
 use relay_common::glob3::GlobPatterns;
 use relay_protocol::RuleCondition;
-use serde::de::{MapAccess, Visitor};
-use serde::ser::SerializeMap;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 /// Common configuration for event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -200,6 +197,8 @@ impl LegacyBrowsersFilterConfig {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GenericFilterConfig {
+    /// Unique identifier of the generic filter.
+    pub id: String,
     /// Specifies whether this filter is enabled.
     pub is_enabled: bool,
     /// The condition for the filter.
@@ -213,76 +212,13 @@ impl GenericFilterConfig {
     }
 }
 
-/// Configuration for a set of ordered filters.
-///
-/// We use a vector in order to guarantee consistent total ordering of filters that is required
-/// by the matching algorithm.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct OrderedFilters(pub Vec<(String, GenericFilterConfig)>);
-
-impl OrderedFilters {
-    /// Returns true if there are no generic filters configured.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty() || self.0.iter().all(|(_, value)| value.is_empty())
-    }
-}
-
-impl Serialize for OrderedFilters {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(self.0.len()))?;
-        for (filter_name, filter_config) in self.0.iter() {
-            map.serialize_entry(filter_name, filter_config)?
-        }
-        map.end()
-    }
-}
-
-struct OrderedFiltersVisitor;
-
-impl<'de> Visitor<'de> for OrderedFiltersVisitor {
-    type Value = OrderedFilters;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter
-            .write_str("a map where keys are filter names and values are filter configurations")
-    }
-
-    fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
-    where
-        M: MapAccess<'de>,
-    {
-        let mut filters = OrderedFilters(vec![]);
-
-        // We don't perform any kind of de-duplication in case of duplicate keys, since this might
-        // lead to an opaque behavior from the outside. The resolution of multiple filters with
-        // the same name, will be a responsibility of the matching algorithm.
-        while let Some((key, value)) = access.next_entry()? {
-            filters.0.push((key, value));
-        }
-
-        Ok(filters)
-    }
-}
-
-impl<'de> Deserialize<'de> for OrderedFilters {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_map(OrderedFiltersVisitor)
-    }
-}
-
 /// Configuration for generic filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub(crate) struct GenericFiltersConfig {
     /// Version of the filters configuration.
     pub version: u16,
-    /// Filters configuration as an ordered map.
-    pub filters: OrderedFilters,
+    /// List of generic filters.
+    pub filters: Vec<GenericFilterConfig>,
 }
 
 impl GenericFiltersConfig {
@@ -396,9 +332,7 @@ mod tests {
             },
             generic: GenericFiltersConfig {
                 version: 0,
-                filters: OrderedFilters(
-                    [],
-                ),
+                filters: []
             },
         }
         "###);
@@ -439,13 +373,11 @@ mod tests {
             },
             generic: GenericFiltersConfig {
                 version: 1,
-                filters: OrderedFilters(vec![(
-                    "hydrationError".to_string(),
-                    GenericFilterConfig {
-                        is_enabled: true,
-                        condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
-                    },
-                )]),
+                filters: vec![GenericFilterConfig {
+                    id: "hydrationError".to_string(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
+                }],
             },
         };
 
@@ -494,16 +426,15 @@ mod tests {
           },
           "generic": {
             "version": 1,
-            "filters": {
-              "hydrationError": {
-                "isEnabled": true,
-                "condition": {
-                  "op": "eq",
-                  "name": "event.exceptions",
-                  "value": "HydrationError"
-                }
+            "filters": [
+              "id": "hydrationError",
+              "isEnabled": true,
+              "condition": {
+                "op": "eq",
+                "name": "event.exceptions",
+                "value": "HydrationError"
               }
-            }
+            ]
           }
         }
         "#);
@@ -525,8 +456,9 @@ mod tests {
     fn test_deserialize_generic_filters() {
         let json = r#"{
             "version": 1,
-            "filters": {
-                "hydrationError": {
+            "filters": [
+                {
+                  "id": "hydrationError",
                   "isEnabled": true,
                   "condition": {
                     "op": "eq",
@@ -534,43 +466,38 @@ mod tests {
                     "value": "HydrationError"
                   }
                 },
-                "chunkLoadError": {
-                    "isEnabled": false
+                {
+                  "id": "chunkLoadError",
+                  "isEnabled": false
                 }
-           }
+           ]
         }"#;
         let config = serde_json::from_str::<GenericFiltersConfig>(json).unwrap();
         insta::assert_debug_snapshot!(config, @r###"
         GenericFiltersConfig {
             version: 1,
-            filters: OrderedFilters(
-                [
-                    (
-                        "hydrationError",
-                        GenericFilterConfig {
-                            is_enabled: true,
-                            condition: Some(
-                                Eq(
-                                    EqCondition {
-                                        name: "event.exceptions",
-                                        value: String("HydrationError"),
-                                        options: EqCondOptions {
-                                            ignore_case: false,
-                                        },
-                                    },
-                                ),
-                            ),
-                        },
+            filters: [
+                GenericFilterConfig {
+                    id: "hydrationError",
+                    is_enabled: true,
+                    condition: Some(
+                        Eq(
+                            EqCondition {
+                                name: "event.exceptions",
+                                value: String("HydrationError"),
+                                options: EqCondOptions {
+                                    ignore_case: false,
+                                },
+                            },
+                        ),
                     ),
-                    (
-                        "chunkLoadError",
-                        GenericFilterConfig {
-                            is_enabled: false,
-                            condition: None,
-                        },
-                    ),
-                ],
-            ),
+                },
+                GenericFilterConfig {
+                    id: "chunkLoadError",
+                    is_enabled: false,
+                    condition: None,
+                },
+            ],
         }
         "###);
     }

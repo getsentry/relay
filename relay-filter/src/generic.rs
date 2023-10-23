@@ -34,9 +34,9 @@ pub(crate) fn should_filter(
         return Ok(());
     }
 
-    for (filter_name, filter_config) in config.filters.0.iter() {
+    for filter_config in config.filters.iter() {
         if !filter_config.is_empty() && matches(event, filter_config.condition.as_ref()) {
-            return Err(FilterStatKey::GenericFilter(filter_name.clone()));
+            return Err(FilterStatKey::GenericFilter(filter_config.id.clone()));
         }
     }
 
@@ -46,27 +46,23 @@ pub(crate) fn should_filter(
 #[cfg(test)]
 mod tests {
     use crate::generic::{should_filter, VERSION};
-    use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig, OrderedFilters};
+    use crate::{FilterStatKey, GenericFilterConfig, GenericFiltersConfig};
     use relay_event_schema::protocol::{Event, LenientString};
     use relay_protocol::Annotated;
     use relay_protocol::RuleCondition;
 
-    fn mock_filters() -> Vec<(String, GenericFilterConfig)> {
+    fn mock_filters() -> Vec<GenericFilterConfig> {
         vec![
-            (
-                "firstReleases".to_string(),
-                GenericFilterConfig {
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.release", "1.0")),
-                },
-            ),
-            (
-                "helloTransactions".to_string(),
-                GenericFilterConfig {
-                    is_enabled: true,
-                    condition: Some(RuleCondition::eq("event.transaction", "/hello")),
-                },
-            ),
+            GenericFilterConfig {
+                id: "firstReleases".to_string(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.release", "1.0")),
+            },
+            GenericFilterConfig {
+                id: "helloTransactions".to_string(),
+                is_enabled: true,
+                condition: Some(RuleCondition::eq("event.transaction", "/hello")),
+            },
         ]
     }
 
@@ -74,7 +70,7 @@ mod tests {
     fn test_should_filter_match_rules() {
         let config = GenericFiltersConfig {
             version: 1,
-            filters: OrderedFilters(mock_filters()),
+            filters: mock_filters(),
         };
 
         // Matching first rule.
@@ -104,7 +100,7 @@ mod tests {
     fn test_should_filter_fifo_match_rules() {
         let config = GenericFiltersConfig {
             version: 1,
-            filters: OrderedFilters(mock_filters()),
+            filters: mock_filters(),
         };
 
         // Matching both rules (first is taken).
@@ -123,7 +119,7 @@ mod tests {
     fn test_should_filter_match_no_rules() {
         let config = GenericFiltersConfig {
             version: 1,
-            filters: OrderedFilters(mock_filters()),
+            filters: mock_filters(),
         };
 
         // Matching no rule.
@@ -139,7 +135,7 @@ mod tests {
         let config = GenericFiltersConfig {
             // We simulate receiving a higher configuration version, which we don't support.
             version: VERSION + 1,
-            filters: OrderedFilters(mock_filters()),
+            filters: mock_filters(),
         };
 
         let event = Event {
