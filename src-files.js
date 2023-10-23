@@ -26,7 +26,7 @@ var srcIndex = JSON.parse('{\
 "relay_monitors":["",[],["lib.rs"]],\
 "relay_pii":["",[],["attachments.rs","builtin.rs","compiledconfig.rs","config.rs","convert.rs","generate_selectors.rs","legacy.rs","lib.rs","minidumps.rs","processor.rs","redactions.rs","regexes.rs","selector.rs","utils.rs"]],\
 "relay_profiling":["",[],["android.rs","error.rs","extract_from_transaction.rs","lib.rs","measurements.rs","native_debug_image.rs","outcomes.rs","sample.rs","transaction_metadata.rs","utils.rs"]],\
-"relay_protocol":["",[],["annotated.rs","condition.rs","impls.rs","lib.rs","macros.rs","meta.rs","size.rs","traits.rs","utils.rs","value.rs"]],\
+"relay_protocol":["",[],["annotated.rs","condition.rs","impls.rs","lib.rs","macros.rs","meta.rs","size.rs","traits.rs","value.rs"]],\
 "relay_protocol_derive":["",[],["lib.rs"]],\
 "relay_quotas":["",[],["lib.rs","quota.rs","rate_limit.rs","redis.rs"]],\
 "relay_redis":["",[],["config.rs","lib.rs","real.rs"]],\

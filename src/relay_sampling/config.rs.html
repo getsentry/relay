@@ -559,6 +559,11 @@
 <a href="#559" id="559">559</a>
 <a href="#560" id="560">560</a>
 <a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling rule configuration.
 
 </span><span class="kw">use </span>std::fmt;
@@ -566,7 +571,7 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span>relay_protocol::{is_default, RuleCondition};
+<span class="kw">use </span>relay_protocol::RuleCondition;
 
 <span class="doccomment">/// Represents the dynamic sampling configuration available to a project.
 ///
@@ -646,6 +651,11 @@
         <span class="self">self</span>.decaying_fn
             .adjust_sample_rate(sample_rate, now, <span class="self">self</span>.time_range)
     }
+}
+
+<span class="doccomment">/// Returns `true` if this value is equal to `Default::default()`.
+</span><span class="kw">fn </span>is_default&lt;T: Default + PartialEq&gt;(t: <span class="kw-2">&amp;</span>T) -&gt; bool {
+    <span class="kw-2">*</span>t == T::default()
 }
 
 <span class="doccomment">/// A sampling strategy definition.

@@ -1087,6 +1087,10 @@
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
 <a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types to specify conditions on data.
 //!
 //! The root type is [`RuleCondition`].
@@ -1095,7 +1099,6 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::{Number, Value};
 
-<span class="kw">use </span><span class="kw">crate</span>::utils;
 <span class="kw">use crate</span>::{Getter, Val};
 
 <span class="doccomment">/// Options for [`EqCondition`].
@@ -1128,7 +1131,7 @@
     </span><span class="kw">pub </span>value: Value,
 
     <span class="doccomment">/// Configuration options for the condition.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;utils::is_default&quot;</span>)]
+    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">&quot;is_default&quot;</span>)]
     </span><span class="kw">pub </span>options: EqCondOptions,
 }
 
@@ -1179,6 +1182,11 @@
             <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
         }
     }
+}
+
+<span class="doccomment">/// Returns `true` if this value is equal to `Default::default()`.
+</span><span class="kw">fn </span>is_default&lt;T: Default + PartialEq&gt;(t: <span class="kw-2">&amp;</span>T) -&gt; bool {
+    <span class="kw-2">*</span>t == T::default()
 }
 
 <span class="macro">macro_rules! </span>impl_cmp_condition {

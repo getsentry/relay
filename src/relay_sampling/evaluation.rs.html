@@ -1275,6 +1275,7 @@
     <span class="kw">use </span>std::str::FromStr;
 
     <span class="kw">use </span>chrono::{TimeZone, Utc};
+    <span class="kw">use </span>relay_protocol::RuleCondition;
     <span class="kw">use </span>similar_asserts::assert_eq;
     <span class="kw">use </span>uuid::Uuid;
 
@@ -1284,7 +1285,6 @@
     <span class="kw">use </span><span class="kw">crate</span>::dsc::TraceUserContext;
     <span class="kw">use </span><span class="kw">crate</span>::evaluation::MatchedRuleIds;
     <span class="kw">use </span><span class="kw">crate</span>::DynamicSamplingContext;
-    <span class="kw">use </span>relay_protocol::RuleCondition;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
