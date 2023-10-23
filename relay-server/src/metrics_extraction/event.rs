@@ -1100,6 +1100,7 @@ mod tests {
             .set_value(Some(Timestamp::from(DateTime::<Utc>::MAX_UTC))); // whatever
         span.op.set_value(Some(span_op.into()));
         span.exclusive_time.set_value(Some(duration_millis));
+
         let mut config = ProjectConfig::default();
         config.features.0.insert(Feature::SpanMetricsExtraction);
         config.sanitize(); // apply defaults for span extraction

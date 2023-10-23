@@ -67,12 +67,16 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         conditions
     };
 
+    // For mobile spans, only extract duration metrics when they are below a threshold.
+    let duration_condition = RuleCondition::negate(RuleCondition::glob("span.op", MOBILE_OPS))
+        | RuleCondition::gt("span.exclusive_time", MAX_EXCLUSIVE_TIME_MOBILE_MS);
+
     config.metrics.extend([
         MetricSpec {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone()),
+            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
             tags: vec![TagSpec {
                 key: "transaction".into(),
                 field: Some("span.sentry_tags.transaction".into()),
@@ -84,7 +88,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             category: DataCategory::Span,
             mri: "d:spans/exclusive_time_light@millisecond".into(),
             field: Some("span.exclusive_time".into()),
-            condition: Some(span_op_conditions.clone()),
+            condition: Some(span_op_conditions.clone() & duration_condition.clone()),
             tags: Default::default(),
         },
         MetricSpec {
@@ -168,20 +172,6 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     condition: Some(RuleCondition::eq("span.sentry_tags.mobile", "true")),
                 })
                 .into(),
-        },
-        // Inlier-outlier tagging for mobile:
-        TagMapping {
-            metrics: vec![LazyGlob::new("d:spans/exclusive_time*@millisecond".into())],
-            tags: [TagSpec {
-                key: "inlier".into(),
-                field: None,
-                value: Some("inlier".into()),
-                condition: Some(
-                    RuleCondition::glob("span.op", MOBILE_OPS)
-                        & RuleCondition::gt("span.exclusive_time", MAX_EXCLUSIVE_TIME_MOBILE_MS),
-                ),
-            }]
-            .into(),
         },
         // Resource-specific tags:
         TagMapping {
