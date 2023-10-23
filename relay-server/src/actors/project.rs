@@ -153,9 +153,10 @@ impl ProjectState {
         self.disabled
     }
 
-    /// Returns `true` if the project state obtained from the upstream could not be parsed. This
-    /// results in events being dropped similar to disabled states, but can provide separate
-    /// metrics.
+    /// Returns whether the project state obtained from upstream could not be parsed.
+    ///
+    /// This results in events being dropped similar to disabled states, but can
+    /// provide separate metrics.
     pub fn invalid(&self) -> bool {
         self.invalid
     }
@@ -739,12 +740,14 @@ impl Project {
 
     /// Obtains a valid project state and passes it to the sender once ready.
     ///
-    /// This first checks if the state needs to be updated. This is the case if the project state
-    /// has passed its cache timeout. The `no_cache` flag forces an update. This does nothing if an
-    /// update is already running in the background.
+    /// This first checks if the state needs to be updated. This is the case if
+    /// the project state has passed its cache timeout. The `no_cache` flag
+    /// forces an update. This does nothing if an update is already running in
+    /// the background.
     ///
-    /// Independent of updating, _stale_ states are passed to the sender immediately as long as they
-    /// are in the [grace period](Config::project_grace_period).
+    /// Independent of updating, _stale_ states are passed to the sender
+    /// immediately as long as they are in the [grace
+    /// period](Config::project_grace_period).
     pub fn get_state(
         &mut self,
         project_cache: Addr<ProjectCache>,
