@@ -1210,7 +1210,7 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               "minimum": 0.0
             },
             "locale": {
-              "description": " Locale of the device.",
+              "description": " ISO 639-1 code of the locale the device is set to.",
               "default": null,
               "type": [
                 "string",

@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
+    AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
     LenientString, Level, LogEntry, Measurements, Metrics, OsContext, RelayInfo, Request,
     ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext,
@@ -654,6 +654,9 @@ impl Getter for Event {
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
 
             // Partial implementation of contexts.
+            "contexts.app.in_foreground" => {
+                self.context::<AppContext>()?.in_foreground.value()?.into()
+            }
             "contexts.device.arch" => self.context::<DeviceContext>()?.arch.as_str()?.into(),
             "contexts.device.battery_level" => self
                 .context::<DeviceContext>()?
@@ -715,6 +718,10 @@ impl Getter for Event {
                 .status_code
                 .value()?
                 .into(),
+            "contexts.unreal.crash_type" => match self.contexts.value()?.get_key("unreal")? {
+                super::Context::Other(context) => context.get("crash_type")?.value()?.into(),
+                _ => return None,
+            },
 
             // Computed fields (see Discover)
             "duration" => {

@@ -58,6 +58,14 @@ pub struct DeviceContext {
     #[metastructure(pii = "maybe")]
     pub screen_resolution: Annotated<String>,
 
+    /// Width of the screen in pixels.
+    #[metastructure(pii = "maybe")]
+    pub screen_width_pixels: Annotated<u64>,
+
+    /// Height of the screen in pixels.
+    #[metastructure(pii = "maybe")]
+    pub screen_height_pixels: Annotated<u64>,
+
     /// Device screen density.
     #[metastructure(pii = "maybe")]
     pub screen_density: Annotated<f64>,
@@ -114,6 +122,10 @@ pub struct DeviceContext {
     #[metastructure(pii = "maybe")]
     pub timezone: Annotated<String>,
 
+    /// ISO 639-1 code of the locale the device is set to.
+    #[metastructure(pii = "maybe")]
+    pub locale: Annotated<String>,
+
     /// Number of "logical processors".
     ///
     /// For example, 8.
@@ -161,18 +173,6 @@ pub struct DeviceContext {
 
     /// Whether location support is available on the device.
     pub supports_location_service: Annotated<bool>,
-
-    /// Width of the screen in pixels.
-    #[metastructure(pii = "maybe")]
-    pub screen_width_pixels: Annotated<u64>,
-
-    /// Height of the screen in pixels.
-    #[metastructure(pii = "maybe")]
-    pub screen_height_pixels: Annotated<u64>,
-
-    /// Locale of the device.
-    #[metastructure(pii = "maybe")]
-    pub locale: Annotated<String>,
 
     /// UUID of the device.
     #[metastructure(pii = "maybe")]
@@ -235,6 +235,8 @@ mod tests {
   "manufacturer": "Apple",
   "brand": "iphone",
   "screen_resolution": "800x600",
+  "screen_width_pixels": 1920,
+  "screen_height_pixels": 1080,
   "screen_density": 1.1,
   "screen_dpi": 1,
   "online": true,
@@ -250,6 +252,7 @@ mod tests {
   "external_free_storage": 2097152,
   "boot_time": "2018-02-08T12:52:12Z",
   "timezone": "Europe/Vienna",
+  "locale": "de-AT",
   "processor_count": 8,
   "cpu_description": "Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz",
   "processor_frequency": 2400,
@@ -261,9 +264,6 @@ mod tests {
   "supports_gyroscope": true,
   "supports_audio": true,
   "supports_location_service": true,
-  "screen_width_pixels": 1920,
-  "screen_height_pixels": 1080,
-  "locale": "US",
   "uuid": "abadcade-feed-dead-beef-baddadfeeded",
   "other": "value",
   "type": "device"
@@ -280,6 +280,8 @@ mod tests {
             manufacturer: Annotated::new("Apple".to_string()),
             brand: Annotated::new("iphone".to_string()),
             screen_resolution: Annotated::new("800x600".to_string()),
+            screen_width_pixels: Annotated::new(1920),
+            screen_height_pixels: Annotated::new(1080),
             screen_density: Annotated::new(1.1),
             screen_dpi: Annotated::new(1),
             online: Annotated::new(true),
@@ -294,6 +296,7 @@ mod tests {
             external_free_storage: Annotated::new(2_097_152),
             boot_time: Annotated::new("2018-02-08T12:52:12Z".to_string()),
             timezone: Annotated::new("Europe/Vienna".to_string()),
+            locale: Annotated::new("de-AT".to_string()),
             processor_count: Annotated::new(8),
             cpu_description: Annotated::new(
                 "Intel(R) Core(TM)2 Quad CPU Q6600 @ 2.40GHz".to_string(),
@@ -307,9 +310,6 @@ mod tests {
             supports_gyroscope: Annotated::new(true),
             supports_audio: Annotated::new(true),
             supports_location_service: Annotated::new(true),
-            screen_width_pixels: Annotated::new(1920),
-            screen_height_pixels: Annotated::new(1080),
-            locale: Annotated::new("US".to_string()),
             uuid: Annotated::new(uuid!("abadcade-feed-dead-beef-baddadfeeded")),
             other: {
                 let mut map = Object::new();
