@@ -299,9 +299,36 @@
 <a href="#299" id="299">299</a>
 <a href="#300" id="300">300</a>
 <a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+<span class="kw">use </span>uuid::Uuid;
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 
@@ -462,6 +489,22 @@
     <span class="doccomment">/// Whether location support is available on the device.
     </span><span class="kw">pub </span>supports_location_service: Annotated&lt;bool&gt;,
 
+    <span class="doccomment">/// Width of the screen in pixels.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>screen_width_pixels: Annotated&lt;u64&gt;,
+
+    <span class="doccomment">/// Height of the screen in pixels.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>screen_height_pixels: Annotated&lt;u64&gt;,
+
+    <span class="doccomment">/// Locale of the device.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>locale: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// UUID of the device.
+    </span><span class="attr">#[metastructure(pii = <span class="string">&quot;maybe&quot;</span>)]
+    </span><span class="kw">pub </span>uuid: Annotated&lt;Uuid&gt;,
+
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility
     </span><span class="attr">#[metastructure(additional_properties, retain = <span class="string">&quot;true&quot;</span>, pii = <span class="string">&quot;maybe&quot;</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
@@ -501,6 +544,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_protocol::{Annotated, Object, Value};
+    <span class="kw">use </span>uuid::uuid;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::protocol::Context;
@@ -544,6 +588,10 @@
   &quot;supports_gyroscope&quot;: true,
   &quot;supports_audio&quot;: true,
   &quot;supports_location_service&quot;: true,
+  &quot;screen_width_pixels&quot;: 1920,
+  &quot;screen_height_pixels&quot;: 1080,
+  &quot;locale&quot;: &quot;US&quot;,
+  &quot;uuid&quot;: &quot;abadcade-feed-dead-beef-baddadfeeded&quot;,
   &quot;other&quot;: &quot;value&quot;,
   &quot;type&quot;: &quot;device&quot;
 }&quot;#</span>;
@@ -586,6 +634,10 @@
             supports_gyroscope: Annotated::new(<span class="bool-val">true</span>),
             supports_audio: Annotated::new(<span class="bool-val">true</span>),
             supports_location_service: Annotated::new(<span class="bool-val">true</span>),
+            screen_width_pixels: Annotated::new(<span class="number">1920</span>),
+            screen_height_pixels: Annotated::new(<span class="number">1080</span>),
+            locale: Annotated::new(<span class="string">&quot;US&quot;</span>.to_string()),
+            uuid: Annotated::new(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-baddadfeeded&quot;</span>)),
             other: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(
