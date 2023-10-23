@@ -5,8 +5,7 @@ use std::fmt;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::condition::RuleCondition;
-use crate::utils;
+use relay_protocol::RuleCondition;
 
 /// Represents the dynamic sampling configuration available to a project.
 ///
@@ -27,7 +26,7 @@ pub struct SamplingConfig {
     pub rules_v2: Vec<SamplingRule>,
 
     /// Defines which population of items a dynamic sample rate applies to.
-    #[serde(default, skip_serializing_if = "utils::is_default")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub mode: SamplingMode,
 }
 
@@ -72,7 +71,7 @@ pub struct SamplingRule {
     pub time_range: TimeRange,
 
     /// Declares how to interpolate the sample rate for rules with bounded time range.
-    #[serde(default, skip_serializing_if = "utils::is_default")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub decaying_fn: DecayingFunction,
 }
 
@@ -86,6 +85,11 @@ impl SamplingRule {
         self.decaying_fn
             .adjust_sample_rate(sample_rate, now, self.time_range)
     }
+}
+
+/// Returns `true` if this value is equal to `Default::default()`.
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    *t == T::default()
 }
 
 /// A sampling strategy definition.

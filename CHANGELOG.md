@@ -1,6 +1,28 @@
 # Changelog
 
-## Unreleased
+## Unrelease
+
+**Internal**:
+
+- Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
+
+## 23.10.1
+
+**Features**:
+
+- Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
+- Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
+- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640))
+
+**Internal**:
+
+- Report global config fetch errors after interval of constant failures elapsed. ([#2628](https://github.com/getsentry/relay/pull/2628))
+- Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
+- Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
+- Scrub random strings in resource span descriptions. ([#2614](https://github.com/getsentry/relay/pull/2614))
+
+## 23.10.0
 
 **Features**:
 
@@ -9,6 +31,8 @@
 - Extract size metrics and blocking status tag for resource spans. ([#2578](https://github.com/getsentry/relay/pull/2578))
 - Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
 - Add User Feedback Ingestion. ([#2604](https://github.com/getsentry/relay/pull/2604))
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
+- Add support for X-Sentry-Forwarded-For header. ([#2572](https://github.com/getsentry/relay/pull/2572))
 
 **Bug Fixes**:
 
@@ -32,6 +56,7 @@
 - Introduce a dedicated usage metric for transactions that replaces the duration metric. ([#2571](https://github.com/getsentry/relay/pull/2571), [#2589](https://github.com/getsentry/relay/pull/2589))
 - Restore the profiling killswitch. ([#2573](https://github.com/getsentry/relay/pull/2573))
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+- Move `condition.rs` from `relay-sampling` to `relay-protocol`. ([#2608](https://github.com/getsentry/relay/pull/2608))
 
 ## 23.9.1
 

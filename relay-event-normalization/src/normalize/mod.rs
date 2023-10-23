@@ -27,6 +27,7 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::span::tag_extraction::{self, extract_span_tags};
+use crate::timestamp::TimestampProcessor;
 use crate::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
@@ -851,7 +852,7 @@ pub struct LightNormalizationConfig<'a> {
     /// The valid time range for transaction events.
     ///
     /// This time range should be inferred from storage dependencies, such as metrics storage.
-    /// Transactions with an end timestamp is outside of this time range are dropped as invalid.
+    /// Transactions with an end timestamp outside of this time range are dropped as invalid.
     pub transaction_range: Option<Range<UnixTimestamp>>,
 
     /// The maximum length for names of custom measurements.
@@ -994,12 +995,13 @@ impl<'a> DynamicMeasurementsConfig<'a> {
 
 /// Normalizes data in the event payload.
 ///
-/// This function applies a series of transaformations on the event payload based on the passed
-/// configuration. See the config fields for a description of the normalization steps. There is
-/// extended normalization available in the [`StoreProcessor`](crate::StoreProcessor).
+/// This function applies a series of transformations on the event payload based
+/// on the passed configuration. See the config fields for a description of the
+/// normalization steps. There is extended normalization available in the
+/// [`StoreProcessor`](crate::StoreProcessor).
 ///
-/// The returned [`ProcessingResult`] indicates whether the passed event should be ingested or
-/// dropped.
+/// The returned [`ProcessingResult`] indicates whether the passed event should
+/// be ingested or dropped.
 pub fn light_normalize_event(
     event: &mut Annotated<Event>,
     config: LightNormalizationConfig,
@@ -1015,14 +1017,14 @@ pub fn light_normalize_event(
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.enrich_spans,
-            config.span_description_rules,
             config.transaction_range,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
+
+        TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
         normalize_security_report(event, config.client_ip, &config.user_agent);
@@ -3709,5 +3711,21 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_reject_stale_transaction() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
+        assert_eq!(
+            light_normalize_event(&mut transaction, LightNormalizationConfig::default())
+                .unwrap_err()
+                .to_string(),
+            "invalid transaction event: timestamp is too stale"
+        );
     }
 }

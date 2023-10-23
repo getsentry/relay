@@ -114,8 +114,8 @@ pub enum ProcessingError {
     #[error("missing project id in DSN")]
     MissingProjectId,
 
-    #[error("invalid security report type")]
-    InvalidSecurityType,
+    #[error("invalid security report type: {0:?}")]
+    InvalidSecurityType(Bytes),
 
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
@@ -147,7 +147,9 @@ impl ProcessingError {
             Self::PayloadTooLarge => Some(Outcome::Invalid(DiscardReason::TooLarge)),
             Self::InvalidJson(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidMsgpack(_) => Some(Outcome::Invalid(DiscardReason::InvalidMsgpack)),
-            Self::InvalidSecurityType => Some(Outcome::Invalid(DiscardReason::SecurityReportType)),
+            Self::InvalidSecurityType(_) => {
+                Some(Outcome::Invalid(DiscardReason::SecurityReportType))
+            }
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
@@ -1117,9 +1119,10 @@ impl EnvelopeProcessorService {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload()) {
-                Ok(processed) => {
-                    item.set_payload(ContentType::Json, processed);
+            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
+                Ok(result) => {
+                    item.set_routing_hint(result.routing_hint);
+                    item.set_payload(ContentType::Json, result.payload);
                     ItemAction::Keep
                 }
                 Err(error) => {
@@ -1435,10 +1438,13 @@ impl EnvelopeProcessorService {
         let len = item.len();
         let mut event = Event::default();
 
-        let data = &item.payload();
-        let report_type = SecurityReportType::from_json(data)
-            .map_err(ProcessingError::InvalidJson)?
-            .ok_or(ProcessingError::InvalidSecurityType)?;
+        let bytes = item.payload();
+        let data = &bytes;
+        let Some(report_type) =
+            SecurityReportType::from_json(data).map_err(ProcessingError::InvalidJson)?
+        else {
+            return Err(ProcessingError::InvalidSecurityType(bytes));
+        };
 
         let apply_result = match report_type {
             SecurityReportType::Csp => Csp::apply_to_event(data, &mut event),
@@ -2278,10 +2284,12 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        (resource_span_extraction_enabled && op.contains("resource."))
+        (resource_span_extraction_enabled
+            && (op.contains("resource.script") || op.contains("resource.css")))
             || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
+            || op.starts_with("file")
             || op.starts_with("db")
                 && !(op.contains("clickhouse")
                     || op.contains("mongodb")
@@ -3064,7 +3072,7 @@ mod tests {
     use relay_event_normalization::{MeasurementsConfig, RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::{EventId, TransactionSource};
     use relay_pii::DataScrubbingConfig;
-    use relay_sampling::condition::RuleCondition;
+    use relay_protocol::RuleCondition;
     use relay_sampling::config::{
         DecayingFunction, RuleId, RuleType, SamplingConfig, SamplingMode, SamplingRule,
         SamplingValue, TimeRange,

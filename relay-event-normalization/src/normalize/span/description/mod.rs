@@ -1,31 +1,33 @@
 //! Span description scrubbing logic.
 mod sql;
+use once_cell::sync::Lazy;
 pub use sql::parse_query;
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 use itertools::Itertools;
-use relay_event_schema::processor::{self, ProcessingResult};
 use relay_event_schema::protocol::Span;
-use relay_protocol::{Annotated, Remark, RemarkType, Value};
 use url::Url;
 
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
 };
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
-use crate::transactions::SpanDescriptionRule;
+
+/// Dummy URL used to parse relative URLs.
+static DUMMY_BASE_URL: Lazy<Url> = Lazy::new(|| "http://replace_me".parse().unwrap());
+
+/// Maximum length of a resource URL segment.
+///
+/// Segments longer than this are treated as identifiers.
+const MAX_SEGMENT_LENGTH: usize = 25;
 
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
-/// The resulting scrubbed description is stored in `data.description.scrubbed`, and serves as input
-/// for the span group hash.
-pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptionRule>) {
-    let Some(description) = span.description.as_str() else {
-        return;
-    };
+/// Returns `None` if no scrubbing can be performed.
+pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
+    let description = span.description.as_str()?;
 
     let db_system = span
         .data
@@ -34,8 +36,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
         .and_then(|system| system.as_str());
     let span_origin = span.origin.as_str();
 
-    let scrubbed = span
-        .op
+    span.op
         .as_str()
         .map(|op| op.split_once('.').unwrap_or((op, "")))
         .and_then(|(op, sub)| match (op, sub) {
@@ -56,7 +57,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
                     sql::scrub_queries(db_system, description)
                 }
             }
-            ("resource", _) => scrub_resource_identifiers(description),
+            ("resource", _) => scrub_resource(description),
             ("ui", "load") => {
                 // `ui.load` spans contain component names like `ListAppViewController`, so
                 // they _should_ be low-cardinality.
@@ -73,20 +74,7 @@ pub(crate) fn scrub_span_description(span: &mut Span, rules: &Vec<SpanDescriptio
             }
             ("file", _) => scrub_file(description),
             _ => None,
-        });
-
-    if let Some(scrubbed) = scrubbed {
-        span.data
-            .get_or_insert_with(BTreeMap::new)
-            // We don't care what the cause of scrubbing was, since we assume
-            // that after scrubbing the value is sanitized.
-            .insert(
-                "description.scrubbed".to_owned(),
-                Annotated::new(Value::String(scrubbed)),
-            );
-    }
-
-    apply_span_rename_rules(span, rules).ok(); // Only fails on InvalidTransaction
+        })
 }
 
 /// A span declares `op: db.sql.query`, but contains mongodb.
@@ -199,120 +187,121 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
     Some(scrubbed)
 }
 
-fn scrub_resource_identifiers(mut string: &str) -> Option<String> {
-    // Remove query parameters or the fragment.
-    if string.starts_with("data:") {
-        if let Some(pos) = string.find(';') {
-            return Some(string[..pos].into());
-        }
-        return Some("data:*/*".into());
-    } else if let Some(pos) = string.find('?') {
-        string = &string[..pos];
-    } else if let Some(pos) = string.find('#') {
-        string = &string[..pos];
-    }
-    match RESOURCE_NORMALIZER_REGEX.replace_all(string, "$pre*$post") {
-        Cow::Owned(scrubbed) => Some(scrubbed),
-        Cow::Borrowed(string) => {
-            // No IDs scrubbed, but we still want to set something.
-            // If we managed to parse the URL, we'll try to get an extension.
-            if let Ok(url) = Url::parse(string) {
-                let domain = normalize_domain(&url.host()?.to_string(), url.port())?;
-                // If there is an extension, we add it to the domain.
-                if let Some(extension) = url.path().rsplit_once('.') {
-                    return Some(format!("{domain}/*.{}", extension.1));
-                }
-                return Some(format!("{domain}/*"));
-            }
-            Some(string.into())
-        }
-    }
+enum UrlType {
+    /// A full URL including scheme and domain.
+    Full,
+    /// Missing domain, starts with `/`.
+    Absolute,
+    /// Missing domain, does not start with `/`.
+    Relative,
 }
 
-/// Applies rules to the span description.
-///
-/// For now, rules are only generated from transaction names, and the
-/// scrubbed value is stored in `span.data[description.scrubbed]` instead of
-/// `span.description` (which remains intact).
-fn apply_span_rename_rules(span: &mut Span, rules: &Vec<SpanDescriptionRule>) -> ProcessingResult {
-    if let Some(op) = span.op.value() {
-        if !op.starts_with("http") {
-            return Ok(());
+/// Scrubber for spans with `span.op` "resource.*".
+fn scrub_resource(string: &str) -> Option<String> {
+    let (url, ty) = match Url::parse(string) {
+        Ok(url) => (url, UrlType::Full),
+        Err(url::ParseError::RelativeUrlWithoutBase) => {
+            // Try again, with base URL
+            match Url::options().base_url(Some(&DUMMY_BASE_URL)).parse(string) {
+                Ok(url) => (
+                    url,
+                    if string.starts_with('/') {
+                        UrlType::Absolute
+                    } else {
+                        UrlType::Relative
+                    },
+                ),
+                Err(_) => return None,
+            }
         }
-    }
-
-    if rules.is_empty() {
-        return Ok(());
-    }
-
-    // HACK(iker): work-around to scrub the description, in a
-    // context-manager-like approach.
-    //
-    // If data[description.scrubbed] isn't present, we want to scrub
-    // span.description. However, they have different types:
-    // Annotated<Value> vs Annotated<String>. The simplest and fastest
-    // solution I found is to add span.description to span.data if it
-    // doesn't exist already, scrub it, and remove it if we did nothing.
-    let previously_scrubbed = span
-        .data
-        .value()
-        .map(|d| d.get("description.scrubbed"))
-        .is_some();
-    if !previously_scrubbed {
-        if let Some(description) = span.description.clone().value() {
-            span.data
-                .value_mut()
-                .get_or_insert_with(BTreeMap::new)
-                .insert(
-                    "description.scrubbed".to_owned(),
-                    Annotated::new(Value::String(description.to_owned())),
-                );
+        Err(_) => {
+            return None;
         }
-    }
+    };
 
-    let mut scrubbed = false;
-
-    if let Some(data) = span.data.value_mut() {
-        if let Some(description) = data.get_mut("description.scrubbed") {
-            processor::apply(description, |name, meta| {
-                if let Value::String(s) = name {
-                    let result = rules.iter().find_map(|rule| {
-                        rule.match_and_apply(Cow::Borrowed(s))
-                            .map(|new_name| (rule.pattern.compiled().pattern(), new_name))
-                    });
-
-                    if let Some((applied_rule, new_name)) = result {
-                        scrubbed = true;
-                        if *s != new_name {
-                            meta.add_remark(Remark::new(
-                                RemarkType::Substituted,
-                                // Setting a different format to not get
-                                // confused by the actual `span.description`.
-                                format!("description.scrubbed:{}", applied_rule),
-                            ));
-                            *name = Value::String(new_name);
-                        }
-                    }
-                }
-
-                Ok(())
-            })?;
+    let formatted = match url.scheme() {
+        "data" => match url.path().split_once(';') {
+            Some((ty, _data)) => format!("data:{ty}"),
+            None => "data:*/*".to_owned(),
+        },
+        "chrome-extension" => {
+            let path = scrub_resource_path(url.path());
+            format!("chrome-extension://*{path}")
         }
+        scheme => {
+            let path = url.path();
+            let path = scrub_resource_path(path);
+            let domain = url
+                .domain()
+                .and_then(|d| normalize_domain(d, url.port()))
+                .unwrap_or("".into());
+            format!("{scheme}://{domain}{path}")
+        }
+    };
+
+    // Remove previously inserted dummy URL if necessary:
+    let formatted = match ty {
+        UrlType::Full => formatted,
+        UrlType::Absolute => formatted.replace("http://replace_me", ""),
+        UrlType::Relative => formatted.replace("http://replace_me/", ""),
+    };
+
+    Some(formatted)
+}
+
+fn scrub_resource_path(path: &str) -> String {
+    let (mut base_path, mut extension) = path.rsplit_once('.').unwrap_or((path, ""));
+    if extension.contains('/') {
+        // Not really an extension
+        base_path = path;
+        extension = "";
     }
 
-    if !previously_scrubbed && !scrubbed {
-        span.data
-            .value_mut()
-            .as_mut()
-            .and_then(|data| data.remove("description.scrubbed"));
+    let mut segments = base_path.split('/').map(scrub_resource_segment);
+    let mut joined = segments.join("/");
+    if !extension.is_empty() {
+        joined.push('.');
+        joined.push_str(extension);
     }
 
-    Ok(())
+    joined
+}
+
+fn scrub_resource_segment(segment: &str) -> Cow<str> {
+    let segment = RESOURCE_NORMALIZER_REGEX.replace_all(segment, "$pre*$post");
+
+    // Crude heuristic: treat long segments as idendifiers.
+    if segment.len() > MAX_SEGMENT_LENGTH {
+        return Cow::Borrowed("*");
+    }
+
+    let mut all_alphabetic = true;
+    let mut found_uppercase = false;
+
+    // Do not accept segments with special characters.
+    for char in segment.chars() {
+        if !char.is_ascii_alphabetic() {
+            all_alphabetic = false;
+        }
+        if char.is_ascii_uppercase() {
+            found_uppercase = true;
+        }
+        if char.is_numeric() || "&%#=+@".contains(char) {
+            return Cow::Borrowed("*");
+        };
+    }
+
+    if all_alphabetic && found_uppercase {
+        // Assume random string identifier.
+        return Cow::Borrowed("*");
+    }
+
+    segment
 }
 
 #[cfg(test)]
 mod tests {
-    use relay_protocol::get_value;
+    use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -322,7 +311,7 @@ mod tests {
 
         // Same output and input means the input was already scrubbed.
         // An empty output `""` means the input wasn't scrubbed and Relay didn't scrub it.
-        ($name:ident, $description_in:literal, $op_in:literal, $output:literal) => {
+        ($name:ident, $description_in:literal, $op_in:literal, $expected:literal) => {
             #[test]
             fn $name() {
                 let json = format!(
@@ -346,23 +335,12 @@ mod tests {
                     .description
                     .set_value(Some($description_in.into()));
 
-                scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
+                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-                if $output == "" {
-                    assert!(span
-                        .value()
-                        .and_then(|span| span.data.value())
-                        .and_then(|data| data.get("description.scrubbed"))
-                        .is_none());
+                if $expected == "" {
+                    assert!(scrubbed.is_none());
                 } else {
-                    assert_eq!(
-                        $output,
-                        span.value()
-                            .and_then(|span| span.data.value())
-                            .and_then(|data| data.get("description.scrubbed"))
-                            .and_then(|an_value| an_value.as_str())
-                            .unwrap()
-                    );
+                    assert_eq!($expected, scrubbed.unwrap());
                 }
             }
         };
@@ -487,7 +465,7 @@ mod tests {
         resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
-        "https://example.com/static/chunks/vendors-node_modules_somemodule_*_mini-dist_index_js-client_dist-*-*.[hash].*.chunk.js-*.map"
+        "https://example.com/static/chunks/*.map"
     );
 
     span_description_test!(
@@ -508,7 +486,7 @@ mod tests {
         integer_in_resource,
         "https://example.com/assets/this_is-a_good_resource-123-scrub_me.js",
         "resource.css",
-        "https://example.com/assets/this_is-a_good_resource-*-scrub_me.js"
+        "https://example.com/assets/*.js"
     );
 
     span_description_test!(
@@ -522,14 +500,14 @@ mod tests {
         resource_query_params2,
         "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://data.domain.com/data/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "*.domain.com/*.gif"
+        "https://*.domain.com/data/guide.gif"
     );
 
     span_description_test!(
@@ -551,6 +529,41 @@ mod tests {
         "webroot/assets/Shop-1aff80f7.css",
         "resource.css",
         "webroot/assets/Shop-*.css"
+    );
+
+    span_description_test!(
+        chrome_extension,
+        "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
+        "resource.other",
+        "chrome-extension://*/img/assets/icon-*k.svg"
+    );
+
+    span_description_test!(
+        urlencoded_path_segments,
+        "https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue",
+        "resource.iframe",
+        "https://*.domain.com/embed/*"
+    );
+
+    span_description_test!(
+        random_string1,
+        "https://static.domain.com/6gezWf_qs4Wc12Nz9rpLOx2aw2k/foo-99",
+        "resource.img",
+        "https://*.domain.com/*/foo-*"
+    );
+
+    span_description_test!(
+        random_string2,
+        "http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp",
+        "resource.script",
+        "http://domain.com/*/*/*.jsonp"
+    );
+
+    span_description_test!(
+        random_string3,
+        "jkhdkkncnoglghljlkmcimlnlhkeamab/123.css",
+        "resource.link",
+        "*/*.css"
     );
 
     span_description_test!(
@@ -585,14 +598,14 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://data.domain.com/data/guide*.gif"
+        "https://*.domain.com/data/guide*.gif"
     );
 
     span_description_test!(
         resource_script_with_no_extension,
         "https://www.domain.com/page?id=1234567890",
         "resource.script",
-        "*.domain.com/*"
+        "https://*.domain.com/page"
     );
 
     span_description_test!(
@@ -625,6 +638,62 @@ mod tests {
 
     span_description_test!(db_category_with_not_sql, "{someField:someValue}", "db", "");
 
+    span_description_test!(
+        resource_img_semi_colon,
+        "http://www.foo.com/path/to/resource;param1=test;param2=ing",
+        "resource.img",
+        "http://*.foo.com/path/to/*"
+    );
+
+    span_description_test!(
+        resource_img_comma_with_extension,
+        "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
+        "resource.img",
+        "https://example.org/p/*/media/photos*/weird-stuff-*-*-*.jpg"
+    );
+
+    span_description_test!(
+        resource_img_path_with_comma,
+        "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
+        "resource.img",
+        "/help/purchase-details/*"
+    );
+
+    span_description_test!(
+        resource_script_random_path_only,
+        "/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB",
+        "resource.script",
+        "/*/*/*/*/*/*/*"
+    );
+
+    span_description_test!(
+        resource_script_normalize_domain,
+        "https://sub.sub.sub.domain.com/resource.js",
+        "resource.script",
+        "https://*.domain.com/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_extension_in_segment,
+        "https://domain.com/foo.bar/resource.js",
+        "resource.script",
+        "https://domain.com/foo.bar/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_missing_scheme,
+        "domain.com/foo.bar/resource.js",
+        "resource.script",
+        "domain.com/foo.bar/resource.js"
+    );
+
+    span_description_test!(
+        resource_script_missing_scheme_integer_id,
+        "domain.com/zero-length-00",
+        "resource.script",
+        "domain.com/zero-length-*"
+    );
+
     #[test]
     fn informed_sql_parser() {
         let json = r#"
@@ -641,14 +710,8 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
-        scrub_span_description(span, &vec![]);
-        let scrubbed = span
-            .data
-            .value()
-            .and_then(|d| d.get("description.scrubbed"))
-            .and_then(|v| v.value())
-            .and_then(|v| v.as_str());
-        assert_eq!(scrubbed, Some("SELECT %s"));
+        let scrubbed = scrub_span_description(span);
+        assert_eq!(scrubbed.as_deref(), Some("SELECT %s"));
     }
 
     #[test]
@@ -660,8 +723,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
         assert!(scrubbed.is_none());
@@ -679,11 +741,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         // Can be scrubbed with db system.
-        assert_eq!(scrubbed.as_str(), Some("SELECT a FROM b"));
+        assert_eq!(scrubbed.as_deref(), Some("SELECT a FROM b"));
     }
 
     #[test]
@@ -696,10 +757,9 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
-        assert_eq!(scrubbed.as_str(), Some("INSERTED * 'UAEventData'"));
+        assert_eq!(scrubbed.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
 
     #[test]
@@ -712,11 +772,10 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        scrub_span_description(span.value_mut().as_mut().unwrap(), &vec![]);
-        let scrubbed = get_value!(span.data["description.scrubbed"]!);
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap());
 
         assert_eq!(
-            scrubbed.as_str(),
+            scrubbed.as_deref(),
             Some("UPDATED * 'QueuedRequest', DELETED * 'QueuedRequest'")
         );
     }

@@ -1,6 +1,6 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
-use relay_sampling::condition::RuleCondition;
+use relay_protocol::RuleCondition;
 
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
@@ -14,6 +14,9 @@ const MOBILE_OPS: &[&str] = &["app.*", "ui.load*"];
 
 /// A list of patterns found in MongoDB queries
 const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
+
+/// A list of patterns for resource span ops we'd like to ingest.
+const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css"];
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -33,7 +36,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         return;
     }
 
-    let resource_condition = RuleCondition::glob("span.op", "resource*");
+    let resource_condition = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
     // Add conditions to filter spans if a specific module is enabled.
     // By default, this will extract all spans.
