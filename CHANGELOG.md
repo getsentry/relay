@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+**Internal**:
+
+- Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
+
 ## 23.10.1
 
 **Features**:
@@ -15,7 +23,6 @@
 - Restrict resource spans to script and css only. ([#2623](https://github.com/getsentry/relay/pull/2623))
 - Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
 - Scrub random strings in resource span descriptions. ([#2614](https://github.com/getsentry/relay/pull/2614))
-- Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
 
 ## 23.10.0
 
