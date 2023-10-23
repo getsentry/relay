@@ -215,7 +215,7 @@ impl GenericFilterConfig {
 
 /// Configuration for a set of ordered filters.
 #[derive(Clone, Debug, Default)]
-pub struct OrderedFilters(pub Vec<(String, GenericFilterConfig)>);
+pub(crate) struct OrderedFilters(pub Vec<(String, GenericFilterConfig)>);
 
 impl OrderedFilters {
     /// Returns true if there are no generic filters configured.
