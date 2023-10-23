@@ -31,7 +31,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -82,7 +82,7 @@ pub enum BufferError {
     #[error("failed to setup the database: {0}")]
     SqlxSetupFailed(sqlx::Error),
 
-    #[error("failed to create the spool buffer: {0}")]
+    #[error("failed to create the spool file: {0}")]
     FileSetupError(std::io::Error),
 
     #[error(transparent)]
@@ -668,8 +668,8 @@ impl BufferService {
     ///
     /// The directories and spool file will be created if they don't already
     /// exist.
-    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
-        BufferService::create_spool_directory(path.clone()).await?;
+    async fn setup(path: &Path) -> Result<(), BufferError> {
+        BufferService::create_spool_directory(path).await?;
 
         let options = SqliteConnectOptions::new()
             .filename(path)
@@ -686,13 +686,15 @@ impl BufferService {
     }
 
     /// Creates the directories for the spool file.
-    async fn create_spool_directory(mut path: PathBuf) -> Result<(), BufferError> {
-        path.pop();
-        if !path.exists() {
-            relay_log::debug!("creating directory for spooling file: {}", path.display());
+    async fn create_spool_directory(path: &Path) -> Result<(), BufferError> {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        if !parent.exists() {
+            relay_log::debug!("creating directory for spooling file: {}", parent.display());
             DirBuilder::new()
                 .recursive(true)
-                .create(&path)
+                .create(&parent)
                 .await
                 .map_err(BufferError::FileSetupError)?;
         }
@@ -1020,6 +1022,7 @@ mod tests {
         BufferService::create(buffer_guard, services(), config)
             .await
             .unwrap();
+        assert!(target_dir.exists());
     }
 
     #[tokio::test]
