@@ -903,7 +903,7 @@ impl Project {
         match self.expiry_state() {
             // If the new state is invalid but the old one still usable, keep the old one.
             ExpiryState::Updated(old) | ExpiryState::Stale(old)
-                if state.invalid() && state.project_id.is_some() =>
+                if state.invalid() || state.project_id.is_none() =>
             {
                 state = old
             }
