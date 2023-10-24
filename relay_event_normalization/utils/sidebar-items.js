@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["MOBILE_SDKS"],"fn":["extract_http_status_code","extract_transaction_op","get_eventuser_tag","http_status_code_from_span"]};
+window.SIDEBAR_ITEMS = {"constant":["MAX_DURATION_MOBILE_MS","MOBILE_SDKS"],"fn":["extract_http_status_code","extract_transaction_op","get_eventuser_tag","http_status_code_from_span"]};

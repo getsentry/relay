@@ -153,6 +153,12 @@
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! **Deprecated.** Utilities for extracting common event fields.
 //!
 //! This utility module is being phased out. Functionality in this module should be moved to the
@@ -167,6 +173,12 @@
     <span class="string">&quot;sentry.java.android&quot;</span>,
     <span class="string">&quot;sentry.javascript.react-native&quot;</span>,
 ];
+
+<span class="doccomment">/// Maximum length of a mobile span or measurement in milliseconds.
+///
+/// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
+/// as well as mobile measurements (on transactions) such as `app.start.cold`, etc.
+</span><span class="kw">pub const </span>MAX_DURATION_MOBILE_MS: f64 = <span class="number">180_000.0</span>;
 
 <span class="doccomment">/// Extract the HTTP status code from the span data.
 </span><span class="kw">pub fn </span>http_status_code_from_span(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {

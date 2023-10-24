@@ -3726,6 +3726,42 @@
 <a href="#3726" id="3726">3726</a>
 <a href="#3727" id="3727">3727</a>
 <a href="#3728" id="3728">3728</a>
+<a href="#3729" id="3729">3729</a>
+<a href="#3730" id="3730">3730</a>
+<a href="#3731" id="3731">3731</a>
+<a href="#3732" id="3732">3732</a>
+<a href="#3733" id="3733">3733</a>
+<a href="#3734" id="3734">3734</a>
+<a href="#3735" id="3735">3735</a>
+<a href="#3736" id="3736">3736</a>
+<a href="#3737" id="3737">3737</a>
+<a href="#3738" id="3738">3738</a>
+<a href="#3739" id="3739">3739</a>
+<a href="#3740" id="3740">3740</a>
+<a href="#3741" id="3741">3741</a>
+<a href="#3742" id="3742">3742</a>
+<a href="#3743" id="3743">3743</a>
+<a href="#3744" id="3744">3744</a>
+<a href="#3745" id="3745">3745</a>
+<a href="#3746" id="3746">3746</a>
+<a href="#3747" id="3747">3747</a>
+<a href="#3748" id="3748">3748</a>
+<a href="#3749" id="3749">3749</a>
+<a href="#3750" id="3750">3750</a>
+<a href="#3751" id="3751">3751</a>
+<a href="#3752" id="3752">3752</a>
+<a href="#3753" id="3753">3753</a>
+<a href="#3754" id="3754">3754</a>
+<a href="#3755" id="3755">3755</a>
+<a href="#3756" id="3756">3756</a>
+<a href="#3757" id="3757">3757</a>
+<a href="#3758" id="3758">3758</a>
+<a href="#3759" id="3759">3759</a>
+<a href="#3760" id="3760">3760</a>
+<a href="#3761" id="3761">3761</a>
+<a href="#3762" id="3762">3762</a>
+<a href="#3763" id="3763">3763</a>
+<a href="#3764" id="3764">3764</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -3756,6 +3792,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::{<span class="self">self</span>, extract_span_tags};
 <span class="kw">use </span><span class="kw">crate</span>::timestamp::TimestampProcessor;
+<span class="kw">use </span><span class="kw">crate</span>::utils::MAX_DURATION_MOBILE_MS;
 <span class="kw">use crate</span>::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
@@ -4167,6 +4204,29 @@
     }
 }
 
+<span class="doccomment">/// New SDKs do not send measurements when they exceed 180 seconds.
+///
+/// Drop those outlier measurements for older SDKs.
+</span><span class="kw">fn </span>filter_mobile_outliers(measurements: <span class="kw-2">&amp;mut </span>Measurements) {
+    <span class="kw">for </span>key <span class="kw">in </span>[
+        <span class="string">&quot;app_start_cold&quot;</span>,
+        <span class="string">&quot;app_start_warm&quot;</span>,
+        <span class="string">&quot;time_to_initial_display&quot;</span>,
+        <span class="string">&quot;time_to_full_display&quot;</span>,
+    ] {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = measurements.get_value(key) {
+            <span class="kw">if </span>value &gt; MAX_DURATION_MOBILE_MS {
+                measurements.remove(key);
+            }
+        }
+    }
+}
+
+<span class="kw">fn </span>normalize_mobile_measurements(measurements: <span class="kw-2">&amp;mut </span>Measurements) {
+    normalize_app_start_measurements(measurements);
+    filter_mobile_outliers(measurements);
+}
+
 <span class="kw">fn </span>normalize_units(measurements: <span class="kw-2">&amp;mut </span>Measurements) {
     <span class="kw">for </span>(name, measurement) <span class="kw">in </span>measurements.iter_mut() {
         <span class="kw">let </span>measurement = <span class="kw">match </span>measurement.value_mut() {
@@ -4192,7 +4252,7 @@
         <span class="comment">// Only transaction events may have a measurements interface
         </span>event.measurements = Annotated::empty();
     } <span class="kw">else if let </span>Annotated(<span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>measurements), <span class="kw-2">ref mut </span>meta) = event.measurements {
-        normalize_app_start_measurements(measurements);
+        normalize_mobile_measurements(measurements);
         normalize_units(measurements);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements_config) = measurements_config {
             remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
@@ -7436,6 +7496,18 @@
             },
         ]
         &quot;###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_filter_mobile_outliers() {
+        <span class="kw">let </span><span class="kw-2">mut </span>measurements =
+            Annotated::&lt;Measurements&gt;::from_json(<span class="string">r#&quot;{&quot;app_start_warm&quot;: {&quot;value&quot;: 180001}}&quot;#</span>)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        <span class="macro">assert_eq!</span>(measurements.len(), <span class="number">1</span>);
+        filter_mobile_outliers(<span class="kw-2">&amp;mut </span>measurements);
+        <span class="macro">assert_eq!</span>(measurements.len(), <span class="number">0</span>);
     }
 
     <span class="attr">#[test]
