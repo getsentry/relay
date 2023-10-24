@@ -522,10 +522,10 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<MergeBuckets> for EnvelopeProcessor {
+impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: MergeBuckets, _: ()) -> Self {
+    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
         Self::RateLimitFlushBuckets(message)
     }
 }
@@ -588,6 +588,7 @@ impl EnvelopeProcessorService {
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
+            aggregator: todo!(),
         };
 
         Self {
@@ -2940,10 +2941,9 @@ impl EnvelopeProcessorService {
         let buckets = bucket_limiter.into_metrics();
 
         if !buckets.is_empty() {
-            self.inner.aggregator.send(MergeBuckets {
-                project_key,
-                buckets,
-            });
+            self.inner
+                .aggregator
+                .send(MergeBuckets::new(project_key, buckets));
         }
     }
 
@@ -3499,6 +3499,7 @@ mod tests {
             redis_pool: None,
             geoip_lookup: None,
             global_config,
+            aggregator: todo!(),
         };
 
         EnvelopeProcessorService {

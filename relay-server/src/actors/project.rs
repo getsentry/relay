@@ -611,16 +611,19 @@ impl Project {
 
     fn foobar(
         &self,
-        project_state: Arc<ProjectState>,
-        project_key: ProjectKey,
-        buckets: Vec<Bucket>,
+        mut buckets: Vec<Bucket>,
         aggregator: Addr<Aggregator>,
-        project_cache: Addr<ProjectCache>,
         partition_key: Option<u64>,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) {
+        let Some(project_state) = self.state_value() else {
+            return;
+        };
+
         let Some(scoping) = self.scoping() else {
+            // This shouldn't be possible since we check if project id is present before setting the new project state.
+            // TODO(tor): Find a way to properly represent this invariant in the type system.
             relay_log::trace!(
                 "there is no scoping due to missing project id: dropping {} buckets",
                 buckets.len()
@@ -646,17 +649,6 @@ impl Project {
             _ => false,
         };
 
-        let flushbuckets = FlushBuckets {
-            project_key,
-            partition_key: None,
-            buckets,
-        };
-
-        let megebuckets = MergeBuckets {
-            project_key,
-            buckets,
-        };
-
         let buckets = match MetricsLimiter::create(buckets, quotas, scoping, usage) {
             Ok(mut bucket_limiter) => {
                 let cached_rate_limits = self.rate_limits().clone();
@@ -679,6 +671,8 @@ impl Project {
             }
             Err(buckets) => buckets,
         };
+
+        aggregator.send(MergeBuckets::new(self.project_key, buckets));
     }
 
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
@@ -698,7 +692,6 @@ impl Project {
                     State::Cached(state) => {
                         // We can send metrics straight to the aggregator.
                         relay_log::debug!("sending metrics straight to aggregator");
-                        Self::foobar(self.project_key, buckets);
                         //aggregator.send(MergeBuckets::new(self.project_key, buckets));
                     }
                     State::Pending(inner_agg) => {
@@ -840,12 +833,11 @@ impl Project {
 
     fn set_state(&mut self, state: Arc<ProjectState>, aggregator: Addr<Aggregator>) {
         let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
-        let buckets = self.state.set_state(state);
+        let buckets = self.state.set_state(state.clone());
 
         if let Some(buckets) = buckets {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
-                Self::foobar(self.project_key, buckets);
             }
         }
     }
