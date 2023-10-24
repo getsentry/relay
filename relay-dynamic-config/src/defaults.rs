@@ -19,9 +19,6 @@ const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.link"];
 
-// TODO: docs
-const MAX_EXCLUSIVE_TIME_MOBILE_MS: f64 = 180_000.0;
-
 /// Adds configuration for extracting metrics from spans.
 ///
 /// This configuration is temporarily hard-coded here. It will later be provided by the upstream.
