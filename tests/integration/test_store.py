@@ -1241,7 +1241,6 @@ def test_spans(
                 "category": "http",
                 "description": "GET *",
                 "group": "37e3d9fab1ae9162",
-                "module": "http",
                 "op": "http",
                 "transaction": "hi",
                 "transaction.op": "hi",
