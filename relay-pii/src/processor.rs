@@ -779,7 +779,7 @@ mod tests {
 
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
 
-        assert_debug_snapshot!(&data);
+        assert_annotated_snapshot!(&data);
     }
 
     #[test]

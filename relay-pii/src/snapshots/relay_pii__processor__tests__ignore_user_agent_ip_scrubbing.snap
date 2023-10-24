@@ -2,109 +2,38 @@
 source: relay-pii/src/processor.rs
 expression: "&data"
 ---
-Event {
-    id: ~,
-    level: ~,
-    version: ~,
-    ty: ~,
-    fingerprint: ~,
-    culprit: ~,
-    transaction: ~,
-    transaction_info: ~,
-    time_spent: ~,
-    logentry: ~,
-    logger: ~,
-    modules: ~,
-    platform: ~,
-    timestamp: ~,
-    start_timestamp: ~,
-    received: ~,
-    server_name: ~,
-    release: ~,
-    dist: ~,
-    environment: ~,
-    site: ~,
-    user: ~,
-    request: Request {
-        url: ~,
-        method: ~,
-        data: ~,
-        query_string: ~,
-        fragment: ~,
-        cookies: ~,
-        headers: Headers(
-            PairList(
+{
+  "request": {
+    "headers": [
+      [
+        "User-Agent",
+        "127.0.0.1"
+      ],
+      [
+        "X-Client-Ip",
+        "[ip]"
+      ]
+    ]
+  },
+  "_meta": {
+    "request": {
+      "headers": {
+        "1": {
+          "1": {
+            "": {
+              "rem": [
                 [
-                    (
-                        HeaderName(
-                            "User-Agent",
-                        ),
-                        HeaderValue(
-                            "127.0.0.1",
-                        ),
-                    ),
-                    (
-                        HeaderName(
-                            "X-Client-Ip",
-                        ),
-                        Annotated(
-                            HeaderValue(
-                                "[ip]",
-                            ),
-                            Meta {
-                                remarks: [
-                                    Remark {
-                                        ty: Substituted,
-                                        rule_id: "@ip:replace",
-                                        range: Some(
-                                            (
-                                                0,
-                                                4,
-                                            ),
-                                        ),
-                                    },
-                                ],
-                                errors: [],
-                                original_length: Some(
-                                    8,
-                                ),
-                                original_value: None,
-                            },
-                        ),
-                    ),
-                ],
-            ),
-        ),
-        body_size: ~,
-        env: ~,
-        inferred_content_type: ~,
-        api_target: ~,
-        other: {},
-    },
-    contexts: ~,
-    breadcrumbs: ~,
-    exceptions: ~,
-    stacktrace: ~,
-    template: ~,
-    threads: ~,
-    tags: ~,
-    extra: ~,
-    debug_meta: ~,
-    client_sdk: ~,
-    ingest_path: ~,
-    errors: ~,
-    key_id: ~,
-    project: ~,
-    grouping_config: ~,
-    checksum: ~,
-    csp: ~,
-    hpkp: ~,
-    expectct: ~,
-    expectstaple: ~,
-    spans: ~,
-    measurements: ~,
-    breakdowns: ~,
-    scraping_attempts: ~,
-    _metrics: ~,
-    other: {},
+                  "@ip:replace",
+                  "s",
+                  0,
+                  4
+                ]
+              ],
+              "len": 8
+            }
+          }
+        }
+      }
+    }
+  }
 }
