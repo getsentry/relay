@@ -332,7 +332,7 @@ mod tests {
             },
             generic: GenericFiltersConfig {
                 version: 0,
-                filters: []
+                filters: [],
             },
         }
         "###);
@@ -427,12 +427,14 @@ mod tests {
           "generic": {
             "version": 1,
             "filters": [
-              "id": "hydrationError",
-              "isEnabled": true,
-              "condition": {
-                "op": "eq",
-                "name": "event.exceptions",
-                "value": "HydrationError"
+              {
+                "id": "hydrationError",
+                "isEnabled": true,
+                "condition": {
+                  "op": "eq",
+                  "name": "event.exceptions",
+                  "value": "HydrationError"
+                }
               }
             ]
           }
