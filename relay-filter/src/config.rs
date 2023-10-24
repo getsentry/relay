@@ -44,6 +44,8 @@ pub enum LegacyBrowser {
     AndroidPre4,
     /// Apply to Safari 5 and older.
     SafariPre6,
+    /// Edge legacy i.e. 12-18.
+    EdgePre79,
     /// An unknown browser configuration for forward compatibility.
     Unknown(String),
 }
@@ -62,6 +64,7 @@ impl FromStr for LegacyBrowser {
             "opera_mini_pre_8" => LegacyBrowser::OperaMiniPre8,
             "android_pre_4" => LegacyBrowser::AndroidPre4,
             "safari_pre_6" => LegacyBrowser::SafariPre6,
+            "edge_pre_79" => LegacyBrowser::EdgePre79,
             _ => LegacyBrowser::Unknown(s.to_owned()),
         };
         Ok(v)
@@ -93,6 +96,7 @@ impl Serialize for LegacyBrowser {
             LegacyBrowser::OperaMiniPre8 => "opera_mini_pre_8",
             LegacyBrowser::AndroidPre4 => "android_pre_4",
             LegacyBrowser::SafariPre6 => "safari_pre_6",
+            LegacyBrowser::EdgePre79 => "edge_pre_79",
             LegacyBrowser::Unknown(string) => string,
         })
     }
@@ -316,7 +320,10 @@ mod tests {
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
-                browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
+                browsers: [LegacyBrowser::Ie9, LegacyBrowser::EdgePre79]
+                    .iter()
+                    .cloned()
+                    .collect(),
             },
             localhost: FilterConfig { is_enabled: true },
             releases: ReleasesFilterConfig {
@@ -354,7 +361,8 @@ mod tests {
           "legacyBrowsers": {
             "isEnabled": false,
             "options": [
-              "ie9"
+              "ie9",
+              "edge_pre_79"
             ]
           },
           "localhost": {
