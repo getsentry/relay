@@ -902,7 +902,11 @@ impl Project {
 
         match self.expiry_state() {
             // If the new state is invalid but the old one still usable, keep the old one.
-            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
+            ExpiryState::Updated(old) | ExpiryState::Stale(old)
+                if state.invalid() && state.project_id.is_some() =>
+            {
+                state = old
+            }
             // If the new state is valid or the old one is expired, always use the new one.
             _ => self.set_state(state.clone(), aggregator),
         }
