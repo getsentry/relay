@@ -1237,7 +1237,7 @@ mod tests {
             buckets.clone(),
         );
         let mut project_state = ProjectState::allowed();
-        project_state.project_id = Some(ProjectId::new(42));
+        project_state.project_id = Some(ProjectId::new(1));
         // set_state should trigger flushing from the metricsbuffer to aggregator.
         project.set_state(
             Arc::new(project_state),
