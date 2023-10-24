@@ -28,6 +28,7 @@ use smallvec::SmallVec;
 
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
+use crate::utils::MAX_DURATION_MOBILE_MS;
 use crate::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
@@ -442,6 +443,29 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
     }
 }
 
+/// New SDKs do not send measurements when they exceed 180 seconds.
+///
+/// Drop those outlier measurements for older SDKs.
+fn filter_mobile_outliers(measurements: &mut Measurements) {
+    for key in [
+        "app_start_cold",
+        "app_start_warm",
+        "time_to_initial_display",
+        "time_to_full_display",
+    ] {
+        if let Some(value) = measurements.get_value(key) {
+            if value > MAX_DURATION_MOBILE_MS {
+                measurements.remove(key);
+            }
+        }
+    }
+}
+
+fn normalize_mobile_measurements(measurements: &mut Measurements) {
+    normalize_app_start_measurements(measurements);
+    filter_mobile_outliers(measurements);
+}
+
 fn normalize_units(measurements: &mut Measurements) {
     for (name, measurement) in measurements.iter_mut() {
         let measurement = match measurement.value_mut() {
@@ -467,7 +491,7 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_app_start_measurements(measurements);
+        normalize_mobile_measurements(measurements);
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
             remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
@@ -3711,6 +3735,18 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_filter_mobile_outliers() {
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app_start_warm": {"value": 180001}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        assert_eq!(measurements.len(), 1);
+        filter_mobile_outliers(&mut measurements);
+        assert_eq!(measurements.len(), 0);
     }
 
     #[test]

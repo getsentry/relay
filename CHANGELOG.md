@@ -1,14 +1,21 @@
 # Changelog
 
-## Unrelease
+## Unreleased
 
-**Features**
+**Features**:
 
+- Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))
 - Add User Feedback Ingestion. ([#2604](https://github.com/getsentry/relay/pull/2604))
+
 
 **Internal**:
 
 - Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
+
+**Features**:
+
+- Filter outliers (>180s) for mobile measurements. ([#2649](https://github.com/getsentry/relay/pull/2649))
+- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640))
 
 ## 23.10.1
 
@@ -17,7 +24,7 @@
 - Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
 - Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
 - Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
-- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640))
+
 
 **Internal**:
 
