@@ -420,6 +420,23 @@
 <a href="#420" id="420">420</a>
 <a href="#421" id="421">421</a>
 <a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events originating from legacy browsers.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -462,6 +479,7 @@
                 LegacyBrowser::SafariPre6 =&gt; {
                     filter_browser(family, <span class="kw-2">&amp;</span>user_agent, <span class="string">&quot;Safari&quot;</span>, |x| x &lt; <span class="number">6</span>)
                 }
+                LegacyBrowser::EdgePre79 =&gt; filter_browser(family, <span class="kw-2">&amp;</span>user_agent, <span class="string">&quot;Edge&quot;</span>, |x| x &lt; <span class="number">79</span>),
                 LegacyBrowser::Unknown(<span class="kw">_</span>) =&gt; {
                     <span class="comment">// unknown browsers should not be filtered
                     </span><span class="bool-val">false
@@ -571,6 +589,13 @@
         <span class="string">&quot;Mozilla/5.0 (Macintosh; U; Intel Mac OS X 1063; tr-DE) AppleWebKit/533.16 (KHTML like Gecko) Version/5.0 Safari/533.16&quot;</span>;
     <span class="kw">const </span>SAFARI_6_UA: <span class="kw-2">&amp;</span>str =
         <span class="string">&quot;Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.17.4; en-GB) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/6.0 Safari/605.1.5&quot;</span>;
+    <span class="kw">const </span>EDGE_ANDROID_118_UA: <span class="kw-2">&amp;</span>str =
+        <span class="string">&quot;Mozilla/5.0 (Linux; Android 10; Pixel 3 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.80 Mobile Safari/537.36 EdgA/118.0.2088.58&quot;</span>;
+    <span class="kw">const </span>EDGE_79_UA: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3919.0 Safari/537.36 Edg/79.0.294.1&quot;</span>;
+    <span class="kw">const </span>EDGE_18_UA: <span class="kw-2">&amp;</span>str =
+        <span class="string">&quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582&quot;</span>;
+    <span class="kw">const </span>EDGE_12_UA: <span class="kw-2">&amp;</span>str =
+        <span class="string">&quot;Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246&quot;</span>;
 
     <span class="kw">use </span>std::collections::BTreeSet;
 
@@ -692,6 +717,11 @@
                 SAFARI_PRE6_UA,
                 <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::SafariPre6][..],
             ),
+            (EDGE_12_UA, <span class="kw-2">&amp;</span>[LegacyBrowser::EdgePre79][..]),
+            (
+                EDGE_18_UA,
+                <span class="kw-2">&amp;</span>[LegacyBrowser::OperaPre15, LegacyBrowser::EdgePre79][..],
+            ),
         ];
 
         <span class="kw">for </span>(<span class="kw-2">ref </span>user_agent, <span class="kw-2">ref </span>active_filters) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {
@@ -717,6 +747,10 @@
             (OPERA_MINI_8_UA, LegacyBrowser::OperaMiniPre8),
             (ANDROID_4_UA, LegacyBrowser::AndroidPre4),
             (SAFARI_6_UA, LegacyBrowser::SafariPre6),
+            (EDGE_12_UA, LegacyBrowser::Ie10),
+            (EDGE_18_UA, LegacyBrowser::Ie10),
+            (EDGE_79_UA, LegacyBrowser::EdgePre79),
+            (EDGE_ANDROID_118_UA, LegacyBrowser::EdgePre79),
         ];
 
         <span class="kw">for </span>(user_agent, active_filter) <span class="kw">in </span><span class="kw-2">&amp;</span>test_configs {

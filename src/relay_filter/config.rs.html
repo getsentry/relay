@@ -387,6 +387,14 @@
 <a href="#387" id="387">387</a>
 <a href="#388" id="388">388</a>
 <a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Config structs for all filters.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -433,6 +441,8 @@
     </span>AndroidPre4,
     <span class="doccomment">/// Apply to Safari 5 and older.
     </span>SafariPre6,
+    <span class="doccomment">/// Edge legacy i.e. 12-18.
+    </span>EdgePre79,
     <span class="doccomment">/// An unknown browser configuration for forward compatibility.
     </span>Unknown(String),
 }
@@ -451,6 +461,7 @@
             <span class="string">&quot;opera_mini_pre_8&quot; </span>=&gt; LegacyBrowser::OperaMiniPre8,
             <span class="string">&quot;android_pre_4&quot; </span>=&gt; LegacyBrowser::AndroidPre4,
             <span class="string">&quot;safari_pre_6&quot; </span>=&gt; LegacyBrowser::SafariPre6,
+            <span class="string">&quot;edge_pre_79&quot; </span>=&gt; LegacyBrowser::EdgePre79,
             <span class="kw">_ </span>=&gt; LegacyBrowser::Unknown(s.to_owned()),
         };
         <span class="prelude-val">Ok</span>(v)
@@ -482,6 +493,7 @@
             LegacyBrowser::OperaMiniPre8 =&gt; <span class="string">&quot;opera_mini_pre_8&quot;</span>,
             LegacyBrowser::AndroidPre4 =&gt; <span class="string">&quot;android_pre_4&quot;</span>,
             LegacyBrowser::SafariPre6 =&gt; <span class="string">&quot;safari_pre_6&quot;</span>,
+            LegacyBrowser::EdgePre79 =&gt; <span class="string">&quot;edge_pre_79&quot;</span>,
             LegacyBrowser::Unknown(string) =&gt; string,
         })
     }
@@ -705,7 +717,10 @@
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: <span class="bool-val">false</span>,
-                browsers: [LegacyBrowser::Ie9].iter().cloned().collect(),
+                browsers: [LegacyBrowser::Ie9, LegacyBrowser::EdgePre79]
+                    .iter()
+                    .cloned()
+                    .collect(),
             },
             localhost: FilterConfig { is_enabled: <span class="bool-val">true </span>},
             releases: ReleasesFilterConfig {
@@ -743,7 +758,8 @@
           &quot;legacyBrowsers&quot;: {
             &quot;isEnabled&quot;: false,
             &quot;options&quot;: [
-              &quot;ie9&quot;
+              &quot;ie9&quot;,
+              &quot;edge_pre_79&quot;
             ]
           },
           &quot;localhost&quot;: {
