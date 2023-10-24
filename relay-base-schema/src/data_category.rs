@@ -114,7 +114,7 @@ impl DataCategory {
             Self::Monitor => "monitor",
             Self::Span => "span",
             Self::MonitorSeat => "monitor_seat",
-            Self::UserReportV2 => "user_report_v2",
+            Self::UserReportV2 => "feedback",
             Self::Unknown => "unknown",
         }
     }
