@@ -1,5 +1,11 @@
 # Changelog
 
+## Unrelease
+
+**Internal**:
+
+- Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
+
 ## 23.10.1
 
 **Features**:

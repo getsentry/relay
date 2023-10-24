@@ -6,7 +6,6 @@ use relay_common::glob3::GlobPatterns;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 
-use crate::utils;
 use crate::{Getter, Val};
 
 /// Options for [`EqCondition`].
@@ -39,7 +38,7 @@ pub struct EqCondition {
     pub value: Value,
 
     /// Configuration options for the condition.
-    #[serde(default, skip_serializing_if = "utils::is_default")]
+    #[serde(default, skip_serializing_if = "is_default")]
     pub options: EqCondOptions,
 }
 
@@ -90,6 +89,11 @@ impl EqCondition {
             _ => false,
         }
     }
+}
+
+/// Returns `true` if this value is equal to `Default::default()`.
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    *t == T::default()
 }
 
 macro_rules! impl_cmp_condition {
