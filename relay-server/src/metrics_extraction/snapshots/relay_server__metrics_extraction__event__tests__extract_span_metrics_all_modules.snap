@@ -1297,63 +1297,6 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.response_content_length@byte",
-        value: Distribution(
-            [
-                36170.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "https://*.domain.com/path/to/*.css",
-            "span.domain": "*.domain.com",
-            "span.group": "52c9cf14584b4101",
-            "span.op": "resource.link",
-            "transaction": "gEt /api/:version/users/",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: "d:spans/http.decoded_response_content_length@byte",
-        value: Distribution(
-            [
-                128950.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "https://*.domain.com/path/to/*.css",
-            "span.domain": "*.domain.com",
-            "span.group": "52c9cf14584b4101",
-            "span.op": "resource.link",
-            "transaction": "gEt /api/:version/users/",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
-        name: "d:spans/http.response_transfer_size@byte",
-        value: Distribution(
-            [
-                36470.0,
-            ],
-        ),
-        tags: {
-            "environment": "fake_environment",
-            "resource.render_blocking_status": "blocking",
-            "span.description": "https://*.domain.com/path/to/*.css",
-            "span.domain": "*.domain.com",
-            "span.group": "52c9cf14584b4101",
-            "span.op": "resource.link",
-            "transaction": "gEt /api/:version/users/",
-        },
-    },
-    Bucket {
-        timestamp: UnixTimestamp(1694732408),
-        width: 0,
         name: "d:spans/exclusive_time@millisecond",
         value: Distribution(
             [
