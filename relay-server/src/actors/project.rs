@@ -1042,8 +1042,6 @@ impl Project {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -1095,6 +1093,8 @@ mod tests {
     async fn test_stale_cache() {
         let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+        let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
         let config = Arc::new(
             Config::from_json_value(json!(
                 {
@@ -1126,8 +1126,8 @@ mod tests {
             addr.clone(),
             aggregator.clone(),
             Arc::new(ProjectState::err()),
-        envelope_processor,
-        outcome_aggregator,
+            envelope_processor.clone(),
+            outcome_aggregator.clone(),
             false,
         );
         // Since we got invalid project state we still keep the old one meaning there
@@ -1149,6 +1149,8 @@ mod tests {
             addr.clone(),
             aggregator.clone(),
             Arc::new(ProjectState::err()),
+            envelope_processor,
+            outcome_aggregator,
             false,
         );
         project.fetch_state(addr, false);
@@ -1236,7 +1238,12 @@ mod tests {
         );
         let project_state = Arc::new(ProjectState::allowed());
         // set_state should trigger flushing from the metricsbuffer to aggregator.
-        project.set_state(project_state, aggregator);
+        project.set_state(
+            project_state,
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+        );
         handle.await.unwrap(); // state isnt updated until we await.
 
         let buckets_received = *bucket_state.lock().unwrap();
@@ -1298,4 +1305,3 @@ mod tests {
         assert!(metrics.is_empty());
     }
 }
-*/
