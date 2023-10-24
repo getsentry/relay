@@ -43,7 +43,6 @@ pub enum SpanTagKey {
     HttpDecodedResponseBodyLength,
     HttpResponseContentLength,
     HttpResponseTransferSize,
-    Module,
     ResourceRenderBlockingStatus,
     SpanOp,
     StatusCode,

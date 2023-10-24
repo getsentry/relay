@@ -109,7 +109,6 @@ expression: event
       "status": "ok",
       "data": {
         "span.category": "db",
-        "span.module": "db",
         "span.op": "db.sql.query",
         "span.status": "ok",
         "transaction": "/transaction-name/hi"
