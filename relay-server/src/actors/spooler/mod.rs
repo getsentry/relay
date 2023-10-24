@@ -690,7 +690,7 @@ impl BufferService {
         let Some(parent) = path.parent() else {
             return Ok(());
         };
-        if !parent.exists() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
             relay_log::debug!("creating directory for spooling file: {}", parent.display());
             DirBuilder::new()
                 .recursive(true)
@@ -970,6 +970,7 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::time::{Duration, Instant};
 
     use insta::assert_debug_snapshot;
@@ -1003,7 +1004,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_spool_directory_path() {
+    async fn create_spool_directory_deep_path() {
         let parent_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
         let target_dir = parent_dir
             .join("subdir1")
@@ -1023,6 +1024,26 @@ mod tests {
             .await
             .unwrap();
         assert!(target_dir.exists());
+    }
+
+    #[tokio::test]
+    async fn create_spool_directory_root_path() {
+        let spool_file = "spool.db";
+        let buffer_guard: Arc<_> = BufferGuard::new(1).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": spool_file,
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
+        let spool_file = PathBuf::from(spool_file);
+        assert!(spool_file.exists());
     }
 
     #[tokio::test]
