@@ -1085,14 +1085,6 @@ mod tests {
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
     }
 
-    //     `app_start_cold`/`app.start.cold`
-
-    // `app_start_warm`/`app.start.warm`
-
-    // `time_to_initial_display`/`ui.load.initial_display`
-
-    // `time_to_full_display`/`ui.load.full_display`
-
     /// Helper function for span metric extraction tests.
     fn extract_span_metrics(span_op: &str, duration_millis: f64) -> Vec<Bucket> {
         let mut span = Span::default();
@@ -1111,41 +1103,53 @@ mod tests {
 
     #[test]
     fn test_app_start_cold_inlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("app.start.cold", 180000.0), @"");
+        assert_eq!(2, extract_span_metrics("app.start.cold", 180000.0).len());
     }
 
     #[test]
     fn test_app_start_cold_outlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("app.start.cold", 181000.0), @"");
+        assert_eq!(0, extract_span_metrics("app.start.cold", 181000.0).len());
     }
 
     #[test]
     fn test_app_start_warm_inlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("app.start.warm", 180000.0), @"");
+        assert_eq!(2, extract_span_metrics("app.start.warm", 180000.0).len());
     }
 
     #[test]
     fn test_app_start_warm_outlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("app.start.warm", 181000.0), @"");
+        assert_eq!(0, extract_span_metrics("app.start.warm", 181000.0).len());
     }
 
     #[test]
     fn test_ui_load_initial_display_inlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("ui.load.initial_display", 180000.0), @"");
+        assert_eq!(
+            2,
+            extract_span_metrics("ui.load.initial_display", 180000.0).len()
+        );
     }
 
     #[test]
     fn test_ui_load_initial_display_outlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("ui.load.initial_display", 181000.0), @"");
+        assert_eq!(
+            0,
+            extract_span_metrics("ui.load.initial_display", 181000.0).len()
+        );
     }
 
     #[test]
     fn test_ui_load_full_display_inlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("ui.load.full_display", 180000.0), @"");
+        assert_eq!(
+            2,
+            extract_span_metrics("ui.load.full_display", 180000.0).len()
+        );
     }
 
     #[test]
     fn test_ui_load_full_display_outlier() {
-        insta::assert_debug_snapshot!(extract_span_metrics("ui.load.full_display", 181000.0), @"");
+        assert_eq!(
+            0,
+            extract_span_metrics("ui.load.full_display", 181000.0).len()
+        );
     }
 }

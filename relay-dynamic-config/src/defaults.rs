@@ -1,6 +1,7 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
 use relay_protocol::RuleCondition;
+use serde_json::Number;
 
 use crate::feature::Feature;
 use crate::metrics::{MetricExtractionConfig, MetricSpec, TagMapping, TagSpec};
@@ -19,7 +20,7 @@ const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.link"];
 
 // TODO: docs
-const MAX_EXCLUSIVE_TIME_MOBILE_MS: u64 = 180_000;
+const MAX_EXCLUSIVE_TIME_MOBILE_MS: f64 = 180_000.0;
 
 /// Adds configuration for extracting metrics from spans.
 ///
@@ -69,7 +70,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
     let duration_condition = RuleCondition::negate(RuleCondition::glob("span.op", MOBILE_OPS))
-        | RuleCondition::gt("span.exclusive_time", MAX_EXCLUSIVE_TIME_MOBILE_MS);
+        | RuleCondition::lte(
+            "span.exclusive_time",
+            Number::from_f64(MAX_EXCLUSIVE_TIME_MOBILE_MS).unwrap_or(0.into()),
+        );
 
     config.metrics.extend([
         MetricSpec {

@@ -37,7 +37,7 @@ where
         }
 
         if let Some(ref condition) = &metric_spec.condition {
-            if dbg!(dbg!(condition).matches(instance)) {
+            if !condition.matches(instance) {
                 continue;
             }
         }
