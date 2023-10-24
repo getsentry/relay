@@ -5,7 +5,7 @@ use std::fmt;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use relay_protocol::{is_default, RuleCondition};
+use relay_protocol::RuleCondition;
 
 /// Represents the dynamic sampling configuration available to a project.
 ///
@@ -85,6 +85,11 @@ impl SamplingRule {
         self.decaying_fn
             .adjust_sample_rate(sample_rate, now, self.time_range)
     }
+}
+
+/// Returns `true` if this value is equal to `Default::default()`.
+fn is_default<T: Default + PartialEq>(t: &T) -> bool {
+    *t == T::default()
 }
 
 /// A sampling strategy definition.

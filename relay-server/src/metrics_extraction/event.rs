@@ -61,8 +61,10 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Utc};
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
     use relay_event_normalization::LightNormalizationConfig;
+    use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
     use std::collections::BTreeSet;
 
@@ -1081,5 +1083,73 @@ mod tests {
         let config = project.metric_extraction.ok().unwrap();
         let metrics = extract_metrics(event.value().unwrap(), &config);
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
+    }
+
+    /// Helper function for span metric extraction tests.
+    fn extract_span_metrics(span_op: &str, duration_millis: f64) -> Vec<Bucket> {
+        let mut span = Span::default();
+        span.timestamp
+            .set_value(Some(Timestamp::from(DateTime::<Utc>::MAX_UTC))); // whatever
+        span.op.set_value(Some(span_op.into()));
+        span.exclusive_time.set_value(Some(duration_millis));
+
+        let mut config = ProjectConfig::default();
+        config.features.0.insert(Feature::SpanMetricsExtraction);
+        config.sanitize(); // apply defaults for span extraction
+
+        let extraction_config = config.metric_extraction.ok().unwrap();
+        generic::extract_metrics(&span, &extraction_config)
+    }
+
+    #[test]
+    fn test_app_start_cold_inlier() {
+        assert_eq!(2, extract_span_metrics("app.start.cold", 180000.0).len());
+    }
+
+    #[test]
+    fn test_app_start_cold_outlier() {
+        assert_eq!(0, extract_span_metrics("app.start.cold", 181000.0).len());
+    }
+
+    #[test]
+    fn test_app_start_warm_inlier() {
+        assert_eq!(2, extract_span_metrics("app.start.warm", 180000.0).len());
+    }
+
+    #[test]
+    fn test_app_start_warm_outlier() {
+        assert_eq!(0, extract_span_metrics("app.start.warm", 181000.0).len());
+    }
+
+    #[test]
+    fn test_ui_load_initial_display_inlier() {
+        assert_eq!(
+            2,
+            extract_span_metrics("ui.load.initial_display", 180000.0).len()
+        );
+    }
+
+    #[test]
+    fn test_ui_load_initial_display_outlier() {
+        assert_eq!(
+            0,
+            extract_span_metrics("ui.load.initial_display", 181000.0).len()
+        );
+    }
+
+    #[test]
+    fn test_ui_load_full_display_inlier() {
+        assert_eq!(
+            2,
+            extract_span_metrics("ui.load.full_display", 180000.0).len()
+        );
+    }
+
+    #[test]
+    fn test_ui_load_full_display_outlier() {
+        assert_eq!(
+            0,
+            extract_span_metrics("ui.load.full_display", 181000.0).len()
+        );
     }
 }
