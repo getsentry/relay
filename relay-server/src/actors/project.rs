@@ -1236,10 +1236,11 @@ mod tests {
             envelope_processor.clone(),
             buckets.clone(),
         );
-        let project_state = Arc::new(ProjectState::allowed());
+        let mut project_state = ProjectState::allowed();
+        project_state.project_id = Some(ProjectId::new(42));
         // set_state should trigger flushing from the metricsbuffer to aggregator.
         project.set_state(
-            project_state,
+            Arc::new(project_state),
             aggregator,
             envelope_processor,
             outcome_aggregator,
