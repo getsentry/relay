@@ -5,6 +5,7 @@ from time import sleep
 import uuid
 import socket
 import threading
+import time
 import pytest
 from datetime import datetime, timedelta, timezone
 
@@ -740,6 +741,7 @@ def test_processing_quota_transaction_indexing(
     buckets = list(metrics_consumer.get_metrics())
     assert len(buckets) > 0
 
+    time.sleep(2)
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
     tx_consumer.assert_empty()
     metrics_consumer.assert_empty()
