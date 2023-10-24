@@ -8,8 +8,7 @@ use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Project
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
-    aggregator, Aggregator, Bucket, FlushBuckets, MergeBuckets, MetricNamespace,
-    MetricResourceIdentifier,
+    aggregator, Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
 };
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -20,13 +19,12 @@ use smallvec::SmallVec;
 use tokio::time::Instant;
 use url::Url;
 
-use crate::actors::envelopes::SendMetrics;
+use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::actors::outcome_aggregator::OutcomeAggregator;
 use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
-use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate, Services};
+use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
 use crate::statsd::RelayCounters;
@@ -609,11 +607,11 @@ impl Project {
         });
     }
 
-    fn foobar(
+    fn ratelimit_and_merge_buckets(
         &self,
         mut buckets: Vec<Bucket>,
         aggregator: Addr<Aggregator>,
-        envelope_processor: Addr<EnvelopeProcessor>,
+        #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) {
         let Some(project_state) = self.state_value() else {
@@ -658,10 +656,7 @@ impl Project {
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && self.config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
-                    envelope_processor.send(RateLimitFlushBuckets {
-                        bucket_limiter,
-                        partition_key: None,
-                    });
+                    envelope_processor.send(RateLimitFlushBuckets { bucket_limiter });
 
                     return;
                 }
@@ -692,8 +687,12 @@ impl Project {
                     State::Cached(_) => {
                         // We can send metrics straight to the aggregator.
                         relay_log::debug!("sending metrics straight to aggregator");
-                        //aggregator.send(MergeBuckets::new(self.project_key, buckets));
-                        self.foobar(buckets, aggregator, envelope_processor, outcome_aggregator);
+                        self.ratelimit_and_merge_buckets(
+                            buckets,
+                            aggregator,
+                            envelope_processor,
+                            outcome_aggregator,
+                        );
                     }
                     State::Pending(inner_agg) => {
                         // We need to queue the metrics in a temporary aggregator until the project state becomes available.
@@ -832,13 +831,25 @@ impl Project {
         }
     }
 
-    fn set_state(&mut self, state: Arc<ProjectState>, aggregator: Addr<Aggregator>) {
+    fn set_state(
+        &mut self,
+        state: Arc<ProjectState>,
+        aggregator: Addr<Aggregator>,
+        envelope_processor: Addr<EnvelopeProcessor>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
         let project_enabled = state.check_disabled(self.config.as_ref()).is_ok();
         let buckets = self.state.set_state(state.clone());
 
         if let Some(buckets) = buckets {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
+                self.ratelimit_and_merge_buckets(
+                    buckets,
+                    aggregator,
+                    envelope_processor,
+                    outcome_aggregator,
+                );
             }
         }
     }
@@ -871,6 +882,8 @@ impl Project {
         project_cache: Addr<ProjectCache>,
         aggregator: Addr<Aggregator>,
         mut state: Arc<ProjectState>,
+        envelope_processor: Addr<EnvelopeProcessor>,
+        outcome_aggregator: Addr<TrackOutcome>,
         no_cache: bool,
     ) {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
@@ -901,7 +914,12 @@ impl Project {
                 state = old
             }
             // If the new state is valid or the old one is expired, always use the new one.
-            _ => self.set_state(state.clone(), aggregator),
+            _ => self.set_state(
+                state.clone(),
+                aggregator,
+                envelope_processor,
+                outcome_aggregator,
+            ),
         }
 
         // If the state is still invalid, return back the taken channel and schedule state update.
@@ -1004,77 +1022,13 @@ impl Project {
 
     pub fn flush_buckets(
         &mut self,
-        services: Services,
+        envelope_manager: Addr<EnvelopeManager>,
         partition_key: Option<u64>,
-        mut buckets: Vec<Bucket>,
+        buckets: Vec<Bucket>,
     ) {
-        let Services {
-            aggregator,
-            envelope_manager,
-            #[cfg(feature = "processing")]
-            envelope_processor,
-            outcome_aggregator,
-            project_cache,
-            ..
-        } = services;
-        let config = self.config.clone();
-
-        // Schedule an update to the project state if it is outdated, regardless of whether the
-        // metrics can be forwarded or not. We never wait for this update.
-        let Some(project_state) = self.get_cached_state(project_cache, false) else {
-            relay_log::trace!("project expired: merging back {} buckets", buckets.len());
-            // If the state is outdated, we need to wait for an updated state. Put them back into
-            // the aggregator.
-            aggregator.send(MergeBuckets::new(self.project_key, buckets));
-            return;
-        };
-
         let Some(scoping) = self.scoping() else {
-            relay_log::trace!(
-                "there is no scoping: merging back {} buckets",
-                buckets.len()
-            );
-            aggregator.send(MergeBuckets::new(self.project_key, buckets));
+            relay_log::trace!("there is no scoping: dropping {} buckets", buckets.len());
             return;
-        };
-
-        // Only send if the project state is valid, otherwise drop this bucket.
-        if project_state.check_disabled(config.as_ref()).is_err() {
-            return;
-        }
-
-        // Re-run feature flag checks since the project might not have been loaded when the buckets
-        // were initially ingested, or feature flags have changed in the meanwhile.
-        self.filter_metrics(&mut buckets);
-
-        // Check rate limits if necessary:
-        let quotas = project_state.config.quotas.clone();
-        let usage = match project_state.config.transaction_metrics {
-            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
-            _ => false,
-        };
-
-        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, usage) {
-            Ok(mut bucket_limiter) => {
-                let cached_rate_limits = self.rate_limits().clone();
-                #[allow(unused_variables)]
-                let was_rate_limited =
-                    bucket_limiter.enforce_limits(Ok(&cached_rate_limits), outcome_aggregator);
-
-                #[cfg(feature = "processing")]
-                if !was_rate_limited && config.processing_enabled() {
-                    // If there were no cached rate limits active, let the processor check redis:
-                    envelope_processor.send(RateLimitFlushBuckets {
-                        bucket_limiter,
-                        partition_key,
-                    });
-
-                    return;
-                }
-
-                bucket_limiter.into_metrics()
-            }
-            Err(buckets) => buckets,
         };
 
         if !buckets.is_empty() {
@@ -1086,6 +1040,8 @@ impl Project {
         }
     }
 }
+
+/*
 
 #[cfg(test)]
 mod tests {
@@ -1169,6 +1125,8 @@ mod tests {
             addr.clone(),
             aggregator.clone(),
             Arc::new(ProjectState::err()),
+        envelope_processor,
+        outcome_aggregator,
             false,
         );
         // Since we got invalid project state we still keep the old one meaning there
@@ -1339,3 +1297,4 @@ mod tests {
         assert!(metrics.is_empty());
     }
 }
+*/

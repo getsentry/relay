@@ -578,10 +578,15 @@ impl ProjectCacheBroker {
 
         let project_cache = self.services.project_cache.clone();
         let aggregator = self.services.aggregator.clone();
+        let envelope_processor = self.services.envelope_processor.clone();
+        let outcome_aggregator = self.services.outcome_aggregator.clone();
+
         self.get_or_create_project(project_key).update_state(
             project_cache,
             aggregator,
             state.clone(),
+            envelope_processor,
+            outcome_aggregator,
             no_cache,
         );
 
@@ -778,9 +783,9 @@ impl ProjectCacheBroker {
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let context = self.services.clone();
+        let envelope_manager = self.services.envelope_manager.clone();
         self.get_or_create_project(message.project_key)
-            .flush_buckets(context, message.partition_key, message.buckets);
+            .flush_buckets(envelope_manager, message.partition_key, message.buckets);
     }
 
     fn handle_buffer_index(&mut self, message: UpdateBufferIndex) {

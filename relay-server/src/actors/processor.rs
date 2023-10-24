@@ -36,7 +36,7 @@ use relay_event_schema::protocol::{
     UserReport, Values,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{Aggregator, Bucket, FlushBuckets, MergeBuckets, MetricNamespace};
+use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -55,7 +55,6 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
@@ -482,7 +481,6 @@ impl EncodeEnvelope {
 #[derive(Debug)]
 pub struct RateLimitFlushBuckets {
     pub bucket_limiter: MetricsLimiter,
-    pub partition_key: Option<u64>,
 }
 
 /// CPU-intensive processing tasks for envelopes.
@@ -547,6 +545,7 @@ struct InnerProcessor {
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
+    #[allow(unused)]
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -556,6 +555,7 @@ struct InnerProcessor {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
         _redis: Option<RedisPool>,
@@ -564,6 +564,7 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
+        aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -588,7 +589,7 @@ impl EnvelopeProcessorService {
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
-            aggregator: todo!(),
+            aggregator,
         };
 
         Self {
@@ -3486,6 +3487,7 @@ mod tests {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
         let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3498,7 +3500,7 @@ mod tests {
             redis_pool: None,
             geoip_lookup: None,
             global_config,
-            aggregator: todo!(),
+            aggregator,
         };
 
         EnvelopeProcessorService {

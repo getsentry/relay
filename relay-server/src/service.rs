@@ -127,6 +127,14 @@ impl ServiceState {
             GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
 
         let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
+
+        let aggregator = relay_metrics::RouterService::new(
+            config.default_aggregator_config().clone(),
+            config.secondary_aggregator_configs().clone(),
+            Some(project_cache.clone().recipient()),
+        )
+        .start_in(&runtimes.aggregator);
+
         let processor = EnvelopeProcessorService::new(
             config.clone(),
             redis_pool.clone(),
@@ -135,15 +143,9 @@ impl ServiceState {
             project_cache.clone(),
             global_config.clone(),
             upstream_relay.clone(),
+            aggregator.clone(),
         )
         .start();
-
-        let aggregator = relay_metrics::RouterService::new(
-            config.default_aggregator_config().clone(),
-            config.secondary_aggregator_configs().clone(),
-            Some(project_cache.clone().recipient()),
-        )
-        .start_in(&runtimes.aggregator);
 
         #[allow(unused_mut)]
         let mut envelope_manager_service = EnvelopeManagerService::new(
