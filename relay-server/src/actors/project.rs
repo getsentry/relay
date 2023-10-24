@@ -609,15 +609,12 @@ impl Project {
 
     fn ratelimit_and_merge_buckets(
         &self,
+        project_state: Arc<ProjectState>,
         mut buckets: Vec<Bucket>,
         aggregator: Addr<Aggregator>,
         #[allow(unused_variables)] envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) {
-        let Some(project_state) = self.state_value() else {
-            return;
-        };
-
         let Some(scoping) = self.scoping() else {
             // This shouldn't be possible since we check if project id is present before setting the new project state.
             // TODO(tor): Find a way to properly represent this invariant in the type system.
@@ -684,10 +681,13 @@ impl Project {
 
             if !buckets.is_empty() {
                 match &mut self.state {
-                    State::Cached(_) => {
+                    State::Cached(state) => {
                         // We can send metrics straight to the aggregator.
                         relay_log::debug!("sending metrics straight to aggregator");
+                        let state = state.clone();
+
                         self.ratelimit_and_merge_buckets(
+                            state,
                             buckets,
                             aggregator,
                             envelope_processor,
@@ -845,6 +845,7 @@ impl Project {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
                 self.ratelimit_and_merge_buckets(
+                    state,
                     buckets,
                     aggregator,
                     envelope_processor,
