@@ -36,7 +36,7 @@ use relay_event_schema::protocol::{
     UserReport, Values,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
+use relay_metrics::{Aggregator, Bucket, FlushBuckets, MergeBuckets, MetricNamespace};
 use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
@@ -522,10 +522,10 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
+impl FromMessage<MergeBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
+    fn from_message(message: MergeBuckets, _: ()) -> Self {
         Self::RateLimitFlushBuckets(message)
     }
 }
@@ -547,6 +547,7 @@ struct InnerProcessor {
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
+    aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
@@ -2935,13 +2936,13 @@ impl EnvelopeProcessorService {
             }
         }
 
+        let project_key = bucket_limiter.scoping().project_key;
         let buckets = bucket_limiter.into_metrics();
+
         if !buckets.is_empty() {
-            // Forward buckets to envelope manager to send them to upstream or kafka:
-            self.inner.envelope_manager.send(SendMetrics {
+            self.inner.aggregator.send(MergeBuckets {
+                project_key,
                 buckets,
-                scoping,
-                partition_key,
             });
         }
     }

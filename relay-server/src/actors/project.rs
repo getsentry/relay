@@ -8,7 +8,8 @@ use relay_dynamic_config::{ErrorBoundary, Feature, LimitedProjectConfig, Project
 use relay_filter::matches_any_origin;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{
-    aggregator, Aggregator, Bucket, MergeBuckets, MetricNamespace, MetricResourceIdentifier,
+    aggregator, Aggregator, Bucket, FlushBuckets, MergeBuckets, MetricNamespace,
+    MetricResourceIdentifier,
 };
 use relay_quotas::{Quota, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
@@ -21,6 +22,8 @@ use url::Url;
 
 use crate::actors::envelopes::SendMetrics;
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+use crate::actors::outcome_aggregator::OutcomeAggregator;
+use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
 use crate::actors::processor::RateLimitFlushBuckets;
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate, Services};
@@ -606,6 +609,78 @@ impl Project {
         });
     }
 
+    fn foobar(
+        &self,
+        project_state: Arc<ProjectState>,
+        project_key: ProjectKey,
+        buckets: Vec<Bucket>,
+        aggregator: Addr<Aggregator>,
+        project_cache: Addr<ProjectCache>,
+        partition_key: Option<u64>,
+        envelope_processor: Addr<EnvelopeProcessor>,
+        outcome_aggregator: Addr<TrackOutcome>,
+    ) {
+        let Some(scoping) = self.scoping() else {
+            relay_log::trace!(
+                "there is no scoping due to missing project id: dropping {} buckets",
+                buckets.len()
+            );
+            return;
+        };
+
+        // Only send if the project state is valid, otherwise drop the buckets.
+        if project_state.check_disabled(self.config.as_ref()).is_err() {
+            relay_log::trace!("project state invalid: dropping {} buckets", buckets.len());
+            return;
+        }
+
+        // Re-run feature flag checks since the project might not have been loaded when the buckets
+        // were initially ingested, or feature flags have changed in the meanwhile.
+        self.filter_metrics(&mut buckets);
+
+        // Check rate limits if necessary:
+        let quotas = project_state.config.quotas.clone();
+
+        let usage = match project_state.config.transaction_metrics {
+            Some(ErrorBoundary::Ok(ref c)) => c.usage_metric(),
+            _ => false,
+        };
+
+        let flushbuckets = FlushBuckets {
+            project_key,
+            partition_key: None,
+            buckets,
+        };
+
+        let megebuckets = MergeBuckets {
+            project_key,
+            buckets,
+        };
+
+        let buckets = match MetricsLimiter::create(buckets, quotas, scoping, usage) {
+            Ok(mut bucket_limiter) => {
+                let cached_rate_limits = self.rate_limits().clone();
+                #[allow(unused_variables)]
+                let was_rate_limited =
+                    bucket_limiter.enforce_limits(Ok(&cached_rate_limits), outcome_aggregator);
+
+                #[cfg(feature = "processing")]
+                if !was_rate_limited && self.config.processing_enabled() {
+                    // If there were no cached rate limits active, let the processor check redis:
+                    envelope_processor.send(RateLimitFlushBuckets {
+                        bucket_limiter,
+                        partition_key,
+                    });
+
+                    return;
+                }
+
+                bucket_limiter.into_metrics()
+            }
+            Err(buckets) => buckets,
+        };
+    }
+
     /// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
@@ -620,10 +695,11 @@ impl Project {
 
             if !buckets.is_empty() {
                 match &mut self.state {
-                    State::Cached(_) => {
+                    State::Cached(state) => {
                         // We can send metrics straight to the aggregator.
                         relay_log::debug!("sending metrics straight to aggregator");
-                        aggregator.send(MergeBuckets::new(self.project_key, buckets));
+                        Self::foobar(self.project_key, buckets);
+                        //aggregator.send(MergeBuckets::new(self.project_key, buckets));
                     }
                     State::Pending(inner_agg) => {
                         // We need to queue the metrics in a temporary aggregator until the project state becomes available.
@@ -769,7 +845,7 @@ impl Project {
         if let Some(buckets) = buckets {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
-                aggregator.send(MergeBuckets::new(self.project_key, buckets));
+                Self::foobar(self.project_key, buckets);
             }
         }
     }
