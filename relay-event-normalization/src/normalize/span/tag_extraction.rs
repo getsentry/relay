@@ -74,7 +74,6 @@ impl SpanTagKey {
             SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
             SpanTagKey::HttpResponseContentLength => "http.response_content_length",
             SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
-            SpanTagKey::Module => "module",
             SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
             SpanTagKey::SpanOp => "op",
             SpanTagKey::StatusCode => "status_code",
@@ -239,10 +238,6 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         } else {
             None
         };
-
-        if let Some(module) = span_module {
-            span_tags.insert(SpanTagKey::Module, module.to_owned());
-        }
 
         let scrubbed_description = scrub_span_description(span);
 
