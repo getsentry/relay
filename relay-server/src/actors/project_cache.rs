@@ -766,9 +766,15 @@ impl ProjectCacheBroker {
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {
         let aggregator = self.services.aggregator.clone();
         let outcome_aggregator = self.services.outcome_aggregator.clone();
+        let envelope_processor = self.services.envelope_processor.clone();
         // Only keep if we have an aggregator, otherwise drop because we know that we were disabled.
         self.get_or_create_project(message.project_key())
-            .merge_buckets(aggregator, outcome_aggregator, message.buckets());
+            .merge_buckets(
+                aggregator,
+                outcome_aggregator,
+                envelope_processor,
+                message.buckets(),
+            );
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {

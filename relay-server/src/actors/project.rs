@@ -613,7 +613,6 @@ impl Project {
         &self,
         mut buckets: Vec<Bucket>,
         aggregator: Addr<Aggregator>,
-        partition_key: Option<u64>,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
     ) {
@@ -661,7 +660,7 @@ impl Project {
                     // If there were no cached rate limits active, let the processor check redis:
                     envelope_processor.send(RateLimitFlushBuckets {
                         bucket_limiter,
-                        partition_key,
+                        partition_key: None,
                     });
 
                     return;
@@ -682,17 +681,19 @@ impl Project {
         &mut self,
         aggregator: Addr<Aggregator>,
         outcome_aggregator: Addr<TrackOutcome>,
+        envelope_processor: Addr<EnvelopeProcessor>,
         buckets: Vec<Bucket>,
     ) {
         if self.metrics_allowed() {
-            let buckets = self.rate_limit_metrics(buckets, outcome_aggregator);
+            let buckets = self.rate_limit_metrics(buckets, outcome_aggregator.clone());
 
             if !buckets.is_empty() {
                 match &mut self.state {
-                    State::Cached(state) => {
+                    State::Cached(_) => {
                         // We can send metrics straight to the aggregator.
                         relay_log::debug!("sending metrics straight to aggregator");
                         //aggregator.send(MergeBuckets::new(self.project_key, buckets));
+                        self.foobar(buckets, aggregator, envelope_processor, outcome_aggregator);
                     }
                     State::Pending(inner_agg) => {
                         // We need to queue the metrics in a temporary aggregator until the project state becomes available.
@@ -1242,7 +1243,8 @@ mod tests {
 
         let buckets = vec![create_transaction_bucket()];
         let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
-        project.merge_buckets(aggregator, outcome_aggregator, buckets);
+        let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
+        project.merge_buckets(aggregator, outcome_aggregator, envelope_processor, buckets);
         handle.await.unwrap();
 
         let buckets_received = *bucket_state.lock().unwrap();
@@ -1266,9 +1268,11 @@ mod tests {
 
         let buckets = vec![create_transaction_bucket()];
         let (outcome_aggregator, _) = mock_service("outcome_aggreggator", (), |&mut (), _| {});
+        let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
         project.merge_buckets(
             aggregator.clone(),
             outcome_aggregator.clone(),
+            envelope_processor.clone(),
             buckets.clone(),
         );
         let project_state = Arc::new(ProjectState::allowed());

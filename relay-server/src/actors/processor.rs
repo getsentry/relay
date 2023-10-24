@@ -2900,8 +2900,7 @@ impl EnvelopeProcessorService {
         use relay_quotas::ItemScoping;
 
         let RateLimitFlushBuckets {
-            mut bucket_limiter,
-            partition_key,
+            mut bucket_limiter, ..
         } = message;
 
         let scoping = *bucket_limiter.scoping();
