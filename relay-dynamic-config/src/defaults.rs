@@ -1,5 +1,6 @@
 use relay_base_schema::data_category::DataCategory;
 use relay_common::glob2::LazyGlob;
+use relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
 use relay_protocol::RuleCondition;
 use serde_json::Number;
 
@@ -69,7 +70,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
     let duration_condition = RuleCondition::negate(RuleCondition::glob("span.op", MOBILE_OPS))
         | RuleCondition::lte(
             "span.exclusive_time",
-            Number::from_f64(MAX_EXCLUSIVE_TIME_MOBILE_MS).unwrap_or(0.into()),
+            Number::from_f64(MAX_DURATION_MOBILE_MS).unwrap_or(0.into()),
         );
 
     config.metrics.extend([

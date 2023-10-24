@@ -444,7 +444,6 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 ///
 /// Drop those outlier measurements for older SDKs.
 fn filter_mobile_outliers(measurements: &mut Measurements) {
-    // Filter outliers for mobile:
     for key in [
         "app_start_cold",
         "app_start_warm",
