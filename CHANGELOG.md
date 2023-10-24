@@ -2,6 +2,9 @@
 
 ## Unrelease
 
+**Features**:
+- Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([2650](https://github.com/getsentry/relay/pull/2650)
+
 **Internal**:
 
 - Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
