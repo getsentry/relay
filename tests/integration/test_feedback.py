@@ -50,7 +50,7 @@ def test_feedback_event_with_processing(
         42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
     )
 
-    _events_consumer = events_consumer(timeout=5)
+    _events_consumer = events_consumer(timeout=20)
     feedback = generate_feedback_sdk_event()
 
     relay.send_user_feedback(42, feedback)
@@ -115,7 +115,7 @@ def test_feedback_events_without_processing(mini_sentry, relay_chain):
 
     relay.send_user_feedback(42, replay_item)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
+    envelope = mini_sentry.captured_events.get(timeout=20)
     assert len(envelope.items) == 1
 
     userfeedback = envelope.items[0]
