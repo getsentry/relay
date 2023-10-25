@@ -106,12 +106,12 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: "d:spans/http.decoded_response_body_length@byte".into(),
-            field: Some("span.data.http\\.decoded_response_body_length".into()),
+            mri: "d:spans/http.decoded_response_content_length@byte".into(),
+            field: Some("span.data.http\\.decoded_response_content_length".into()),
             condition: Some(
                 span_op_conditions.clone()
                     & resource_condition.clone()
-                    & RuleCondition::gt("span.data.http\\.decoded_response_body_length", 0),
+                    & RuleCondition::gt("span.data.http\\.decoded_response_content_length", 0),
             ),
             tags: Default::default(),
         },
@@ -179,7 +179,7 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         TagMapping {
             metrics: vec![
                 LazyGlob::new("d:spans/http.response_content_length@byte".into()),
-                LazyGlob::new("d:spans/http.decoded_response_body_length@byte".into()),
+                LazyGlob::new("d:spans/http.decoded_response_content_length@byte".into()),
                 LazyGlob::new("d:spans/http.response_transfer_size@byte".into()),
             ],
             tags: [
