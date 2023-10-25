@@ -72,7 +72,7 @@ macro_rules! event_snapshot {
                 let mut event = load_fixture();
 
                 let config = LightNormalizationConfig::default();
-                light_normalize_event(&mut event, config).unwrap();
+                light_normalize_event(&mut event, config, StoreConfig::default()).unwrap();
 
                 let config = StoreConfig::default();
                 let mut processor = StoreProcessor::new(config, None);

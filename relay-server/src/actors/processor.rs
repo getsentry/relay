@@ -2591,20 +2591,37 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState,
     ) -> Result<(), ProcessingError> {
-        let request_meta = state.managed_envelope.envelope().meta();
+        let ProcessEnvelopeState {
+            ref project_state,
+            ref managed_envelope,
+            ..
+        } = *state;
+
+        let request_meta = managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
-        let light_normalize_spans = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtraction);
+        let light_normalize_spans = project_state.has_feature(Feature::SpanMetricsExtraction);
 
         let transaction_aggregator_config = self
             .inner
             .config
             .aggregator_config_for(MetricNamespace::Transactions);
 
+        let key_id = project_state
+            .get_public_key_config()
+            .and_then(|k| Some(k.numeric_id?.to_string()));
+
+        let envelope = managed_envelope.envelope();
+
+        if key_id.is_none() {
+            relay_log::error!(
+                "project state for key {} is missing key id",
+                envelope.meta().public_key()
+            );
+        }
+
         utils::log_transaction_name_metrics(&mut state.event, |event| {
-            let config = LightNormalizationConfig {
+            let light_normalization_config = LightNormalizationConfig {
                 client_ip: client_ipaddr.as_ref(),
                 user_agent: RawUserAgentInfo {
                     user_agent: request_meta.user_agent(),
@@ -2648,9 +2665,37 @@ impl EnvelopeProcessorService {
                 )),
             };
 
+            let store_config = StoreConfig {
+                project_id: Some(state.project_id.value()),
+                client_ip: envelope.meta().client_addr().map(IpAddr::from),
+                client: envelope.meta().client().map(str::to_owned),
+                key_id: key_id.clone(),
+                protocol_version: Some(envelope.meta().version().to_string()),
+                // NOTE(iker): grouping config not used
+                grouping_config: project_state.config.grouping_config.clone(),
+                user_agent: envelope.meta().user_agent().map(str::to_owned),
+                max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
+                max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
+                enable_trimming: Some(true),
+                is_renormalize: None,
+                remove_other: Some(true),
+                normalize_user_agent: Some(true),
+                sent_at: envelope.sent_at(),
+                received_at: Some(managed_envelope.received_at()),
+                breakdowns: project_state.config.breakdowns_v2.clone(),
+                span_attributes: project_state.config.span_attributes.clone(),
+                client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+                replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
+                client_hints: envelope.meta().client_hints().to_owned(),
+            };
+
             metric!(timer(RelayTimers::EventProcessingLightNormalization), {
-                relay_event_normalization::light_normalize_event(event, config)
-                    .map_err(|_| ProcessingError::InvalidTransaction)
+                relay_event_normalization::light_normalize_event(
+                    event,
+                    light_normalization_config,
+                    store_config,
+                )
+                .map_err(|_| ProcessingError::InvalidTransaction)
             })
         })?;
 
@@ -4097,7 +4142,11 @@ mod tests {
                     },
                     ..Default::default()
                 };
-                relay_event_normalization::light_normalize_event(event, config)
+                relay_event_normalization::light_normalize_event(
+                    event,
+                    config,
+                    StoreConfig::default(),
+                )
             })
             .unwrap();
         })

@@ -615,6 +615,7 @@ mod tests {
                         light_normalize_spans: true,
                         ..Default::default()
                     },
+                    crate::StoreConfig::default(),
                 );
                 assert!(res.is_ok());
 

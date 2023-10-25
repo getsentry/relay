@@ -135,7 +135,11 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: None,
     };
-    light_normalize_event(&mut event, light_normalization_config)?;
+    light_normalize_event(
+        &mut event,
+        light_normalization_config,
+        StoreConfig::default(),
+    )?;
     process_value(&mut event, &mut *processor, ProcessingState::root())?;
     RelayStr::from_string(event.to_json()?)
 }

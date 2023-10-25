@@ -63,7 +63,7 @@ pub fn extract_metrics(event: &Event, config: &MetricExtractionConfig) -> Vec<Bu
 mod tests {
     use chrono::{DateTime, Utc};
     use relay_dynamic_config::{Feature, FeatureSet, ProjectConfig};
-    use relay_event_normalization::LightNormalizationConfig;
+    use relay_event_normalization::{LightNormalizationConfig, StoreConfig};
     use relay_event_schema::protocol::Timestamp;
     use relay_protocol::Annotated;
     use std::collections::BTreeSet;
@@ -485,6 +485,7 @@ mod tests {
                 light_normalize_spans: true,
                 ..Default::default()
             },
+            StoreConfig::default(),
         )
         .unwrap();
 
@@ -1007,6 +1008,7 @@ mod tests {
                 light_normalize_spans: true,
                 ..Default::default()
             },
+            StoreConfig::default(),
         )
         .unwrap();
 
@@ -1065,6 +1067,7 @@ mod tests {
                 device_class_synthesis_config: true,
                 ..Default::default()
             },
+            StoreConfig::default(),
         )
         .unwrap();
 

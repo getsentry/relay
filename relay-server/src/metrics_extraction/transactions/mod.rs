@@ -434,7 +434,7 @@ mod tests {
     use relay_dynamic_config::AcceptTransactionNames;
     use relay_event_normalization::{
         set_default_transaction_source, BreakdownsConfig, DynamicMeasurementsConfig,
-        LightNormalizationConfig, MeasurementsConfig,
+        LightNormalizationConfig, MeasurementsConfig, StoreConfig,
     };
     use relay_event_schema::protocol::User;
     use relay_metrics::BucketValue;
@@ -522,6 +522,7 @@ mod tests {
                 light_normalize_spans: true,
                 ..Default::default()
             },
+            StoreConfig::default(),
         )
         .unwrap();
 
@@ -751,6 +752,7 @@ mod tests {
         relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig::default(),
+            StoreConfig::default(),
         )
         .unwrap();
 
@@ -876,6 +878,7 @@ mod tests {
         relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig::default(),
+            StoreConfig::default(),
         )
         .unwrap();
 
@@ -1052,6 +1055,7 @@ mod tests {
                 measurements: Some(config),
                 ..Default::default()
             },
+            StoreConfig::default(),
         )
         .unwrap();
 
@@ -1683,6 +1687,7 @@ mod tests {
         let _ = relay_event_normalization::light_normalize_event(
             &mut event,
             LightNormalizationConfig::default(),
+            StoreConfig::default(),
         );
 
         let config = TransactionMetricsConfig::default();
