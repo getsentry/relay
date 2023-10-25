@@ -3501,6 +3501,7 @@ mod tests {
             redis_pool: None,
             geoip_lookup: None,
             global_config,
+            #[cfg(feature = "processing")]
             aggregator,
         };
 
