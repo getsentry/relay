@@ -515,9 +515,9 @@ impl Meta {
         self.remarks().iter()
     }
 
-    /// Indicates whether this field has remarks.
+    /// Returns true if this field has remarks.
     pub fn has_remarks(&self) -> bool {
-        self.0.as_ref().map_or(false, |x| x.remarks.is_empty())
+        self.0.as_ref().map_or(false, |x| !x.remarks.is_empty())
     }
 
     /// Clears all remarks
