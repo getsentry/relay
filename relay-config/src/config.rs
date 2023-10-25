@@ -1746,7 +1746,7 @@ impl Config {
     }
 
     /// Returns `true` if the full project state should be requested from upstream.
-    pub fn project_state_full(&self) -> bool {
+    pub fn request_full_project_config(&self) -> bool {
         self.values.cache.project_request_full_config
     }
 
