@@ -1,6 +1,6 @@
 # Changelog
 
-## Unrelease
+## Unreleased
 
 **Features**:
 
