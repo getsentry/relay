@@ -1263,6 +1263,7 @@
 <a href="#1263" id="1263">1263</a>
 <a href="#1264" id="1264">1264</a>
 <a href="#1265" id="1265">1265</a>
+<a href="#1266" id="1266">1266</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1418,8 +1419,9 @@
         <span class="self">self</span>.disabled
     }
 
-    <span class="doccomment">/// Returns `true` if the project state obtained from the upstream could not be parsed. This
-    /// results in events being dropped similar to disabled states, but can provide separate
+    <span class="doccomment">/// Returns `true` if the project state obtained from upstream could not be parsed.
+    ///
+    /// This results in events being dropped similar to disabled states, but can provide separate
     /// metrics.
     </span><span class="kw">pub fn </span>invalid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.invalid
