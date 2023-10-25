@@ -545,7 +545,7 @@ struct InnerProcessor {
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
-    #[allow(unused)]
+    #[cfg(feature = "processing")]
     aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
@@ -564,7 +564,7 @@ impl EnvelopeProcessorService {
         project_cache: Addr<ProjectCache>,
         global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
-        aggregator: Addr<Aggregator>,
+        _aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -589,7 +589,8 @@ impl EnvelopeProcessorService {
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
-            aggregator,
+            #[cfg(feature = "processing")]
+            aggregator: _aggregator,
         };
 
         Self {
