@@ -384,6 +384,7 @@
 <a href="#384" id="384">384</a>
 <a href="#385" id="385">385</a>
 <a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
 </pre></div><pre class="rust"><code><span class="comment">// TODO: Fix casts between RelayGeoIpLookup and GeoIpLookup
 </span><span class="attr">#![allow(clippy::cast_ptr_alignment)]
 #![deny(unused_must_use)]
@@ -517,6 +518,7 @@
         light_normalize_spans: <span class="bool-val">false</span>,
         max_tag_value_length: usize::MAX,
         span_description_rules: <span class="prelude-val">None</span>,
+        performance_score: <span class="prelude-val">None</span>,
         geoip_lookup: <span class="prelude-val">None</span>, <span class="comment">// only supported in relay
         </span>enable_trimming: config.enable_trimming.unwrap_or_default(),
         measurements: <span class="prelude-val">None</span>,

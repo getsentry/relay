@@ -159,12 +159,46 @@
 <a href="#159" id="159">159</a>
 <a href="#160" id="160">160</a>
 <a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! **Deprecated.** Utilities for extracting common event fields.
 //!
 //! This utility module is being phased out. Functionality in this module should be moved to the
 //! specific normalization file requiring this data access.
 
-</span><span class="kw">use </span>relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
+</span><span class="kw">use </span>std::f64::consts::SQRT_2;
+
+<span class="kw">use </span>relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
 
 <span class="doccomment">/// Used to decide when to extract mobile-specific tags.
 </span><span class="kw">pub const </span>MOBILE_SDKS: [<span class="kw-2">&amp;</span>str; <span class="number">4</span>] = [
@@ -319,5 +353,35 @@
         </span><span class="kw">return </span><span class="prelude-val">None</span>;
     }
     <span class="prelude-val">Some</span>(op.to_string())
+}
+
+<span class="doccomment">/// The Gauss error function.
+///
+/// See &lt;https://en.wikipedia.org/wiki/Error_function&gt;.
+</span><span class="kw">fn </span>erf(x: f64) -&gt; f64 {
+    <span class="comment">// constants
+    </span><span class="kw">let </span>a1 = <span class="number">0.254829592</span>;
+    <span class="kw">let </span>a2 = -<span class="number">0.284496736</span>;
+    <span class="kw">let </span>a3 = <span class="number">1.421413741</span>;
+    <span class="kw">let </span>a4 = -<span class="number">1.453152027</span>;
+    <span class="kw">let </span>a5 = <span class="number">1.061405429</span>;
+    <span class="kw">let </span>p = <span class="number">0.3275911</span>;
+    <span class="comment">// Save the sign of x
+    </span><span class="kw">let </span>sign = <span class="kw">if </span>x &lt; <span class="number">0.0 </span>{ -<span class="number">1.0 </span>} <span class="kw">else </span>{ <span class="number">1.0 </span>};
+    <span class="kw">let </span>x = x.abs();
+    <span class="comment">// A&amp;S formula 7.1.26
+    </span><span class="kw">let </span>t = <span class="number">1.0 </span>/ (<span class="number">1.0 </span>+ p * x);
+    <span class="kw">let </span>y = <span class="number">1.0 </span>- ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * (-x * x).exp();
+    sign * y
+}
+
+<span class="doccomment">/// Sigma function for CDF score calculation.
+</span><span class="kw">fn </span>calculate_cdf_sigma(p10: f64, p50: f64) -&gt; f64 {
+    (p10.ln() - p50.ln()).abs() / (SQRT_2 * <span class="number">0.9061938024368232</span>)
+}
+
+<span class="doccomment">/// Calculates a log-normal CDF score based on a log-normal with a specific p10 and p50
+</span><span class="kw">pub fn </span>calculate_cdf_score(value: f64, p10: f64, p50: f64) -&gt; f64 {
+    <span class="number">0.5 </span>* (<span class="number">1.0 </span>- erf((f64::ln(value) - f64::ln(p50)) / (SQRT_2 * calculate_cdf_sigma(p50, p10))))
 }
 </code></pre></div></section></main></body></html>
