@@ -198,7 +198,21 @@ enum UrlType {
 
 /// Scrubber for spans with `span.op` "resource.*".
 fn scrub_resource(string: &str) -> Option<String> {
-    let (url, ty) = match Url::parse(string) {
+    let raw_url = if !string.starts_with('/') {
+        if let Some((first, _)) = string.split_once('/') {
+            // It's likely a domain without scheme
+            if first.contains('.') {
+                format!("http://{string}")
+            } else {
+                string.into()
+            }
+        } else {
+            string.into()
+        }
+    } else {
+        string.into()
+    };
+    let (url, ty) = match Url::parse(&raw_url) {
         Ok(url) => (url, UrlType::Full),
         Err(url::ParseError::RelativeUrlWithoutBase) => {
             // Try again, with base URL
@@ -249,9 +263,15 @@ fn scrub_resource(string: &str) -> Option<String> {
         }
     };
 
-    // Remove previously inserted dummy URL if necessary:
+    // Remove previously inserted dummy URL or scheme if necessary:
     let formatted = match ty {
-        UrlType::Full => formatted,
+        UrlType::Full => {
+            if raw_url == string {
+                formatted
+            } else {
+                formatted.replace("http://", "")
+            }
+        }
         UrlType::Absolute => formatted.replace("http://replace_me", ""),
         UrlType::Relative => formatted.replace("http://replace_me/", ""),
     };
