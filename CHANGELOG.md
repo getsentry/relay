@@ -5,6 +5,7 @@
 **Features**:
 
 - Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))
+- Group resource spans by scrubbed domain and filename. ([#2654](https://github.com/getsentry/relay/pull/2654))
 
 **Internal**:
 
