@@ -314,12 +314,12 @@
         },
         MetricSpec {
             category: DataCategory::Span,
-            mri: <span class="string">&quot;d:spans/http.decoded_response_body_length@byte&quot;</span>.into(),
-            field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.data.http\\.decoded_response_body_length&quot;</span>.into()),
+            mri: <span class="string">&quot;d:spans/http.decoded_response_content_length@byte&quot;</span>.into(),
+            field: <span class="prelude-val">Some</span>(<span class="string">&quot;span.data.http\\.decoded_response_content_length&quot;</span>.into()),
             condition: <span class="prelude-val">Some</span>(
                 span_op_conditions.clone()
                     &amp; resource_condition.clone()
-                    &amp; RuleCondition::gt(<span class="string">&quot;span.data.http\\.decoded_response_body_length&quot;</span>, <span class="number">0</span>),
+                    &amp; RuleCondition::gt(<span class="string">&quot;span.data.http\\.decoded_response_content_length&quot;</span>, <span class="number">0</span>),
             ),
             tags: Default::default(),
         },
@@ -387,7 +387,7 @@
         </span>TagMapping {
             metrics: <span class="macro">vec!</span>[
                 LazyGlob::new(<span class="string">&quot;d:spans/http.response_content_length@byte&quot;</span>.into()),
-                LazyGlob::new(<span class="string">&quot;d:spans/http.decoded_response_body_length@byte&quot;</span>.into()),
+                LazyGlob::new(<span class="string">&quot;d:spans/http.decoded_response_content_length@byte&quot;</span>.into()),
                 LazyGlob::new(<span class="string">&quot;d:spans/http.response_transfer_size@byte&quot;</span>.into()),
             ],
             tags: [
