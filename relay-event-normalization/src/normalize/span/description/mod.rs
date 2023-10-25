@@ -694,14 +694,14 @@ mod tests {
         resource_script_missing_scheme,
         "domain.com/foo.bar/resource.js",
         "resource.script",
-        "domain.com/*/resource.js"
+        "*/resource.js"
     );
 
     span_description_test!(
         resource_script_missing_scheme_integer_id,
         "domain.com/zero-length-00",
         "resource.script",
-        "domain.com/zero-length-*"
+        "*/zero-length-*"
     );
 
     #[test]
