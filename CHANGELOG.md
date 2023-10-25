@@ -6,11 +6,13 @@
 
 - Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))
 - Add User Feedback Ingestion. ([#2604](https://github.com/getsentry/relay/pull/2604))
-
+- Group resource spans by scrubbed domain and filename. ([#2654](https://github.com/getsentry/relay/pull/2654))
 
 **Internal**:
 
 - Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
+- Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
+
 
 **Features**:
 
