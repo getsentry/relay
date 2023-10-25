@@ -9,6 +9,8 @@
 **Internal**:
 
 - Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
+- Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
+
 
 **Features**:
 

@@ -40,7 +40,7 @@ pub enum SpanTagKey {
     Description,
     Domain,
     Group,
-    HttpDecodedResponseBodyLength,
+    HttpDecodedResponseContentLength,
     HttpResponseContentLength,
     HttpResponseTransferSize,
     ResourceRenderBlockingStatus,
@@ -70,7 +70,7 @@ impl SpanTagKey {
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
             SpanTagKey::Group => "group",
-            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
+            SpanTagKey::HttpDecodedResponseContentLength => "http.decoded_response_content_length",
             SpanTagKey::HttpResponseContentLength => "http.response_content_length",
             SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
             SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
@@ -333,15 +333,15 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                 );
             }
 
-            if let Some(http_decoded_response_body_length) = span
+            if let Some(http_decoded_response_content_length) = span
                 .data
                 .value()
-                .and_then(|data| data.get("http.decoded_response_body_length"))
+                .and_then(|data| data.get("http.decoded_response_content_length"))
                 .and_then(|value| value.as_str())
             {
                 span_tags.insert(
-                    SpanTagKey::HttpDecodedResponseBodyLength,
-                    http_decoded_response_body_length.to_owned(),
+                    SpanTagKey::HttpDecodedResponseContentLength,
+                    http_decoded_response_content_length.to_owned(),
                 );
             }
 
