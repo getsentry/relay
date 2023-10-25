@@ -29,6 +29,7 @@ use smallvec::SmallVec;
 
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
+use crate::utils::MAX_DURATION_MOBILE_MS;
 use crate::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
@@ -414,7 +415,7 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
         "frames_frozen" => Some(MetricUnit::None),
         "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
         "time_to_initial_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "time_to_first_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "time_to_full_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         // React-Native
         "stall_count" => Some(MetricUnit::None),
@@ -438,6 +439,29 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
         measurements.insert("app_start_warm".to_string(), app_start_warm_value);
     }
+}
+
+/// New SDKs do not send measurements when they exceed 180 seconds.
+///
+/// Drop those outlier measurements for older SDKs.
+fn filter_mobile_outliers(measurements: &mut Measurements) {
+    for key in [
+        "app_start_cold",
+        "app_start_warm",
+        "time_to_initial_display",
+        "time_to_full_display",
+    ] {
+        if let Some(value) = measurements.get_value(key) {
+            if value > MAX_DURATION_MOBILE_MS {
+                measurements.remove(key);
+            }
+        }
+    }
+}
+
+fn normalize_mobile_measurements(measurements: &mut Measurements) {
+    normalize_app_start_measurements(measurements);
+    filter_mobile_outliers(measurements);
 }
 
 fn normalize_units(measurements: &mut Measurements) {
@@ -465,7 +489,7 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_app_start_measurements(measurements);
+        normalize_mobile_measurements(measurements);
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
             remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
@@ -4039,6 +4063,18 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_filter_mobile_outliers() {
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app_start_warm": {"value": 180001}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        assert_eq!(measurements.len(), 1);
+        filter_mobile_outliers(&mut measurements);
+        assert_eq!(measurements.len(), 0);
     }
 
     #[test]

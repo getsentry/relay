@@ -15,6 +15,12 @@ pub const MOBILE_SDKS: [&str; 4] = [
     "sentry.javascript.react-native",
 ];
 
+/// Maximum length of a mobile span or measurement in milliseconds.
+///
+/// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
+/// as well as mobile measurements (on transactions) such as `app.start.cold`, etc.
+pub const MAX_DURATION_MOBILE_MS: f64 = 180_000.0;
+
 /// Extract the HTTP status code from the span data.
 pub fn http_status_code_from_span(span: &Span) -> Option<String> {
     // For SDKs which put the HTTP status code into the span data.

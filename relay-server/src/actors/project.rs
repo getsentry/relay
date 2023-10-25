@@ -153,8 +153,9 @@ impl ProjectState {
         self.disabled
     }
 
-    /// Returns `true` if the project state obtained from the upstream could not be parsed. This
-    /// results in events being dropped similar to disabled states, but can provide separate
+    /// Returns `true` if the project state obtained from upstream could not be parsed.
+    ///
+    /// This results in events being dropped similar to disabled states, but can provide separate
     /// metrics.
     pub fn invalid(&self) -> bool {
         self.invalid
