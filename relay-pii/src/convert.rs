@@ -143,9 +143,23 @@ pub fn to_pii_config(
             continue;
         }
 
-        conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-            SelectorPathItem::Key(field.to_owned()),
-        ]))));
+        let spec = match field.parse() {
+            Ok(spec) => spec,
+            Err(error) => {
+                // Invalid safe fields should be caught by sentry-side validation.
+                // Log an error if they are not.
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    field = field,
+                    "Error parsing safe field into selector",
+                );
+
+                // Fallback to stay compatible with already existing keys.
+                SelectorSpec::Path(vec![SelectorPathItem::Key(field.to_owned())])
+            }
+        };
+
+        conjunctions.push(SelectorSpec::Not(Box::new(spec)));
     }
 
     let applied_selector = SelectorSpec::And(conjunctions);
@@ -164,10 +178,9 @@ pub fn to_pii_config(
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_debug_snapshot;
     use relay_event_schema::processor::{process_value, ProcessingState};
     use relay_event_schema::protocol::Event;
-    use relay_protocol::{assert_annotated_snapshot, get_value, FromValue};
+    use relay_protocol::{assert_annotated_snapshot, FromValue};
     use similar_asserts::assert_eq;
 
     use crate::PiiProcessor;
@@ -1507,29 +1520,49 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
     }
 
     #[test]
-    fn test_exclude_list() {
+    fn test_exclude_expression() {
         let mut data = Event::from_value(
             serde_json::json!({
                 "extra": {
                     "do_not_scrub_1": "password",
                     "do_not_scrub_2": ["password"],
+                    "do_not_scrub.dot": ["password"],
+                },
+                "user": {
+                    "id": "5355849125500546",
                 }
             })
             .into(),
         );
 
         let pii_config = to_pii_config(&DataScrubbingConfig {
-            //sensitive_fields: vec![],
-            exclude_fields: vec!["do_not_scrub_1".into(), "do_not_scrub_2".into()],
+            exclude_fields: vec![
+                "do_not_scrub_1".to_owned(),
+                "do_not_scrub_2.**".to_owned(),
+                "extra.'do_not_scrub.dot'.**".to_owned(),
+                "$user.id".to_owned(),
+            ],
             ..simple_enabled_config()
         })
         .unwrap();
 
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
-        assert_debug_snapshot!(
-            get_value!(data.extra!),
-            @""
-        );
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "user": {
+            "id": "5355849125500546"
+          },
+          "extra": {
+            "do_not_scrub.dot": [
+              "password"
+            ],
+            "do_not_scrub_1": "password",
+            "do_not_scrub_2": [
+              "password"
+            ]
+          }
+        }
+        "###);
     }
 }
