@@ -5,7 +5,6 @@ from time import sleep
 import uuid
 import socket
 import threading
-import time
 import pytest
 from datetime import datetime, timedelta, timezone
 
