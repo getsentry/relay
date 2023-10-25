@@ -1268,7 +1268,7 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1694732408),
         width: 0,
-        name: "d:spans/http.decoded_response_body_length@byte",
+        name: "d:spans/http.decoded_response_content_length@byte",
         value: Distribution(
             [
                 128950.0,
