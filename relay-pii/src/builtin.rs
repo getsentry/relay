@@ -1309,4 +1309,30 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
             }
         }
     }
+
+    #[test]
+    fn test_meta_remarks_is_empty() {
+        let config = PiiConfig {
+            applications: {
+                let mut map = BTreeMap::new();
+                map.insert(ValueType::String.into(), vec!["@ip".into()]);
+                map
+            },
+            ..Default::default()
+        };
+
+        let compiled = config.compiled();
+        let mut processor = PiiProcessor::new(compiled);
+        let state = processing_state();
+
+        let input = "nothing to filter here".to_string();
+        let mut root = Annotated::new(input);
+        process_value(&mut root, &mut processor, &state).unwrap();
+        assert!(!root.meta().has_remarks());
+
+        let input = "my secret ip: 127.0.0.1".to_string();
+        let mut root = Annotated::new(input);
+        process_value(&mut root, &mut processor, &state).unwrap();
+        assert!(root.meta().has_remarks());
+    }
 }
