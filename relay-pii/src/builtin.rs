@@ -392,7 +392,7 @@ mod tests {
     use relay_event_schema::processor::{
         process_value, EnumSet, FieldAttrs, Pii, ProcessingState, ValueType,
     };
-    use relay_protocol::{Annotated, Remark, RemarkType};
+    use relay_protocol::{Annotated, Meta, Remark, RemarkType};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -1324,6 +1324,8 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         let compiled = config.compiled();
         let mut processor = PiiProcessor::new(compiled);
         let state = processing_state();
+
+        assert!(!Meta::default().has_remarks());
 
         let input = "nothing to filter here".to_string();
         let mut root = Annotated::new(input);
