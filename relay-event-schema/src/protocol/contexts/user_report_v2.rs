@@ -64,7 +64,7 @@ mod tests {
         let json = r#"{
   "message": "test message",
   "contact_email": "test@test.com",
-  "type": "userreportv2"
+  "type": "feedback"
 }"#;
         let context = Annotated::new(Context::UserReportV2(Box::new(UserReportV2Context {
             message: Annotated::new("test message".to_string()),
