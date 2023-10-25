@@ -780,6 +780,16 @@
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
 <a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>sql;
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1010,14 +1020,24 @@
             <span class="kw">let </span>path = scrub_resource_path(url.path());
             <span class="macro">format!</span>(<span class="string">&quot;chrome-extension://*{path}&quot;</span>)
         }
+        <span class="string">&quot;moz-extension&quot; </span>=&gt; {
+            <span class="kw">let </span>path = scrub_resource_path(url.path());
+            <span class="macro">format!</span>(<span class="string">&quot;moz-extension://*{path}&quot;</span>)
+        }
         scheme =&gt; {
-            <span class="kw">let </span>path = url.path();
-            <span class="kw">let </span>path = scrub_resource_path(path);
+            <span class="kw">let </span>segments = url.path_segments();
+            <span class="kw">let </span>segment_count = segments.map(|s| s.count()).unwrap_or_default();
             <span class="kw">let </span>domain = url
                 .domain()
                 .and_then(|d| normalize_domain(d, url.port()))
                 .unwrap_or(<span class="string">&quot;&quot;</span>.into());
-            <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}{path}&quot;</span>)
+            <span class="kw">let </span>last_segment = url
+                .path_segments()
+                .and_then(|s| s.last())
+                .unwrap_or_default();
+            <span class="kw">let </span>sep = <span class="kw">if </span>segment_count &gt; <span class="number">1 </span>{ <span class="string">&quot;*/&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;&quot; </span>};
+            <span class="kw">let </span>last_segment = scrub_resource_path(last_segment);
+            <span class="macro">format!</span>(<span class="string">&quot;{scheme}://{domain}/{sep}{last_segment}&quot;</span>)
         }
     };
 
@@ -1247,70 +1267,70 @@
         resource_script,
         <span class="string">&quot;https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.com/static/chunks/*.map&quot;
+        <span class="string">&quot;https://example.com/*/*.map&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_numeric_filename,
         <span class="string">&quot;https://example.com/static/chunks/09876543211234567890&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://example.com/static/chunks/*&quot;
+        <span class="string">&quot;https://example.com/*/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_css,
         <span class="string">&quot;https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;https://example.com/assets/dark_high_contrast-*.css&quot;
+        <span class="string">&quot;https://example.com/*/dark_high_contrast-*.css&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         integer_in_resource,
         <span class="string">&quot;https://example.com/assets/this_is-a_good_resource-123-scrub_me.js&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;https://example.com/assets/*.js&quot;
+        <span class="string">&quot;https://example.com/*/*.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_query_params,
         <span class="string">&quot;/organization-avatar/123/?s=120&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;/organization-avatar/*/&quot;
+        <span class="string">&quot;/*/&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_query_params2,
         <span class="string">&quot;https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&amp;ct=1234567890&amp;v=1.203.0_prod&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/guide*.gif&quot;
+        <span class="string">&quot;https://*.domain.com/*/guide*.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_no_ids,
         <span class="string">&quot;https://data.domain.com/data/guide.gif&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/guide.gif&quot;
+        <span class="string">&quot;https://*.domain.com/*/guide.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_webpack,
         <span class="string">&quot;https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js&quot;</span>,
         <span class="string">&quot;resource.js&quot;</span>,
-        <span class="string">&quot;https://domain.com/path/to/app-*.*.js&quot;
+        <span class="string">&quot;https://domain.com/*/app-*.*.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_vite,
         <span class="string">&quot;webroot/assets/Profile-73f6525d.js&quot;</span>,
         <span class="string">&quot;resource.js&quot;</span>,
-        <span class="string">&quot;webroot/assets/Profile-*.js&quot;
+        <span class="string">&quot;*/Profile-*.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_vite_css,
         <span class="string">&quot;webroot/assets/Shop-1aff80f7.css&quot;</span>,
         <span class="string">&quot;resource.css&quot;</span>,
-        <span class="string">&quot;webroot/assets/Shop-*.css&quot;
+        <span class="string">&quot;*/Shop-*.css&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1324,7 +1344,7 @@
         urlencoded_path_segments,
         <span class="string">&quot;https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue&quot;</span>,
         <span class="string">&quot;resource.iframe&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/embed/*&quot;
+        <span class="string">&quot;https://*.domain.com/*/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1338,7 +1358,7 @@
         random_string2,
         <span class="string">&quot;http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;http://domain.com/*/*/*.jsonp&quot;
+        <span class="string">&quot;http://domain.com/*/*.jsonp&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1380,7 +1400,7 @@
         resource_url_with_fragment,
         <span class="string">&quot;https://data.domain.com/data/guide123.gif#url=someotherurl&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://*.domain.com/data/guide*.gif&quot;
+        <span class="string">&quot;https://*.domain.com/*/guide*.gif&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1424,28 +1444,28 @@
         resource_img_semi_colon,
         <span class="string">&quot;http://www.foo.com/path/to/resource;param1=test;param2=ing&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;http://*.foo.com/path/to/*&quot;
+        <span class="string">&quot;http://*.foo.com/*/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_comma_with_extension,
         <span class="string">&quot;https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;https://example.org/p/*/media/photos*/weird-stuff-*-*-*.jpg&quot;
+        <span class="string">&quot;https://example.org/*/weird-stuff-*-*-*.jpg&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_img_path_with_comma,
         <span class="string">&quot;/help/purchase-details/1,*,0&amp;fmt=webp&amp;qlt=*,1&amp;fit=constrain,0&amp;op_sharpen=0&amp;resMode=sharp2&amp;iccEmbed=0&amp;printRes=*&quot;</span>,
         <span class="string">&quot;resource.img&quot;</span>,
-        <span class="string">&quot;/help/purchase-details/*&quot;
+        <span class="string">&quot;/*/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_random_path_only,
         <span class="string">&quot;/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;/*/*/*/*/*/*/*&quot;
+        <span class="string">&quot;/*/*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
@@ -1459,21 +1479,21 @@
         resource_script_extension_in_segment,
         <span class="string">&quot;https://domain.com/foo.bar/resource.js&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;https://domain.com/foo.bar/resource.js&quot;
+        <span class="string">&quot;https://domain.com/*/resource.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_missing_scheme,
         <span class="string">&quot;domain.com/foo.bar/resource.js&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;domain.com/foo.bar/resource.js&quot;
+        <span class="string">&quot;*/resource.js&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
         resource_script_missing_scheme_integer_id,
         <span class="string">&quot;domain.com/zero-length-00&quot;</span>,
         <span class="string">&quot;resource.script&quot;</span>,
-        <span class="string">&quot;domain.com/zero-length-*&quot;
+        <span class="string">&quot;*/zero-length-*&quot;
     </span>);
 
     <span class="attr">#[test]
