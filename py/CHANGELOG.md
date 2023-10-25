@@ -7,6 +7,7 @@
 - Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
 - Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
 - Add `locale` ,`screen_width_pixels`, `screen_height_pixels`, and `uuid` to the device context. ([#2640](https://github.com/getsentry/relay/pull/2640))
+- Run StoreProcessor in light normalization. ((#2657)[https://github.com/getsentry/relay/pull/2657])
 
 ## 0.8.31
 
