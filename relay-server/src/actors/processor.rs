@@ -479,7 +479,7 @@ impl EncodeEnvelope {
 /// Applies rate limits to metrics buckets and forwards them to the envelope manager.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-pub struct RateLimitFlushBuckets {
+pub struct RateLimitBuckets {
     pub bucket_limiter: MetricsLimiter,
 }
 
@@ -490,7 +490,7 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
-    RateLimitFlushBuckets(RateLimitFlushBuckets),
+    RateLimitFlushBuckets(RateLimitBuckets),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -520,10 +520,10 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
+impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
+    fn from_message(message: RateLimitBuckets, _: ()) -> Self {
         Self::RateLimitFlushBuckets(message)
     }
 }
@@ -2898,10 +2898,10 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+    fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
         use relay_quotas::ItemScoping;
 
-        let RateLimitFlushBuckets {
+        let RateLimitBuckets {
             mut bucket_limiter, ..
         } = message;
 

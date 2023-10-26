@@ -23,7 +23,7 @@ use crate::actors::envelopes::{EnvelopeManager, SendMetrics};
 use crate::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::actors::processor::EnvelopeProcessor;
 #[cfg(feature = "processing")]
-use crate::actors::processor::RateLimitFlushBuckets;
+use crate::actors::processor::RateLimitBuckets;
 use crate::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 use crate::extractors::RequestMeta;
@@ -607,7 +607,7 @@ impl Project {
         });
     }
 
-    fn ratelimit_and_merge_buckets(
+    fn rate_limit_and_merge_buckets(
         &self,
         project_state: Arc<ProjectState>,
         mut buckets: Vec<Bucket>,
@@ -618,7 +618,7 @@ impl Project {
         let Some(scoping) = self.scoping() else {
             // This shouldn't be possible since we check if project id is present before setting the new project state.
             // TODO(tor): Find a way to properly represent this invariant in the type system.
-            relay_log::trace!(
+            relay_log::error!(
                 "there is no scoping due to missing project id: dropping {} buckets",
                 buckets.len()
             );
@@ -634,6 +634,9 @@ impl Project {
         // Re-run feature flag checks since the project might not have been loaded when the buckets
         // were initially ingested, or feature flags have changed in the meanwhile.
         self.filter_metrics(&mut buckets);
+        if buckets.is_empty() {
+            return;
+        }
 
         // Check rate limits if necessary:
         let quotas = project_state.config.quotas.clone();
@@ -653,7 +656,7 @@ impl Project {
                 #[cfg(feature = "processing")]
                 if !was_rate_limited && self.config.processing_enabled() {
                     // If there were no cached rate limits active, let the processor check redis:
-                    envelope_processor.send(RateLimitFlushBuckets { bucket_limiter });
+                    envelope_processor.send(RateLimitBuckets { bucket_limiter });
 
                     return;
                 }
@@ -661,6 +664,10 @@ impl Project {
                 bucket_limiter.into_metrics()
             }
             Err(buckets) => buckets,
+        };
+
+        if buckets.is_empty() {
+            return;
         };
 
         aggregator.send(MergeBuckets::new(self.project_key, buckets));
@@ -686,7 +693,7 @@ impl Project {
                         relay_log::debug!("sending metrics straight to aggregator");
                         let state = state.clone();
 
-                        self.ratelimit_and_merge_buckets(
+                        self.rate_limit_and_merge_buckets(
                             state,
                             buckets,
                             aggregator,
@@ -844,7 +851,7 @@ impl Project {
         if let Some(buckets) = buckets {
             if project_enabled && !buckets.is_empty() {
                 relay_log::debug!("sending metrics from metricsbuffer to aggregator");
-                self.ratelimit_and_merge_buckets(
+                self.rate_limit_and_merge_buckets(
                     state,
                     buckets,
                     aggregator,
