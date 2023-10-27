@@ -2142,6 +2142,14 @@
 <a href="#2142" id="2142">2142</a>
 <a href="#2143" id="2143">2143</a>
 <a href="#2144" id="2144">2144</a>
+<a href="#2145" id="2145">2145</a>
+<a href="#2146" id="2146">2146</a>
+<a href="#2147" id="2147">2147</a>
+<a href="#2148" id="2148">2148</a>
+<a href="#2149" id="2149">2149</a>
+<a href="#2150" id="2150">2150</a>
+<a href="#2151" id="2151">2151</a>
+<a href="#2152" id="2152">2152</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2965,6 +2973,8 @@
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 </span><span class="kw">struct </span>Cache {
+    <span class="doccomment">/// The full project state will be requested by this Relay if set to `true`.
+    </span>project_request_full_config: bool,
     <span class="doccomment">/// The cache timeout for project configurations in seconds.
     </span>project_expiry: u32,
     <span class="doccomment">/// Continue using project state this many seconds after cache expiry while a new state is
@@ -3001,6 +3011,7 @@
 <span class="kw">impl </span>Default <span class="kw">for </span>Cache {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         Cache {
+            project_request_full_config: <span class="bool-val">false</span>,
             project_expiry: <span class="number">300</span>, <span class="comment">// 5 minutes
             </span>project_grace_period: <span class="number">0</span>,
             relay_expiry: <span class="number">3600</span>,   <span class="comment">// 1 hour
@@ -3884,6 +3895,11 @@
     <span class="doccomment">/// Returns the expiry timeout for cached projects.
     </span><span class="kw">pub fn </span>project_cache_expiry(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.cache.project_expiry.into())
+    }
+
+    <span class="doccomment">/// Returns `true` if the full project state should be requested from upstream.
+    </span><span class="kw">pub fn </span>request_full_project_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.values.cache.project_request_full_config
     }
 
     <span class="doccomment">/// Returns the expiry timeout for cached relay infos (public keys).
