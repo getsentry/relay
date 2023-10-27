@@ -133,7 +133,8 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
         return;
     };
 
-    let (ttid, ttfd) = display_times(spans.as_ref());
+    let ttid = timestamp_by_op(spans, "ui.load.initial_display");
+    let ttfd = timestamp_by_op(spans, "ui.load.full_display");
 
     for span in spans {
         let Some(span) = span.value_mut().as_mut() else {
@@ -405,25 +406,15 @@ pub(crate) fn extract_tags(
     span_tags
 }
 
-/// Finds time-to-initial/full-display spans and returns its end times.
-fn display_times(spans: &[Annotated<Span>]) -> (Option<Timestamp>, Option<Timestamp>) {
-    let mut ttid = None;
-    let mut ttfd = None;
-
-    for span in spans {
-        let Some(span) = span.value() else { continue };
-        if ttid.is_none() && span.op.as_str() == Some("ui.load.initial_display") {
-            ttid = span.timestamp.value().copied();
-        }
-        if ttfd.is_none() && span.op.as_str() == Some("ui.load.full_display") {
-            ttfd = span.timestamp.value().copied();
-        }
-        if ttid.is_some() && ttfd.is_some() {
-            break;
-        }
-    }
-
-    (ttid, ttfd)
+/// Finds first matching span and get its timestamp.
+///
+/// Used to get time-to-initial/full-display times.
+fn timestamp_by_op(spans: &[Annotated<Span>], op: &str) -> Option<Timestamp> {
+    spans
+        .iter()
+        .filter_map(Annotated::value)
+        .find(|span| span.op.as_str() == Some(op))
+        .and_then(|span| span.timestamp.value().copied())
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens

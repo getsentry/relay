@@ -1,22 +1,19 @@
 # Changelog
 
-## Unrelease
+## Unreleased
 
 **Features**:
 
 - Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))
 - Group resource spans by scrubbed domain and filename. ([#2654](https://github.com/getsentry/relay/pull/2654))
+- Filter outliers (>180s) for mobile measurements. ([#2649](https://github.com/getsentry/relay/pull/2649))
+- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640))
 
 **Internal**:
 
 - Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
 - Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
-
-
-**Features**:
-
-- Filter outliers (>180s) for mobile measurements. ([#2649](https://github.com/getsentry/relay/pull/2649))
-- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640))
+- Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
 
 ## 23.10.1
 
@@ -25,7 +22,6 @@
 - Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
 - Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
 - Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
-
 
 **Internal**:
 
