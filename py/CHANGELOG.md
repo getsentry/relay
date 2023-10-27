@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.33
 
 - Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
 - Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
