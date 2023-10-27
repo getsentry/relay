@@ -276,7 +276,7 @@ impl UpstreamProjectSourceService {
 
             let query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
-                full_config: config.processing_enabled(),
+                full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
             };
 
