@@ -1086,46 +1086,63 @@ mod tests {
     }
 
     /// Helper function for span metric extraction tests.
-    fn extract_span_metrics(span_op: &str, duration_millis: f64) -> Vec<Bucket> {
+    fn extract_span_metrics(span: &Span) -> Vec<Bucket> {
+        let mut config = ProjectConfig::default();
+        config.features.0.insert(Feature::SpanMetricsExtraction);
+        config.sanitize(); // apply defaults for span extraction
+
+        let extraction_config = config.metric_extraction.ok().unwrap();
+        generic::extract_metrics(span, &extraction_config)
+    }
+
+    /// Helper function for span metric extraction tests.
+    fn extract_span_metrics_op_duration(span_op: &str, duration_millis: f64) -> Vec<Bucket> {
         let mut span = Span::default();
         span.timestamp
             .set_value(Some(Timestamp::from(DateTime::<Utc>::MAX_UTC))); // whatever
         span.op.set_value(Some(span_op.into()));
         span.exclusive_time.set_value(Some(duration_millis));
 
-        let mut config = ProjectConfig::default();
-        config.features.0.insert(Feature::SpanMetricsExtraction);
-        config.sanitize(); // apply defaults for span extraction
-
-        let extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(&span, &extraction_config)
+        extract_span_metrics(&span)
     }
 
     #[test]
     fn test_app_start_cold_inlier() {
-        assert_eq!(2, extract_span_metrics("app.start.cold", 180000.0).len());
+        assert_eq!(
+            2,
+            extract_span_metrics_op_duration("app.start.cold", 180000.0).len()
+        );
     }
 
     #[test]
     fn test_app_start_cold_outlier() {
-        assert_eq!(0, extract_span_metrics("app.start.cold", 181000.0).len());
+        assert_eq!(
+            0,
+            extract_span_metrics_op_duration("app.start.cold", 181000.0).len()
+        );
     }
 
     #[test]
     fn test_app_start_warm_inlier() {
-        assert_eq!(2, extract_span_metrics("app.start.warm", 180000.0).len());
+        assert_eq!(
+            2,
+            extract_span_metrics_op_duration("app.start.warm", 180000.0).len()
+        );
     }
 
     #[test]
     fn test_app_start_warm_outlier() {
-        assert_eq!(0, extract_span_metrics("app.start.warm", 181000.0).len());
+        assert_eq!(
+            0,
+            extract_span_metrics_op_duration("app.start.warm", 181000.0).len()
+        );
     }
 
     #[test]
     fn test_ui_load_initial_display_inlier() {
         assert_eq!(
             2,
-            extract_span_metrics("ui.load.initial_display", 180000.0).len()
+            extract_span_metrics_op_duration("ui.load.initial_display", 180000.0).len()
         );
     }
 
@@ -1133,7 +1150,7 @@ mod tests {
     fn test_ui_load_initial_display_outlier() {
         assert_eq!(
             0,
-            extract_span_metrics("ui.load.initial_display", 181000.0).len()
+            extract_span_metrics_op_duration("ui.load.initial_display", 181000.0).len()
         );
     }
 
@@ -1141,7 +1158,7 @@ mod tests {
     fn test_ui_load_full_display_inlier() {
         assert_eq!(
             2,
-            extract_span_metrics("ui.load.full_display", 180000.0).len()
+            extract_span_metrics_op_duration("ui.load.full_display", 180000.0).len()
         );
     }
 
@@ -1149,7 +1166,31 @@ mod tests {
     fn test_ui_load_full_display_outlier() {
         assert_eq!(
             0,
-            extract_span_metrics("ui.load.full_display", 181000.0).len()
+            extract_span_metrics_op_duration("ui.load.full_display", 181000.0).len()
         );
+    }
+
+    #[test]
+    fn test_display_times_extracted() {
+        let span = r#"{
+            "op": "http.client",
+            "span_id": "bd429c44b67a3eb4",
+            "start_timestamp": 1597976300.0000000,
+            "timestamp": 1597976302.0000000,
+            "exclusive_time": 100,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "sentry_tags": {
+                "ttid": "true",
+                "ttfd": "true"
+            }
+        }"#;
+        let span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        let metrics = extract_span_metrics(&span);
+
+        assert!(!metrics.is_empty());
+        for metric in metrics {
+            assert_eq!(metric.tag("ttid"), Some("true"));
+            assert_eq!(metric.tag("ttfd"), Some("true"));
+        }
     }
 }

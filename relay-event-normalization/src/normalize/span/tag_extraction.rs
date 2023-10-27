@@ -47,10 +47,10 @@ pub enum SpanTagKey {
     SpanOp,
     StatusCode,
     System,
-    /// Contributes to Time-To-Full-Display.
-    Ttfd,
     /// Contributes to Time-To-Initial-Display.
-    Ttid,
+    TimeToInitialDisplay,
+    /// Contributes to Time-To-Full-Display.
+    TimeToFullDisplay,
 }
 
 impl SpanTagKey {
@@ -81,8 +81,8 @@ impl SpanTagKey {
             SpanTagKey::SpanOp => "op",
             SpanTagKey::StatusCode => "status_code",
             SpanTagKey::System => "system",
-            SpanTagKey::Ttfd => "ttfd",
-            SpanTagKey::Ttid => "ttid",
+            SpanTagKey::TimeToFullDisplay => "ttfd",
+            SpanTagKey::TimeToInitialDisplay => "ttid",
         }
     }
 }
@@ -392,12 +392,12 @@ pub(crate) fn extract_tags(
     if let Some(end_time) = span.timestamp.value() {
         if let Some(initial_display) = initial_display {
             if end_time <= &initial_display {
-                span_tags.insert(SpanTagKey::Ttid, "true".to_owned());
+                span_tags.insert(SpanTagKey::TimeToInitialDisplay, "true".to_owned());
             }
         }
         if let Some(full_display) = full_display {
             if end_time <= &full_display {
-                span_tags.insert(SpanTagKey::Ttfd, "true".to_owned());
+                span_tags.insert(SpanTagKey::TimeToFullDisplay, "true".to_owned());
             }
         }
     }
@@ -817,6 +817,95 @@ LIMIT 1
 
         for (query, expected) in test_cases {
             assert_eq!(sql_action_from_query(query).unwrap(), expected)
+        }
+    }
+
+    #[test]
+    fn test_display_times() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "before_first_display",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "ui.load.initial_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976303.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976303.0000000,
+                        "timestamp": 1597976305.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "ui.load.full_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976304.0000000,
+                        "timestamp": 1597976306.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    },
+                    {
+                        "op": "after_full_display",
+                        "span_id": "bd429c44b67a3eb2",
+                        "start_timestamp": 1597976307.0000000,
+                        "timestamp": 1597976308.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let spans = event.spans.value().unwrap();
+
+        // First two spans contribute to initial display & full display:
+        for span in &spans[..2] {
+            let tags = span.value().unwrap().sentry_tags.value().unwrap();
+            assert_eq!(tags.get("ttid").unwrap().as_str(), Some("true"));
+            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("true"));
+        }
+
+        // First four spans contribute to full display:
+        for span in &spans[2..4] {
+            let tags = span.value().unwrap().sentry_tags.value().unwrap();
+            assert_eq!(tags.get("ttid"), None);
+            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("true"));
+        }
+
+        for span in &spans[4..] {
+            let tags = span.value().unwrap().sentry_tags.value().unwrap();
+            assert_eq!(tags.get("ttid"), None);
+            assert_eq!(tags.get("ttfd"), None);
         }
     }
 }
