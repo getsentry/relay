@@ -392,12 +392,12 @@ pub(crate) fn extract_tags(
     if let Some(end_time) = span.timestamp.value() {
         if let Some(initial_display) = initial_display {
             if end_time <= &initial_display {
-                span_tags.insert(SpanTagKey::TimeToInitialDisplay, "true".to_owned());
+                span_tags.insert(SpanTagKey::TimeToInitialDisplay, "ttid".to_owned());
             }
         }
         if let Some(full_display) = full_display {
             if end_time <= &full_display {
-                span_tags.insert(SpanTagKey::TimeToFullDisplay, "true".to_owned());
+                span_tags.insert(SpanTagKey::TimeToFullDisplay, "ttfd".to_owned());
             }
         }
     }
@@ -891,15 +891,15 @@ LIMIT 1
         // First two spans contribute to initial display & full display:
         for span in &spans[..2] {
             let tags = span.value().unwrap().sentry_tags.value().unwrap();
-            assert_eq!(tags.get("ttid").unwrap().as_str(), Some("true"));
-            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("true"));
+            assert_eq!(tags.get("ttid").unwrap().as_str(), Some("ttid"));
+            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("ttfd"));
         }
 
         // First four spans contribute to full display:
         for span in &spans[2..4] {
             let tags = span.value().unwrap().sentry_tags.value().unwrap();
             assert_eq!(tags.get("ttid"), None);
-            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("true"));
+            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("ttfd"));
         }
 
         for span in &spans[4..] {

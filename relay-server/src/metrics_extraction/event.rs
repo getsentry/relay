@@ -1180,8 +1180,8 @@ mod tests {
             "exclusive_time": 100,
             "trace_id": "ff62a8b040f340bda5d830223def1d81",
             "sentry_tags": {
-                "ttid": "true",
-                "ttfd": "true"
+                "ttid": "ttid",
+                "ttfd": "ttfd"
             }
         }"#;
         let span = Annotated::from_json(span).unwrap().into_value().unwrap();
@@ -1189,8 +1189,8 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
-            assert_eq!(metric.tag("ttid"), Some("true"));
-            assert_eq!(metric.tag("ttfd"), Some("true"));
+            assert_eq!(metric.tag("ttid"), Some("ttid"));
+            assert_eq!(metric.tag("ttfd"), Some("ttfd"));
         }
     }
 }
