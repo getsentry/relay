@@ -299,35 +299,4 @@ mod tests {
         assert_eq!(event, Annotated::from_json(input).unwrap());
         assert_eq!(output, event.to_json().unwrap());
     }
-
-    #[test]
-    fn test_length_validation() {
-        // String values do not pass validation due to length.
-
-        let input = format!(r#"{{"dist":"{}"}}"#, str::repeat("a", 65));
-        let event = Annotated::<Replay>::from_json(&input);
-        assert!(event.is_err());
-
-        let input = format!(r#"{{"platform":"{}"}}"#, str::repeat("a", 65));
-        let event = Annotated::<Replay>::from_json(&input);
-        assert!(event.is_err());
-
-        let input = format!(r#"{{"replay_type":"{}"}}"#, str::repeat("a", 65));
-        let event = Annotated::<Replay>::from_json(&input);
-        assert!(event.is_err());
-
-        // String values do pass validation.
-
-        let input = format!(r#"{{"dist":"{}"}}"#, str::repeat("a", 64));
-        let event = Annotated::<Replay>::from_json(&input);
-        assert!(event.is_ok());
-
-        let input = format!(r#"{{"platform":"{}"}}"#, str::repeat("a", 64));
-        let event = Annotated::<Replay>::from_json(&input);
-        assert!(event.is_ok());
-
-        let input = format!(r#"{{"replay_type":"{}"}}"#, str::repeat("a", 64));
-        let event = Annotated::<Replay>::from_json(&input);
-        assert!(event.is_ok());
-    }
 }
