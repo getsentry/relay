@@ -6,7 +6,7 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::{Event, Span, TraceContext};
+use relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
 use relay_protocol::Annotated;
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
@@ -47,6 +47,10 @@ pub enum SpanTagKey {
     SpanOp,
     StatusCode,
     System,
+    /// Contributes to Time-To-Full-Display.
+    Ttfd,
+    /// Contributes to Time-To-Initial-Display.
+    Ttid,
 }
 
 impl SpanTagKey {
@@ -77,6 +81,8 @@ impl SpanTagKey {
             SpanTagKey::SpanOp => "op",
             SpanTagKey::StatusCode => "status_code",
             SpanTagKey::System => "system",
+            SpanTagKey::Ttfd => "ttfd",
+            SpanTagKey::Ttid => "ttid",
         }
     }
 }
@@ -127,12 +133,14 @@ pub(crate) fn extract_span_tags(event: &mut Event, config: &Config) {
         return;
     };
 
+    let (ttid, ttfd) = display_times(spans.as_ref());
+
     for span in spans {
         let Some(span) = span.value_mut().as_mut() else {
             continue;
         };
 
-        let tags = extract_tags(span, config);
+        let tags = extract_tags(span, config, ttid, ttfd);
 
         span.sentry_tags = Annotated::new(
             shared_tags
@@ -207,7 +215,12 @@ pub fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
-pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey, String> {
+pub(crate) fn extract_tags(
+    span: &Span,
+    config: &Config,
+    initial_display: Option<Timestamp>,
+    full_display: Option<Timestamp>,
+) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
     let system = span
@@ -376,7 +389,41 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
         span_tags.insert(SpanTagKey::StatusCode, status_code);
     }
 
+    if let Some(end_time) = span.timestamp.value() {
+        if let Some(initial_display) = initial_display {
+            if end_time <= &initial_display {
+                span_tags.insert(SpanTagKey::Ttid, "true".to_owned());
+            }
+        }
+        if let Some(full_display) = full_display {
+            if end_time <= &full_display {
+                span_tags.insert(SpanTagKey::Ttfd, "true".to_owned());
+            }
+        }
+    }
+
     span_tags
+}
+
+/// Finds time-to-initial/full-display spans and returns its end times.
+fn display_times(spans: &[Annotated<Span>]) -> (Option<Timestamp>, Option<Timestamp>) {
+    let mut ttid = None;
+    let mut ttfd = None;
+
+    for span in spans {
+        let Some(span) = span.value() else { continue };
+        if ttid.is_none() && span.op.as_str() == Some("ui.load.initial_display") {
+            ttid = span.timestamp.value().copied();
+        }
+        if ttfd.is_none() && span.op.as_str() == Some("ui.load.full_display") {
+            ttfd = span.timestamp.value().copied();
+        }
+        if ttid.is_some() && ttfd.is_some() {
+            break;
+        }
+    }
+
+    (ttid, ttfd)
 }
 
 /// Trims the given string with the given maximum bytes. Splitting only happens
