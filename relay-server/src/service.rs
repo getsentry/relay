@@ -137,12 +137,14 @@ impl ServiceState {
 
         let processor = EnvelopeProcessorService::new(
             config.clone(),
+            #[cfg(feature = "processing")]
             redis_pool.clone(),
             envelope_manager.clone(),
             outcome_aggregator.clone(),
             project_cache.clone(),
             global_config.clone(),
             upstream_relay.clone(),
+            #[cfg(feature = "processing")]
             aggregator.clone(),
         )
         .start();

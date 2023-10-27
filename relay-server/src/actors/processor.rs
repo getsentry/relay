@@ -36,12 +36,11 @@ use relay_event_schema::protocol::{
     UserReport, Values,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{Aggregator, Bucket, MergeBuckets, MetricNamespace};
+use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
-use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -59,7 +58,9 @@ use {
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::{ProfileContext, Span},
+    relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -558,13 +559,13 @@ impl EnvelopeProcessorService {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
-        _redis: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis: Option<RedisPool>,
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
-        _aggregator: Addr<Aggregator>,
+        #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -578,9 +579,9 @@ impl EnvelopeProcessorService {
 
         let inner = InnerProcessor {
             #[cfg(feature = "processing")]
-            redis_pool: _redis.clone(),
+            redis_pool: redis.clone(),
             #[cfg(feature = "processing")]
-            rate_limiter: _redis
+            rate_limiter: redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
             config,
             envelope_manager,
@@ -590,7 +591,7 @@ impl EnvelopeProcessorService {
             upstream_relay,
             geoip_lookup,
             #[cfg(feature = "processing")]
-            aggregator: _aggregator,
+            aggregator,
         };
 
         Self {

@@ -616,8 +616,6 @@ impl Project {
         outcome_aggregator: Addr<TrackOutcome>,
     ) {
         let Some(scoping) = self.scoping() else {
-            // This shouldn't be possible since we check if project id is present before setting the new project state.
-            // TODO(tor): Find a way to properly represent this invariant in the type system.
             relay_log::error!(
                 "there is no scoping due to missing project id: dropping {} buckets",
                 buckets.len()
@@ -916,11 +914,7 @@ impl Project {
 
         match self.expiry_state() {
             // If the new state is invalid but the old one still usable, keep the old one.
-            ExpiryState::Updated(old) | ExpiryState::Stale(old)
-                if state.invalid() || state.project_id.is_none() =>
-            {
-                state = old
-            }
+            ExpiryState::Updated(old) | ExpiryState::Stale(old) if state.invalid() => state = old,
             // If the new state is valid or the old one is expired, always use the new one.
             _ => self.set_state(
                 state.clone(),
