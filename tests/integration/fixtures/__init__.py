@@ -1,9 +1,14 @@
 import time
 
-import requests
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-session = requests.session()
+
+session = Session()
+retries = Retry(total=5, backoff_factor=0.1)
+session.mount("http://", HTTPAdapter(max_retries=retries))
 
 
 class SentryLike:
