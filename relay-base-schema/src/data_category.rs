@@ -57,6 +57,11 @@ pub enum DataCategory {
     /// but we define it here to prevent clashing values since this data category enumeration
     /// is also used outside of Relay via the Python package.
     MonitorSeat = 13,
+    /// Statsd based Metrics
+    ///
+    /// This data dategory is not defined to "count", today it only exists to turn off ingestion
+    /// for clients without metrics functionality.
+    Statsd = 14,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -108,6 +113,7 @@ impl DataCategory {
             Self::Monitor => "monitor",
             Self::Span => "span",
             Self::MonitorSeat => "monitor_seat",
+            Self::Statsd => "statsd",
             Self::Unknown => "unknown",
         }
     }
