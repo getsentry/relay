@@ -711,7 +711,7 @@ def test_processing_quota_transaction_indexing(
             "scope": "key",
             "scopeId": str(key_id),
             "categories": ["transaction_indexed"],
-            "limit": 1,
+            "limit": 2,
             "window": 86400,
             "reasonCode": "get_lost",
         },
