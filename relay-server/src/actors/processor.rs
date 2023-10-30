@@ -2037,7 +2037,9 @@ impl EnvelopeProcessorService {
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.managed_envelope.reject(Outcome::Filtered(err));
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
         })
@@ -2621,6 +2623,7 @@ impl EnvelopeProcessorService {
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+                performance_score: state.project_state.config.performance_score.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
                     rules: &state.project_state.config.tx_name_rules,
@@ -4027,7 +4030,11 @@ mod tests {
             outcome_from_parts(ClientReportField::Filtered, "error-message"),
             Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
         ));
-        assert!(outcome_from_parts(ClientReportField::Filtered, "adsf").is_err());
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "hydration-error"),
+            Ok(Outcome::Filtered(FilterStatKey::GenericFilter(_)))
+        ));
     }
 
     #[test]

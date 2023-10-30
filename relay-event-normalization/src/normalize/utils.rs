@@ -3,6 +3,8 @@
 //! This utility module is being phased out. Functionality in this module should be moved to the
 //! specific normalization file requiring this data access.
 
+use std::f64::consts::SQRT_2;
+
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
 
 /// Used to decide when to extract mobile-specific tags.
@@ -12,6 +14,12 @@ pub const MOBILE_SDKS: [&str; 4] = [
     "sentry.java.android",
     "sentry.javascript.react-native",
 ];
+
+/// Maximum length of a mobile span or measurement in milliseconds.
+///
+/// Spans like `ui.load` with an `exclusive_time` that exceeds this number will be removed,
+/// as well as mobile measurements (on transactions) such as `app.start.cold`, etc.
+pub const MAX_DURATION_MOBILE_MS: f64 = 180_000.0;
 
 /// Extract the HTTP status code from the span data.
 pub fn http_status_code_from_span(span: &Span) -> Option<String> {
@@ -152,4 +160,34 @@ pub fn extract_transaction_op(trace_context: &TraceContext) -> Option<String> {
         return None;
     }
     Some(op.to_string())
+}
+
+/// The Gauss error function.
+///
+/// See <https://en.wikipedia.org/wiki/Error_function>.
+fn erf(x: f64) -> f64 {
+    // constants
+    let a1 = 0.254829592;
+    let a2 = -0.284496736;
+    let a3 = 1.421413741;
+    let a4 = -1.453152027;
+    let a5 = 1.061405429;
+    let p = 0.3275911;
+    // Save the sign of x
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let x = x.abs();
+    // A&S formula 7.1.26
+    let t = 1.0 / (1.0 + p * x);
+    let y = 1.0 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * (-x * x).exp();
+    sign * y
+}
+
+/// Sigma function for CDF score calculation.
+fn calculate_cdf_sigma(p10: f64, p50: f64) -> f64 {
+    (p10.ln() - p50.ln()).abs() / (SQRT_2 * 0.9061938024368232)
+}
+
+/// Calculates a log-normal CDF score based on a log-normal with a specific p10 and p50
+pub fn calculate_cdf_score(value: f64, p10: f64, p50: f64) -> f64 {
+    0.5 * (1.0 - erf((f64::ln(value) - f64::ln(p50)) / (SQRT_2 * calculate_cdf_sigma(p50, p10))))
 }

@@ -821,6 +821,8 @@ pub struct Spool {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct Cache {
+    /// The full project state will be requested by this Relay if set to `true`.
+    project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
     project_expiry: u32,
     /// Continue using project state this many seconds after cache expiry while a new state is
@@ -857,6 +859,7 @@ struct Cache {
 impl Default for Cache {
     fn default() -> Self {
         Cache {
+            project_request_full_config: false,
             project_expiry: 300, // 5 minutes
             project_grace_period: 0,
             relay_expiry: 3600,   // 1 hour
@@ -1740,6 +1743,11 @@ impl Config {
     /// Returns the expiry timeout for cached projects.
     pub fn project_cache_expiry(&self) -> Duration {
         Duration::from_secs(self.values.cache.project_expiry.into())
+    }
+
+    /// Returns `true` if the full project state should be requested from upstream.
+    pub fn request_full_project_config(&self) -> bool {
+        self.values.cache.project_request_full_config
     }
 
     /// Returns the expiry timeout for cached relay infos (public keys).

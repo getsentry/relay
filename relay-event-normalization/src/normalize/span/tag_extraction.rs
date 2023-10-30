@@ -40,10 +40,9 @@ pub enum SpanTagKey {
     Description,
     Domain,
     Group,
-    HttpDecodedResponseBodyLength,
+    HttpDecodedResponseContentLength,
     HttpResponseContentLength,
     HttpResponseTransferSize,
-    Module,
     ResourceRenderBlockingStatus,
     SpanOp,
     StatusCode,
@@ -71,10 +70,9 @@ impl SpanTagKey {
             SpanTagKey::Description => "description",
             SpanTagKey::Domain => "domain",
             SpanTagKey::Group => "group",
-            SpanTagKey::HttpDecodedResponseBodyLength => "http.decoded_response_body_length",
+            SpanTagKey::HttpDecodedResponseContentLength => "http.decoded_response_content_length",
             SpanTagKey::HttpResponseContentLength => "http.response_content_length",
             SpanTagKey::HttpResponseTransferSize => "http.response_transfer_size",
-            SpanTagKey::Module => "module",
             SpanTagKey::ResourceRenderBlockingStatus => "resource.render_blocking_status",
             SpanTagKey::SpanOp => "op",
             SpanTagKey::StatusCode => "status_code",
@@ -226,27 +224,14 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
 
         span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
-        if let Some(category) = span_op_to_category(&span_op) {
+        let category = span_op_to_category(&span_op);
+        if let Some(category) = category {
             span_tags.insert(SpanTagKey::Category, category.to_owned());
-        }
-
-        let span_module = if span_op.starts_with("http") {
-            Some("http")
-        } else if span_op.starts_with("db") {
-            Some("db")
-        } else if span_op.starts_with("cache") {
-            Some("cache")
-        } else {
-            None
-        };
-
-        if let Some(module) = span_module {
-            span_tags.insert(SpanTagKey::Module, module.to_owned());
         }
 
         let scrubbed_description = scrub_span_description(span);
 
-        let action = match (span_module, span_op.as_str(), &scrubbed_description) {
+        let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -348,15 +333,15 @@ pub(crate) fn extract_tags(span: &Span, config: &Config) -> BTreeMap<SpanTagKey,
                 );
             }
 
-            if let Some(http_decoded_response_body_length) = span
+            if let Some(http_decoded_response_content_length) = span
                 .data
                 .value()
-                .and_then(|data| data.get("http.decoded_response_body_length"))
+                .and_then(|data| data.get("http.decoded_response_content_length"))
                 .and_then(|value| value.as_str())
             {
                 span_tags.insert(
-                    SpanTagKey::HttpDecodedResponseBodyLength,
-                    http_decoded_response_body_length.to_owned(),
+                    SpanTagKey::HttpDecodedResponseContentLength,
+                    http_decoded_response_content_length.to_owned(),
                 );
             }
 
