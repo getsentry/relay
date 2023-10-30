@@ -740,9 +740,10 @@ def test_processing_quota_transaction_indexing(
     buckets = list(metrics_consumer.get_metrics())
     assert len(buckets) > 0
 
-    relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
-    tx_consumer.assert_empty()
-    metrics_consumer.assert_empty()
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+
+    assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):
@@ -760,10 +761,11 @@ def test_events_buffered_before_auth(relay, mini_sentry):
     # keep max backoff as short as the configuration allows (1 sec)
     relay_options = {"http": {"max_retry_interval": 1}}
     relay = relay(mini_sentry, relay_options, wait_health_check=False)
-    assert evt.wait(1)  # wait for relay to start authenticating
 
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
+
+    assert evt.wait(2)  # wait for relay to start authenticating
 
     try:
         relay.send_event(project_id)
@@ -1240,7 +1242,6 @@ def test_spans(
                 "category": "http",
                 "description": "GET *",
                 "group": "37e3d9fab1ae9162",
-                "module": "http",
                 "op": "http",
                 "transaction": "hi",
                 "transaction.op": "hi",

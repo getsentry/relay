@@ -228,14 +228,24 @@ fn scrub_resource(string: &str) -> Option<String> {
             let path = scrub_resource_path(url.path());
             format!("chrome-extension://*{path}")
         }
+        "moz-extension" => {
+            let path = scrub_resource_path(url.path());
+            format!("moz-extension://*{path}")
+        }
         scheme => {
-            let path = url.path();
-            let path = scrub_resource_path(path);
+            let segments = url.path_segments();
+            let segment_count = segments.map(|s| s.count()).unwrap_or_default();
             let domain = url
                 .domain()
                 .and_then(|d| normalize_domain(d, url.port()))
                 .unwrap_or("".into());
-            format!("{scheme}://{domain}{path}")
+            let last_segment = url
+                .path_segments()
+                .and_then(|s| s.last())
+                .unwrap_or_default();
+            let sep = if segment_count > 1 { "*/" } else { "" };
+            let last_segment = scrub_resource_path(last_segment);
+            format!("{scheme}://{domain}/{sep}{last_segment}")
         }
     };
 
@@ -465,70 +475,70 @@ mod tests {
         resource_script,
         "https://example.com/static/chunks/vendors-node_modules_somemodule_v1.2.3_mini-dist_index_js-client_dist-6c733292-f3cd-11ed-a05b-0242ac120003-0dc369dcf3d311eda05b0242ac120003.[hash].abcd1234.chunk.js-0242ac120003.map",
         "resource.script",
-        "https://example.com/static/chunks/*.map"
+        "https://example.com/*/*.map"
     );
 
     span_description_test!(
         resource_script_numeric_filename,
         "https://example.com/static/chunks/09876543211234567890",
         "resource.script",
-        "https://example.com/static/chunks/*"
+        "https://example.com/*/*"
     );
 
     span_description_test!(
         resource_css,
         "https://example.com/assets/dark_high_contrast-764fa7c8-f3cd-11ed-a05b-0242ac120003.css",
         "resource.css",
-        "https://example.com/assets/dark_high_contrast-*.css"
+        "https://example.com/*/dark_high_contrast-*.css"
     );
 
     span_description_test!(
         integer_in_resource,
         "https://example.com/assets/this_is-a_good_resource-123-scrub_me.js",
         "resource.css",
-        "https://example.com/assets/*.js"
+        "https://example.com/*/*.js"
     );
 
     span_description_test!(
         resource_query_params,
         "/organization-avatar/123/?s=120",
         "resource.img",
-        "/organization-avatar/*/"
+        "/*/"
     );
 
     span_description_test!(
         resource_query_params2,
         "https://data.domain.com/data/guide123.gif?jzb=3f535634H467g5-2f256f&ct=1234567890&v=1.203.0_prod",
         "resource.img",
-        "https://*.domain.com/data/guide*.gif"
+        "https://*.domain.com/*/guide*.gif"
     );
 
     span_description_test!(
         resource_no_ids,
         "https://data.domain.com/data/guide.gif",
         "resource.img",
-        "https://*.domain.com/data/guide.gif"
+        "https://*.domain.com/*/guide.gif"
     );
 
     span_description_test!(
         resource_webpack,
         "https://domain.com/path/to/app-1f90d5.f012d11690e188c96fe6.js",
         "resource.js",
-        "https://domain.com/path/to/app-*.*.js"
+        "https://domain.com/*/app-*.*.js"
     );
 
     span_description_test!(
         resource_vite,
         "webroot/assets/Profile-73f6525d.js",
         "resource.js",
-        "webroot/assets/Profile-*.js"
+        "*/Profile-*.js"
     );
 
     span_description_test!(
         resource_vite_css,
         "webroot/assets/Shop-1aff80f7.css",
         "resource.css",
-        "webroot/assets/Shop-*.css"
+        "*/Shop-*.css"
     );
 
     span_description_test!(
@@ -542,7 +552,7 @@ mod tests {
         urlencoded_path_segments,
         "https://some.domain.com/embed/%2Fembed%2Fdashboards%2F20%3FSlug%3Dsomeone%*hide_title%3Dtrue",
         "resource.iframe",
-        "https://*.domain.com/embed/*"
+        "https://*.domain.com/*/*"
     );
 
     span_description_test!(
@@ -556,7 +566,7 @@ mod tests {
         random_string2,
         "http://domain.com/fy2XSqBMqkEm_qZZH3RrzvBTKg4/qltdXIJWTF_cuwt3uKmcwWBc1DM/z1a--BVsUI_oyUjJR12pDBcOIn5.dom.jsonp",
         "resource.script",
-        "http://domain.com/*/*/*.jsonp"
+        "http://domain.com/*/*.jsonp"
     );
 
     span_description_test!(
@@ -598,7 +608,7 @@ mod tests {
         resource_url_with_fragment,
         "https://data.domain.com/data/guide123.gif#url=someotherurl",
         "resource.img",
-        "https://*.domain.com/data/guide*.gif"
+        "https://*.domain.com/*/guide*.gif"
     );
 
     span_description_test!(
@@ -642,28 +652,28 @@ mod tests {
         resource_img_semi_colon,
         "http://www.foo.com/path/to/resource;param1=test;param2=ing",
         "resource.img",
-        "http://*.foo.com/path/to/*"
+        "http://*.foo.com/*/*"
     );
 
     span_description_test!(
         resource_img_comma_with_extension,
         "https://example.org/p/fit=cover,width=150,height=150,format=auto,quality=90/media/photosV2/weird-stuff-123-234-456.jpg",
         "resource.img",
-        "https://example.org/p/*/media/photos*/weird-stuff-*-*-*.jpg"
+        "https://example.org/*/weird-stuff-*-*-*.jpg"
     );
 
     span_description_test!(
         resource_img_path_with_comma,
         "/help/purchase-details/1,*,0&fmt=webp&qlt=*,1&fit=constrain,0&op_sharpen=0&resMode=sharp2&iccEmbed=0&printRes=*",
         "resource.img",
-        "/help/purchase-details/*"
+        "/*/*"
     );
 
     span_description_test!(
         resource_script_random_path_only,
         "/ERs-sUsu3/wd4/LyMTWg/Ot1Om4m8cu3p7a/QkJWAQ/FSYL/GBlxb3kB",
         "resource.script",
-        "/*/*/*/*/*/*/*"
+        "/*/*"
     );
 
     span_description_test!(
@@ -677,21 +687,21 @@ mod tests {
         resource_script_extension_in_segment,
         "https://domain.com/foo.bar/resource.js",
         "resource.script",
-        "https://domain.com/foo.bar/resource.js"
+        "https://domain.com/*/resource.js"
     );
 
     span_description_test!(
         resource_script_missing_scheme,
         "domain.com/foo.bar/resource.js",
         "resource.script",
-        "domain.com/foo.bar/resource.js"
+        "*/resource.js"
     );
 
     span_description_test!(
         resource_script_missing_scheme_integer_id,
         "domain.com/zero-length-00",
         "resource.script",
-        "domain.com/zero-length-*"
+        "*/zero-length-*"
     );
 
     #[test]

@@ -4,7 +4,24 @@
 
 **Features**:
 
+- Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))
+- Group resource spans by scrubbed domain and filename. ([#2654](https://github.com/getsentry/relay/pull/2654))
+- Filter outliers (>180s) for mobile measurements. ([#2649](https://github.com/getsentry/relay/pull/2649))
+- Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640))
+
+**Internal**:
+
+- Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
+- Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
+- Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
+
+## 23.10.1
+
+**Features**:
+
 - Update Docker Debian image from 10 to 12. ([#2622](https://github.com/getsentry/relay/pull/2622))
+- Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
+- Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
 
 **Internal**:
 
@@ -13,6 +30,7 @@
 - Postpone metrics aggregation until we received the project state. ([#2588](https://github.com/getsentry/relay/pull/2588))
 - Scrub random strings in resource span descriptions. ([#2614](https://github.com/getsentry/relay/pull/2614))
 - Separate metrics aggregation routing from aggregation service. ([#2611](https://github.com/getsentry/relay/pull/2611))
+- Apply consistent rate-limiting prior to aggregation. ([#2652](https://github.com/getsentry/relay/pull/2652))
 
 ## 23.10.0
 
@@ -24,6 +42,7 @@
 - Add a setting to rollout ingesting all resource spans. ([#2586](https://github.com/getsentry/relay/pull/2586))
 - Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
 - Add support for X-Sentry-Forwarded-For header. ([#2572](https://github.com/getsentry/relay/pull/2572))
+- Add a generic way of configuring inbound filters via project configs. ([#2595](https://github.com/getsentry/relay/pull/2595))
 
 **Bug Fixes**:
 

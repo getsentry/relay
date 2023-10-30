@@ -34,7 +34,6 @@ expression: event
         "span.description": "POST http://example.com/remains/*/remains-too/*",
         "span.domain": "example.com",
         "span.group": "70333dac975bc269",
-        "span.module": "http",
         "span.op": "http.client",
         "span.status": "ok",
         "transaction": "/transaction-name/hi"
@@ -55,7 +54,6 @@ expression: event
         "span.description": "POST http://example.com/remains/*/remains-too/*",
         "span.domain": "example.com",
         "span.group": "70333dac975bc269",
-        "span.module": "http",
         "span.op": "http.client",
         "span.status": "ok",
         "transaction": "/transaction-name/hi"
@@ -75,7 +73,6 @@ expression: event
         "span.description": "example.com/<unparameterized>",
         "span.domain": "example.com",
         "span.group": "d1ebe411f493f83e",
-        "span.module": "http",
         "span.op": "http.client",
         "span.status": "ok",
         "transaction": "/transaction-name/hi"
@@ -96,7 +93,6 @@ expression: event
         "span.description": "GET http://example.com/applies-from-transaction-name-rules/*/untouched/*",
         "span.domain": "example.com",
         "span.group": "2dbe1ecc9c2cc400",
-        "span.module": "http",
         "span.op": "http.client",
         "span.status": "ok",
         "transaction": "/transaction-name/hi"
@@ -113,7 +109,6 @@ expression: event
       "status": "ok",
       "data": {
         "span.category": "db",
-        "span.module": "db",
         "span.op": "db.sql.query",
         "span.status": "ok",
         "transaction": "/transaction-name/hi"
