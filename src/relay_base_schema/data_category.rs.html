@@ -160,6 +160,15 @@
 <a href="#160" id="160">160</a>
 <a href="#161" id="161">161</a>
 <a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::convert::TryInto;
@@ -219,6 +228,12 @@
     /// but we define it here to prevent clashing values since this data category enumeration
     /// is also used outside of Relay via the Python package.
     </span>MonitorSeat = <span class="number">13</span>,
+    <span class="doccomment">/// User Feedback
+    ///
+    /// Represents a User Feedback processed.
+    /// Currently standardized on name UserReportV2 to avoid clashing with the old UserReport.
+    /// TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
+    </span>UserReportV2 = <span class="number">14</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -248,6 +263,7 @@
             <span class="string">&quot;monitor&quot; </span>=&gt; <span class="self">Self</span>::Monitor,
             <span class="string">&quot;span&quot; </span>=&gt; <span class="self">Self</span>::Span,
             <span class="string">&quot;monitor_seat&quot; </span>=&gt; <span class="self">Self</span>::MonitorSeat,
+            <span class="string">&quot;feedback&quot; </span>=&gt; <span class="self">Self</span>::UserReportV2,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -270,6 +286,7 @@
             <span class="self">Self</span>::Monitor =&gt; <span class="string">&quot;monitor&quot;</span>,
             <span class="self">Self</span>::Span =&gt; <span class="string">&quot;span&quot;</span>,
             <span class="self">Self</span>::MonitorSeat =&gt; <span class="string">&quot;monitor_seat&quot;</span>,
+            <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">&quot;feedback&quot;</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">&quot;unknown&quot;</span>,
         }
     }
@@ -319,6 +336,7 @@
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple =&gt; {
                 <span class="self">Self</span>::Security
             }
+            EventType::UserReportV2 =&gt; <span class="self">Self</span>::UserReportV2,
         }
     }
 }

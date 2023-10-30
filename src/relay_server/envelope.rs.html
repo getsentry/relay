@@ -1730,6 +1730,15 @@
 <a href="#1730" id="1730">1730</a>
 <a href="#1731" id="1731">1731</a>
 <a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1844,6 +1853,8 @@
     </span>CheckIn,
     <span class="doccomment">/// A standalone span.
     </span>Span,
+    <span class="doccomment">/// UserReport as an Event
+    </span>UserReportV2,
     <span class="doccomment">/// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -1859,6 +1870,7 @@
         <span class="kw">match </span>event_type {
             EventType::Default | EventType::Error =&gt; ItemType::Event,
             EventType::Transaction =&gt; ItemType::Transaction,
+            EventType::UserReportV2 =&gt; ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple =&gt; {
                 ItemType::Security
             }
@@ -1877,6 +1889,7 @@
             <span class="self">Self</span>::RawSecurity =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;raw_security&quot;</span>),
             <span class="self">Self</span>::UnrealReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal_report&quot;</span>),
             <span class="self">Self</span>::UserReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;user_report&quot;</span>),
+            <span class="self">Self</span>::UserReportV2 =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;feedback&quot;</span>),
             <span class="self">Self</span>::Session =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;session&quot;</span>),
             <span class="self">Self</span>::Sessions =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sessions&quot;</span>),
             <span class="self">Self</span>::Statsd =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;statsd&quot;</span>),
@@ -1905,6 +1918,7 @@
             <span class="string">&quot;raw_security&quot; </span>=&gt; <span class="self">Self</span>::RawSecurity,
             <span class="string">&quot;unreal_report&quot; </span>=&gt; <span class="self">Self</span>::UnrealReport,
             <span class="string">&quot;user_report&quot; </span>=&gt; <span class="self">Self</span>::UserReport,
+            <span class="string">&quot;feedback&quot; </span>=&gt; <span class="self">Self</span>::UserReportV2,
             <span class="string">&quot;session&quot; </span>=&gt; <span class="self">Self</span>::Session,
             <span class="string">&quot;sessions&quot; </span>=&gt; <span class="self">Self</span>::Sessions,
             <span class="string">&quot;statsd&quot; </span>=&gt; <span class="self">Self</span>::Statsd,
@@ -2288,6 +2302,7 @@
             ItemType::Statsd | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
             ItemType::FormData =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
+            ItemType::UserReportV2 =&gt; <span class="prelude-val">None</span>,
             ItemType::Profile =&gt; <span class="prelude-val">Some</span>(<span class="kw">if </span>indexed {
                 DataCategory::ProfileIndexed
             } <span class="kw">else </span>{
@@ -2432,7 +2447,8 @@
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
-            | ItemType::UnrealReport =&gt; <span class="bool-val">true</span>,
+            | ItemType::UnrealReport
+            | ItemType::UserReportV2 =&gt; <span class="bool-val">true</span>,
 
             <span class="comment">// Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
@@ -2490,6 +2506,8 @@
             ItemType::RawSecurity =&gt; <span class="bool-val">true</span>,
             ItemType::UnrealReport =&gt; <span class="bool-val">true</span>,
             ItemType::UserReport =&gt; <span class="bool-val">true</span>,
+            ItemType::UserReportV2 =&gt; <span class="bool-val">true</span>,
+
             ItemType::ReplayEvent =&gt; <span class="bool-val">true</span>,
             ItemType::Session =&gt; <span class="bool-val">false</span>,
             ItemType::Sessions =&gt; <span class="bool-val">false</span>,

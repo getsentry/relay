@@ -97,6 +97,11 @@
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -110,6 +115,11 @@
     <span class="doccomment">/// Enables data scrubbing of replay recording payloads.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:session-replay-recording-scrubbing&quot;</span>)]
     </span>SessionReplayRecordingScrubbing,
+    <span class="doccomment">/// Enables new User Feedback ingest.
+    ///
+    /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:user-feedback-ingest&quot;</span>)]
+    </span>UserReportV2Ingest,
     <span class="doccomment">/// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.

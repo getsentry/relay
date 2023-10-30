@@ -392,6 +392,10 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">mod </span>browser;
 <span class="kw">mod </span>cloud_resource;
@@ -406,7 +410,7 @@
 <span class="kw">mod </span>response;
 <span class="kw">mod </span>runtime;
 <span class="kw">mod </span>trace;
-
+<span class="kw">mod </span>user_report_v2;
 <span class="kw">pub use </span>app::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>browser::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>cloud_resource::<span class="kw-2">*</span>;
@@ -421,6 +425,7 @@
 <span class="kw">pub use </span>response::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>runtime::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>trace::<span class="kw-2">*</span>;
+<span class="kw">pub use </span>user_report_v2::<span class="kw-2">*</span>;
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
@@ -461,6 +466,9 @@
     </span>Profile(Box&lt;ProfileContext&gt;),
     <span class="doccomment">/// Information related to Replay.
     </span>Replay(Box&lt;ReplayContext&gt;),
+    <span class="doccomment">/// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
+    </span><span class="attr">#[metastructure(tag = <span class="string">&quot;feedback&quot;</span>)]
+    </span>UserReportV2(Box&lt;UserReportV2Context&gt;),
     <span class="doccomment">/// Information related to Monitors feature.
     </span>Monitor(Box&lt;MonitorContext&gt;),
     <span class="doccomment">/// Auxilliary information for reprocessing.

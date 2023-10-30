@@ -129,6 +129,12 @@
 <a href="#129" id="129">129</a>
 <a href="#130" id="130">130</a>
 <a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines types related to Sentry events.
 //!
 //! As opposed to the event protocol defined in `relay-event-schema`, these types are meant to be
@@ -172,6 +178,10 @@
     </span>ExpectStaple,
     <span class="doccomment">/// Performance monitoring transactions carrying spans.
     </span>Transaction,
+    <span class="doccomment">/// User feedback payload.
+    ///
+    /// TODO(Jferg): Change this to UserFeedback once old UserReport logic is deprecated.
+    </span>UserReportV2,
     <span class="doccomment">/// All events that do not qualify as any other type.
     </span><span class="attr">#[serde(other)]
     #[default]
@@ -202,6 +212,7 @@
             <span class="string">&quot;expectct&quot; </span>=&gt; EventType::ExpectCt,
             <span class="string">&quot;expectstaple&quot; </span>=&gt; EventType::ExpectStaple,
             <span class="string">&quot;transaction&quot; </span>=&gt; EventType::Transaction,
+            <span class="string">&quot;feedback&quot; </span>=&gt; EventType::UserReportV2,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ParseEventTypeError),
         })
     }
@@ -217,6 +228,7 @@
             EventType::ExpectCt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;expectct&quot;</span>),
             EventType::ExpectStaple =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;expectstaple&quot;</span>),
             EventType::Transaction =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;transaction&quot;</span>),
+            EventType::UserReportV2 =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;feedback&quot;</span>),
         }
     }
 }

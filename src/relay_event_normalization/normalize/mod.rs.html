@@ -4093,6 +4093,9 @@
 <a href="#4093" id="4093">4093</a>
 <a href="#4094" id="4094">4094</a>
 <a href="#4095" id="4095">4095</a>
+<a href="#4096" id="4096">4096</a>
+<a href="#4097" id="4097">4097</a>
+<a href="#4098" id="4098">4098</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::DefaultHasher;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -4342,6 +4345,9 @@
         // the time being, this is only implemented for transactions, so be specific:
         </span><span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
             <span class="kw">return </span>EventType::Transaction;
+        }
+        <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::UserReportV2) {
+            <span class="kw">return </span>EventType::UserReportV2;
         }
 
         <span class="comment">// The SDKs do not describe event types, and we must infer them from available attributes.

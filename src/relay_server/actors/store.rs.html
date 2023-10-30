@@ -1301,6 +1301,9 @@
 <a href="#1301" id="1301">1301</a>
 <a href="#1302" id="1302">1302</a>
 <a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses kafka topics to forward data to Sentry
 
@@ -1424,7 +1427,10 @@
         <span class="kw">let </span>event_item = envelope.get_item_by(|item| {
             <span class="macro">matches!</span>(
                 item.ty(),
-                ItemType::Event | ItemType::Transaction | ItemType::Security
+                ItemType::Event
+                    | ItemType::Transaction
+                    | ItemType::Security
+                    | ItemType::UserReportV2
             )
         });
 
