@@ -1166,17 +1166,9 @@ impl EnvelopeProcessorService {
                             )))
                         }
                     }
-                    Err(err) => {
-                        match err {
-                            relay_profiling::ProfileError::InvalidJson(_) => {
-                                relay_log::warn!(error = &err as &dyn Error, "invalid profile");
-                            }
-                            _ => relay_log::debug!(error = &err as &dyn Error, "invalid profile"),
-                        };
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )))
-                    }
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
             _ => ItemAction::Keep,
@@ -1649,6 +1641,7 @@ impl EnvelopeProcessorService {
             ItemType::Security => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::UserReportV2 => true,
 
             // These should be removed conditionally:
             ItemType::UnrealReport => self.inner.config.processing_enabled(),
@@ -1692,6 +1685,9 @@ impl EnvelopeProcessorService {
         let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
         let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+        let user_report_v2_item =
+            envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
+
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
@@ -1723,6 +1719,14 @@ impl EnvelopeProcessorService {
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
+        } else if let Some(item) = user_report_v2_item {
+            relay_log::trace!("processing user_report_v2");
+            let project_state = &state.project_state;
+            let user_report_v2_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
+            if !user_report_v2_ingest {
+                return Err(ProcessingError::NoEventPayload);
+            }
+            self.event_from_json_payload(item, Some(EventType::UserReportV2))?
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             sample_rates = item.take_sample_rates();
@@ -2374,18 +2378,16 @@ impl EnvelopeProcessorService {
             }
         }
 
-        if all_modules_enabled {
-            // Extract tags to add to this span as well
-            let shared_tags = span::tag_extraction::extract_shared_tags(event);
-            transaction_span.sentry_tags = Annotated::new(
-                shared_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                    .collect(),
-            );
-            add_span(transaction_span.into());
-        }
+        // Extract tags to add to this span as well
+        let shared_tags = span::tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
     }
 
     /// Helper for [`Self::extract_spans`].
