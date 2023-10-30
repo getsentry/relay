@@ -740,9 +740,10 @@ def test_processing_quota_transaction_indexing(
     buckets = list(metrics_consumer.get_metrics())
     assert len(buckets) > 0
 
-    relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
-    tx_consumer.assert_empty()
-    metrics_consumer.assert_empty()
+    with pytest.raises(HTTPError) as exc_info:
+        relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
+
+    assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):
