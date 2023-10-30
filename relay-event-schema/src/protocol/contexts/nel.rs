@@ -4,9 +4,13 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 
-/// Contains the unique to NEL reports information.
+/// Contains NEL report information.
 ///
-/// NEL is a browser feature that allows reporting of failed network requests from the client side.
+/// Network Error Logging (NEL) is a browser feature that allows reporting of failed network
+/// requests from the client side. See the following resources for more information:
+///
+/// - [W3C Editor's Draft](https://w3c.github.io/network-error-logging/)
+/// - [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging)
 /// W3C Editor's Draft: <https://w3c.github.io/network-error-logging/>
 /// MDN: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging>
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
