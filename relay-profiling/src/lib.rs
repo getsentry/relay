@@ -136,7 +136,7 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
-            relay_log::warn!(error = &err as &dyn Error, "invalid minimal profile");
+            relay_log::warn!(error = &err as &dyn Error, "invalid profile (minimal)");
             return Err(err);
         }
     };
@@ -148,10 +148,9 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
                 Err(err) => {
                     relay_log::warn!(
                         error = &err as &dyn Error,
-                        "invalid sample (v{:?}) profile for {}. invalid key: {}",
-                        profile.version,
+                        "invalid profile (platform: {}, version: {:?})",
                         profile.platform,
-                        err.path(),
+                        profile.version,
                     );
                     return Err(ProfileError::InvalidJson(err));
                 }
@@ -165,8 +164,7 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
                     Err(err) => {
                         relay_log::warn!(
                             error = &err as &dyn Error,
-                            "invalid android profile. invalid key: {}",
-                            err.path(),
+                            "invalid profile (platform: android)",
                         );
                         return Err(ProfileError::InvalidJson(err));
                     }
@@ -210,9 +208,8 @@ pub fn expand_profile(
             ProfileError::InvalidJson(err) => {
                 relay_log::warn!(
                     error = &err as &dyn Error,
-                    "invalid profile. platform: {}, invalid key: {}",
+                    "invalid profile (platform: {})",
                     profile.platform,
-                    err.path()
                 );
                 Err(ProfileError::InvalidJson(err))
             }
