@@ -92,6 +92,7 @@ impl DataCategory {
             "monitor" => Self::Monitor,
             "span" => Self::Span,
             "monitor_seat" => Self::MonitorSeat,
+            "feedback" => Self::UserReportV2,
             _ => Self::Unknown,
         }
     }
