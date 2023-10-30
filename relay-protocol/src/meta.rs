@@ -515,11 +515,6 @@ impl Meta {
         self.remarks().iter()
     }
 
-    /// Returns true if this field has remarks.
-    pub fn has_remarks(&self) -> bool {
-        self.0.as_ref().map_or(false, |x| !x.remarks.is_empty())
-    }
-
     /// Clears all remarks
     pub fn clear_remarks(&mut self) {
         if let Some(ref mut inner) = self.0 {

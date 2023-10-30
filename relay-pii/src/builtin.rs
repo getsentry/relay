@@ -392,7 +392,7 @@ mod tests {
     use relay_event_schema::processor::{
         process_value, EnumSet, FieldAttrs, Pii, ProcessingState, ValueType,
     };
-    use relay_protocol::{Annotated, Meta, Remark, RemarkType};
+    use relay_protocol::{Annotated, Remark, RemarkType};
     use similar_asserts::assert_eq;
 
     use super::*;
@@ -1308,33 +1308,5 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
                 assert!(BUILTIN_RULES_MAP.contains_key(key.as_str()));
             }
         }
-    }
-
-    #[test]
-    fn test_meta_remarks_is_empty() {
-        let config = PiiConfig {
-            applications: {
-                let mut map = BTreeMap::new();
-                map.insert(ValueType::String.into(), vec!["@ip".into()]);
-                map
-            },
-            ..Default::default()
-        };
-
-        let compiled = config.compiled();
-        let mut processor = PiiProcessor::new(compiled);
-        let state = processing_state();
-
-        assert!(!Meta::default().has_remarks());
-
-        let input = "nothing to filter here".to_string();
-        let mut root = Annotated::new(input);
-        process_value(&mut root, &mut processor, &state).unwrap();
-        assert!(!root.meta().has_remarks());
-
-        let input = "my secret ip: 127.0.0.1".to_string();
-        let mut root = Annotated::new(input);
-        process_value(&mut root, &mut processor, &state).unwrap();
-        assert!(root.meta().has_remarks());
     }
 }
