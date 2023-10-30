@@ -17,7 +17,8 @@ use relay_event_schema::protocol::{
     Frame, IpAddr, Level, ReplayContext, Request, Stacktrace, TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
+    Value,
 };
 use serde::{Deserialize, Serialize};
 
@@ -360,6 +361,9 @@ pub struct LightNormalizationConfig<'a> {
     /// This is similar to `transaction_name_config`, but applies to span descriptions.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 
+    /// Configuration for generating performance score measurements for web vitals
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
+
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 
@@ -388,6 +392,7 @@ impl Default for LightNormalizationConfig<'_> {
             light_normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
+            performance_score: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
             measurements: None,
@@ -447,6 +452,50 @@ impl<'a> DynamicMeasurementsConfig<'a> {
             )),
         }
     }
+}
+
+/// Defines a weighted component for a performance score.
+///
+/// Weight is the % of score it can take up (eg. LCP is a max of 35% weight for desktops)
+/// Currently also contains (p10, p50) which are used for log CDF normalization of the weight score
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct PerformanceScoreWeightedComponent {
+    /// Measurement (eg. measurements.lcp) to be matched against. If this measurement is missing the entire
+    /// profile will be discarded.
+    pub measurement: String,
+    /// Weight [0,1.0] of this component in the performance score
+    pub weight: f64,
+    /// p10 used to define the log-normal for calculation
+    pub p10: f64,
+    /// Median used to define the log-normal for calculation
+    pub p50: f64,
+}
+
+/// Defines a profile for performance score.
+///
+/// A profile contains weights for a score of 100% and match against an event using a condition.
+/// eg. Desktop vs. Mobile(web) profiles for better web vital score calculation.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceScoreProfile {
+    /// Name of the profile, used for debugging and faceting multiple profiles
+    pub name: Option<String>,
+    /// Score components
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub score_components: Vec<PerformanceScoreWeightedComponent>,
+    /// See [`RuleCondition`] for all available options to specify and combine conditions.
+    pub condition: Option<RuleCondition>,
+}
+
+/// Defines the performance configuration for the project.
+///
+/// Includes profiles matching different behaviour (desktop / mobile) and weights matching those
+/// specific conditions.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct PerformanceScoreConfig {
+    /// List of performance profiles, only the first with matching conditions will be applied.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<PerformanceScoreProfile>,
 }
 
 /// Normalizes data in the event payload.
