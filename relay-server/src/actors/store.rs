@@ -121,7 +121,10 @@ impl StoreService {
         let event_item = envelope.get_item_by(|item| {
             matches!(
                 item.ty(),
-                ItemType::Event | ItemType::Transaction | ItemType::Security
+                ItemType::Event
+                    | ItemType::Transaction
+                    | ItemType::Security
+                    | ItemType::UserReportV2
             )
         });
 
