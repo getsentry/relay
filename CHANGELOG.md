@@ -23,6 +23,10 @@
 - Remove event spans starting or ending before January 1, 1970 UTC. ([#2627](https://github.com/getsentry/relay/pull/2627))
 - Remove event breadcrumbs dating before January 1, 1970 UTC. ([#2635](https://github.com/getsentry/relay/pull/2635))
 
+**Bug Fixes**:
+
+- Disable scrubbing for the User-Agent header. ([#2641](https://github.com/getsentry/relay/pull/2641))
+
 **Internal**:
 
 - Report global config fetch errors after interval of constant failures elapsed. ([#2628](https://github.com/getsentry/relay/pull/2628))
