@@ -93,7 +93,6 @@
 //! }
 //! ```
 
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::time::Duration;
 
@@ -127,17 +126,29 @@ struct MinimalProfile {
     version: sample::Version,
 }
 
-fn minimal_profile_from_json(payload: &[u8]) -> Result<MinimalProfile, ProfileError> {
+fn minimal_profile_from_json(
+    payload: &[u8],
+) -> Result<MinimalProfile, serde_path_to_error::Error<serde_json::Error>> {
     let d = &mut Deserializer::from_slice(payload);
-    serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)
+    serde_path_to_error::deserialize(d)
 }
 
-pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
+pub fn parse_metadata(payload: &[u8], event: Option<&Event>) -> Result<(), ProfileError> {
+    let (sdk_name, sdk_version) = match event {
+        Some(event) => (event.sdk_name(), event.sdk_version()),
+        _ => ("unknown", "unknown"),
+    };
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
-            relay_log::warn!(error = &err as &dyn Error, "invalid profile (minimal)");
-            return Err(err);
+            relay_log::warn!(
+                error = &err as &dyn Error,
+                "invalid profile (minimal, sdk: {} v{}). original: {}.",
+                sdk_name,
+                sdk_version,
+                err.inner(),
+            );
+            return Err(ProfileError::InvalidJson(err));
         }
     };
     match profile.version {
@@ -148,9 +159,11 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
                 Err(err) => {
                     relay_log::warn!(
                         error = &err as &dyn Error,
-                        "invalid profile (platform: {}, version: {:?})",
+                        "invalid profile (metadata, platform: {}, sdk: {} v{}). original: {}.",
                         profile.platform,
-                        profile.version,
+                        sdk_name,
+                        sdk_version,
+                        err.inner(),
                     );
                     return Err(ProfileError::InvalidJson(err));
                 }
@@ -164,7 +177,10 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
                     Err(err) => {
                         relay_log::warn!(
                             error = &err as &dyn Error,
-                            "invalid profile (platform: android)",
+                            "invalid profile (platform: android, sdk: {} v{}). original: {}.",
+                            sdk_name,
+                            sdk_version,
+                            err.inner(),
                         );
                         return Err(ProfileError::InvalidJson(err));
                     }
@@ -176,21 +192,22 @@ pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
     Ok(())
 }
 
-pub fn expand_profile(
-    payload: &[u8],
-    event: Option<&Event>,
-) -> Result<(EventId, Vec<u8>), ProfileError> {
+pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
-        Err(err) => return Err(err),
+        Err(err) => {
+            relay_log::warn!(
+                error = &err as &dyn Error,
+                "invalid profile (minimal, sdk: {} v{}). original: {}.",
+                event.sdk_name(),
+                event.sdk_version(),
+                err.inner(),
+            );
+            return Err(ProfileError::InvalidJson(err));
+        }
     };
-    let (transaction_metadata, transaction_tags) = match event {
-        Some(event) => (
-            extract_transaction_metadata(event),
-            extract_transaction_tags(event),
-        ),
-        _ => (BTreeMap::new(), BTreeMap::new()),
-    };
+    let transaction_metadata = extract_transaction_metadata(event);
+    let transaction_tags = extract_transaction_tags(event);
     let processed_payload = match profile.version {
         sample::Version::V1 => {
             sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
@@ -208,13 +225,22 @@ pub fn expand_profile(
             ProfileError::InvalidJson(err) => {
                 relay_log::warn!(
                     error = &err as &dyn Error,
-                    "invalid profile (platform: {})",
+                    "invalid profile (platform: {}, sdk: {} v{}). original: {}.",
                     profile.platform,
+                    event.sdk_name(),
+                    event.sdk_version(),
+                    err.inner(),
                 );
                 Err(ProfileError::InvalidJson(err))
             }
             _ => {
-                relay_log::debug!(error = &err as &dyn Error, "invalid profile");
+                relay_log::warn!(
+                    error = &err as &dyn Error,
+                    "invalid profile (platform: {}, sdk: {} v{}).",
+                    profile.platform,
+                    event.sdk_name(),
+                    event.sdk_version(),
+                );
                 Err(err)
             }
         },
@@ -244,12 +270,12 @@ mod tests {
     #[test]
     fn test_expand_profile_with_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
-        assert!(expand_profile(payload, Some(&Event::default())).is_ok());
+        assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 
     #[test]
     fn test_expand_profile_without_version() {
         let payload = include_bytes!("../tests/fixtures/profiles/android/roundtrip.json");
-        assert!(expand_profile(payload, Some(&Event::default())).is_ok());
+        assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 }

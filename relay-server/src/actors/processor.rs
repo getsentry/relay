@@ -1097,7 +1097,7 @@ impl EnvelopeProcessorService {
             ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             // First profile found in the envelope, we'll keep it if metadata are valid.
             ItemType::Profile if !found_profile => {
-                match relay_profiling::parse_metadata(&item.payload()) {
+                match relay_profiling::parse_metadata(&item.payload(), state.event.value()) {
                     Ok(_) => {
                         found_profile = true;
                         ItemAction::Keep
@@ -1152,7 +1152,13 @@ impl EnvelopeProcessorService {
                 if !profiling_enabled {
                     return ItemAction::DropSilently;
                 }
-                match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
+                // If we don't have an event at this stage, we need to drop the profile.
+                let event = if let Some(event) = state.event.value() {
+                    event
+                } else {
+                    return ItemAction::DropSilently;
+                };
+                match relay_profiling::expand_profile(&item.payload(), event) {
                     Ok((profile_id, payload)) => {
                         if payload.len() <= self.inner.config.max_profile_size() {
                             found_profile_id = Some(profile_id);
