@@ -4368,14 +4368,6 @@
 <a href="#4368" id="4368">4368</a>
 <a href="#4369" id="4369">4369</a>
 <a href="#4370" id="4370">4370</a>
-<a href="#4371" id="4371">4371</a>
-<a href="#4372" id="4372">4372</a>
-<a href="#4373" id="4373">4373</a>
-<a href="#4374" id="4374">4374</a>
-<a href="#4375" id="4375">4375</a>
-<a href="#4376" id="4376">4376</a>
-<a href="#4377" id="4377">4377</a>
-<a href="#4378" id="4378">4378</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -5544,17 +5536,9 @@
                             )))
                         }
                     }
-                    <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="kw">match </span>err {
-                            relay_profiling::ProfileError::InvalidJson(<span class="kw">_</span>) =&gt; {
-                                <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid profile&quot;</span>);
-                            }
-                            <span class="kw">_ </span>=&gt; <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid profile&quot;</span>),
-                        };
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )))
-                    }
+                    <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
             <span class="kw">_ </span>=&gt; ItemAction::Keep,

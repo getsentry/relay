@@ -303,6 +303,9 @@
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 
 <span class="kw">use </span>android_trace_log::chrono::{DateTime, Utc};
@@ -433,8 +436,9 @@
 }
 
 <span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;AndroidProfile, ProfileError&gt; {
+    <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>serde_json::Deserializer::from_slice(payload);
     <span class="kw">let </span><span class="kw-2">mut </span>profile: AndroidProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>transaction_opt = profile.metadata.transactions.drain(..).next();
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = transaction_opt {
@@ -576,7 +580,9 @@
         <span class="kw">let </span>profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         <span class="macro">assert!</span>(profile_json.is_ok());
 
-        <span class="kw">let </span>output: AndroidProfile = serde_json::from_slice(<span class="kw-2">&amp;</span>profile_json.unwrap()[..])
+        <span class="kw">let </span>payload = profile_json.unwrap();
+        <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>serde_json::Deserializer::from_slice(<span class="kw-2">&amp;</span>payload[..]);
+        <span class="kw">let </span>output: AndroidProfile = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
         <span class="macro">assert_eq!</span>(output.metadata.release, <span class="string">&quot;some-random-release&quot;</span>.to_string());
