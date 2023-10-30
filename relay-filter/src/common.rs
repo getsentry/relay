@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::fmt;
 
@@ -7,7 +8,7 @@ use serde::Serialize;
 ///
 /// Ported from Sentry's same-named "enum". The enum variants are fed into outcomes in kebap-case
 /// (e.g.  "browser-extensions")
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Hash)]
 pub enum FilterStatKey {
     /// Filtered by ip address.
     IpAddress,
@@ -35,6 +36,9 @@ pub enum FilterStatKey {
 
     /// Filtered due to the fact that it was a call to a filtered transaction
     FilteredTransactions,
+
+    /// Filtered due to a generic filter.
+    GenericFilter(String),
 }
 
 // An event grouped to a removed group.
@@ -51,8 +55,8 @@ pub enum FilterStatKey {
 
 impl FilterStatKey {
     /// Returns the string identifier of the filter stat key.
-    pub fn name(self) -> &'static str {
-        match self {
+    pub fn name(self) -> Cow<'static, str> {
+        Cow::Borrowed(match self {
             FilterStatKey::IpAddress => "ip-address",
             FilterStatKey::ReleaseVersion => "release-version",
             FilterStatKey::ErrorMessage => "error-message",
@@ -62,13 +66,16 @@ impl FilterStatKey {
             FilterStatKey::WebCrawlers => "web-crawlers",
             FilterStatKey::InvalidCsp => "invalid-csp",
             FilterStatKey::FilteredTransactions => "filtered-transaction",
-        }
+            FilterStatKey::GenericFilter(filter_identifier) => {
+                return Cow::Owned(filter_identifier);
+            }
+        })
     }
 }
 
 impl fmt::Display for FilterStatKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
+        write!(f, "{}", self.clone().name())
     }
 }
 
@@ -86,9 +93,7 @@ impl<'a> TryFrom<&'a str> for FilterStatKey {
             "web-crawlers" => FilterStatKey::WebCrawlers,
             "invalid-csp" => FilterStatKey::InvalidCsp,
             "filtered-transaction" => FilterStatKey::FilteredTransactions,
-            other => {
-                return Err(other);
-            }
+            other => FilterStatKey::GenericFilter(other.to_string()),
         })
     }
 }

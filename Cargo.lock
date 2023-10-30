@@ -3459,7 +3459,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.8.31"
+version = "0.8.33"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3786,9 +3786,11 @@ dependencies = [
  "data-encoding",
  "insta",
  "relay-event-schema",
+ "relay-log",
  "relay-protocol",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "serde_test",
  "thiserror",
 ]
@@ -4542,10 +4544,11 @@ dependencies = [
 
 [[package]]
 name = "serde_path_to_error"
-version = "0.1.10"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db0969fff533976baadd92e08b1d102c5a3d8a8049eadfd69d4d1e3c5b2ed189"
+checksum = "4beec8bce849d58d06238cb50db2e1c417cfeafa4c63f692b15c82b7c80f8335"
 dependencies = [
+ "itoa",
  "serde",
 ]
 

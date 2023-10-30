@@ -190,7 +190,7 @@ impl Outcome {
     fn to_reason(&self) -> Option<Cow<str>> {
         match self {
             Outcome::Invalid(discard_reason) => Some(Cow::Borrowed(discard_reason.name())),
-            Outcome::Filtered(filter_key) => Some(Cow::Borrowed(filter_key.name())),
+            Outcome::Filtered(filter_key) => Some(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) => Some(Cow::Owned(format!("Sampled:{rule_ids}"))),
             //TODO can we do better ? (not re copying the string )
             Outcome::RateLimited(code_opt) => code_opt

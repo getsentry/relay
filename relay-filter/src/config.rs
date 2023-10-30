@@ -6,6 +6,7 @@ use std::convert::Infallible;
 use std::str::FromStr;
 
 use relay_common::glob3::GlobPatterns;
+use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
 /// Common configuration for event filters.
@@ -196,6 +197,41 @@ impl LegacyBrowsersFilterConfig {
     }
 }
 
+/// Configuration for a generic filter.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct GenericFilterConfig {
+    /// Unique identifier of the generic filter.
+    pub id: String,
+    /// Specifies whether this filter is enabled.
+    pub is_enabled: bool,
+    /// The condition for the filter.
+    pub condition: Option<RuleCondition>,
+}
+
+impl GenericFilterConfig {
+    /// Returns true if the filter is not enabled or no condition was supplied.
+    pub fn is_empty(&self) -> bool {
+        !self.is_enabled || self.condition.is_none()
+    }
+}
+
+/// Configuration for generic filters.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub(crate) struct GenericFiltersConfig {
+    /// Version of the filters configuration.
+    pub version: u16,
+    /// List of generic filters.
+    pub filters: Vec<GenericFilterConfig>,
+}
+
+impl GenericFiltersConfig {
+    /// Returns true if the filters are not declared.
+    pub fn is_empty(&self) -> bool {
+        self.filters.is_empty()
+    }
+}
+
 /// Configuration for all event filters.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -238,10 +274,14 @@ pub struct FiltersConfig {
         skip_serializing_if = "IgnoreTransactionsFilterConfig::is_empty"
     )]
     pub ignore_transactions: IgnoreTransactionsFilterConfig,
+
+    /// Configuration for generic filters.
+    #[serde(default, skip_serializing_if = "GenericFiltersConfig::is_empty")]
+    pub(crate) generic: GenericFiltersConfig,
 }
 
 impl FiltersConfig {
-    /// Returns true if there are no filter configurations delcared.
+    /// Returns true if there are no filter configurations declared.
     pub fn is_empty(&self) -> bool {
         self.browser_extensions.is_empty()
             && self.client_ips.is_empty()
@@ -252,6 +292,7 @@ impl FiltersConfig {
             && self.localhost.is_empty()
             && self.releases.is_empty()
             && self.ignore_transactions.is_empty()
+            && self.generic.is_empty()
     }
 }
 
@@ -293,6 +334,10 @@ mod tests {
                 patterns: [],
                 is_enabled: false,
             },
+            generic: GenericFiltersConfig {
+                version: 0,
+                filters: [],
+            },
         }
         "###);
         Ok(())
@@ -332,6 +377,14 @@ mod tests {
             ignore_transactions: IgnoreTransactionsFilterConfig {
                 patterns: GlobPatterns::new(vec!["*health*".to_string()]),
                 is_enabled: true,
+            },
+            generic: GenericFiltersConfig {
+                version: 1,
+                filters: vec![GenericFilterConfig {
+                    id: "hydrationError".to_string(),
+                    is_enabled: true,
+                    condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
+                }],
             },
         };
 
@@ -378,6 +431,20 @@ mod tests {
               "*health*"
             ],
             "isEnabled": true
+          },
+          "generic": {
+            "version": 1,
+            "filters": [
+              {
+                "id": "hydrationError",
+                "isEnabled": true,
+                "condition": {
+                  "op": "eq",
+                  "name": "event.exceptions",
+                  "value": "HydrationError"
+                }
+              }
+            ]
           }
         }
         "#);
@@ -391,6 +458,56 @@ mod tests {
         LegacyBrowsersFilterConfig {
             is_enabled: false,
             browsers: {},
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_deserialize_generic_filters() {
+        let json = r#"{
+            "version": 1,
+            "filters": [
+                {
+                  "id": "hydrationError",
+                  "isEnabled": true,
+                  "condition": {
+                    "op": "eq",
+                    "name": "event.exceptions",
+                    "value": "HydrationError"
+                  }
+                },
+                {
+                  "id": "chunkLoadError",
+                  "isEnabled": false
+                }
+           ]
+        }"#;
+        let config = serde_json::from_str::<GenericFiltersConfig>(json).unwrap();
+        insta::assert_debug_snapshot!(config, @r###"
+        GenericFiltersConfig {
+            version: 1,
+            filters: [
+                GenericFilterConfig {
+                    id: "hydrationError",
+                    is_enabled: true,
+                    condition: Some(
+                        Eq(
+                            EqCondition {
+                                name: "event.exceptions",
+                                value: String("HydrationError"),
+                                options: EqCondOptions {
+                                    ignore_case: false,
+                                },
+                            },
+                        ),
+                    ),
+                },
+                GenericFilterConfig {
+                    id: "chunkLoadError",
+                    is_enabled: false,
+                    condition: None,
+                },
+            ],
         }
         "###);
     }

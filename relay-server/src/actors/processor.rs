@@ -41,7 +41,6 @@ use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
-use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -55,12 +54,13 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::{ProfileContext, Span},
+    relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -480,9 +480,8 @@ impl EncodeEnvelope {
 /// Applies rate limits to metrics buckets and forwards them to the envelope manager.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-pub struct RateLimitFlushBuckets {
+pub struct RateLimitBuckets {
     pub bucket_limiter: MetricsLimiter,
-    pub partition_key: Option<u64>,
 }
 
 /// CPU-intensive processing tasks for envelopes.
@@ -492,7 +491,7 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
-    RateLimitFlushBuckets(RateLimitFlushBuckets),
+    RateLimitFlushBuckets(RateLimitBuckets),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -522,10 +521,10 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
+impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
+    fn from_message(message: RateLimitBuckets, _: ()) -> Self {
         Self::RateLimitFlushBuckets(message)
     }
 }
@@ -547,6 +546,8 @@ struct InnerProcessor {
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
+    #[cfg(feature = "processing")]
+    aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
@@ -555,14 +556,16 @@ struct InnerProcessor {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
-        _redis: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis: Option<RedisPool>,
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
+        #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -576,9 +579,9 @@ impl EnvelopeProcessorService {
 
         let inner = InnerProcessor {
             #[cfg(feature = "processing")]
-            redis_pool: _redis.clone(),
+            redis_pool: redis.clone(),
             #[cfg(feature = "processing")]
-            rate_limiter: _redis
+            rate_limiter: redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
             config,
             envelope_manager,
@@ -587,6 +590,8 @@ impl EnvelopeProcessorService {
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
+            #[cfg(feature = "processing")]
+            aggregator,
         };
 
         Self {
@@ -1161,17 +1166,9 @@ impl EnvelopeProcessorService {
                             )))
                         }
                     }
-                    Err(err) => {
-                        match err {
-                            relay_profiling::ProfileError::InvalidJson(_) => {
-                                relay_log::warn!(error = &err as &dyn Error, "invalid profile");
-                            }
-                            _ => relay_log::debug!(error = &err as &dyn Error, "invalid profile"),
-                        };
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )))
-                    }
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
             _ => ItemAction::Keep,
@@ -2049,7 +2046,9 @@ impl EnvelopeProcessorService {
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.managed_envelope.reject(Outcome::Filtered(err));
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
         })
@@ -2379,18 +2378,16 @@ impl EnvelopeProcessorService {
             }
         }
 
-        if all_modules_enabled {
-            // Extract tags to add to this span as well
-            let shared_tags = span::tag_extraction::extract_shared_tags(event);
-            transaction_span.sentry_tags = Annotated::new(
-                shared_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                    .collect(),
-            );
-            add_span(transaction_span.into());
-        }
+        // Extract tags to add to this span as well
+        let shared_tags = span::tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
     }
 
     /// Helper for [`Self::extract_spans`].
@@ -2905,12 +2902,11 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+    fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
         use relay_quotas::ItemScoping;
 
-        let RateLimitFlushBuckets {
-            mut bucket_limiter,
-            partition_key,
+        let RateLimitBuckets {
+            mut bucket_limiter, ..
         } = message;
 
         let scoping = *bucket_limiter.scoping();
@@ -2946,14 +2942,13 @@ impl EnvelopeProcessorService {
             }
         }
 
+        let project_key = bucket_limiter.scoping().project_key;
         let buckets = bucket_limiter.into_metrics();
+
         if !buckets.is_empty() {
-            // Forward buckets to envelope manager to send them to upstream or kafka:
-            self.inner.envelope_manager.send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            });
+            self.inner
+                .aggregator
+                .send(MergeBuckets::new(project_key, buckets));
         }
     }
 
@@ -3497,6 +3492,8 @@ mod tests {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
         let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
+        #[cfg(feature = "processing")]
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3509,6 +3506,8 @@ mod tests {
             redis_pool: None,
             geoip_lookup: None,
             global_config,
+            #[cfg(feature = "processing")]
+            aggregator,
         };
 
         EnvelopeProcessorService {
@@ -4040,7 +4039,11 @@ mod tests {
             outcome_from_parts(ClientReportField::Filtered, "error-message"),
             Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
         ));
-        assert!(outcome_from_parts(ClientReportField::Filtered, "adsf").is_err());
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "hydration-error"),
+            Ok(Outcome::Filtered(FilterStatKey::GenericFilter(_)))
+        ));
     }
 
     #[test]
