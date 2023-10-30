@@ -2366,18 +2366,16 @@ impl EnvelopeProcessorService {
             }
         }
 
-        if all_modules_enabled {
-            // Extract tags to add to this span as well
-            let shared_tags = span::tag_extraction::extract_shared_tags(event);
-            transaction_span.sentry_tags = Annotated::new(
-                shared_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                    .collect(),
-            );
-            add_span(transaction_span.into());
-        }
+        // Extract tags to add to this span as well
+        let shared_tags = span::tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
     }
 
     /// Helper for [`Self::extract_spans`].
