@@ -206,6 +206,8 @@
 <a href="#206" id="206">206</a>
 <a href="#207" id="207">207</a>
 <a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -353,7 +355,9 @@
                 (<span class="string">&quot;span.&quot;</span>, <span class="string">&quot;system&quot;</span>),
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;transaction.method&quot;</span>),
                 (<span class="string">&quot;&quot;</span>, <span class="string">&quot;transaction.op&quot;</span>),
-                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;resource.render_blocking_status&quot;</span>), <span class="comment">// only set for resource spans.
+                (<span class="string">&quot;&quot;</span>, <span class="string">&quot;resource.render_blocking_status&quot;</span>), <span class="comment">// only set for resource spans
+                </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttid&quot;</span>),                            <span class="comment">// only set for mobile spans
+                </span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;ttfd&quot;</span>),                            <span class="comment">// only set for mobile spans
             </span>]
             .map(|(prefix, key)| TagSpec {
                 key: <span class="macro">format!</span>(<span class="string">&quot;{prefix}{key}&quot;</span>),

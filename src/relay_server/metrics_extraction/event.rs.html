@@ -1153,6 +1153,47 @@
 <a href="#1153" id="1153">1153</a>
 <a href="#1154" id="1154">1154</a>
 <a href="#1155" id="1155">1155</a>
+<a href="#1156" id="1156">1156</a>
+<a href="#1157" id="1157">1157</a>
+<a href="#1158" id="1158">1158</a>
+<a href="#1159" id="1159">1159</a>
+<a href="#1160" id="1160">1160</a>
+<a href="#1161" id="1161">1161</a>
+<a href="#1162" id="1162">1162</a>
+<a href="#1163" id="1163">1163</a>
+<a href="#1164" id="1164">1164</a>
+<a href="#1165" id="1165">1165</a>
+<a href="#1166" id="1166">1166</a>
+<a href="#1167" id="1167">1167</a>
+<a href="#1168" id="1168">1168</a>
+<a href="#1169" id="1169">1169</a>
+<a href="#1170" id="1170">1170</a>
+<a href="#1171" id="1171">1171</a>
+<a href="#1172" id="1172">1172</a>
+<a href="#1173" id="1173">1173</a>
+<a href="#1174" id="1174">1174</a>
+<a href="#1175" id="1175">1175</a>
+<a href="#1176" id="1176">1176</a>
+<a href="#1177" id="1177">1177</a>
+<a href="#1178" id="1178">1178</a>
+<a href="#1179" id="1179">1179</a>
+<a href="#1180" id="1180">1180</a>
+<a href="#1181" id="1181">1181</a>
+<a href="#1182" id="1182">1182</a>
+<a href="#1183" id="1183">1183</a>
+<a href="#1184" id="1184">1184</a>
+<a href="#1185" id="1185">1185</a>
+<a href="#1186" id="1186">1186</a>
+<a href="#1187" id="1187">1187</a>
+<a href="#1188" id="1188">1188</a>
+<a href="#1189" id="1189">1189</a>
+<a href="#1190" id="1190">1190</a>
+<a href="#1191" id="1191">1191</a>
+<a href="#1192" id="1192">1192</a>
+<a href="#1193" id="1193">1193</a>
+<a href="#1194" id="1194">1194</a>
+<a href="#1195" id="1195">1195</a>
+<a href="#1196" id="1196">1196</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2241,46 +2282,63 @@
     }
 
     <span class="doccomment">/// Helper function for span metric extraction tests.
-    </span><span class="kw">fn </span>extract_span_metrics(span_op: <span class="kw-2">&amp;</span>str, duration_millis: f64) -&gt; Vec&lt;Bucket&gt; {
+    </span><span class="kw">fn </span>extract_span_metrics(span: <span class="kw-2">&amp;</span>Span) -&gt; Vec&lt;Bucket&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>config = ProjectConfig::default();
+        config.features.<span class="number">0</span>.insert(Feature::SpanMetricsExtraction);
+        config.sanitize(); <span class="comment">// apply defaults for span extraction
+
+        </span><span class="kw">let </span>extraction_config = config.metric_extraction.ok().unwrap();
+        generic::extract_metrics(span, <span class="kw-2">&amp;</span>extraction_config)
+    }
+
+    <span class="doccomment">/// Helper function for span metric extraction tests.
+    </span><span class="kw">fn </span>extract_span_metrics_op_duration(span_op: <span class="kw-2">&amp;</span>str, duration_millis: f64) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>span = Span::default();
         span.timestamp
             .set_value(<span class="prelude-val">Some</span>(Timestamp::from(DateTime::&lt;Utc&gt;::MAX_UTC))); <span class="comment">// whatever
         </span>span.op.set_value(<span class="prelude-val">Some</span>(span_op.into()));
         span.exclusive_time.set_value(<span class="prelude-val">Some</span>(duration_millis));
 
-        <span class="kw">let </span><span class="kw-2">mut </span>config = ProjectConfig::default();
-        config.features.<span class="number">0</span>.insert(Feature::SpanMetricsExtraction);
-        config.sanitize(); <span class="comment">// apply defaults for span extraction
-
-        </span><span class="kw">let </span>extraction_config = config.metric_extraction.ok().unwrap();
-        generic::extract_metrics(<span class="kw-2">&amp;</span>span, <span class="kw-2">&amp;</span>extraction_config)
+        extract_span_metrics(<span class="kw-2">&amp;</span>span)
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_cold_inlier() {
-        <span class="macro">assert_eq!</span>(<span class="number">2</span>, extract_span_metrics(<span class="string">&quot;app.start.cold&quot;</span>, <span class="number">180000.0</span>).len());
+        <span class="macro">assert_eq!</span>(
+            <span class="number">2</span>,
+            extract_span_metrics_op_duration(<span class="string">&quot;app.start.cold&quot;</span>, <span class="number">180000.0</span>).len()
+        );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_cold_outlier() {
-        <span class="macro">assert_eq!</span>(<span class="number">0</span>, extract_span_metrics(<span class="string">&quot;app.start.cold&quot;</span>, <span class="number">181000.0</span>).len());
+        <span class="macro">assert_eq!</span>(
+            <span class="number">0</span>,
+            extract_span_metrics_op_duration(<span class="string">&quot;app.start.cold&quot;</span>, <span class="number">181000.0</span>).len()
+        );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_warm_inlier() {
-        <span class="macro">assert_eq!</span>(<span class="number">2</span>, extract_span_metrics(<span class="string">&quot;app.start.warm&quot;</span>, <span class="number">180000.0</span>).len());
+        <span class="macro">assert_eq!</span>(
+            <span class="number">2</span>,
+            extract_span_metrics_op_duration(<span class="string">&quot;app.start.warm&quot;</span>, <span class="number">180000.0</span>).len()
+        );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_warm_outlier() {
-        <span class="macro">assert_eq!</span>(<span class="number">0</span>, extract_span_metrics(<span class="string">&quot;app.start.warm&quot;</span>, <span class="number">181000.0</span>).len());
+        <span class="macro">assert_eq!</span>(
+            <span class="number">0</span>,
+            extract_span_metrics_op_duration(<span class="string">&quot;app.start.warm&quot;</span>, <span class="number">181000.0</span>).len()
+        );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ui_load_initial_display_inlier() {
         <span class="macro">assert_eq!</span>(
             <span class="number">2</span>,
-            extract_span_metrics(<span class="string">&quot;ui.load.initial_display&quot;</span>, <span class="number">180000.0</span>).len()
+            extract_span_metrics_op_duration(<span class="string">&quot;ui.load.initial_display&quot;</span>, <span class="number">180000.0</span>).len()
         );
     }
 
@@ -2288,7 +2346,7 @@
     </span><span class="kw">fn </span>test_ui_load_initial_display_outlier() {
         <span class="macro">assert_eq!</span>(
             <span class="number">0</span>,
-            extract_span_metrics(<span class="string">&quot;ui.load.initial_display&quot;</span>, <span class="number">181000.0</span>).len()
+            extract_span_metrics_op_duration(<span class="string">&quot;ui.load.initial_display&quot;</span>, <span class="number">181000.0</span>).len()
         );
     }
 
@@ -2296,7 +2354,7 @@
     </span><span class="kw">fn </span>test_ui_load_full_display_inlier() {
         <span class="macro">assert_eq!</span>(
             <span class="number">2</span>,
-            extract_span_metrics(<span class="string">&quot;ui.load.full_display&quot;</span>, <span class="number">180000.0</span>).len()
+            extract_span_metrics_op_duration(<span class="string">&quot;ui.load.full_display&quot;</span>, <span class="number">180000.0</span>).len()
         );
     }
 
@@ -2304,8 +2362,32 @@
     </span><span class="kw">fn </span>test_ui_load_full_display_outlier() {
         <span class="macro">assert_eq!</span>(
             <span class="number">0</span>,
-            extract_span_metrics(<span class="string">&quot;ui.load.full_display&quot;</span>, <span class="number">181000.0</span>).len()
+            extract_span_metrics_op_duration(<span class="string">&quot;ui.load.full_display&quot;</span>, <span class="number">181000.0</span>).len()
         );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_display_times_extracted() {
+        <span class="kw">let </span>span = <span class="string">r#&quot;{
+            &quot;op&quot;: &quot;http.client&quot;,
+            &quot;span_id&quot;: &quot;bd429c44b67a3eb4&quot;,
+            &quot;start_timestamp&quot;: 1597976300.0000000,
+            &quot;timestamp&quot;: 1597976302.0000000,
+            &quot;exclusive_time&quot;: 100,
+            &quot;trace_id&quot;: &quot;ff62a8b040f340bda5d830223def1d81&quot;,
+            &quot;sentry_tags&quot;: {
+                &quot;ttid&quot;: &quot;ttid&quot;,
+                &quot;ttfd&quot;: &quot;ttfd&quot;
+            }
+        }&quot;#</span>;
+        <span class="kw">let </span>span = Annotated::from_json(span).unwrap().into_value().unwrap();
+        <span class="kw">let </span>metrics = extract_span_metrics(<span class="kw-2">&amp;</span>span);
+
+        <span class="macro">assert!</span>(!metrics.is_empty());
+        <span class="kw">for </span>metric <span class="kw">in </span>metrics {
+            <span class="macro">assert_eq!</span>(metric.tag(<span class="string">&quot;ttid&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;ttid&quot;</span>));
+            <span class="macro">assert_eq!</span>(metric.tag(<span class="string">&quot;ttfd&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;ttfd&quot;</span>));
+        }
     }
 }
 </code></pre></div></section></main></body></html>
