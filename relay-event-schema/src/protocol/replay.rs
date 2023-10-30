@@ -69,6 +69,7 @@ pub struct Replay {
     ///   "replay_id": "fc6d8c0c43fc4630ad850ee518f1b9d0"
     /// }
     /// ```
+    #[metastructure(pii = "false")]
     pub replay_id: Annotated<EventId>,
 
     /// The type of sampling that captured the replay.
