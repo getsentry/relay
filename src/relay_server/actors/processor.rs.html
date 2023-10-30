@@ -4366,8 +4366,6 @@
 <a href="#4366" id="4366">4366</a>
 <a href="#4367" id="4367">4367</a>
 <a href="#4368" id="4368">4368</a>
-<a href="#4369" id="4369">4369</a>
-<a href="#4370" id="4370">4370</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6736,18 +6734,16 @@
             }
         }
 
-        <span class="kw">if </span>all_modules_enabled {
-            <span class="comment">// Extract tags to add to this span as well
-            </span><span class="kw">let </span>shared_tags = span::tag_extraction::extract_shared_tags(event);
-            transaction_span.sentry_tags = Annotated::new(
-                shared_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                    .collect(),
-            );
-            add_span(transaction_span.into());
-        }
+        <span class="comment">// Extract tags to add to this span as well
+        </span><span class="kw">let </span>shared_tags = span::tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
     }
 
     <span class="doccomment">/// Helper for [`Self::extract_spans`].
