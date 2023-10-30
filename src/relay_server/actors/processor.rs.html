@@ -4369,6 +4369,13 @@
 <a href="#4369" id="4369">4369</a>
 <a href="#4370" id="4370">4370</a>
 <a href="#4371" id="4371">4371</a>
+<a href="#4372" id="4372">4372</a>
+<a href="#4373" id="4373">4373</a>
+<a href="#4374" id="4374">4374</a>
+<a href="#4375" id="4375">4375</a>
+<a href="#4376" id="4376">4376</a>
+<a href="#4377" id="4377">4377</a>
+<a href="#4378" id="4378">4378</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4412,7 +4419,6 @@
 <span class="kw">use </span>relay_profiling::ProfileError;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
-<span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_replays::recording::RecordingScrubber;
 <span class="kw">use </span>relay_sampling::config::{RuleType, SamplingMode};
 <span class="kw">use </span>relay_sampling::evaluation::{
@@ -4426,12 +4432,13 @@
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 </span><span class="kw">use </span>{
-    <span class="kw">crate</span>::actors::envelopes::SendMetrics,
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::{ProfileContext, Span},
+    relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -4851,9 +4858,8 @@
 <span class="doccomment">/// Applies rate limits to metrics buckets and forwards them to the envelope manager.
 </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
 #[derive(Debug)]
-</span><span class="kw">pub struct </span>RateLimitFlushBuckets {
+</span><span class="kw">pub struct </span>RateLimitBuckets {
     <span class="kw">pub </span>bucket_limiter: MetricsLimiter,
-    <span class="kw">pub </span>partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
 }
 
 <span class="doccomment">/// CPU-intensive processing tasks for envelopes.
@@ -4863,7 +4869,7 @@
     ProcessMetrics(Box&lt;ProcessMetrics&gt;),
     EncodeEnvelope(Box&lt;EncodeEnvelope&gt;),
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span>RateLimitFlushBuckets(RateLimitFlushBuckets),
+    </span>RateLimitFlushBuckets(RateLimitBuckets),
 }
 
 <span class="kw">impl </span>relay_system::Interface <span class="kw">for </span>EnvelopeProcessor {}
@@ -4893,10 +4899,10 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">impl </span>FromMessage&lt;RateLimitFlushBuckets&gt; <span class="kw">for </span>EnvelopeProcessor {
+</span><span class="kw">impl </span>FromMessage&lt;RateLimitBuckets&gt; <span class="kw">for </span>EnvelopeProcessor {
     <span class="kw">type </span>Response = NoResponse;
 
-    <span class="kw">fn </span>from_message(message: RateLimitFlushBuckets, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>from_message(message: RateLimitBuckets, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::RateLimitFlushBuckets(message)
     }
 }
@@ -4918,6 +4924,8 @@
     project_cache: Addr&lt;ProjectCache&gt;,
     global_config: Addr&lt;GlobalConfigManager&gt;,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+    </span>aggregator: Addr&lt;Aggregator&gt;,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
     </span>rate_limiter: <span class="prelude-ty">Option</span>&lt;RedisRateLimiter&gt;,
@@ -4926,14 +4934,16 @@
 
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
+    </span><span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
-        _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
         envelope_manager: Addr&lt;EnvelopeManager&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         project_cache: Addr&lt;ProjectCache&gt;,
         global_config: Addr&lt;GlobalConfigManager&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)] </span>aggregator: Addr&lt;Aggregator&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>geoip_lookup = config.geoip_path().and_then(|p| {
             <span class="kw">match </span>GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -4947,9 +4957,9 @@
 
         <span class="kw">let </span>inner = InnerProcessor {
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>redis_pool: _redis.clone(),
+            </span>redis_pool: redis.clone(),
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>rate_limiter: _redis
+            </span>rate_limiter: redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
             config,
             envelope_manager,
@@ -4958,6 +4968,8 @@
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>aggregator,
         };
 
         <span class="self">Self </span>{
@@ -7266,12 +7278,11 @@
 
     <span class="doccomment">/// Check and apply rate limits to metrics buckets.
     </span><span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span><span class="kw">fn </span>handle_rate_limit_flush_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, message: RateLimitFlushBuckets) {
+    </span><span class="kw">fn </span>handle_rate_limit_flush_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, message: RateLimitBuckets) {
         <span class="kw">use </span>relay_quotas::ItemScoping;
 
-        <span class="kw">let </span>RateLimitFlushBuckets {
-            <span class="kw-2">mut </span>bucket_limiter,
-            partition_key,
+        <span class="kw">let </span>RateLimitBuckets {
+            <span class="kw-2">mut </span>bucket_limiter, ..
         } = message;
 
         <span class="kw">let </span>scoping = <span class="kw-2">*</span>bucket_limiter.scoping();
@@ -7307,14 +7318,13 @@
             }
         }
 
+        <span class="kw">let </span>project_key = bucket_limiter.scoping().project_key;
         <span class="kw">let </span>buckets = bucket_limiter.into_metrics();
+
         <span class="kw">if </span>!buckets.is_empty() {
-            <span class="comment">// Forward buckets to envelope manager to send them to upstream or kafka:
-            </span><span class="self">self</span>.inner.envelope_manager.send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            });
+            <span class="self">self</span>.inner
+                .aggregator
+                .send(MergeBuckets::new(project_key, buckets));
         }
     }
 
@@ -7858,6 +7868,8 @@
         <span class="kw">let </span>(project_cache, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(upstream_relay, <span class="kw">_</span>) = mock_service(<span class="string">&quot;upstream_relay&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(global_config, <span class="kw">_</span>) = mock_service(<span class="string">&quot;global_config&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+        </span><span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -7870,6 +7882,8 @@
             </span>redis_pool: <span class="prelude-val">None</span>,
             geoip_lookup: <span class="prelude-val">None</span>,
             global_config,
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>aggregator,
         };
 
         EnvelopeProcessorService {

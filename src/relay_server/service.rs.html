@@ -318,6 +318,10 @@
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
 <a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -447,16 +451,6 @@
             GlobalConfigService::new(config.clone(), upstream_relay.clone()).start();
 
         <span class="kw">let </span>(project_cache, project_cache_rx) = channel(ProjectCacheService::name());
-        <span class="kw">let </span>processor = EnvelopeProcessorService::new(
-            config.clone(),
-            redis_pool.clone(),
-            envelope_manager.clone(),
-            outcome_aggregator.clone(),
-            project_cache.clone(),
-            global_config.clone(),
-            upstream_relay.clone(),
-        )
-        .start();
 
         <span class="kw">let </span>aggregator = relay_metrics::RouterService::new(
             config.default_aggregator_config().clone(),
@@ -464,6 +458,20 @@
             <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
         )
         .start_in(<span class="kw-2">&amp;</span>runtimes.aggregator);
+
+        <span class="kw">let </span>processor = EnvelopeProcessorService::new(
+            config.clone(),
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>redis_pool.clone(),
+            envelope_manager.clone(),
+            outcome_aggregator.clone(),
+            project_cache.clone(),
+            global_config.clone(),
+            upstream_relay.clone(),
+            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+            </span>aggregator.clone(),
+        )
+        .start();
 
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_manager_service = EnvelopeManagerService::new(

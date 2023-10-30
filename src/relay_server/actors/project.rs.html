@@ -1264,6 +1264,50 @@
 <a href="#1264" id="1264">1264</a>
 <a href="#1265" id="1265">1265</a>
 <a href="#1266" id="1266">1266</a>
+<a href="#1267" id="1267">1267</a>
+<a href="#1268" id="1268">1268</a>
+<a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
+<a href="#1272" id="1272">1272</a>
+<a href="#1273" id="1273">1273</a>
+<a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
+<a href="#1278" id="1278">1278</a>
+<a href="#1279" id="1279">1279</a>
+<a href="#1280" id="1280">1280</a>
+<a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
+<a href="#1288" id="1288">1288</a>
+<a href="#1289" id="1289">1289</a>
+<a href="#1290" id="1290">1290</a>
+<a href="#1291" id="1291">1291</a>
+<a href="#1292" id="1292">1292</a>
+<a href="#1293" id="1293">1293</a>
+<a href="#1294" id="1294">1294</a>
+<a href="#1295" id="1295">1295</a>
+<a href="#1296" id="1296">1296</a>
+<a href="#1297" id="1297">1297</a>
+<a href="#1298" id="1298">1298</a>
+<a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
+<a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -1285,11 +1329,12 @@
 <span class="kw">use </span>tokio::time::Instant;
 <span class="kw">use </span>url::Url;
 
-<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::SendMetrics;
+<span class="kw">use </span><span class="kw">crate</span>::actors::envelopes::{EnvelopeManager, SendMetrics};
 <span class="kw">use </span><span class="kw">crate</span>::actors::outcome::{DiscardReason, Outcome, TrackOutcome};
+<span class="kw">use </span><span class="kw">crate</span>::actors::processor::EnvelopeProcessor;
 <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitFlushBuckets;
-<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate, Services};
+</span><span class="kw">use </span><span class="kw">crate</span>::actors::processor::RateLimitBuckets;
+<span class="kw">use </span><span class="kw">crate</span>::actors::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -1873,6 +1918,70 @@
         });
     }
 
+    <span class="kw">fn </span>rate_limit_and_merge_buckets(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        project_state: Arc&lt;ProjectState&gt;,
+        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
+        aggregator: Addr&lt;Aggregator&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    ) {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
+            <span class="macro">relay_log::error!</span>(
+                <span class="string">&quot;there is no scoping due to missing project id: dropping {} buckets&quot;</span>,
+                buckets.len()
+            );
+            <span class="kw">return</span>;
+        };
+
+        <span class="comment">// Only send if the project state is valid, otherwise drop the buckets.
+        </span><span class="kw">if </span>project_state.check_disabled(<span class="self">self</span>.config.as_ref()).is_err() {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;project state invalid: dropping {} buckets&quot;</span>, buckets.len());
+            <span class="kw">return</span>;
+        }
+
+        <span class="comment">// Re-run feature flag checks since the project might not have been loaded when the buckets
+        // were initially ingested, or feature flags have changed in the meanwhile.
+        </span><span class="self">self</span>.filter_metrics(<span class="kw-2">&amp;mut </span>buckets);
+        <span class="kw">if </span>buckets.is_empty() {
+            <span class="kw">return</span>;
+        }
+
+        <span class="comment">// Check rate limits if necessary:
+        </span><span class="kw">let </span>quotas = project_state.config.quotas.clone();
+
+        <span class="kw">let </span>usage = <span class="kw">match </span>project_state.config.transaction_metrics {
+            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        };
+
+        <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping, usage) {
+            <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
+                <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
+                <span class="attr">#[allow(unused_variables)]
+                </span><span class="kw">let </span>was_rate_limited =
+                    bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits), outcome_aggregator);
+
+                <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
+                </span><span class="kw">if </span>!was_rate_limited &amp;&amp; <span class="self">self</span>.config.processing_enabled() {
+                    <span class="comment">// If there were no cached rate limits active, let the processor check redis:
+                    </span>envelope_processor.send(RateLimitBuckets { bucket_limiter });
+
+                    <span class="kw">return</span>;
+                }
+
+                bucket_limiter.into_metrics()
+            }
+            <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
+        };
+
+        <span class="kw">if </span>buckets.is_empty() {
+            <span class="kw">return</span>;
+        };
+
+        aggregator.send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
+    }
+
     <span class="doccomment">/// Inserts given [buckets](Bucket) into the metrics aggregator.
     ///
     /// The buckets will be keyed underneath this project key.
@@ -1880,17 +1989,26 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         aggregator: Addr&lt;Aggregator&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
         buckets: Vec&lt;Bucket&gt;,
     ) {
         <span class="kw">if </span><span class="self">self</span>.metrics_allowed() {
-            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_metrics(buckets, outcome_aggregator);
+            <span class="kw">let </span>buckets = <span class="self">self</span>.rate_limit_metrics(buckets, outcome_aggregator.clone());
 
             <span class="kw">if </span>!buckets.is_empty() {
                 <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.state {
-                    State::Cached(<span class="kw">_</span>) =&gt; {
+                    State::Cached(state) =&gt; {
                         <span class="comment">// We can send metrics straight to the aggregator.
                         </span><span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics straight to aggregator&quot;</span>);
-                        aggregator.send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
+                        <span class="kw">let </span>state = state.clone();
+
+                        <span class="self">self</span>.rate_limit_and_merge_buckets(
+                            state,
+                            buckets,
+                            aggregator,
+                            envelope_processor,
+                            outcome_aggregator,
+                        );
                     }
                     State::Pending(inner_agg) =&gt; {
                         <span class="comment">// We need to queue the metrics in a temporary aggregator until the project state becomes available.
@@ -2029,14 +2147,26 @@
         }
     }
 
-    <span class="kw">fn </span>set_state(<span class="kw-2">&amp;mut </span><span class="self">self</span>, state: Arc&lt;ProjectState&gt;, aggregator: Addr&lt;Aggregator&gt;) {
+    <span class="kw">fn </span>set_state(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        state: Arc&lt;ProjectState&gt;,
+        aggregator: Addr&lt;Aggregator&gt;,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
+    ) {
         <span class="kw">let </span>project_enabled = state.check_disabled(<span class="self">self</span>.config.as_ref()).is_ok();
-        <span class="kw">let </span>buckets = <span class="self">self</span>.state.set_state(state);
+        <span class="kw">let </span>buckets = <span class="self">self</span>.state.set_state(state.clone());
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(buckets) = buckets {
             <span class="kw">if </span>project_enabled &amp;&amp; !buckets.is_empty() {
                 <span class="macro">relay_log::debug!</span>(<span class="string">&quot;sending metrics from metricsbuffer to aggregator&quot;</span>);
-                aggregator.send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
+                <span class="self">self</span>.rate_limit_and_merge_buckets(
+                    state,
+                    buckets,
+                    aggregator,
+                    envelope_processor,
+                    outcome_aggregator,
+                );
             }
         }
     }
@@ -2069,6 +2199,8 @@
         project_cache: Addr&lt;ProjectCache&gt;,
         aggregator: Addr&lt;Aggregator&gt;,
         <span class="kw-2">mut </span>state: Arc&lt;ProjectState&gt;,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
+        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         no_cache: bool,
     ) {
         <span class="comment">// Initiate the backoff if the incoming state is invalid. Reset it otherwise.
@@ -2095,7 +2227,12 @@
             <span class="comment">// If the new state is invalid but the old one still usable, keep the old one.
             </span>ExpiryState::Updated(old) | ExpiryState::Stale(old) <span class="kw">if </span>state.invalid() =&gt; state = old,
             <span class="comment">// If the new state is valid or the old one is expired, always use the new one.
-            </span><span class="kw">_ </span>=&gt; <span class="self">self</span>.set_state(state.clone(), aggregator),
+            </span><span class="kw">_ </span>=&gt; <span class="self">self</span>.set_state(
+                state.clone(),
+                aggregator,
+                envelope_processor,
+                outcome_aggregator,
+            ),
         }
 
         <span class="comment">// If the state is still invalid, return back the taken channel and schedule state update.
@@ -2198,77 +2335,13 @@
 
     <span class="kw">pub fn </span>flush_buckets(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        services: Services,
+        envelope_manager: Addr&lt;EnvelopeManager&gt;,
         partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
+        buckets: Vec&lt;Bucket&gt;,
     ) {
-        <span class="kw">let </span>Services {
-            aggregator,
-            envelope_manager,
-            <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-            </span>envelope_processor,
-            outcome_aggregator,
-            project_cache,
-            ..
-        } = services;
-        <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
-
-        <span class="comment">// Schedule an update to the project state if it is outdated, regardless of whether the
-        // metrics can be forwarded or not. We never wait for this update.
-        </span><span class="kw">let </span><span class="prelude-val">Some</span>(project_state) = <span class="self">self</span>.get_cached_state(project_cache, <span class="bool-val">false</span>) <span class="kw">else </span>{
-            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;project expired: merging back {} buckets&quot;</span>, buckets.len());
-            <span class="comment">// If the state is outdated, we need to wait for an updated state. Put them back into
-            // the aggregator.
-            </span>aggregator.send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
-            <span class="kw">return</span>;
-        };
-
         <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = <span class="self">self</span>.scoping() <span class="kw">else </span>{
-            <span class="macro">relay_log::trace!</span>(
-                <span class="string">&quot;there is no scoping: merging back {} buckets&quot;</span>,
-                buckets.len()
-            );
-            aggregator.send(MergeBuckets::new(<span class="self">self</span>.project_key, buckets));
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;there is no scoping: dropping {} buckets&quot;</span>, buckets.len());
             <span class="kw">return</span>;
-        };
-
-        <span class="comment">// Only send if the project state is valid, otherwise drop this bucket.
-        </span><span class="kw">if </span>project_state.check_disabled(config.as_ref()).is_err() {
-            <span class="kw">return</span>;
-        }
-
-        <span class="comment">// Re-run feature flag checks since the project might not have been loaded when the buckets
-        // were initially ingested, or feature flags have changed in the meanwhile.
-        </span><span class="self">self</span>.filter_metrics(<span class="kw-2">&amp;mut </span>buckets);
-
-        <span class="comment">// Check rate limits if necessary:
-        </span><span class="kw">let </span>quotas = project_state.config.quotas.clone();
-        <span class="kw">let </span>usage = <span class="kw">match </span>project_state.config.transaction_metrics {
-            <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>c)) =&gt; c.usage_metric(),
-            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-        };
-
-        <span class="kw">let </span>buckets = <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping, usage) {
-            <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
-                <span class="kw">let </span>cached_rate_limits = <span class="self">self</span>.rate_limits().clone();
-                <span class="attr">#[allow(unused_variables)]
-                </span><span class="kw">let </span>was_rate_limited =
-                    bucket_limiter.enforce_limits(<span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>cached_rate_limits), outcome_aggregator);
-
-                <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-                </span><span class="kw">if </span>!was_rate_limited &amp;&amp; config.processing_enabled() {
-                    <span class="comment">// If there were no cached rate limits active, let the processor check redis:
-                    </span>envelope_processor.send(RateLimitFlushBuckets {
-                        bucket_limiter,
-                        partition_key,
-                    });
-
-                    <span class="kw">return</span>;
-                }
-
-                bucket_limiter.into_metrics()
-            }
-            <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
         };
 
         <span class="kw">if </span>!buckets.is_empty() {
@@ -2332,6 +2405,8 @@
     </span><span class="kw">async fn </span>test_stale_cache() {
         <span class="kw">let </span>(addr, <span class="kw">_</span>) = mock_service(<span class="string">&quot;project_cache&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>(aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;aggregator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggreggator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_processor&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         <span class="kw">let </span>config = Arc::new(
             Config::from_json_value(<span class="macro">json!</span>(
                 {
@@ -2363,6 +2438,8 @@
             addr.clone(),
             aggregator.clone(),
             Arc::new(ProjectState::err()),
+            envelope_processor.clone(),
+            outcome_aggregator.clone(),
             <span class="bool-val">false</span>,
         );
         <span class="comment">// Since we got invalid project state we still keep the old one meaning there
@@ -2384,6 +2461,8 @@
             addr.clone(),
             aggregator.clone(),
             Arc::new(ProjectState::err()),
+            envelope_processor,
+            outcome_aggregator,
             <span class="bool-val">false</span>,
         );
         project.fetch_state(addr, <span class="bool-val">false</span>);
@@ -2437,7 +2516,8 @@
 
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[create_transaction_bucket()];
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggreggator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
-        project.merge_buckets(aggregator, outcome_aggregator, buckets);
+        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_processor&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        project.merge_buckets(aggregator, outcome_aggregator, envelope_processor, buckets);
         handle.<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span>buckets_received = <span class="kw-2">*</span>bucket_state.lock().unwrap();
@@ -2461,14 +2541,22 @@
 
         <span class="kw">let </span>buckets = <span class="macro">vec!</span>[create_transaction_bucket()];
         <span class="kw">let </span>(outcome_aggregator, <span class="kw">_</span>) = mock_service(<span class="string">&quot;outcome_aggreggator&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
+        <span class="kw">let </span>(envelope_processor, <span class="kw">_</span>) = mock_service(<span class="string">&quot;envelope_processor&quot;</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
         project.merge_buckets(
             aggregator.clone(),
             outcome_aggregator.clone(),
+            envelope_processor.clone(),
             buckets.clone(),
         );
-        <span class="kw">let </span>project_state = Arc::new(ProjectState::allowed());
+        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectState::allowed();
+        project_state.project_id = <span class="prelude-val">Some</span>(ProjectId::new(<span class="number">1</span>));
         <span class="comment">// set_state should trigger flushing from the metricsbuffer to aggregator.
-        </span>project.set_state(project_state, aggregator);
+        </span>project.set_state(
+            Arc::new(project_state),
+            aggregator,
+            envelope_processor,
+            outcome_aggregator,
+        );
         handle.<span class="kw">await</span>.unwrap(); <span class="comment">// state isnt updated until we await.
 
         </span><span class="kw">let </span>buckets_received = <span class="kw-2">*</span>bucket_state.lock().unwrap();
