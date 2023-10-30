@@ -4363,6 +4363,12 @@
 <a href="#4363" id="4363">4363</a>
 <a href="#4364" id="4364">4364</a>
 <a href="#4365" id="4365">4365</a>
+<a href="#4366" id="4366">4366</a>
+<a href="#4367" id="4367">4367</a>
+<a href="#4368" id="4368">4368</a>
+<a href="#4369" id="4369">4369</a>
+<a href="#4370" id="4370">4370</a>
+<a href="#4371" id="4371">4371</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6402,7 +6408,9 @@
 
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.managed_envelope.reject(Outcome::Filtered(err));
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
         })
@@ -8393,7 +8401,11 @@
             outcome_from_parts(ClientReportField::Filtered, <span class="string">&quot;error-message&quot;</span>),
             <span class="prelude-val">Ok</span>(Outcome::Filtered(FilterStatKey::ErrorMessage))
         ));
-        <span class="macro">assert!</span>(outcome_from_parts(ClientReportField::Filtered, <span class="string">&quot;adsf&quot;</span>).is_err());
+
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            outcome_from_parts(ClientReportField::Filtered, <span class="string">&quot;hydration-error&quot;</span>),
+            <span class="prelude-val">Ok</span>(Outcome::Filtered(FilterStatKey::GenericFilter(<span class="kw">_</span>)))
+        ));
     }
 
     <span class="attr">#[test]

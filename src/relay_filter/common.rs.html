@@ -92,7 +92,13 @@
 <a href="#92" id="92">92</a>
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::TryFrom;
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>serde::Serialize;
@@ -101,7 +107,7 @@
 ///
 /// Ported from Sentry&#39;s same-named &quot;enum&quot;. The enum variants are fed into outcomes in kebap-case
 /// (e.g.  &quot;browser-extensions&quot;)
-</span><span class="attr">#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Hash)]
+</span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Serialize, Hash)]
 </span><span class="kw">pub enum </span>FilterStatKey {
     <span class="doccomment">/// Filtered by ip address.
     </span>IpAddress,
@@ -129,6 +135,9 @@
 
     <span class="doccomment">/// Filtered due to the fact that it was a call to a filtered transaction
     </span>FilteredTransactions,
+
+    <span class="doccomment">/// Filtered due to a generic filter.
+    </span>GenericFilter(String),
 }
 
 <span class="comment">// An event grouped to a removed group.
@@ -145,8 +154,8 @@
 
 </span><span class="kw">impl </span>FilterStatKey {
     <span class="doccomment">/// Returns the string identifier of the filter stat key.
-    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="kw">match </span><span class="self">self </span>{
+    </span><span class="kw">pub fn </span>name(<span class="self">self</span>) -&gt; Cow&lt;<span class="lifetime">&#39;static</span>, str&gt; {
+        Cow::Borrowed(<span class="kw">match </span><span class="self">self </span>{
             FilterStatKey::IpAddress =&gt; <span class="string">&quot;ip-address&quot;</span>,
             FilterStatKey::ReleaseVersion =&gt; <span class="string">&quot;release-version&quot;</span>,
             FilterStatKey::ErrorMessage =&gt; <span class="string">&quot;error-message&quot;</span>,
@@ -156,13 +165,16 @@
             FilterStatKey::WebCrawlers =&gt; <span class="string">&quot;web-crawlers&quot;</span>,
             FilterStatKey::InvalidCsp =&gt; <span class="string">&quot;invalid-csp&quot;</span>,
             FilterStatKey::FilteredTransactions =&gt; <span class="string">&quot;filtered-transaction&quot;</span>,
-        }
+            FilterStatKey::GenericFilter(filter_identifier) =&gt; {
+                <span class="kw">return </span>Cow::Owned(filter_identifier);
+            }
+        })
     }
 }
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>FilterStatKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.name())
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.clone().name())
     }
 }
 
@@ -180,9 +192,7 @@
             <span class="string">&quot;web-crawlers&quot; </span>=&gt; FilterStatKey::WebCrawlers,
             <span class="string">&quot;invalid-csp&quot; </span>=&gt; FilterStatKey::InvalidCsp,
             <span class="string">&quot;filtered-transaction&quot; </span>=&gt; FilterStatKey::FilteredTransactions,
-            other =&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(other);
-            }
+            other =&gt; FilterStatKey::GenericFilter(other.to_string()),
         })
     }
 }

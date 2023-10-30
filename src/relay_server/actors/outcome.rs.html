@@ -1145,7 +1145,7 @@
     </span><span class="kw">fn </span>to_reason(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;str&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Outcome::Invalid(discard_reason) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(discard_reason.name())),
-            Outcome::Filtered(filter_key) =&gt; <span class="prelude-val">Some</span>(Cow::Borrowed(filter_key.name())),
+            Outcome::Filtered(filter_key) =&gt; <span class="prelude-val">Some</span>(filter_key.clone().name()),
             Outcome::FilteredSampling(rule_ids) =&gt; <span class="prelude-val">Some</span>(Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;Sampled:{rule_ids}&quot;</span>))),
             <span class="comment">//TODO can we do better ? (not re copying the string )
             </span>Outcome::RateLimited(code_opt) =&gt; code_opt

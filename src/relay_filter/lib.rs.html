@@ -60,6 +60,11 @@
 <a href="#60" id="60">60</a>
 <a href="#61" id="61">61</a>
 <a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering.
 //!
 //! Events may be filtered base on the following configurable criteria.
@@ -82,6 +87,7 @@
 <span class="kw">pub mod </span>client_ips;
 <span class="kw">pub mod </span>csp;
 <span class="kw">pub mod </span>error_messages;
+<span class="kw">pub mod </span>generic;
 <span class="kw">pub mod </span>legacy_browsers;
 <span class="kw">pub mod </span>localhost;
 <span class="kw">pub mod </span>transaction_name;
@@ -107,9 +113,13 @@
     client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     config: <span class="kw-2">&amp;</span>FiltersConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FilterStatKey&gt; {
-    <span class="comment">// NB: The order of applying filters should not matter as they are additive. Still, be careful
-    // when making changes to this order.
+    <span class="comment">// In order to maintain backwards compatibility, we still want to run the old matching logic,
+    // but we will try to match generic filters first, since the goal is to eventually fade out the
+    // the normal filters except for the ones that have complex conditions.
+    </span>generic::should_filter(event, <span class="kw-2">&amp;</span>config.generic)<span class="question-mark">?</span>;
 
+    <span class="comment">// The order of applying filters should not matter as they are additive. Still, be careful
+    // when making changes to this order.
     </span>csp::should_filter(event, <span class="kw-2">&amp;</span>config.csp)<span class="question-mark">?</span>;
     client_ips::should_filter(client_ip, <span class="kw-2">&amp;</span>config.client_ips)<span class="question-mark">?</span>;
     releases::should_filter(event, <span class="kw-2">&amp;</span>config.releases)<span class="question-mark">?</span>;

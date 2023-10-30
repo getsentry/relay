@@ -18,7 +18,7 @@ var srcIndex = JSON.parse('{\
 "relay_event_schema":["",[["processor",[],["attrs.rs","chunks.rs","funcs.rs","impls.rs","mod.rs","traits.rs"]],["protocol",[["contexts",[],["app.rs","browser.rs","cloud_resource.rs","device.rs","gpu.rs","mod.rs","monitor.rs","os.rs","otel.rs","profile.rs","replay.rs","reprocessing.rs","response.rs","runtime.rs","trace.rs"]]],["base.rs","breadcrumb.rs","breakdowns.rs","client_report.rs","clientsdk.rs","constants.rs","debugmeta.rs","device_class.rs","event.rs","exception.rs","fingerprint.rs","logentry.rs","measurements.rs","mechanism.rs","metrics.rs","mod.rs","relay_info.rs","replay.rs","request.rs","schema.rs","security_report.rs","session.rs","span.rs","stacktrace.rs","tags.rs","templateinfo.rs","thread.rs","transaction.rs","types.rs","user.rs","user_report.rs","utils.rs"]]],["lib.rs"]],\
 "relay_ffi":["",[],["lib.rs"]],\
 "relay_ffi_macros":["",[],["lib.rs"]],\
-"relay_filter":["",[],["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","transaction_name.rs","web_crawlers.rs"]],\
+"relay_filter":["",[],["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","generic.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","transaction_name.rs","web_crawlers.rs"]],\
 "relay_jsonschema_derive":["",[],["lib.rs"]],\
 "relay_kafka":["",[["producer",[],["mod.rs","schemas.rs","utils.rs"]]],["config.rs","lib.rs","statsd.rs"]],\
 "relay_log":["",[],["dashboard.rs","lib.rs","setup.rs","test.rs","utils.rs"]],\
