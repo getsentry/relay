@@ -1521,7 +1521,7 @@
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
 /// scrubber should be able to strip more.
 </span><span class="kw">static </span>DATASCRUBBER_IGNORE: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
-    <span class="string">&quot;(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value)&quot;
+    <span class="string">&quot;(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value | $request.headers.user-agent)&quot;
         </span>.parse()
         .unwrap()
 });
@@ -1781,10 +1781,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_convert_default_pii_config() {
-        <span class="macro">insta::assert_json_snapshot!</span>(simple_enabled_pii_config(), @<span class="string">r#&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(simple_enabled_pii_config(), @<span class="string">r###&quot;
         {
           &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;
             ],
@@ -1796,7 +1796,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1806,10 +1806,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
           &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;
             ],
@@ -1821,7 +1821,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1831,7 +1831,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {
             &quot;strip-fields&quot;: {
@@ -1844,7 +1844,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;,
               &quot;strip-fields&quot;
@@ -1857,7 +1857,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1867,10 +1867,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
           &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) &amp;&amp; !foobar&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) &amp;&amp; !foobar&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;
             ],
@@ -1882,7 +1882,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -1894,10 +1894,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..Default::default()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
           &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
               &quot;@ip:replace&quot;
             ],
             &quot;$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip&quot;: [
@@ -1905,7 +1905,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;#</span>);
+        &quot;###</span>);
     }
 
     <span class="attr">#[test]
@@ -2763,7 +2763,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r#&quot;
+        <span class="macro">insta::assert_json_snapshot!</span>(pii_config, @<span class="string">r###&quot;
         {
           &quot;rules&quot;: {
             &quot;strip-fields&quot;: {
@@ -2776,7 +2776,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           &quot;applications&quot;: {
-            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)&quot;: [
+            &quot;($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)&quot;: [
               &quot;@common:filter&quot;,
               &quot;@ip:replace&quot;,
               &quot;strip-fields&quot;
@@ -2789,7 +2789,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        &quot;#</span>);
+        &quot;###</span>);
 
         <span class="kw">let </span>pii_config = pii_config.unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>pii_processor = PiiProcessor::new(pii_config.compiled());
