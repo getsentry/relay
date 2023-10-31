@@ -7,16 +7,17 @@ use std::mem;
 use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
 use relay_event_schema::processor::{
-    self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    self, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, Request, SpanAttribute, SpanStatus, Tags,
+    IpAddr, LogEntry, Measurement, Measurements, Request, Span, SpanAttribute, SpanStatus, Tags,
     TraceContext, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
+use crate::normalize::transaction::{validate_span_ids, validate_span_timestamps};
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
@@ -51,7 +52,7 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NormalizeProcessor<'a> {
     /// Configuration for the normalization steps.
     config: NormalizeProcessorConfig<'a>,
@@ -68,11 +69,13 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         &mut self,
         event: &mut Event,
         meta: &mut Meta,
-        _: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let config = &self.config.light_config;
+        let light_normalization_config = self.config.light_config.clone();
 
-        if config.is_renormalize {
+        event.process_child_values(self, state)?;
+
+        if light_normalization_config.is_renormalize {
             return Ok(());
         }
 
@@ -81,8 +84,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.transaction_name_config.clone(),
-            config.transaction_range.clone(),
+            light_normalization_config.transaction_name_config.clone(),
+            light_normalization_config.transaction_range.clone(),
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
@@ -92,17 +95,21 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(event, config.client_ip, &config.user_agent);
+        normalize_security_report(
+            event,
+            light_normalization_config.client_ip,
+            &light_normalization_config.user_agent,
+        );
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
             &mut event.request,
             &mut event.user,
             event.platform.as_str(),
-            config.client_ip,
+            light_normalization_config.client_ip,
         );
 
-        if let Some(geoip_lookup) = config.geoip_lookup {
+        if let Some(geoip_lookup) = light_normalization_config.geoip_lookup {
             if let Some(user) = event.user.value_mut() {
                 normalize_user_geoinfo(geoip_lookup, user)
             }
@@ -132,30 +139,32 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         normalize_timestamps(
             event,
             meta,
-            config.received_at,
-            config.max_secs_in_past,
-            config.max_secs_in_future,
+            light_normalization_config.received_at,
+            light_normalization_config.max_secs_in_past,
+            light_normalization_config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
 
         // TODO: Consider moving to store normalization
-        if config.device_class_synthesis_config {
+        if light_normalization_config.device_class_synthesis_config {
             normalize_device_class(event);
         }
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
-        normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
+        normalize_user_agent(event, light_normalization_config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(
             event,
-            config.measurements.clone(),
-            config.max_name_and_unit_len,
+            light_normalization_config.measurements.clone(),
+            light_normalization_config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
-        normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
+        normalize_breakdowns(event, light_normalization_config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
         processor::apply(&mut event.contexts, normalize_contexts)?;
 
-        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
+        if light_normalization_config.light_normalize_spans
+            && event.ty.value() == Some(&EventType::Transaction)
+        {
             // XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don't have many spans, but if this is no longer the
@@ -168,16 +177,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             );
         }
 
-        if config.enrich_spans {
+        if light_normalization_config.enrich_spans {
             extract_span_tags(
                 event,
                 &tag_extraction::Config {
-                    max_tag_value_size: config.max_tag_value_length,
+                    max_tag_value_size: light_normalization_config.max_tag_value_length,
                 },
             );
         }
 
-        if config.enable_trimming {
+        if light_normalization_config.enable_trimming {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(
                 event,
@@ -185,6 +194,22 @@ impl<'a> Processor for NormalizeProcessor<'a> {
                 ProcessingState::root(),
             )?;
         }
+
+        Ok(())
+    }
+
+    fn process_span(
+        &mut self,
+        span: &mut Span,
+        _: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        validate_span_timestamps(span)?;
+        validate_span_ids(span)?;
+
+        span.op.get_or_insert_with(|| "default".to_owned());
+
+        span.process_child_values(self, state)?;
 
         Ok(())
     }

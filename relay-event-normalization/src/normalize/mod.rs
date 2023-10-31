@@ -38,6 +38,7 @@ mod mechanism;
 mod processor;
 mod request;
 mod stacktrace;
+mod transaction;
 
 /// Defines a builtin measurement.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Hash, Eq)]
