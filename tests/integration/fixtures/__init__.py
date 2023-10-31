@@ -1,9 +1,14 @@
 import time
 
-import requests
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-session = requests.session()
+
+session = Session()
+retries = Retry(total=5, backoff_factor=0.1)
+session.mount("http://", HTTPAdapter(max_retries=retries))
 
 
 class SentryLike:
@@ -268,6 +273,11 @@ class SentryLike:
     def send_client_report(self, project_id, payload):
         envelope = Envelope()
         envelope.add_item(Item(PayloadRef(json=payload), type="client_report"))
+        self.send_envelope(project_id, envelope)
+
+    def send_user_feedback(self, project_id, payload):
+        envelope = Envelope()
+        envelope.add_item(Item(PayloadRef(json=payload), type="feedback"))
         self.send_envelope(project_id, envelope)
 
     def send_metrics(self, project_id, payload):

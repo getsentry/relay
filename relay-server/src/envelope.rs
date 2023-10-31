@@ -114,6 +114,8 @@ pub enum ItemType {
     CheckIn,
     /// A standalone span.
     Span,
+    /// UserReport as an Event
+    UserReportV2,
     /// A new item type that is yet unknown by this version of Relay.
     ///
     /// By default, items of this type are forwarded without modification. Processing Relays and
@@ -129,6 +131,7 @@ impl ItemType {
         match event_type {
             EventType::Default | EventType::Error | EventType::Nel => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
+            EventType::UserReportV2 => ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 ItemType::Security
             }
@@ -148,6 +151,7 @@ impl fmt::Display for ItemType {
             Self::Nel => write!(f, "nel"),
             Self::UnrealReport => write!(f, "unreal_report"),
             Self::UserReport => write!(f, "user_report"),
+            Self::UserReportV2 => write!(f, "feedback"),
             Self::Session => write!(f, "session"),
             Self::Sessions => write!(f, "sessions"),
             Self::Statsd => write!(f, "statsd"),
@@ -177,6 +181,7 @@ impl std::str::FromStr for ItemType {
             "nel" => Self::Nel,
             "unreal_report" => Self::UnrealReport,
             "user_report" => Self::UserReport,
+            "feedback" => Self::UserReportV2,
             "session" => Self::Session,
             "sessions" => Self::Sessions,
             "statsd" => Self::Statsd,
@@ -561,6 +566,7 @@ impl Item {
             ItemType::Statsd | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
+            ItemType::UserReportV2 => None,
             ItemType::Profile => Some(if indexed {
                 DataCategory::ProfileIndexed
             } else {
@@ -706,7 +712,8 @@ impl Item {
             | ItemType::Security
             | ItemType::RawSecurity
             | ItemType::Nel
-            | ItemType::UnrealReport => true,
+            | ItemType::UnrealReport
+            | ItemType::UserReportV2 => true,
 
             // Attachments are only event items if they are crash reports or if they carry partial
             // event payloads. Plain attachments never create event payloads.
@@ -765,6 +772,8 @@ impl Item {
             ItemType::Nel => false,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
+            ItemType::UserReportV2 => true,
+
             ItemType::ReplayEvent => true,
             ItemType::Session => false,
             ItemType::Sessions => false,

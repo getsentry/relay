@@ -13,7 +13,7 @@ mod reprocessing;
 mod response;
 mod runtime;
 mod trace;
-
+mod user_report_v2;
 pub use app::*;
 pub use browser::*;
 pub use cloud_resource::*;
@@ -29,6 +29,7 @@ pub use reprocessing::*;
 pub use response::*;
 pub use runtime::*;
 pub use trace::*;
+pub use user_report_v2::*;
 
 #[cfg(feature = "jsonschema")]
 use relay_jsonschema_derive::JsonSchema;
@@ -69,6 +70,9 @@ pub enum Context {
     Profile(Box<ProfileContext>),
     /// Information related to Replay.
     Replay(Box<ReplayContext>),
+    /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
+    #[metastructure(tag = "feedback")]
+    UserReportV2(Box<UserReportV2Context>),
     /// Information related to Monitors feature.
     Monitor(Box<MonitorContext>),
     /// Auxilliary information for reprocessing.

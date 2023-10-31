@@ -14,7 +14,7 @@ use crate::{
 /// We define this list independently of `metastructure(pii = true/false)` because the new PII
 /// scrubber should be able to strip more.
 static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
-    "(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value)"
+    "(debug_meta.** | $frame.filename | $frame.abs_path | $logentry.formatted | $error.value | $request.headers.user-agent)"
         .parse()
         .unwrap()
 });
@@ -143,9 +143,23 @@ pub fn to_pii_config(
             continue;
         }
 
-        conjunctions.push(SelectorSpec::Not(Box::new(SelectorSpec::Path(vec![
-            SelectorPathItem::Key(field.to_owned()),
-        ]))));
+        let spec = match field.parse() {
+            Ok(spec) => spec,
+            Err(error) => {
+                // Invalid safe fields should be caught by sentry-side validation.
+                // Log an error if they are not.
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    field = field,
+                    "Error parsing safe field into selector",
+                );
+
+                // Fallback to stay compatible with already existing keys.
+                SelectorSpec::Path(vec![SelectorPathItem::Key(field.to_owned())])
+            }
+        };
+
+        conjunctions.push(SelectorSpec::Not(Box::new(spec)));
     }
 
     let applied_selector = SelectorSpec::And(conjunctions);
@@ -274,10 +288,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
 
     #[test]
     fn test_convert_default_pii_config() {
-        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r#"
+        insta::assert_json_snapshot!(simple_enabled_pii_config(), @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -289,7 +303,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -299,10 +313,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -314,7 +328,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -324,7 +338,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "rules": {
             "strip-fields": {
@@ -337,7 +351,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -350,7 +364,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -360,10 +374,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value) && !foobar": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent) && !foobar": [
               "@common:filter",
               "@ip:replace"
             ],
@@ -375,7 +389,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -387,10 +401,10 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..Default::default()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@ip:replace"
             ],
             "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
@@ -398,7 +412,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1256,7 +1270,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ..simple_enabled_config()
         });
 
-        insta::assert_json_snapshot!(pii_config, @r#"
+        insta::assert_json_snapshot!(pii_config, @r###"
         {
           "rules": {
             "strip-fields": {
@@ -1269,7 +1283,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             }
           },
           "applications": {
-            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value)": [
+            "($string || $number || $array || $object) && !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@common:filter",
               "@ip:replace",
               "strip-fields"
@@ -1282,7 +1296,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             ]
           }
         }
-        "#);
+        "###);
 
         let pii_config = pii_config.unwrap();
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
@@ -1503,5 +1517,52 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
         let mut pii_processor = PiiProcessor::new(pii_config.compiled());
         process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
         assert_annotated_snapshot!(data);
+    }
+
+    #[test]
+    fn test_exclude_expression() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "extra": {
+                    "do_not_scrub_1": "password",
+                    "do_not_scrub_2": ["password"],
+                    "do_not_scrub.dot": ["password"],
+                },
+                "user": {
+                    "id": "5355849125500546",
+                }
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            exclude_fields: vec![
+                "do_not_scrub_1".to_owned(),
+                "do_not_scrub_2.**".to_owned(),
+                "extra.'do_not_scrub.dot'.**".to_owned(),
+                "$user.id".to_owned(),
+            ],
+            ..simple_enabled_config()
+        })
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "user": {
+            "id": "5355849125500546"
+          },
+          "extra": {
+            "do_not_scrub.dot": [
+              "password"
+            ],
+            "do_not_scrub_1": "password",
+            "do_not_scrub_2": [
+              "password"
+            ]
+          }
+        }
+        "###);
     }
 }

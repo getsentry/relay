@@ -30,6 +30,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> bool 
             | ItemType::ReplayEvent
             | ItemType::RawSecurity
             | ItemType::Nel
+            | ItemType::UserReportV2
             | ItemType::FormData => {
                 event_size += item.len();
             }

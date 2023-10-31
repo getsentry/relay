@@ -128,8 +128,9 @@ impl AndroidProfile {
 }
 
 fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
+    let d = &mut serde_json::Deserializer::from_slice(payload);
     let mut profile: AndroidProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     let transaction_opt = profile.metadata.transactions.drain(..).next();
     if let Some(transaction) = transaction_opt {
@@ -271,7 +272,9 @@ mod tests {
         let profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
-        let output: AndroidProfile = serde_json::from_slice(&profile_json.unwrap()[..])
+        let payload = profile_json.unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(&payload[..]);
+        let output: AndroidProfile = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
         assert_eq!(output.metadata.release, "some-random-release".to_string());

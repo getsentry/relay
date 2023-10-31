@@ -914,6 +914,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/ReplayContext"
         },
         {
+          "$ref": "#/definitions/UserReportV2Context"
+        },
+        {
           "$ref": "#/definitions/MonitorContext"
         },
         {
@@ -1212,6 +1215,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               "format": "uint64",
               "minimum": 0.0
             },
+            "locale": {
+              "description": " ISO 639-1 code of the locale the device is set to.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "low_memory": {
               "description": " Whether the device was low on memory.",
               "default": null,
@@ -1317,6 +1328,16 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               "format": "uint64",
               "minimum": 0.0
             },
+            "screen_height_pixels": {
+              "description": " Height of the screen in pixels.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "screen_resolution": {
               "description": " Device screen resolution.\n\n (e.g.: 800x600, 3040x1444)",
               "default": null,
@@ -1324,6 +1345,16 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "string",
                 "null"
               ]
+            },
+            "screen_width_pixels": {
+              "description": " Width of the screen in pixels.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             },
             "simulator": {
               "description": " Simulator/prod indicator.",
@@ -1400,6 +1431,15 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               ],
               "format": "uint64",
               "minimum": 0.0
+            },
+            "uuid": {
+              "description": " UUID of the device.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
             }
           },
           "additionalProperties": false
@@ -1459,6 +1499,7 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         "expectstaple",
         "nel",
         "transaction",
+        "userreportv2",
         "default"
       ]
     },
@@ -3792,6 +3833,33 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "username": {
               "description": " Username of the user.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "UserReportV2Context": {
+      "description": " Feedback context.\n\n This contexts contains user feedback specific attributes.\n We don't PII scrub contact_email as that is provided by the user.\n TODO(jferg): rename to FeedbackContext once old UserReport logic is deprecated.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "contact_email": {
+              "description": " an email optionally provided by the user, which can be different from user.email",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "message": {
+              "description": " The feedback message which contains what the user has to say.",
               "default": null,
               "type": [
                 "string",

@@ -57,6 +57,12 @@ pub enum DataCategory {
     /// but we define it here to prevent clashing values since this data category enumeration
     /// is also used outside of Relay via the Python package.
     MonitorSeat = 13,
+    /// User Feedback
+    ///
+    /// Represents a User Feedback processed.
+    /// Currently standardized on name UserReportV2 to avoid clashing with the old UserReport.
+    /// TODO(jferg): Rename this to UserFeedback once old UserReport is deprecated.
+    UserReportV2 = 14,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -86,6 +92,7 @@ impl DataCategory {
             "monitor" => Self::Monitor,
             "span" => Self::Span,
             "monitor_seat" => Self::MonitorSeat,
+            "feedback" => Self::UserReportV2,
             _ => Self::Unknown,
         }
     }
@@ -108,6 +115,7 @@ impl DataCategory {
             Self::Monitor => "monitor",
             Self::Span => "span",
             Self::MonitorSeat => "monitor_seat",
+            Self::UserReportV2 => "feedback",
             Self::Unknown => "unknown",
         }
     }
@@ -157,6 +165,7 @@ impl From<EventType> for DataCategory {
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
                 Self::Security
             }
+            EventType::UserReportV2 => Self::UserReportV2,
         }
     }
 }

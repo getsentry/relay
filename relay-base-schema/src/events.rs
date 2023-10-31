@@ -43,6 +43,10 @@ pub enum EventType {
     Nel,
     /// Performance monitoring transactions carrying spans.
     Transaction,
+    /// User feedback payload.
+    ///
+    /// TODO(Jferg): Change this to UserFeedback once old UserReport logic is deprecated.
+    UserReportV2,
     /// All events that do not qualify as any other type.
     #[serde(other)]
     #[default]
@@ -74,6 +78,7 @@ impl FromStr for EventType {
             "expectstaple" => EventType::ExpectStaple,
             "nel" => EventType::Nel,
             "transaction" => EventType::Transaction,
+            "feedback" => EventType::UserReportV2,
             _ => return Err(ParseEventTypeError),
         })
     }
@@ -90,6 +95,7 @@ impl fmt::Display for EventType {
             EventType::ExpectStaple => write!(f, "expectstaple"),
             EventType::Nel => write!(f, "nel"),
             EventType::Transaction => write!(f, "transaction"),
+            EventType::UserReportV2 => write!(f, "feedback"),
         }
     }
 }

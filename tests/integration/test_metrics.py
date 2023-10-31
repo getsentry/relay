@@ -1381,7 +1381,6 @@ def test_span_metrics_secondary_aggregator(
                     "span.description": "SELECT %s*",
                     "span.category": "db",
                     "span.domain": ",foo,",
-                    "span.module": "db",
                     "span.op": "db",
                 },
                 "timestamp": int(timestamp.timestamp()),
