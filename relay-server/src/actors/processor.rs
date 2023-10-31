@@ -24,8 +24,8 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
-    TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
+    MeasurementsConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
@@ -1514,7 +1514,7 @@ impl EnvelopeProcessorService {
             // If the incoming payload could be converted into the raw network error, try
             // to use it to normalize the event.
             Ok(report) => {
-                utils::enrich_nel_event(&mut event, report);
+                nel::enrich_event(&mut event, report);
             }
             Err(err) => {
                 // logged in extract_event

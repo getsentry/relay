@@ -36,6 +36,7 @@ use crate::{
 };
 
 pub mod breakdowns;
+pub mod nel;
 pub mod span;
 pub mod user_agent;
 pub mod utils;

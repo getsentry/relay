@@ -8,7 +8,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::Annotated;
 
 /// Enriches the event with new values using the provided [`NetworkReportRaw`].
-pub fn enrich_nel_event(event: &mut Event, nel: Annotated<NetworkReportRaw>) {
+pub fn enrich_event(event: &mut Event, nel: Annotated<NetworkReportRaw>) {
     // If the incoming NEL report is empty or it contains an empty body, just exit.
     let Some(nel) = nel.into_value() else {
         return;

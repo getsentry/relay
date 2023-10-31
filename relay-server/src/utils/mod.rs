@@ -5,7 +5,6 @@ mod garbage;
 mod managed_envelope;
 mod metrics_rate_limits;
 mod multipart;
-mod nel;
 mod param_parser;
 mod rate_limits;
 mod retry;
@@ -28,7 +27,6 @@ pub use self::metrics_rate_limits::*;
 pub use self::multipart::*;
 #[cfg(feature = "processing")]
 pub use self::native::*;
-pub use self::nel::*;
 pub use self::param_parser::*;
 pub use self::rate_limits::*;
 pub use self::retry::*;
