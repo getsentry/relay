@@ -17,7 +17,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
-use crate::normalize::span::attributes::{validate_span_ids, validate_span_timestamps};
+use crate::normalize::span::validation::{validate_span_ids, validate_span_timestamps};
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
@@ -71,10 +71,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let light_normalization_config = self.config.light_config.clone();
-
         event.process_child_values(self, state)?;
 
+        let light_normalization_config = &self.config.light_config;
         if light_normalization_config.is_renormalize {
             return Ok(());
         }
