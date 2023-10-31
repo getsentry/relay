@@ -1273,27 +1273,6 @@
 <a href="#1273" id="1273">1273</a>
 <a href="#1274" id="1274">1274</a>
 <a href="#1275" id="1275">1275</a>
-<a href="#1276" id="1276">1276</a>
-<a href="#1277" id="1277">1277</a>
-<a href="#1278" id="1278">1278</a>
-<a href="#1279" id="1279">1279</a>
-<a href="#1280" id="1280">1280</a>
-<a href="#1281" id="1281">1281</a>
-<a href="#1282" id="1282">1282</a>
-<a href="#1283" id="1283">1283</a>
-<a href="#1284" id="1284">1284</a>
-<a href="#1285" id="1285">1285</a>
-<a href="#1286" id="1286">1286</a>
-<a href="#1287" id="1287">1287</a>
-<a href="#1288" id="1288">1288</a>
-<a href="#1289" id="1289">1289</a>
-<a href="#1290" id="1290">1290</a>
-<a href="#1291" id="1291">1291</a>
-<a href="#1292" id="1292">1292</a>
-<a href="#1293" id="1293">1293</a>
-<a href="#1294" id="1294">1294</a>
-<a href="#1295" id="1295">1295</a>
-<a href="#1296" id="1296">1296</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -2266,7 +2245,6 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>std::path::PathBuf;
     <span class="kw">use </span>std::time::{Duration, Instant};
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
@@ -2320,26 +2298,6 @@
             .<span class="kw">await
             </span>.unwrap();
         <span class="macro">assert!</span>(target_dir.exists());
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>create_spool_directory_root_path() {
-        <span class="kw">let </span>spool_file = <span class="string">&quot;spool.db&quot;</span>;
-        <span class="kw">let </span>buffer_guard: Arc&lt;<span class="kw">_</span>&gt; = BufferGuard::new(<span class="number">1</span>).into();
-        <span class="kw">let </span>config: Arc&lt;<span class="kw">_</span>&gt; = Config::from_json_value(<span class="macro">serde_json::json!</span>({
-            <span class="string">&quot;spool&quot;</span>: {
-                <span class="string">&quot;envelopes&quot;</span>: {
-                    <span class="string">&quot;path&quot;</span>: spool_file,
-                }
-            }
-        }))
-        .unwrap()
-        .into();
-        BufferService::create(buffer_guard, services(), config)
-            .<span class="kw">await
-            </span>.unwrap();
-        <span class="kw">let </span>spool_file = PathBuf::from(spool_file);
-        <span class="macro">assert!</span>(spool_file.exists());
     }
 
     <span class="attr">#[tokio::test]
