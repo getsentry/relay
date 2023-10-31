@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Validate span timestamps and IDs in light normalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
+
 ## 0.8.33
 
 - Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
