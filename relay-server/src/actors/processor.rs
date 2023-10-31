@@ -1641,6 +1641,7 @@ impl EnvelopeProcessorService {
             ItemType::Security => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::UserReportV2 => true,
 
             // These should be removed conditionally:
             ItemType::UnrealReport => self.inner.config.processing_enabled(),
@@ -1684,6 +1685,9 @@ impl EnvelopeProcessorService {
         let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
         let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+        let user_report_v2_item =
+            envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
+
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
@@ -1715,6 +1719,14 @@ impl EnvelopeProcessorService {
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
+        } else if let Some(item) = user_report_v2_item {
+            relay_log::trace!("processing user_report_v2");
+            let project_state = &state.project_state;
+            let user_report_v2_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
+            if !user_report_v2_ingest {
+                return Err(ProcessingError::NoEventPayload);
+            }
+            self.event_from_json_payload(item, Some(EventType::UserReportV2))?
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             sample_rates = item.take_sample_rates();
