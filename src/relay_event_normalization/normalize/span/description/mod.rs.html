@@ -785,11 +785,6 @@
 <a href="#785" id="785">785</a>
 <a href="#786" id="786">786</a>
 <a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>sql;
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1016,13 +1011,8 @@
             <span class="prelude-val">Some</span>((ty, _data)) =&gt; <span class="macro">format!</span>(<span class="string">&quot;data:{ty}&quot;</span>),
             <span class="prelude-val">None </span>=&gt; <span class="string">&quot;data:*/*&quot;</span>.to_owned(),
         },
-        <span class="string">&quot;chrome-extension&quot; </span>=&gt; {
-            <span class="kw">let </span>path = scrub_resource_path(url.path());
-            <span class="macro">format!</span>(<span class="string">&quot;chrome-extension://*{path}&quot;</span>)
-        }
-        <span class="string">&quot;moz-extension&quot; </span>=&gt; {
-            <span class="kw">let </span>path = scrub_resource_path(url.path());
-            <span class="macro">format!</span>(<span class="string">&quot;moz-extension://*{path}&quot;</span>)
+        <span class="string">&quot;chrome-extension&quot; </span>| <span class="string">&quot;moz-extension&quot; </span>| <span class="string">&quot;ms-browser-extension&quot; </span>=&gt; {
+            <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="string">&quot;browser-extension://*&quot;</span>.to_owned());
         }
         scheme =&gt; {
             <span class="kw">let </span>segments = url.path_segments();
@@ -1337,7 +1327,7 @@
         chrome_extension,
         <span class="string">&quot;chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg&quot;</span>,
         <span class="string">&quot;resource.other&quot;</span>,
-        <span class="string">&quot;chrome-extension://*/img/assets/icon-*k.svg&quot;
+        <span class="string">&quot;browser-extension://*&quot;
     </span>);
 
     <span class="macro">span_description_test!</span>(
