@@ -1560,12 +1560,6 @@
 <a href="#1560" id="1560">1560</a>
 <a href="#1561" id="1561">1561</a>
 <a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -1713,16 +1707,10 @@
 
         <span class="kw">let </span>spec = <span class="kw">match </span>field.parse() {
             <span class="prelude-val">Ok</span>(spec) =&gt; spec,
-            <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="comment">// Invalid safe fields should be caught by sentry-side validation.
-                // Log an error if they are not.
-                </span><span class="macro">relay_log::error!</span>(
-                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                    field = field,
-                    <span class="string">&quot;Error parsing safe field into selector&quot;</span>,
-                );
-
-                <span class="comment">// Fallback to stay compatible with already existing keys.
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                <span class="comment">// Ideally safe fields should be caught by sentry-side validation,
+                // but there is still a considerable amount of &quot;invalid&quot; safe fields.
+                // Fallback to stay compatible with the old behaviour.
                 </span>SelectorSpec::Path(<span class="macro">vec!</span>[SelectorPathItem::Key(field.to_owned())])
             }
         };
