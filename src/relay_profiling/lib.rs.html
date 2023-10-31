@@ -253,6 +253,31 @@
 <a href="#253" id="253">253</a>
 <a href="#254" id="254">254</a>
 <a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -348,10 +373,10 @@
 //! }
 //! ```
 
-</span><span class="kw">use </span>std::collections::BTreeMap;
-<span class="kw">use </span>std::error::Error;
+</span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, EventId};
 <span class="kw">use </span>serde::Deserialize;
 <span class="kw">use </span>serde_json::Deserializer;
@@ -382,17 +407,23 @@
     </span>version: sample::Version,
 }
 
-<span class="kw">fn </span>minimal_profile_from_json(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;MinimalProfile, ProfileError&gt; {
+<span class="kw">fn </span>minimal_profile_from_json(
+    payload: <span class="kw-2">&amp;</span>[u8],
+) -&gt; <span class="prelude-ty">Result</span>&lt;MinimalProfile, serde_path_to_error::Error&lt;serde_json::Error&gt;&gt; {
     <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>Deserializer::from_slice(payload);
-    serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)
+    serde_path_to_error::deserialize(d)
 }
 
-<span class="kw">pub fn </span>parse_metadata(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProfileError&gt; {
+<span class="kw">pub fn </span>parse_metadata(payload: <span class="kw-2">&amp;</span>[u8], project_id: ProjectId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProfileError&gt; {
     <span class="kw">let </span>profile = <span class="kw">match </span>minimal_profile_from_json(payload) {
         <span class="prelude-val">Ok</span>(profile) =&gt; profile,
         <span class="prelude-val">Err</span>(err) =&gt; {
-            <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid profile (minimal)&quot;</span>);
-            <span class="kw">return </span><span class="prelude-val">Err</span>(err);
+            <span class="macro">relay_log::warn!</span>(
+                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                from = <span class="string">&quot;minimal&quot;</span>,
+                project_id = project_id.value(),
+            );
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
         }
     };
     <span class="kw">match </span>profile.version {
@@ -403,9 +434,10 @@
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="macro">relay_log::warn!</span>(
                         error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                        <span class="string">&quot;invalid profile (platform: {}, version: {:?})&quot;</span>,
-                        profile.platform,
-                        profile.version,
+                        from = <span class="string">&quot;metadata&quot;</span>,
+                        platform = profile.platform,
+                        project_id = project_id.value(),
+                        <span class="string">&quot;invalid profile&quot;</span>,
                     );
                     <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
                 }
@@ -419,7 +451,10 @@
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::warn!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">&quot;invalid profile (platform: android)&quot;</span>,
+                            from = <span class="string">&quot;metadata&quot;</span>,
+                            platform = <span class="string">&quot;android&quot;</span>,
+                            project_id = project_id.value(),
+                            <span class="string">&quot;invalid profile&quot;</span>,
                         );
                         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
                     }
@@ -431,21 +466,24 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>expand_profile(
-    payload: <span class="kw-2">&amp;</span>[u8],
-    event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Event&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(EventId, Vec&lt;u8&gt;), ProfileError&gt; {
+<span class="kw">pub fn </span>expand_profile(payload: <span class="kw-2">&amp;</span>[u8], event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Result</span>&lt;(EventId, Vec&lt;u8&gt;), ProfileError&gt; {
     <span class="kw">let </span>profile = <span class="kw">match </span>minimal_profile_from_json(payload) {
         <span class="prelude-val">Ok</span>(profile) =&gt; profile,
-        <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(err),
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            <span class="macro">relay_log::warn!</span>(
+                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                from = <span class="string">&quot;minimal&quot;</span>,
+                platform = event.platform.as_str(),
+                project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
+                sdk_name = event.sdk_name(),
+                sdk_version = event.sdk_version(),
+                <span class="string">&quot;invalid profile&quot;</span>,
+            );
+            <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
+        }
     };
-    <span class="kw">let </span>(transaction_metadata, transaction_tags) = <span class="kw">match </span>event {
-        <span class="prelude-val">Some</span>(event) =&gt; (
-            extract_transaction_metadata(event),
-            extract_transaction_tags(event),
-        ),
-        <span class="kw">_ </span>=&gt; (BTreeMap::new(), BTreeMap::new()),
-    };
+    <span class="kw">let </span>transaction_metadata = extract_transaction_metadata(event);
+    <span class="kw">let </span>transaction_tags = extract_transaction_tags(event);
     <span class="kw">let </span>processed_payload = <span class="kw">match </span>profile.version {
         sample::Version::V1 =&gt; {
             sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
@@ -463,13 +501,25 @@
             ProfileError::InvalidJson(err) =&gt; {
                 <span class="macro">relay_log::warn!</span>(
                     error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    <span class="string">&quot;invalid profile (platform: {})&quot;</span>,
-                    profile.platform,
+                    from = <span class="string">&quot;parsing&quot;</span>,
+                    platform = profile.platform,
+                    project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
+                    sdk_name = event.sdk_name(),
+                    sdk_version = event.sdk_version(),
+                    <span class="string">&quot;invalid profile&quot;</span>,
                 );
                 <span class="prelude-val">Err</span>(ProfileError::InvalidJson(err))
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;invalid profile&quot;</span>);
+                <span class="macro">relay_log::warn!</span>(
+                    error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    from = <span class="string">&quot;parsing&quot;</span>,
+                    platform = profile.platform,
+                    project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
+                    sdk_name = event.sdk_name(),
+                    sdk_version = event.sdk_version(),
+                    <span class="string">&quot;invalid profile&quot;</span>,
+                );
                 <span class="prelude-val">Err</span>(err)
             }
         },
@@ -499,13 +549,13 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_with_version() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/sample/roundtrip.json&quot;</span>);
-        <span class="macro">assert!</span>(expand_profile(payload, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Event::default())).is_ok());
+        <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_without_version() {
         <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">&quot;../tests/fixtures/profiles/android/roundtrip.json&quot;</span>);
-        <span class="macro">assert!</span>(expand_profile(payload, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Event::default())).is_ok());
+        <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 }
 </code></pre></div></section></main></body></html>
