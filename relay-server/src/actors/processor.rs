@@ -1508,7 +1508,7 @@ impl EnvelopeProcessorService {
         let data: &[u8] = &item.payload();
 
         // Try to get the raw network report.
-        let report = NetworkReportRaw::try_annotated_from(data);
+        let report = Annotated::from_json_bytes(data).map_err(NetworkReportError::InvalidJson);
 
         match report {
             // If the incoming payload could be converted into the raw network error, try
