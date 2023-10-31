@@ -93,9 +93,18 @@
 //! }
 //! ```
 
-use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::time::Duration;
+
+use relay_event_schema::protocol::{Event, EventId};
+use serde::Deserialize;
+use serde_json::Deserializer;
+
+use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
+
+pub use crate::error::ProfileError;
+pub use crate::outcomes::discard_reason;
 
 mod android;
 mod error;
@@ -106,13 +115,6 @@ mod outcomes;
 mod sample;
 mod transaction_metadata;
 mod utils;
-
-use relay_event_schema::protocol::{Event, EventId};
-
-use crate::extract_from_transaction::{extract_transaction_metadata, extract_transaction_tags};
-
-pub use crate::error::ProfileError;
-pub use crate::outcomes::discard_reason;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 
@@ -126,26 +128,46 @@ struct MinimalProfile {
 }
 
 fn minimal_profile_from_json(payload: &[u8]) -> Result<MinimalProfile, ProfileError> {
-    serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)
+    let d = &mut Deserializer::from_slice(payload);
+    serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)
 }
 
 pub fn parse_metadata(payload: &[u8]) -> Result<(), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
-        Err(err) => return Err(err),
+        Err(err) => {
+            relay_log::warn!(error = &err as &dyn Error, "invalid profile (minimal)");
+            return Err(err);
+        }
     };
     match profile.version {
         sample::Version::V1 => {
-            let _: sample::ProfileMetadata = match serde_json::from_slice(payload) {
+            let d = &mut Deserializer::from_slice(payload);
+            let _: sample::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                 Ok(profile) => profile,
-                Err(err) => return Err(ProfileError::InvalidJson(err)),
+                Err(err) => {
+                    relay_log::warn!(
+                        error = &err as &dyn Error,
+                        "invalid profile (platform: {}, version: {:?})",
+                        profile.platform,
+                        profile.version,
+                    );
+                    return Err(ProfileError::InvalidJson(err));
+                }
             };
         }
         _ => match profile.platform.as_str() {
             "android" => {
-                let _: android::ProfileMetadata = match serde_json::from_slice(payload) {
+                let d = &mut Deserializer::from_slice(payload);
+                let _: android::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                     Ok(profile) => profile,
-                    Err(err) => return Err(ProfileError::InvalidJson(err)),
+                    Err(err) => {
+                        relay_log::warn!(
+                            error = &err as &dyn Error,
+                            "invalid profile (platform: android)",
+                        );
+                        return Err(ProfileError::InvalidJson(err));
+                    }
                 };
             }
             _ => return Err(ProfileError::PlatformNotSupported),
@@ -180,7 +202,23 @@ pub fn expand_profile(
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
-    processed_payload.map(|payload| (profile.event_id, payload))
+    match processed_payload {
+        Ok(payload) => Ok((profile.event_id, payload)),
+        Err(err) => match err {
+            ProfileError::InvalidJson(err) => {
+                relay_log::warn!(
+                    error = &err as &dyn Error,
+                    "invalid profile (platform: {})",
+                    profile.platform,
+                );
+                Err(ProfileError::InvalidJson(err))
+            }
+            _ => {
+                relay_log::debug!(error = &err as &dyn Error, "invalid profile");
+                Err(err)
+            }
+        },
+    }
 }
 
 #[cfg(test)]

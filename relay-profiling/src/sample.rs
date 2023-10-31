@@ -311,8 +311,9 @@ impl SampleProfile {
 }
 
 fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
+    let d = &mut serde_json::Deserializer::from_slice(payload);
     let mut profile: SampleProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     if !profile.valid() {
         return Err(ProfileError::MissingProfileMetadata);
@@ -912,7 +913,9 @@ mod tests {
         let profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
-        let output: SampleProfile = serde_json::from_slice(&profile_json.unwrap()[..])
+        let payload = profile_json.unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(&payload[..]);
+        let output: SampleProfile = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
         assert_eq!(output.metadata.release, "some-random-release".to_string());

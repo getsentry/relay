@@ -1,0 +1,39 @@
+---
+source: relay-pii/src/processor.rs
+expression: "&data"
+---
+{
+  "request": {
+    "headers": [
+      [
+        "User-Agent",
+        "127.0.0.1"
+      ],
+      [
+        "X-Client-Ip",
+        "[ip]"
+      ]
+    ]
+  },
+  "_meta": {
+    "request": {
+      "headers": {
+        "1": {
+          "1": {
+            "": {
+              "rem": [
+                [
+                  "@ip:replace",
+                  "s",
+                  0,
+                  4
+                ]
+              ],
+              "len": 8
+            }
+          }
+        }
+      }
+    }
+  }
+}

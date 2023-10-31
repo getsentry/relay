@@ -144,6 +144,9 @@ impl<'a> StoreNormalizeProcessor<'a> {
         if event.ty.value() == Some(&EventType::Transaction) {
             return EventType::Transaction;
         }
+        if event.ty.value() == Some(&EventType::UserReportV2) {
+            return EventType::UserReportV2;
+        }
 
         // The SDKs do not describe event types, and we must infer them from available attributes.
         let has_exceptions = event
