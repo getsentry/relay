@@ -1201,6 +1201,12 @@
 <a href="#1201" id="1201">1201</a>
 <a href="#1202" id="1202">1202</a>
 <a href="#1203" id="1203">1203</a>
+<a href="#1204" id="1204">1204</a>
+<a href="#1205" id="1205">1205</a>
+<a href="#1206" id="1206">1206</a>
+<a href="#1207" id="1207">1207</a>
+<a href="#1208" id="1208">1208</a>
+<a href="#1209" id="1209">1209</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1853,6 +1859,7 @@
             <span class="string">&quot;user.geo.region&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.region.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;user.geo.subdivision&quot; </span>=&gt; <span class="self">self</span>.user.value()<span class="question-mark">?</span>.geo.value()<span class="question-mark">?</span>.subdivision.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;request.method&quot; </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.method.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">&quot;request.url&quot; </span>=&gt; <span class="self">self</span>.request.value()<span class="question-mark">?</span>.url.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;sdk.name&quot; </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">&quot;sdk.version&quot; </span>=&gt; <span class="self">self</span>.client_sdk.value()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
 
@@ -2271,6 +2278,7 @@
                     Annotated::new(<span class="string">&quot;user-agent&quot;</span>.into()),
                     Annotated::new(<span class="string">&quot;Slurp&quot;</span>.into()),
                 ))]))),
+                url: Annotated::new(<span class="string">&quot;https://sentry.io&quot;</span>.into()),
                 ..Default::default()
             }),
             transaction: Annotated::new(<span class="string">&quot;some-transaction&quot;</span>.into()),
@@ -2379,6 +2387,10 @@
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::Uuid(<span class="macro">uuid!</span>(<span class="string">&quot;abadcade-feed-dead-beef-baddadfeeded&quot;</span>))),
             event.get_value(<span class="string">&quot;event.contexts.device.uuid&quot;</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">&quot;https://sentry.io&quot;</span>)),
+            event.get_value(<span class="string">&quot;event.request.url&quot;</span>)
         );
     }
 
