@@ -377,7 +377,7 @@ impl UpstreamProjectSourceService {
                         .max()
                         .unwrap_or(0);
                     // Only log an error if the request failed more than once.
-                    // We are not interested in spurious failures. Our retry mechanism is able to
+                    // We are not interested in single failures. Our retry mechanism is able to
                     // handle those.
                     if attempts >= 2 {
                         relay_log::error!(
