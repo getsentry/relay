@@ -485,6 +485,18 @@
 <a href="#485" id="485">485</a>
 <a href="#486" id="486">486</a>
 <a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -858,10 +870,22 @@
                     }
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(
-                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">&quot;error fetching project states&quot;
-                    </span>);
+                    <span class="kw">let </span>attempts = channels_batch
+                        .values()
+                        .map(|b| b.attempts)
+                        .max()
+                        .unwrap_or(<span class="number">0</span>);
+                    <span class="comment">// Only log an error if the request failed more than once.
+                    // We are not interested in single failures. Our retry mechanism is able to
+                    // handle those.
+                    </span><span class="kw">if </span>attempts &gt;= <span class="number">2 </span>{
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                            attempts = attempts,
+                            <span class="string">&quot;error fetching project states&quot;</span>,
+                        );
+                    }
+
                     <span class="macro">metric!</span>(
                         histogram(RelayHistograms::ProjectStatePending) =
                             <span class="self">self</span>.state_channels.len() <span class="kw">as </span>u64
