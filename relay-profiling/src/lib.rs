@@ -134,19 +134,26 @@ fn minimal_profile_from_json(
 }
 
 pub fn parse_metadata(payload: &[u8], event: Option<&Event>) -> Result<(), ProfileError> {
-    let (sdk_name, sdk_version) = match event {
-        Some(event) => (event.sdk_name(), event.sdk_version()),
-        _ => ("unknown", "unknown"),
+    let (sdk_name, sdk_version, platform, project_id) = match event {
+        Some(event) => (
+            event.sdk_name(),
+            event.sdk_version(),
+            event.platform.as_str().unwrap_or("unknown"),
+            event.project.value().unwrap_or(&0),
+        ),
+        _ => ("unknown", "unknown", "unknown", &0),
     };
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
             relay_log::warn!(
                 error = &err as &dyn Error,
-                "invalid profile (minimal, sdk: {} v{}). original: {}.",
-                sdk_name,
-                sdk_version,
-                err.inner(),
+                from = "minimal",
+                original = err.inner().to_string(),
+                platform = platform,
+                project_id = project_id,
+                sdk_name = sdk_name,
+                sdk_version = sdk_version,
             );
             return Err(ProfileError::InvalidJson(err));
         }
@@ -159,11 +166,13 @@ pub fn parse_metadata(payload: &[u8], event: Option<&Event>) -> Result<(), Profi
                 Err(err) => {
                     relay_log::warn!(
                         error = &err as &dyn Error,
-                        "invalid profile (metadata, platform: {}, sdk: {} v{}). original: {}.",
-                        profile.platform,
-                        sdk_name,
-                        sdk_version,
-                        err.inner(),
+                        from = "metadata",
+                        original = err.inner().to_string(),
+                        platform = profile.platform,
+                        project_id = project_id,
+                        sdk_name = sdk_name,
+                        sdk_version = sdk_version,
+                        "invalid profile",
                     );
                     return Err(ProfileError::InvalidJson(err));
                 }
@@ -177,10 +186,13 @@ pub fn parse_metadata(payload: &[u8], event: Option<&Event>) -> Result<(), Profi
                     Err(err) => {
                         relay_log::warn!(
                             error = &err as &dyn Error,
-                            "invalid profile (platform: android, sdk: {} v{}). original: {}.",
-                            sdk_name,
-                            sdk_version,
-                            err.inner(),
+                            from = "metadata",
+                            original = err.inner().to_string(),
+                            platform = "android",
+                            project_id = project_id,
+                            sdk_name = sdk_name,
+                            sdk_version = sdk_version,
+                            "invalid profile",
                         );
                         return Err(ProfileError::InvalidJson(err));
                     }
@@ -198,10 +210,13 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
         Err(err) => {
             relay_log::warn!(
                 error = &err as &dyn Error,
-                "invalid profile (minimal, sdk: {} v{}). original: {}.",
-                event.sdk_name(),
-                event.sdk_version(),
-                err.inner(),
+                from = "minimal",
+                original = err.inner().to_string(),
+                platform = event.platform.as_str(),
+                project_id = event.project.value().unwrap_or(&0),
+                sdk_name = event.sdk_name(),
+                sdk_version = event.sdk_version(),
+                "invalid profile",
             );
             return Err(ProfileError::InvalidJson(err));
         }
@@ -225,21 +240,25 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
             ProfileError::InvalidJson(err) => {
                 relay_log::warn!(
                     error = &err as &dyn Error,
-                    "invalid profile (platform: {}, sdk: {} v{}). original: {}.",
-                    profile.platform,
-                    event.sdk_name(),
-                    event.sdk_version(),
-                    err.inner(),
+                    from = "parsing",
+                    original = err.inner().to_string(),
+                    platform = profile.platform,
+                    project_id = event.project.value().unwrap_or(&0),
+                    sdk_name = event.sdk_name(),
+                    sdk_version = event.sdk_version(),
+                    "invalid profile",
                 );
                 Err(ProfileError::InvalidJson(err))
             }
             _ => {
                 relay_log::warn!(
                     error = &err as &dyn Error,
-                    "invalid profile (platform: {}, sdk: {} v{}).",
-                    profile.platform,
-                    event.sdk_name(),
-                    event.sdk_version(),
+                    from = "parsing",
+                    platform = profile.platform,
+                    project_id = event.project.value().unwrap_or(&0),
+                    sdk_name = event.sdk_name(),
+                    sdk_version = event.sdk_version(),
+                    "invalid profile",
                 );
                 Err(err)
             }
