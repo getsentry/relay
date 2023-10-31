@@ -1153,9 +1153,7 @@ impl EnvelopeProcessorService {
                     return ItemAction::DropSilently;
                 }
                 // If we don't have an event at this stage, we need to drop the profile.
-                let event = if let Some(event) = state.event.value() {
-                    event
-                } else {
+                let Some(event) = state.event.value() else {
                     return ItemAction::DropSilently;
                 };
                 match relay_profiling::expand_profile(&item.payload(), event) {
