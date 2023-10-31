@@ -650,6 +650,7 @@ impl Getter for Event {
             "user.geo.region" => self.user.value()?.geo.value()?.region.as_str()?.into(),
             "user.geo.subdivision" => self.user.value()?.geo.value()?.subdivision.as_str()?.into(),
             "request.method" => self.request.value()?.method.as_str()?.into(),
+            "request.url" => self.request.value()?.url.as_str()?.into(),
             "sdk.name" => self.client_sdk.value()?.name.as_str()?.into(),
             "sdk.version" => self.client_sdk.value()?.version.as_str()?.into(),
 
@@ -1068,6 +1069,7 @@ mod tests {
                     Annotated::new("user-agent".into()),
                     Annotated::new("Slurp".into()),
                 ))]))),
+                url: Annotated::new("https://sentry.io".into()),
                 ..Default::default()
             }),
             transaction: Annotated::new("some-transaction".into()),
@@ -1176,6 +1178,10 @@ mod tests {
         assert_eq!(
             Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-baddadfeeded"))),
             event.get_value("event.contexts.device.uuid")
+        );
+        assert_eq!(
+            Some(Val::String("https://sentry.io")),
+            event.get_value("event.request.url")
         );
     }
 
