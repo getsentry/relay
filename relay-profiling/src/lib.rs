@@ -96,6 +96,7 @@
 use std::error::Error;
 use std::time::Duration;
 
+use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::{Event, EventId};
 use serde::Deserialize;
 use serde_json::Deserializer;
@@ -133,27 +134,14 @@ fn minimal_profile_from_json(
     serde_path_to_error::deserialize(d)
 }
 
-pub fn parse_metadata(payload: &[u8], event: Option<&Event>) -> Result<(), ProfileError> {
-    let (sdk_name, sdk_version, platform, project_id) = match event {
-        Some(event) => (
-            event.sdk_name(),
-            event.sdk_version(),
-            event.platform.as_str().unwrap_or("unknown"),
-            event.project.value().unwrap_or(&0),
-        ),
-        _ => ("unknown", "unknown", "unknown", &0),
-    };
+pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<(), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
             relay_log::warn!(
                 error = &err as &dyn Error,
                 from = "minimal",
-                original = err.inner().to_string(),
-                platform = platform,
-                project_id = project_id,
-                sdk_name = sdk_name,
-                sdk_version = sdk_version,
+                project_id = project_id.value(),
             );
             return Err(ProfileError::InvalidJson(err));
         }
@@ -167,11 +155,8 @@ pub fn parse_metadata(payload: &[u8], event: Option<&Event>) -> Result<(), Profi
                     relay_log::warn!(
                         error = &err as &dyn Error,
                         from = "metadata",
-                        original = err.inner().to_string(),
                         platform = profile.platform,
-                        project_id = project_id,
-                        sdk_name = sdk_name,
-                        sdk_version = sdk_version,
+                        project_id = project_id.value(),
                         "invalid profile",
                     );
                     return Err(ProfileError::InvalidJson(err));
@@ -187,11 +172,8 @@ pub fn parse_metadata(payload: &[u8], event: Option<&Event>) -> Result<(), Profi
                         relay_log::warn!(
                             error = &err as &dyn Error,
                             from = "metadata",
-                            original = err.inner().to_string(),
                             platform = "android",
-                            project_id = project_id,
-                            sdk_name = sdk_name,
-                            sdk_version = sdk_version,
+                            project_id = project_id.value(),
                             "invalid profile",
                         );
                         return Err(ProfileError::InvalidJson(err));
