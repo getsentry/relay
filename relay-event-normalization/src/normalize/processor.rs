@@ -290,7 +290,7 @@ pub fn normalize_ip_addresses(
     }
 }
 
-// Sets the user's GeoIp info based on user's IP address.
+/// Sets the user's GeoIp info based on user's IP address.
 fn normalize_user_geoinfo(geoip_lookup: &GeoIpLookup, user: &mut User) {
     // Infer user.geo from user.ip_address
     if user.geo.value().is_none() {
