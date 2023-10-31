@@ -99,7 +99,7 @@ pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
 }
 
 /// Configuration value for [`AggregatorConfig::shift_key`].
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ShiftKey {
     /// Shifts the flush time by an offset based on the [`ProjectKey`].

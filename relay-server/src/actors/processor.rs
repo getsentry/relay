@@ -36,6 +36,7 @@ use relay_event_schema::protocol::{
     UserReport, Values,
 };
 use relay_filter::FilterStatKey;
+use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
@@ -2622,10 +2623,11 @@ impl EnvelopeProcessorService {
                 received_at: Some(state.managed_envelope.received_at()),
                 max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                transaction_range: Some(transaction_aggregator_config.aggregator.timestamp_range()),
+                transaction_range: Some(
+                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
+                ),
                 max_name_and_unit_len: Some(
                     transaction_aggregator_config
-                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -2645,7 +2647,6 @@ impl EnvelopeProcessorService {
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
-                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: false,
                 light_normalize_spans,
