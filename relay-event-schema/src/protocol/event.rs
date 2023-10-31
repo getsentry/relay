@@ -1069,6 +1069,7 @@ mod tests {
                     Annotated::new("user-agent".into()),
                     Annotated::new("Slurp".into()),
                 ))]))),
+                url: Annotated::new("https://sentry.io".into()),
                 ..Default::default()
             }),
             transaction: Annotated::new("some-transaction".into()),
@@ -1177,6 +1178,10 @@ mod tests {
         assert_eq!(
             Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-baddadfeeded"))),
             event.get_value("event.contexts.device.uuid")
+        );
+        assert_eq!(
+            Some(Val::String("https://sentry.io")),
+            event.get_value("event.request.url")
         );
     }
 
