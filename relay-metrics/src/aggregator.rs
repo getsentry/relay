@@ -1,3 +1,5 @@
+//! Core functionality of metrics aggregation.
+
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
