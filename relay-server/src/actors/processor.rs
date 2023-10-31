@@ -1097,7 +1097,7 @@ impl EnvelopeProcessorService {
             ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             // First profile found in the envelope, we'll keep it if metadata are valid.
             ItemType::Profile if !found_profile => {
-                match relay_profiling::parse_metadata(&item.payload(), state.event.value()) {
+                match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
                     Ok(_) => {
                         found_profile = true;
                         ItemAction::Keep

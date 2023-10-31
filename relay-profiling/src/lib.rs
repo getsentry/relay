@@ -193,7 +193,6 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
             relay_log::warn!(
                 error = &err as &dyn Error,
                 from = "minimal",
-                original = err.inner().to_string(),
                 platform = event.platform.as_str(),
                 project_id = event.project.value().unwrap_or(&0),
                 sdk_name = event.sdk_name(),
@@ -223,7 +222,6 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
                 relay_log::warn!(
                     error = &err as &dyn Error,
                     from = "parsing",
-                    original = err.inner().to_string(),
                     platform = profile.platform,
                     project_id = event.project.value().unwrap_or(&0),
                     sdk_name = event.sdk_name(),
