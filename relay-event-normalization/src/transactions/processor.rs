@@ -7,9 +7,7 @@ use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
-use relay_event_schema::protocol::{
-    Event, EventType, Span, SpanStatus, TraceContext, TransactionSource,
-};
+use relay_event_schema::protocol::{Event, EventType, SpanStatus, TraceContext, TransactionSource};
 use relay_protocol::{Annotated, Meta, Remark, RemarkType};
 
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
@@ -419,13 +417,14 @@ mod tests {
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{
-        ClientSdkInfo, Contexts, SpanId, TraceId, TransactionSource,
+        ClientSdkInfo, Contexts, Span, SpanId, TraceId, TransactionSource,
     };
     use relay_protocol::{assert_annotated_snapshot, Object};
     use similar_asserts::assert_eq;
 
-    use super::*;
     use crate::RedactionRule;
+
+    use super::*;
 
     fn new_test_event() -> Annotated<Event> {
         let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
