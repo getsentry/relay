@@ -224,13 +224,8 @@ fn scrub_resource(string: &str) -> Option<String> {
             Some((ty, _data)) => format!("data:{ty}"),
             None => "data:*/*".to_owned(),
         },
-        "chrome-extension" => {
-            let path = scrub_resource_path(url.path());
-            format!("chrome-extension://*{path}")
-        }
-        "moz-extension" => {
-            let path = scrub_resource_path(url.path());
-            format!("moz-extension://*{path}")
+        scheme @ ("chrome-extension" | "moz-extension" | "ms-browser-extension") => {
+            format!("{scheme}://*")
         }
         scheme => {
             let segments = url.path_segments();
@@ -545,7 +540,7 @@ mod tests {
         chrome_extension,
         "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
         "resource.other",
-        "chrome-extension://*/img/assets/icon-*k.svg"
+        "chrome-extension://*"
     );
 
     span_description_test!(
