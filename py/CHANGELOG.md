@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Validate span timestamps and IDs in light normalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
+- Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
 
 ## 0.8.33
 

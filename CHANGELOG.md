@@ -14,7 +14,7 @@
 - Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
 - Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
 - Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
-- Validate span timestamps and IDs in light normalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
+- Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
 
 ## 23.10.1
 
