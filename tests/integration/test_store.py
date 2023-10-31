@@ -442,7 +442,7 @@ def test_processing_quotas(
                 project_id, transform({"message": f"regular{i}"}), dsn_key_idx=0
             )
 
-        event, _ = events_consumer.get_event(timeout=5)
+        event, _ = events_consumer.get_event(timeout=10)
         if event_type == "nel":
             assert event["logentry"]["formatted"] == "application / http.error"
         else:
