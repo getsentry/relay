@@ -17,7 +17,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
-use crate::normalize::transaction::{validate_span_ids, validate_span_timestamps};
+use crate::normalize::span::attributes::{validate_span_ids, validate_span_timestamps};
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
