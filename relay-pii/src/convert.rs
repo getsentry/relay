@@ -145,16 +145,10 @@ pub fn to_pii_config(
 
         let spec = match field.parse() {
             Ok(spec) => spec,
-            Err(error) => {
-                // Invalid safe fields should be caught by sentry-side validation.
-                // Log an error if they are not.
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    field = field,
-                    "Error parsing safe field into selector",
-                );
-
-                // Fallback to stay compatible with already existing keys.
+            Err(_) => {
+                // Ideally safe fields should be caught by sentry-side validation,
+                // but there is still a considerable amount of "invalid" safe fields.
+                // Fallback to stay compatible with the old behaviour.
                 SelectorSpec::Path(vec![SelectorPathItem::Key(field.to_owned())])
             }
         };
