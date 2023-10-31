@@ -31,8 +31,8 @@ use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReportError, NetworkReportRaw, OtelContext, RelayInfo,
-    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
+    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
     Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;

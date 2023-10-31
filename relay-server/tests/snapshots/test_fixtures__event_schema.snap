@@ -2595,13 +2595,13 @@ expression: "relay_event_schema::protocol::event_json_schema()"
       ]
     },
     "NelContext": {
-      "description": " Contains the unique to NEL reports information.\n\n NEL is a browser feature that allows reporting of failed network requests from the client side.\n W3C Editor's Draft: <https://w3c.github.io/network-error-logging/>\n MDN: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging>",
+      "description": " Contains NEL report information.\n\n Network Error Logging (NEL) is a browser feature that allows reporting of failed network\n requests from the client side. See the following resources for more information:\n\n - [W3C Editor's Draft](https://w3c.github.io/network-error-logging/)\n - [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging)",
       "anyOf": [
         {
           "type": "object",
           "properties": {
             "elapsed_time": {
-              "description": " The time between the start of the resource fetch and when it was completed or aborted.",
+              "description": " The number of milliseconds between the start of the resource fetch and when it was aborted by the user agent.",
               "default": null,
               "type": [
                 "integer",
@@ -2621,9 +2621,13 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             "phase": {
               "description": " If request failed, the phase of its network error. If request succeeded, \"application\".",
               "default": null,
-              "type": [
-                "string",
-                "null"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/NetworkReportPhases"
+                },
+                {
+                  "type": "null"
+                }
               ]
             },
             "sampling_fraction": {
@@ -2638,13 +2642,37 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             "server_ip": {
               "description": " Server IP where the requests was sent to.",
               "default": null,
-              "type": [
-                "string",
-                "null"
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/String"
+                },
+                {
+                  "type": "null"
+                }
               ]
             }
           },
           "additionalProperties": false
+        }
+      ]
+    },
+    "NetworkReportPhases": {
+      "description": " Describes which phase the error occurred in.",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "string"
         }
       ]
     },
