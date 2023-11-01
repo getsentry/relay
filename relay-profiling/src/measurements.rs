@@ -39,12 +39,17 @@ mod tests {
     #[test]
     fn test_value_as_float() {
         let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":1234.56789}"#;
-        assert!(serde_json::from_str::<MeasurementValue>(measurement_json).is_ok());
+        let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
+        assert!(measurement.is_ok());
+        assert_eq!(measurement.unwrap().value, 1234.56789);
     }
 
     #[test]
     fn test_value_as_string() {
         let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":"1234.56789"}"#;
         assert!(serde_json::from_str::<MeasurementValue>(measurement_json).is_ok());
+        let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
+        assert!(measurement.is_ok());
+        assert_eq!(measurement.unwrap().value, 1234.56789);
     }
 }

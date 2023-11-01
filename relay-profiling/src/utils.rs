@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use serde::{de, Deserialize};
+use serde_json::{Map, Value};
 
 pub fn is_zero(n: &u64) -> bool {
     *n == 0
@@ -15,13 +16,28 @@ where
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum StringOrInt<T> {
+    enum StringOrNumber<T> {
         String(String),
         Number(T),
+        Bool(bool),
+        Array(Vec<Value>),
+        Object(Map<String, Value>),
     }
 
-    match StringOrInt::<T>::deserialize(deserializer)? {
-        StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-        StringOrInt::Number(i) => Ok(i),
+    match StringOrNumber::<T>::deserialize(deserializer)? {
+        StringOrNumber::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+        StringOrNumber::Number(n) => Ok(n),
+        StringOrNumber::Bool(v) => Err(serde::de::Error::custom(format!(
+            "unsupported value: {:?}",
+            v
+        ))),
+        StringOrNumber::Array(v) => Err(serde::de::Error::custom(format!(
+            "unsupported value: {:?}",
+            v
+        ))),
+        StringOrNumber::Object(v) => Err(serde::de::Error::custom(format!(
+            "unsupported value: {:?}",
+            v
+        ))),
     }
 }
