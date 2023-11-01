@@ -168,9 +168,6 @@ pub struct ProfileMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     transaction: Option<TransactionMetadata>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<HashMap<String, Measurement>>,
-
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_metadata: BTreeMap<String, String>,
 
@@ -180,6 +177,8 @@ pub struct ProfileMetadata {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SampleProfile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<HashMap<String, Measurement>>,
     #[serde(flatten)]
     metadata: ProfileMetadata,
     profile: Profile,
