@@ -424,6 +424,7 @@ mod tests {
 
     fn generate_profile() -> SampleProfile {
         SampleProfile {
+            measurements: None,
             metadata: ProfileMetadata {
                 debug_meta: Option::None,
                 version: Version::V1,
@@ -448,7 +449,6 @@ mod tests {
                 transactions: Vec::new(),
                 release: Some("1.0".to_string()),
                 dist: "9999".to_string(),
-                measurements: None,
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
             },

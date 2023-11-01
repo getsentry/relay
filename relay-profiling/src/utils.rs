@@ -16,28 +16,30 @@ where
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum StringOrNumber<T> {
-        String(String),
-        Number(T),
-        Bool(bool),
+    enum AnyType<T> {
         Array(Vec<Value>),
+        Bool(bool),
+        Null,
+        Number(T),
         Object(Map<String, Value>),
+        String(String),
     }
 
-    match StringOrNumber::<T>::deserialize(deserializer)? {
-        StringOrNumber::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-        StringOrNumber::Number(n) => Ok(n),
-        StringOrNumber::Bool(v) => Err(serde::de::Error::custom(format!(
+    match AnyType::<T>::deserialize(deserializer)? {
+        AnyType::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+        AnyType::Number(n) => Ok(n),
+        AnyType::Bool(v) => Err(serde::de::Error::custom(format!(
             "unsupported value: {:?}",
             v
         ))),
-        StringOrNumber::Array(v) => Err(serde::de::Error::custom(format!(
+        AnyType::Array(v) => Err(serde::de::Error::custom(format!(
             "unsupported value: {:?}",
             v
         ))),
-        StringOrNumber::Object(v) => Err(serde::de::Error::custom(format!(
+        AnyType::Object(v) => Err(serde::de::Error::custom(format!(
             "unsupported value: {:?}",
             v
         ))),
+        AnyType::Null => Err(serde::de::Error::custom("unsupported null value")),
     }
 }
