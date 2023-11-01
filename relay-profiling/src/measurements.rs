@@ -47,9 +47,38 @@ mod tests {
     #[test]
     fn test_value_as_string() {
         let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":"1234.56789"}"#;
-        assert!(serde_json::from_str::<MeasurementValue>(measurement_json).is_ok());
         let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
         assert!(measurement.is_ok());
         assert_eq!(measurement.unwrap().value, 1234.56789);
+    }
+
+    #[test]
+    fn test_value_as_string_scientific_notation() {
+        let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":"1e3"}"#;
+        let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
+        assert!(measurement.is_ok());
+        assert_eq!(measurement.unwrap().value, 1e3f64);
+    }
+
+    #[test]
+    fn test_value_as_string_infinity() {
+        let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":"+Infinity"}"#;
+        let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
+        assert!(measurement.is_ok());
+        assert_eq!(measurement.unwrap().value, f64::INFINITY);
+    }
+
+    #[test]
+    fn test_value_as_float_scientific_notation() {
+        let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":1e3}"#;
+        let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
+        assert!(measurement.is_ok());
+    }
+
+    #[test]
+    fn test_value_as_float_infinity() {
+        let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":+Infinity}"#;
+        let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
+        assert!(measurement.is_err());
     }
 }
