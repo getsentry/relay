@@ -73,6 +73,7 @@ mod tests {
         let measurement_json = r#"{"elapsed_since_start_ns":1234567890,"value":1e3}"#;
         let measurement = serde_json::from_str::<MeasurementValue>(measurement_json);
         assert!(measurement.is_ok());
+        assert_eq!(measurement.unwrap().value, 1e3f64);
     }
 
     #[test]
