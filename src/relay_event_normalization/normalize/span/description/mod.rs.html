@@ -837,8 +837,8 @@
                     || is_sql_mongodb(description, db_system)
                 {
                     <span class="prelude-val">None
-                </span><span class="comment">// `db.sql.transaction` coming from CoreData need to be scrubbed differently.
-                </span>} <span class="kw">else if </span>sub == <span class="string">&quot;sql.transaction&quot; </span>&amp;&amp; span_origin == <span class="prelude-val">Some</span>(<span class="string">&quot;auto.db.core_data&quot;</span>) {
+                </span><span class="comment">// spans coming from CoreData need to be scrubbed differently.
+                </span>} <span class="kw">else if </span>span_origin == <span class="prelude-val">Some</span>(<span class="string">&quot;auto.db.core_data&quot;</span>) {
                     scrub_core_data(description)
                 } <span class="kw">else </span>{
                     sql::scrub_queries(db_system, description)
