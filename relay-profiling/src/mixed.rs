@@ -38,5 +38,5 @@ pub fn parse_mixed_profile(
     _transaction_tags: BTreeMap<String, String>,
 ) -> Result<Vec<u8>, ProfileError> {
     // TODO: Implement this function.
-    return Err(ProfileError::CannotSerializePayload);
+    Err(ProfileError::CannotSerializePayload)
 }
