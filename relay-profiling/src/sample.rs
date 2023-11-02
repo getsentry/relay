@@ -9,7 +9,7 @@ use crate::error::ProfileError;
 use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
-use crate::utils::deserialize_number_from_string;
+use crate::utils::{deserialize_number_from_string, string_is_null_or_empty};
 use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
@@ -158,7 +158,7 @@ pub struct ProfileMetadata {
     platform: String,
     timestamp: DateTime<Utc>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "string_is_null_or_empty")]
     release: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     dist: String,

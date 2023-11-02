@@ -43,3 +43,7 @@ where
         AnyType::Null => Err(serde::de::Error::custom("unsupported null value")),
     }
 }
+
+pub fn string_is_null_or_empty(s: &Option<String>) -> bool {
+    s.as_deref().map_or(true, |s| s.is_empty())
+}
