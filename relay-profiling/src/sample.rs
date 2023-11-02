@@ -1,14 +1,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
 
-use chrono::{DateTime, Utc};
-use relay_event_schema::protocol::{Addr, EventId};
+use relay_event_schema::protocol::Addr;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ProfileError;
-use crate::measurements::Measurement;
-use crate::native_debug_image::NativeDebugImage;
-use crate::transaction_metadata::TransactionMetadata;
+use crate::profile_metadata::ProfileMetadata;
 use crate::utils::deserialize_number_from_string;
 use crate::MAX_PROFILE_DURATION;
 
@@ -71,7 +68,7 @@ struct QueueMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Profile {
+pub struct Profile {
     samples: Vec<Sample>,
     stacks: Vec<Vec<usize>>,
     frames: Vec<Frame>,
@@ -95,87 +92,6 @@ impl Profile {
             frame.strip_pointer_authentication_code(addr);
         }
     }
-}
-
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
-struct DebugMeta {
-    images: Vec<NativeDebugImage>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct OSMetadata {
-    name: String,
-    version: String,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    build_number: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct RuntimeMetadata {
-    name: String,
-    version: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct DeviceMetadata {
-    architecture: String,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    is_emulator: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    locale: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    manufacturer: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    model: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
-pub enum Version {
-    #[default]
-    Unknown,
-    #[serde(rename = "1")]
-    V1,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ProfileMetadata {
-    version: Version,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    debug_meta: Option<DebugMeta>,
-
-    device: DeviceMetadata,
-    os: OSMetadata,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    runtime: Option<RuntimeMetadata>,
-
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    environment: String,
-    #[serde(alias = "profile_id")]
-    event_id: EventId,
-    platform: String,
-    timestamp: DateTime<Utc>,
-
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    release: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    dist: String,
-
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    transactions: Vec<TransactionMetadata>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    transaction: Option<TransactionMetadata>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<HashMap<String, Measurement>>,
-
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    transaction_metadata: BTreeMap<String, String>,
-
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    transaction_tags: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -402,7 +318,13 @@ pub fn parse_sample_profile(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
+    use relay_event_schema::protocol::EventId;
     use std::time::Duration;
+
+    use crate::profile_metadata::{DeviceMetadata, OSMetadata};
+    use crate::profile_version::Version;
+    use crate::transaction_metadata::TransactionMetadata;
 
     #[test]
     fn test_roundtrip() {

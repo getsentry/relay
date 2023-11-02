@@ -110,8 +110,11 @@ mod android;
 mod error;
 mod extract_from_transaction;
 mod measurements;
+mod mixed;
 mod native_debug_image;
 mod outcomes;
+mod profile_metadata;
+mod profile_version;
 mod sample;
 mod transaction_metadata;
 mod utils;
@@ -124,7 +127,7 @@ struct MinimalProfile {
     event_id: EventId,
     platform: String,
     #[serde(default)]
-    version: sample::Version,
+    version: profile_version::Version,
 }
 
 fn minimal_profile_from_json(
@@ -147,9 +150,25 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<(), Profi
         }
     };
     match profile.version {
-        sample::Version::V1 => {
+        profile_version::Version::V2 => {
             let d = &mut Deserializer::from_slice(payload);
-            let _: sample::ProfileMetadata = match serde_path_to_error::deserialize(d) {
+            let _: profile_metadata::ProfileMetadata = match serde_path_to_error::deserialize(d) {
+                Ok(profile) => profile,
+                Err(err) => {
+                    relay_log::warn!(
+                        error = &err as &dyn Error,
+                        from = "metadata",
+                        platform = profile.platform,
+                        project_id = project_id.value(),
+                        "invalid profile",
+                    );
+                    return Err(ProfileError::InvalidJson(err));
+                }
+            };
+        }
+        profile_version::Version::V1 => {
+            let d = &mut Deserializer::from_slice(payload);
+            let _: profile_metadata::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                 Ok(profile) => profile,
                 Err(err) => {
                     relay_log::warn!(
@@ -205,10 +224,13 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
     let transaction_metadata = extract_transaction_metadata(event);
     let transaction_tags = extract_transaction_tags(event);
     let processed_payload = match profile.version {
-        sample::Version::V1 => {
+        profile_version::Version::V2 => {
+            mixed::parse_mixed_profile(payload, transaction_metadata, transaction_tags)
+        }
+        profile_version::Version::V1 => {
             sample::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
-        sample::Version::Unknown => match profile.platform.as_str() {
+        profile_version::Version::Unknown => match profile.platform.as_str() {
             "android" => {
                 android::parse_android_profile(payload, transaction_metadata, transaction_tags)
             }
@@ -255,7 +277,7 @@ mod tests {
         let data = r#"{"version":"1","platform":"cocoa","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
-        assert_eq!(profile.unwrap().version, sample::Version::V1);
+        assert_eq!(profile.unwrap().version, profile_version::Version::V1);
     }
 
     #[test]
@@ -263,7 +285,7 @@ mod tests {
         let data = r#"{"platform":"android","event_id":"751fff80-a266-467b-a6f5-eeeef65f4f84"}"#;
         let profile = minimal_profile_from_json(data.as_bytes());
         assert!(profile.is_ok());
-        assert_eq!(profile.unwrap().version, sample::Version::Unknown);
+        assert_eq!(profile.unwrap().version, profile_version::Version::Unknown);
     }
 
     #[test]

@@ -81,7 +81,7 @@ pub struct ProfileMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct AndroidProfile {
+pub struct AndroidProfile {
     #[serde(flatten)]
     metadata: ProfileMetadata,
 
