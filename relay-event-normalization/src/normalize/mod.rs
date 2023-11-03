@@ -3982,6 +3982,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -4022,6 +4023,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -4062,6 +4064,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]

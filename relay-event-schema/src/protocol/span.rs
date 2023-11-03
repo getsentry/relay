@@ -257,6 +257,7 @@ mod tests {
             ),
             data: ~,
             sentry_tags: ~,
+            received: ~,
             other: {},
         }
         "###);

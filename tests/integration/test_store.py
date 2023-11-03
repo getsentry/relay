@@ -1226,6 +1226,7 @@ def test_spans(
 
     child_span = spans_consumer.get_span()
     del child_span["start_time"]
+    del child_span["span"]["received"]
     assert child_span == {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
@@ -1255,6 +1256,7 @@ def test_spans(
 
     transaction_span = spans_consumer.get_span()
     del transaction_span["start_time"]
+    del transaction_span["span"]["received"]
     assert transaction_span == {
         "event_id": "cbf6960622e14a45abc1f03b2055b186",
         "project_id": 42,
