@@ -278,6 +278,9 @@
 <a href="#278" id="278">278</a>
 <a href="#279" id="279">279</a>
 <a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -477,6 +480,7 @@
                 project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                 sdk_name = event.sdk_name(),
                 sdk_version = event.sdk_version(),
+                transaction_id = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, event.id.value()),
                 <span class="string">&quot;invalid profile&quot;</span>,
             );
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
@@ -506,6 +510,7 @@
                     project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
+                    transaction_id = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, event.id.value()),
                     <span class="string">&quot;invalid profile&quot;</span>,
                 );
                 <span class="prelude-val">Err</span>(ProfileError::InvalidJson(err))
@@ -518,6 +523,7 @@
                     project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
+                    transaction_id = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, event.id.value()),
                     <span class="string">&quot;invalid profile&quot;</span>,
                 );
                 <span class="prelude-val">Err</span>(err)
