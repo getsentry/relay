@@ -13,6 +13,7 @@
 - Allow advanced scrubbing expressions for datascrubbing safe fields. ([#2670](https://github.com/getsentry/relay/pull/2670))
 - Track when a span was received. ([#2688](https://github.com/getsentry/relay/pull/2688))
 - Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
+- Ingest OpenTelemetry spans via HTTP or an envelope. ([#2620](https://github.com/getsentry/relay/pull/2620))
 
 **Bug Fixes**:
 
