@@ -1,3 +1,11 @@
+//! Event normalization processor.
+//!
+//! This processor is work in progress. The intention is to have a single
+//! processor to deal with all event normalization. Currently, the normalization
+//! logic is split across several processing steps running at different times
+//! and under different conditions, like light normalization and store
+//! processing. Having a single processor will make things simpler.
+
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
 
@@ -46,7 +54,7 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 
 /// Normalizes an event, rejecting it if necessary.
 ///
-/// The normalization consists on applying a series of transformations on the
+/// The normalization consists of applying a series of transformations on the
 /// event payload based on the given configuration.
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should
