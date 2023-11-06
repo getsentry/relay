@@ -4427,6 +4427,7 @@
 <a href="#4427" id="4427">4427</a>
 <a href="#4428" id="4428">4428</a>
 <a href="#4429" id="4429">4429</a>
+<a href="#4430" id="4430">4430</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6845,8 +6846,9 @@
                 <span class="comment">// HACK: clone the span to set the segment_id. This should happen
                 // as part of normalization once standalone spans reach wider adoption.
                 </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
-                new_span.segment_id = transaction_span.segment_id.clone();
                 new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
+                new_span.received = transaction_span.received.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
 
                 <span class="comment">// If a profile is associated with the transaction, also associate it with its
                 // child spans.
