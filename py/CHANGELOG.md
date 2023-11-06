@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.35
 
 - Add `validate_pii_selector` to validate safe fields. ([#2687](https://github.com/getsentry/relay/pull/2687))
 
