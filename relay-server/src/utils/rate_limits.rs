@@ -93,6 +93,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Event => Some(DataCategory::Error),
         ItemType::Transaction => Some(DataCategory::Transaction),
         ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+        ItemType::Nel => Some(DataCategory::Error),
         ItemType::UnrealReport => Some(DataCategory::Error),
         ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
         ItemType::Attachment if item.creates_event() => Some(DataCategory::Error),

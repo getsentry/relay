@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
+
 ## 0.8.33
 
 - Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
@@ -12,6 +16,7 @@
 ## 0.8.32
 
 - Add `scraping_attempts` field to the event schema. ([#2575](https://github.com/getsentry/relay/pull/2575))
+- Drop events starting or ending before January 1, 1970 UTC. ([#2613](https://github.com/getsentry/relay/pull/2613))
 
 ## 0.8.31
 

@@ -338,8 +338,8 @@ class SessionsConsumer(ConsumerBase):
 
 
 class EventsConsumer(ConsumerBase):
-    def get_event(self):
-        message = self.poll()
+    def get_event(self, timeout=None):
+        message = self.poll(timeout)
         assert message is not None
         assert message.error() is None
 
