@@ -7,6 +7,7 @@ use serde_repr::Deserialize_repr;
 use relay_event_schema::protocol::{Span as EventSpan, SpanId, SpanStatus, Timestamp, TraceId};
 use relay_protocol::{Annotated, Object, Value};
 
+use crate::otel_to_sentry_tags::OTEL_TO_SENTRY_TAGS;
 use crate::status_codes;
 
 /// This is a serde implementation of <https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto>.
@@ -157,21 +158,26 @@ impl From<Span> for EventSpan {
         let mut attributes: Object<Value> = Object::new();
         let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
         for attribute in from.attributes.clone() {
+            let key: String = if let Some(key) = OTEL_TO_SENTRY_TAGS.get(attribute.key.as_str()) {
+                key.to_string()
+            } else {
+                attribute.key
+            };
             match attribute.value {
                 AnyValue::Array(_) => todo!(),
                 AnyValue::Bool(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                    attributes.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Bytes(_) => todo!(),
                 AnyValue::Double(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                    attributes.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Int(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                    attributes.insert(key, Annotated::new(v.into()));
                 }
                 AnyValue::Kvlist(_) => todo!(),
                 AnyValue::String(v) => {
-                    attributes.insert(attribute.key, Annotated::new(v.into()));
+                    attributes.insert(key, Annotated::new(v.into()));
                 }
             };
         }

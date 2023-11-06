@@ -8,5 +8,6 @@
 
 pub use crate::span::Span;
 
+mod otel_to_sentry_tags;
 mod span;
 mod status_codes;
