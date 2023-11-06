@@ -50,8 +50,8 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                     || is_sql_mongodb(description, db_system)
                 {
                     None
-                // `db.sql.transaction` coming from CoreData need to be scrubbed differently.
-                } else if sub == "sql.transaction" && span_origin == Some("auto.db.core_data") {
+                // spans coming from CoreData need to be scrubbed differently.
+                } else if span_origin == Some("auto.db.core_data") {
                     scrub_core_data(description)
                 } else {
                     sql::scrub_queries(db_system, description)
@@ -224,13 +224,8 @@ fn scrub_resource(string: &str) -> Option<String> {
             Some((ty, _data)) => format!("data:{ty}"),
             None => "data:*/*".to_owned(),
         },
-        "chrome-extension" => {
-            let path = scrub_resource_path(url.path());
-            format!("chrome-extension://*{path}")
-        }
-        "moz-extension" => {
-            let path = scrub_resource_path(url.path());
-            format!("moz-extension://*{path}")
+        "chrome-extension" | "moz-extension" | "ms-browser-extension" => {
+            return Some("browser-extension://*".to_owned());
         }
         scheme => {
             let segments = url.path_segments();
@@ -545,7 +540,7 @@ mod tests {
         chrome_extension,
         "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
         "resource.other",
-        "chrome-extension://*/img/assets/icon-*k.svg"
+        "browser-extension://*"
     );
 
     span_description_test!(
