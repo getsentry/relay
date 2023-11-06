@@ -197,7 +197,7 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
                 project_id = event.project.value().unwrap_or(&0),
                 sdk_name = event.sdk_name(),
                 sdk_version = event.sdk_version(),
-                transaction_id = format!("{:?}", event.id.value()),
+                transaction_id = ?event.id.value(),
                 "invalid profile",
             );
             return Err(ProfileError::InvalidJson(err));
@@ -227,7 +227,7 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
                     project_id = event.project.value().unwrap_or(&0),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
-                    transaction_id = format!("{:?}", event.id.value()),
+                    transaction_id = ?event.id.value(),
                     "invalid profile",
                 );
                 Err(ProfileError::InvalidJson(err))
@@ -240,7 +240,7 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>
                     project_id = event.project.value().unwrap_or(&0),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
-                    transaction_id = format!("{:?}", event.id.value()),
+                    transaction_id = ?event.id.value(),
                     "invalid profile",
                 );
                 Err(err)
