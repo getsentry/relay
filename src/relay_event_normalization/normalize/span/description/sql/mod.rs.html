@@ -702,6 +702,12 @@
 <a href="#702" id="702">702</a>
 <a href="#703" id="703">703</a>
 <a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 <span class="kw">pub use </span>parser::parse_query;
@@ -1398,6 +1404,12 @@
         uuid_in_table_name,
         <span class="string">&quot;SELECT * FROM prefix_0123456789abcdef0123456789ABCDEF_006_suffix&quot;</span>,
         <span class="string">&quot;SELECT * FROM prefix_{%s}_{%s}_suffix&quot;
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        long_hex_in_table_name,
+        <span class="string">&quot;SELECT id FROM a11a0a11b11a11a9 LIMIT 100 OFFSET 300&quot;</span>,
+        <span class="string">&quot;SELECT id FROM {%s} LIMIT %s OFFSET %s&quot;
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(

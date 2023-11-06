@@ -410,8 +410,8 @@
 /// because not everything in SQL is an expression.
 </span><span class="kw">const </span>MAX_EXPRESSION_DEPTH: usize = <span class="number">64</span>;
 
-<span class="doccomment">/// Regex used to scrub UUIDs and multi-digit numbers from table names and other identifiers.
-</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;(?i)[0-9a-f]{32}|\d\d+&quot;</span>).unwrap());
+<span class="doccomment">/// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.
+</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r&quot;(?i)[0-9a-f]{8,}|\d\d+&quot;</span>).unwrap());
 
 <span class="doccomment">/// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.
