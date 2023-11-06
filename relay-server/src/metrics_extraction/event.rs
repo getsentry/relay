@@ -78,6 +78,7 @@ mod tests {
             "platform": "javascript",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "timestamp": "2021-04-26T08:00:00+0100",
+            "received": "2021-04-26T08:00:01+0100",
             "server_name": "myhost",
             "release": "1.2.3",
             "dist": "foo ",
@@ -425,6 +426,16 @@ mod tests {
                     "trace_id": "ff62a8b040f340bda5d830223def1d81",
                     "status": "ok",
                     "data": {}
+                },
+                {
+                    "description": "chrome-extension://begnopegbbhjeeiganiajffnalhlkkjb/img/assets/icon-10k.svg",
+                    "op": "resource.script",
+                    "parent_span_id": "8f5a2b8768cafb4e",
+                    "span_id": "bb7af8b99e95af5f",
+                    "start_timestamp": 1597976300.0000000,
+                    "timestamp": 1597976302.0000000,
+                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                    "status": "ok"
                 },
                 {
                     "description": "http://domain/static/myscript-v1.9.23.js",

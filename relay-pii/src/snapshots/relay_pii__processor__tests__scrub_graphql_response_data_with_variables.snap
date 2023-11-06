@@ -28,6 +28,7 @@ Event {
     request: Request {
         url: ~,
         method: ~,
+        protocol: ~,
         data: Object(
             {
                 "query": String(

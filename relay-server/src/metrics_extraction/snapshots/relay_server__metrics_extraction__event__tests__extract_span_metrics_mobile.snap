@@ -36,6 +36,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
                 "transaction": "gEt /api/:version/users/",
                 "transaction.method": "GET",
             },
+            received: ~,
             other: {},
         },
     ],

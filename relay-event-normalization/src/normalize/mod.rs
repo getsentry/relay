@@ -28,6 +28,7 @@ use crate::{
 };
 
 pub mod breakdowns;
+pub mod nel;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
@@ -166,6 +167,8 @@ impl<'a> StoreNormalizeProcessor<'a> {
             EventType::ExpectCt
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
+        } else if event.context::<NelContext>().is_some() {
+            EventType::Nel
         } else {
             EventType::Default
         }
@@ -2415,6 +2418,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -2455,6 +2459,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -2495,6 +2500,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
