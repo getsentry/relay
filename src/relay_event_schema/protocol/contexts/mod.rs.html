@@ -396,12 +396,17 @@
 <a href="#396" id="396">396</a>
 <a href="#397" id="397">397</a>
 <a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">mod </span>browser;
 <span class="kw">mod </span>cloud_resource;
 <span class="kw">mod </span>device;
 <span class="kw">mod </span>gpu;
 <span class="kw">mod </span>monitor;
+<span class="kw">mod </span>nel;
 <span class="kw">mod </span>os;
 <span class="kw">mod </span>otel;
 <span class="kw">mod </span>profile;
@@ -417,6 +422,7 @@
 <span class="kw">pub use </span>device::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>gpu::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>monitor::<span class="kw-2">*</span>;
+<span class="kw">pub use </span>nel::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>os::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>otel::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>profile::<span class="kw-2">*</span>;
@@ -480,6 +486,8 @@
     </span>Otel(Box&lt;OtelContext&gt;),
     <span class="doccomment">/// Cloud resource information.
     </span>CloudResource(Box&lt;CloudResourceContext&gt;),
+    <span class="doccomment">/// Nel information.
+    </span>Nel(Box&lt;NelContext&gt;),
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(fallback_variant)]
     </span>Other(<span class="attr">#[metastructure(pii = <span class="string">&quot;true&quot;</span>)] </span>Object&lt;Value&gt;),

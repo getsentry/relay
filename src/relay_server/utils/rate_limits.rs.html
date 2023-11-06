@@ -1237,6 +1237,7 @@
 <a href="#1237" id="1237">1237</a>
 <a href="#1238" id="1238">1238</a>
 <a href="#1239" id="1239">1239</a>
+<a href="#1240" id="1240">1240</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, ProjectConfig};
@@ -1332,6 +1333,7 @@
         ItemType::Event =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
         ItemType::Transaction =&gt; <span class="prelude-val">Some</span>(DataCategory::Transaction),
         ItemType::Security | ItemType::RawSecurity =&gt; <span class="prelude-val">Some</span>(DataCategory::Security),
+        ItemType::Nel =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
         ItemType::UnrealReport =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
         ItemType::UserReportV2 =&gt; <span class="prelude-val">Some</span>(DataCategory::UserReportV2),
         ItemType::Attachment <span class="kw">if </span>item.creates_event() =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),

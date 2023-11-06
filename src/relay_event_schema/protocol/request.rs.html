@@ -993,6 +993,10 @@
 <a href="#993" id="993">993</a>
 <a href="#994" id="994">994</a>
 <a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter::{FromIterator, IntoIterator};
 
 <span class="kw">use </span>cookie::Cookie;
@@ -1439,6 +1443,9 @@
     <span class="doccomment">/// HTTP request method.
     </span><span class="kw">pub </span>method: Annotated&lt;String&gt;,
 
+    <span class="doccomment">/// HTTP protocol.
+    </span><span class="kw">pub </span>protocol: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Request data in any format that makes sense.
     ///
     /// SDKs should discard large and binary bodies by default. Can be given as a string or
@@ -1679,6 +1686,7 @@
         <span class="kw">let </span>request = Annotated::new(Request {
             url: Annotated::new(<span class="string">&quot;https://google.com/search&quot;</span>.to_string()),
             method: Annotated::new(<span class="string">&quot;GET&quot;</span>.to_string()),
+            protocol: Annotated::empty(),
             data: {
                 <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
                 map.insert(<span class="string">&quot;some&quot;</span>.to_string(), Annotated::new(Value::I64(<span class="number">1</span>)));

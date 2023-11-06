@@ -331,7 +331,7 @@
 <span class="kw">impl </span>From&lt;EventType&gt; <span class="kw">for </span>DataCategory {
     <span class="kw">fn </span>from(ty: EventType) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>ty {
-            EventType::Default | EventType::Error =&gt; <span class="self">Self</span>::Error,
+            EventType::Default | EventType::Error | EventType::Nel =&gt; <span class="self">Self</span>::Error,
             EventType::Transaction =&gt; <span class="self">Self</span>::Transaction,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple =&gt; {
                 <span class="self">Self</span>::Security

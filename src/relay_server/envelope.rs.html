@@ -1739,6 +1739,58 @@
 <a href="#1739" id="1739">1739</a>
 <a href="#1740" id="1740">1740</a>
 <a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
+<a href="#1776" id="1776">1776</a>
+<a href="#1777" id="1777">1777</a>
+<a href="#1778" id="1778">1778</a>
+<a href="#1779" id="1779">1779</a>
+<a href="#1780" id="1780">1780</a>
+<a href="#1781" id="1781">1781</a>
+<a href="#1782" id="1782">1782</a>
+<a href="#1783" id="1783">1783</a>
+<a href="#1784" id="1784">1784</a>
+<a href="#1785" id="1785">1785</a>
+<a href="#1786" id="1786">1786</a>
+<a href="#1787" id="1787">1787</a>
+<a href="#1788" id="1788">1788</a>
+<a href="#1789" id="1789">1789</a>
+<a href="#1790" id="1790">1790</a>
+<a href="#1791" id="1791">1791</a>
+<a href="#1792" id="1792">1792</a>
+<a href="#1793" id="1793">1793</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -1787,7 +1839,7 @@
 <span class="kw">use </span>relay_sampling::DynamicSamplingContext;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>smallvec::SmallVec;
+<span class="kw">use </span>smallvec::{smallvec, SmallVec};
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialMeta, RequestMeta};
@@ -1829,6 +1881,8 @@
     </span>FormData,
     <span class="doccomment">/// Security report as sent by the browser in JSON.
     </span>RawSecurity,
+    <span class="doccomment">/// NEL report as sent by the browser.
+    </span>Nel,
     <span class="doccomment">/// Raw compressed UE4 crash report.
     </span>UnrealReport,
     <span class="doccomment">/// User feedback encoded as JSON.
@@ -1868,7 +1922,7 @@
     <span class="doccomment">/// Returns the event item type corresponding to the given `EventType`.
     </span><span class="kw">pub fn </span>from_event_type(event_type: EventType) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>event_type {
-            EventType::Default | EventType::Error =&gt; ItemType::Event,
+            EventType::Default | EventType::Error | EventType::Nel =&gt; ItemType::Event,
             EventType::Transaction =&gt; ItemType::Transaction,
             EventType::UserReportV2 =&gt; ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple =&gt; {
@@ -1887,6 +1941,7 @@
             <span class="self">Self</span>::Attachment =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;attachment&quot;</span>),
             <span class="self">Self</span>::FormData =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;form_data&quot;</span>),
             <span class="self">Self</span>::RawSecurity =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;raw_security&quot;</span>),
+            <span class="self">Self</span>::Nel =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;nel&quot;</span>),
             <span class="self">Self</span>::UnrealReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreal_report&quot;</span>),
             <span class="self">Self</span>::UserReport =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;user_report&quot;</span>),
             <span class="self">Self</span>::UserReportV2 =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;feedback&quot;</span>),
@@ -1916,6 +1971,7 @@
             <span class="string">&quot;attachment&quot; </span>=&gt; <span class="self">Self</span>::Attachment,
             <span class="string">&quot;form_data&quot; </span>=&gt; <span class="self">Self</span>::FormData,
             <span class="string">&quot;raw_security&quot; </span>=&gt; <span class="self">Self</span>::RawSecurity,
+            <span class="string">&quot;nel&quot; </span>=&gt; <span class="self">Self</span>::Nel,
             <span class="string">&quot;unreal_report&quot; </span>=&gt; <span class="self">Self</span>::UnrealReport,
             <span class="string">&quot;user_report&quot; </span>=&gt; <span class="self">Self</span>::UserReport,
             <span class="string">&quot;feedback&quot; </span>=&gt; <span class="self">Self</span>::UserReportV2,
@@ -2296,6 +2352,7 @@
                 DataCategory::Transaction
             }),
             ItemType::Security | ItemType::RawSecurity =&gt; <span class="prelude-val">Some</span>(DataCategory::Security),
+            ItemType::Nel =&gt; <span class="prelude-val">None</span>,
             ItemType::UnrealReport =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
             ItemType::Attachment =&gt; <span class="prelude-val">Some</span>(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions =&gt; <span class="prelude-val">None</span>,
@@ -2447,6 +2504,7 @@
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
+            | ItemType::Nel
             | ItemType::UnrealReport
             | ItemType::UserReportV2 =&gt; <span class="bool-val">true</span>,
 
@@ -2504,6 +2562,7 @@
             ItemType::Attachment =&gt; <span class="bool-val">true</span>,
             ItemType::FormData =&gt; <span class="bool-val">true</span>,
             ItemType::RawSecurity =&gt; <span class="bool-val">true</span>,
+            ItemType::Nel =&gt; <span class="bool-val">false</span>,
             ItemType::UnrealReport =&gt; <span class="bool-val">true</span>,
             ItemType::UserReport =&gt; <span class="bool-val">true</span>,
             ItemType::UserReportV2 =&gt; <span class="bool-val">true</span>,
@@ -2819,19 +2878,17 @@
         <span class="self">self</span>.items.push(item)
     }
 
-    <span class="doccomment">/// Splits the envelope by the given predicate.
+    <span class="doccomment">/// Splits off the items from the envelope using provided predicates.
     ///
-    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
-    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
-    /// with all items that return `true`. Items that return `false` remain in this envelope.
-    ///
-    /// The returned envelope assumes the same headers.
-    </span><span class="kw">pub fn </span>split_by&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>f: F) -&gt; <span class="prelude-ty">Option</span>&lt;Box&lt;<span class="self">Self</span>&gt;&gt;
+    /// First predicate is the the additional condition on the count of found items by second
+    /// predicate.
+    </span><span class="kw">fn </span>split_off_items&lt;C, F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cond: C, <span class="kw-2">mut </span>f: F) -&gt; <span class="prelude-ty">Option</span>&lt;SmallVec&lt;[Item; <span class="number">3</span>]&gt;&gt;
     <span class="kw">where
-        </span>F: FnMut(<span class="kw-2">&amp;</span>Item) -&gt; bool,
+        </span>C: Fn(usize) -&gt; bool,
+        F: FnMut(<span class="kw-2">&amp;</span>Item) -&gt; bool,
     {
         <span class="kw">let </span>split_count = <span class="self">self</span>.items().filter(|item| f(item)).count();
-        <span class="kw">if </span>split_count == <span class="self">self</span>.len() || split_count == <span class="number">0 </span>{
+        <span class="kw">if </span>cond(split_count) {
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
@@ -2839,10 +2896,57 @@
         <span class="kw">let </span>(split_items, own_items) = old_items.into_iter().partition(f);
         <span class="self">self</span>.items = own_items;
 
+        <span class="prelude-val">Some</span>(split_items)
+    }
+
+    <span class="doccomment">/// Splits the envelope by the given predicate.
+    ///
+    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
+    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
+    /// with all items that return `true`. Items that return `false` remain in this envelope.
+    ///
+    /// The returned envelope assumes the same headers.
+    </span><span class="kw">pub fn </span>split_by&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, f: F) -&gt; <span class="prelude-ty">Option</span>&lt;Box&lt;<span class="self">Self</span>&gt;&gt;
+    <span class="kw">where
+        </span>F: FnMut(<span class="kw-2">&amp;</span>Item) -&gt; bool,
+    {
+        <span class="kw">let </span>items_count = <span class="self">self</span>.len();
+        <span class="kw">let </span>split_items = <span class="self">self</span>.split_off_items(|count| count == <span class="number">0 </span>|| count == items_count, f)<span class="question-mark">?</span>;
         <span class="prelude-val">Some</span>(Box::new(Envelope {
             headers: <span class="self">self</span>.headers.clone(),
             items: split_items,
         }))
+    }
+
+    <span class="doccomment">/// Splits the envelope by the given predicate.
+    ///
+    /// The main differents from `split_by()` is this function returns the list of the newly
+    /// constracted envelopes with all the items where the predicate returns `true`. Otherwise it
+    /// returns an empty list.
+    ///
+    /// The returned envelopes assume the same headers.
+    </span><span class="kw">pub fn </span>split_all_by&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, f: F) -&gt; SmallVec&lt;[Box&lt;<span class="self">Self</span>&gt;; <span class="number">3</span>]&gt;
+    <span class="kw">where
+        </span>F: FnMut(<span class="kw-2">&amp;</span>Item) -&gt; bool,
+    {
+        <span class="kw">let </span><span class="kw-2">mut </span>envelopes = <span class="macro">smallvec!</span>[];
+        <span class="kw">let </span><span class="prelude-val">Some</span>(split_items) = <span class="self">self</span>.split_off_items(|count| count == <span class="number">0</span>, f) <span class="kw">else </span>{
+            <span class="kw">return </span>envelopes;
+        };
+
+        <span class="kw">let </span>headers = <span class="kw-2">&amp;mut </span><span class="self">self</span>.headers;
+
+        <span class="kw">for </span>item <span class="kw">in </span>split_items {
+            <span class="comment">// Each item should get an envelope with the new event id.
+            </span>headers.event_id = <span class="prelude-val">Some</span>(EventId::new());
+
+            envelopes.push(Box::new(Envelope {
+                items: <span class="macro">smallvec!</span>[item],
+                headers: headers.clone(),
+            }))
+        }
+
+        envelopes
     }
 
     <span class="doccomment">/// Retains only the items specified by the predicate.

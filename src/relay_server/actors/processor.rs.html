@@ -4382,6 +4382,51 @@
 <a href="#4382" id="4382">4382</a>
 <a href="#4383" id="4383">4383</a>
 <a href="#4384" id="4384">4384</a>
+<a href="#4385" id="4385">4385</a>
+<a href="#4386" id="4386">4386</a>
+<a href="#4387" id="4387">4387</a>
+<a href="#4388" id="4388">4388</a>
+<a href="#4389" id="4389">4389</a>
+<a href="#4390" id="4390">4390</a>
+<a href="#4391" id="4391">4391</a>
+<a href="#4392" id="4392">4392</a>
+<a href="#4393" id="4393">4393</a>
+<a href="#4394" id="4394">4394</a>
+<a href="#4395" id="4395">4395</a>
+<a href="#4396" id="4396">4396</a>
+<a href="#4397" id="4397">4397</a>
+<a href="#4398" id="4398">4398</a>
+<a href="#4399" id="4399">4399</a>
+<a href="#4400" id="4400">4400</a>
+<a href="#4401" id="4401">4401</a>
+<a href="#4402" id="4402">4402</a>
+<a href="#4403" id="4403">4403</a>
+<a href="#4404" id="4404">4404</a>
+<a href="#4405" id="4405">4405</a>
+<a href="#4406" id="4406">4406</a>
+<a href="#4407" id="4407">4407</a>
+<a href="#4408" id="4408">4408</a>
+<a href="#4409" id="4409">4409</a>
+<a href="#4410" id="4410">4410</a>
+<a href="#4411" id="4411">4411</a>
+<a href="#4412" id="4412">4412</a>
+<a href="#4413" id="4413">4413</a>
+<a href="#4414" id="4414">4414</a>
+<a href="#4415" id="4415">4415</a>
+<a href="#4416" id="4416">4416</a>
+<a href="#4417" id="4417">4417</a>
+<a href="#4418" id="4418">4418</a>
+<a href="#4419" id="4419">4419</a>
+<a href="#4420" id="4420">4420</a>
+<a href="#4421" id="4421">4421</a>
+<a href="#4422" id="4422">4422</a>
+<a href="#4423" id="4423">4423</a>
+<a href="#4424" id="4424">4424</a>
+<a href="#4425" id="4425">4425</a>
+<a href="#4426" id="4426">4426</a>
+<a href="#4427" id="4427">4427</a>
+<a href="#4428" id="4428">4428</a>
+<a href="#4429" id="4429">4429</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4408,16 +4453,16 @@
 };
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
 <span class="kw">use </span>relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
-    TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
+    MeasurementsConfig, TransactionNameConfig,
 };
 <span class="kw">use </span>relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, OtelContext, RelayInfo, Replay, SecurityReportType,
-    SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext,
-    UserReport, Values,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
+    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    Timestamp, TraceContext, UserReport, Values,
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
@@ -4504,6 +4549,9 @@
     <span class="attr">#[error(<span class="string">&quot;invalid security report&quot;</span>)]
     </span>InvalidSecurityReport(<span class="attr">#[source] </span>serde_json::Error),
 
+    <span class="attr">#[error(<span class="string">&quot;invalid nel report&quot;</span>)]
+    </span>InvalidNelReport(<span class="attr">#[source] </span>NetworkReportError),
+
     <span class="attr">#[error(<span class="string">&quot;event filtered with reason: {0:?}&quot;</span>)]
     </span>EventFiltered(FilterStatKey),
 
@@ -4535,6 +4583,7 @@
                 <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
             <span class="self">Self</span>::InvalidSecurityReport(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::SecurityReport)),
+            <span class="self">Self</span>::InvalidNelReport(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidJson)),
             <span class="self">Self</span>::InvalidTransaction =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             <span class="self">Self</span>::InvalidTimestamp =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::Timestamp)),
             <span class="self">Self</span>::DuplicateItem(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Outcome::Invalid(DiscardReason::DuplicateItem)),
@@ -5879,6 +5928,39 @@
         <span class="prelude-val">Ok</span>((Annotated::new(event), len))
     }
 
+    <span class="kw">fn </span>event_from_nel_item(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        item: Item,
+        _meta: <span class="kw-2">&amp;</span>RequestMeta,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ExtractedEvent, ProcessingError&gt; {
+        <span class="kw">let </span>len = item.len();
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Event {
+            ty: Annotated::new(EventType::Nel),
+            ..Default::default()
+        };
+        <span class="kw">let </span>data: <span class="kw-2">&amp;</span>[u8] = <span class="kw-2">&amp;</span>item.payload();
+
+        <span class="comment">// Try to get the raw network report.
+        </span><span class="kw">let </span>report = Annotated::from_json_bytes(data).map_err(NetworkReportError::InvalidJson);
+
+        <span class="kw">match </span>report {
+            <span class="comment">// If the incoming payload could be converted into the raw network error, try
+            // to use it to normalize the event.
+            </span><span class="prelude-val">Ok</span>(report) =&gt; {
+                nel::enrich_event(<span class="kw-2">&amp;mut </span>event, report);
+            }
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="comment">// logged in extract_event
+                </span>relay_log::configure_scope(|scope| {
+                    scope.set_extra(<span class="string">&quot;payload&quot;</span>, String::from_utf8_lossy(data).into());
+                });
+                <span class="kw">return </span><span class="prelude-val">Err</span>(ProcessingError::InvalidNelReport(err));
+            }
+        }
+
+        <span class="prelude-val">Ok</span>((Annotated::new(event), len))
+    }
+
     <span class="kw">fn </span>merge_formdata(<span class="kw-2">&amp;</span><span class="self">self</span>, target: <span class="kw-2">&amp;mut </span>SerdeValue, item: Item) {
         <span class="kw">let </span>payload = item.payload();
         <span class="kw">let </span><span class="kw-2">mut </span>aggregator = ChunkedFormDataAggregator::new();
@@ -6036,6 +6118,7 @@
 
             <span class="comment">// These may be forwarded to upstream / store:
             </span>ItemType::Attachment =&gt; <span class="bool-val">false</span>,
+            ItemType::Nel =&gt; <span class="bool-val">false</span>,
             ItemType::UserReport =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// Aggregate data is never considered as part of deduplication
@@ -6073,9 +6156,9 @@
         <span class="kw">let </span>transaction_item = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction);
         <span class="kw">let </span>security_item = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Security);
         <span class="kw">let </span>raw_security_item = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::RawSecurity);
+        <span class="kw">let </span>nel_item = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Nel);
         <span class="kw">let </span>user_report_v2_item =
             envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::UserReportV2);
-
         <span class="kw">let </span>form_item = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::FormData);
         <span class="kw">let </span>attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::EventPayload));
@@ -6124,6 +6207,13 @@
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                         <span class="string">&quot;failed to extract security report&quot;
                     </span>);
+                    error
+                })<span class="question-mark">?
+        </span>} <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = nel_item {
+            <span class="macro">relay_log::trace!</span>(<span class="string">&quot;processing nel report&quot;</span>);
+            <span class="self">self</span>.event_from_nel_item(item, envelope.meta())
+                .map_err(|error| {
+                    <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">&quot;failed to extract NEL report&quot;</span>);
                     error
                 })<span class="question-mark">?
         </span>} <span class="kw">else if </span>attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {

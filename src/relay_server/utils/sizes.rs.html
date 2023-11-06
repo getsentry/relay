@@ -100,6 +100,7 @@
 <a href="#100" id="100">100</a>
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -131,6 +132,7 @@
             | ItemType::Security
             | ItemType::ReplayEvent
             | ItemType::RawSecurity
+            | ItemType::Nel
             | ItemType::UserReportV2
             | ItemType::FormData =&gt; {
                 event_size += item.len();

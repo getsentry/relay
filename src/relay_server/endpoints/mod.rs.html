@@ -95,6 +95,8 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
@@ -112,6 +114,7 @@
 </span><span class="kw">mod </span>logs;
 <span class="kw">mod </span>minidump;
 <span class="kw">mod </span>monitor;
+<span class="kw">mod </span>nel;
 <span class="kw">mod </span>outcomes;
 <span class="kw">mod </span>project_configs;
 <span class="kw">mod </span>public_keys;
@@ -175,6 +178,7 @@
         .route(<span class="string">&quot;/api/:project_id/envelope/&quot;</span>, envelope::route(config))
         .route(<span class="string">&quot;/api/:project_id/security/&quot;</span>, security_report::route(config))
         .route(<span class="string">&quot;/api/:project_id/csp-report/&quot;</span>, security_report::route(config))
+        .route(<span class="string">&quot;/api/:project_id/nel/&quot;</span>, nel::route(config))
         <span class="comment">// No mandatory trailing slash here because people already use it like this.
         </span>.route(<span class="string">&quot;/api/:project_id/minidump&quot;</span>, minidump::route(config))
         .route(<span class="string">&quot;/api/:project_id/minidump/&quot;</span>, minidump::route(config))
