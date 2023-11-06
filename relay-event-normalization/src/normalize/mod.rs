@@ -14,7 +14,8 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, ReplayContext, Request, Stacktrace, TraceContext, User, VALID_PLATFORMS,
+    Frame, IpAddr, Level, NelContext, ReplayContext, Request, Stacktrace, TraceContext, User,
+    VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
