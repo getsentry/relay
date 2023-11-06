@@ -2416,8 +2416,9 @@ impl EnvelopeProcessorService {
                 // HACK: clone the span to set the segment_id. This should happen
                 // as part of normalization once standalone spans reach wider adoption.
                 let mut new_span = inner_span.clone();
-                new_span.segment_id = transaction_span.segment_id.clone();
                 new_span.is_segment = Annotated::new(false);
+                new_span.received = transaction_span.received.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
 
                 // If a profile is associated with the transaction, also associate it with its
                 // child spans.
