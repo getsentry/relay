@@ -1,6 +1,6 @@
 //! Contains helper function for NEL reports.
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use relay_event_schema::protocol::{
     Contexts, Event, HeaderName, HeaderValue, Headers, LogEntry, NelContext, NetworkReportRaw,
     Request, ResponseContext, Timestamp,
@@ -78,10 +78,13 @@ pub fn enrich_event(event: &mut Event, nel: Annotated<NetworkReportRaw>) {
     }
 
     // Set the timestamp on the event when it actually occurred.
-    let now: DateTime<Utc> = Utc::now();
+    let event_time = event
+        .timestamp
+        .value_mut()
+        .map_or(Utc::now(), |timestamp| timestamp.into_inner());
     if let Some(event_time) =
-        now.checked_sub_signed(Duration::milliseconds(*nel.age.value().unwrap_or(&0)))
+        event_time.checked_sub_signed(Duration::milliseconds(*nel.age.value().unwrap_or(&0)))
     {
-        event.timestamp = Annotated::new(Timestamp::from(event_time));
+        event.timestamp = Annotated::new(Timestamp::from(event_time))
     }
 }
