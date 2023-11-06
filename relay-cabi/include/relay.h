@@ -553,6 +553,11 @@ struct RelayStr relay_store_normalizer_normalize_event(struct RelayStoreNormaliz
 bool relay_translate_legacy_python_json(struct RelayStr *event);
 
 /**
+ * Validates a PII selector spec. Used to validate datascrubbing safe fields.
+ */
+struct RelayStr relay_validate_pii_selector(const struct RelayStr *value);
+
+/**
  * Validate a PII config against the schema. Used in project options UI.
  */
 struct RelayStr relay_validate_pii_config(const struct RelayStr *value);

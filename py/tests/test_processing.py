@@ -128,6 +128,24 @@ def test_normalize_user_agent(must_normalize):
         assert "contexts" not in event
 
 
+def test_validate_pii_selector():
+    sentry_relay.validate_pii_selector("test")
+    sentry_relay.validate_pii_selector("$user.id")
+    sentry_relay.validate_pii_selector("extra.'sys.argv'.**")
+
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_pii_selector("no_spaces allowed")
+    assert str(e.value) == 'invalid syntax near "no_spaces allowed"'
+
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_pii_selector("unterminated.'string")
+    assert str(e.value) == 'invalid syntax near "unterminated.\'string"'
+
+    with pytest.raises(ValueError) as e:
+        sentry_relay.validate_pii_selector("double.**.wildcard.**")
+    assert str(e.value) == "deep wildcard used more than once"
+
+
 def test_validate_pii_config():
     sentry_relay.validate_pii_config("{}")
     sentry_relay.validate_pii_config('{"applications": {}}')
