@@ -2178,16 +2178,20 @@ impl EnvelopeProcessorService {
 
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
-                let mut processor = PiiProcessor::new(config.compiled());
-                processor::process_value(event, &mut processor, ProcessingState::root())?;
+                if !config.applications.is_empty() {
+                    let mut processor = PiiProcessor::new(config.compiled());
+                    processor::process_value(event, &mut processor, ProcessingState::root())?;
+                }
             }
             let pii_config = config
                 .datascrubbing_settings
                 .pii_config()
                 .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
             if let Some(config) = pii_config {
-                let mut processor = PiiProcessor::new(config.compiled());
-                processor::process_value(event, &mut processor, ProcessingState::root())?;
+                if !config.applications.is_empty() {
+                    let mut processor = PiiProcessor::new(config.compiled());
+                    processor::process_value(event, &mut processor, ProcessingState::root())?;
+                }
             }
         });
 
