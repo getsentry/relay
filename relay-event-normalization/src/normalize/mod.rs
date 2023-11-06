@@ -14,7 +14,8 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     Breadcrumb, ClientSdkInfo, Context, Contexts, DebugImage, Event, EventId, EventType, Exception,
-    Frame, IpAddr, Level, ReplayContext, Request, Stacktrace, TraceContext, User, VALID_PLATFORMS,
+    Frame, IpAddr, Level, NelContext, ReplayContext, Request, Stacktrace, TraceContext, User,
+    VALID_PLATFORMS,
 };
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
@@ -28,6 +29,7 @@ use crate::{
 };
 
 pub mod breakdowns;
+pub mod nel;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
@@ -166,6 +168,8 @@ impl<'a> StoreNormalizeProcessor<'a> {
             EventType::ExpectCt
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
+        } else if event.context::<NelContext>().is_some() {
+            EventType::Nel
         } else {
             EventType::Default
         }
@@ -2415,6 +2419,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -2455,6 +2460,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -2495,6 +2501,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]

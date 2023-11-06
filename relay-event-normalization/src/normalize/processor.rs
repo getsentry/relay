@@ -1,3 +1,11 @@
+//! Event normalization processor.
+//!
+//! This processor is work in progress. The intention is to have a single
+//! processor to deal with all event normalization. Currently, the normalization
+//! logic is split across several processing steps running at different times
+//! and under different conditions, like light normalization and store
+//! processing. Having a single processor will make things simpler.
+
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
 
@@ -11,8 +19,8 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, Request, Span, SpanAttribute, SpanStatus, Tags,
-    TraceContext, User,
+    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, Span, SpanAttribute,
+    SpanStatus, Tags, TraceContext, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -47,7 +55,7 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 
 /// Normalizes an event, rejecting it if necessary.
 ///
-/// The normalization consists on applying a series of transformations on the
+/// The normalization consists of applying a series of transformations on the
 /// event payload based on the given configuration.
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should
@@ -99,6 +107,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             light_normalization_config.client_ip,
             &light_normalization_config.user_agent,
         );
+
+        // Process NEL reports to ensure all props.
+        normalize_nel_report(event, light_normalization_config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
@@ -211,6 +222,18 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         span.process_child_values(self, state)?;
 
         Ok(())
+    }
+}
+
+/// Backfills the client IP address on for the NEL reports.
+fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
+    if event.context::<NelContext>().is_none() {
+        return;
+    }
+
+    if let Some(client_ip) = client_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        user.ip_address = Annotated::new(client_ip.to_owned());
     }
 }
 
