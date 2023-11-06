@@ -157,7 +157,7 @@ pub struct StoreConfig {
 /// See the fields of [`StoreConfig`] for a description of all normalization steps.
 pub struct StoreProcessor<'a> {
     config: Arc<StoreConfig>,
-    normalize: normalize::NormalizeProcessor<'a>,
+    normalize: normalize::StoreNormalizeProcessor<'a>,
 }
 
 impl<'a> StoreProcessor<'a> {
@@ -165,7 +165,7 @@ impl<'a> StoreProcessor<'a> {
     pub fn new(config: StoreConfig, geoip_lookup: Option<&'a GeoIpLookup>) -> Self {
         let config = Arc::new(config);
         StoreProcessor {
-            normalize: normalize::NormalizeProcessor::new(config.clone(), geoip_lookup),
+            normalize: normalize::StoreNormalizeProcessor::new(config.clone(), geoip_lookup),
             config,
         }
     }
