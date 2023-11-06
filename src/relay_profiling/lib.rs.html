@@ -480,7 +480,7 @@
                 project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                 sdk_name = event.sdk_name(),
                 sdk_version = event.sdk_version(),
-                transaction_id = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, event.id.value()),
+                transaction_id = <span class="question-mark">?</span>event.id.value(),
                 <span class="string">&quot;invalid profile&quot;</span>,
             );
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
@@ -510,7 +510,7 @@
                     project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
-                    transaction_id = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, event.id.value()),
+                    transaction_id = <span class="question-mark">?</span>event.id.value(),
                     <span class="string">&quot;invalid profile&quot;</span>,
                 );
                 <span class="prelude-val">Err</span>(ProfileError::InvalidJson(err))
@@ -523,7 +523,7 @@
                     project_id = event.project.value().unwrap_or(<span class="kw-2">&amp;</span><span class="number">0</span>),
                     sdk_name = event.sdk_name(),
                     sdk_version = event.sdk_version(),
-                    transaction_id = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, event.id.value()),
+                    transaction_id = <span class="question-mark">?</span>event.id.value(),
                     <span class="string">&quot;invalid profile&quot;</span>,
                 );
                 <span class="prelude-val">Err</span>(err)
