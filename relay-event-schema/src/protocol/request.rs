@@ -444,6 +444,9 @@ pub struct Request {
     /// HTTP request method.
     pub method: Annotated<String>,
 
+    /// HTTP protocol.
+    pub protocol: Annotated<String>,
+
     /// Request data in any format that makes sense.
     ///
     /// SDKs should discard large and binary bodies by default. Can be given as a string or
@@ -684,6 +687,7 @@ mod tests {
         let request = Annotated::new(Request {
             url: Annotated::new("https://google.com/search".to_string()),
             method: Annotated::new("GET".to_string()),
+            protocol: Annotated::empty(),
             data: {
                 let mut map = Object::new();
                 map.insert("some".to_string(), Annotated::new(Value::I64(1)));

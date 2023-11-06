@@ -17,7 +17,7 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass,
     Event, EventId, EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement,
-    Measurements, ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags,
+    Measurements, NelContext, ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags,
     TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
@@ -36,6 +36,7 @@ use crate::{
 };
 
 pub mod breakdowns;
+pub mod nel;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
@@ -270,6 +271,8 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectCt
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
+        } else if event.context::<NelContext>().is_some() {
+            EventType::Nel
         } else {
             EventType::Default
         }
@@ -774,6 +777,18 @@ fn is_security_report(event: &Event) -> bool {
         || event.hpkp.value().is_some()
 }
 
+/// Backfills the client IP address on for the NEL reports.
+fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
+    if event.context::<NelContext>().is_none() {
+        return;
+    }
+
+    if let Some(client_ip) = client_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        user.ip_address = Annotated::new(client_ip.to_owned());
+    }
+}
+
 /// Backfills common security report attributes.
 fn normalize_security_report(
     event: &mut Event,
@@ -1171,6 +1186,9 @@ pub fn light_normalize_event(
 
         // Process security reports first to ensure all props.
         normalize_security_report(event, config.client_ip, &config.user_agent);
+
+        // Process NEL reports to ensure all props.
+        normalize_nel_report(event, config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(

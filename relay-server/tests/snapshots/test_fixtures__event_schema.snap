@@ -929,6 +929,9 @@ expression: "relay_event_schema::protocol::event_json_schema()"
           "$ref": "#/definitions/CloudResourceContext"
         },
         {
+          "$ref": "#/definitions/NelContext"
+        },
+        {
           "type": "object",
           "additionalProperties": true
         }
@@ -1494,6 +1497,7 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         "hpkp",
         "expectct",
         "expectstaple",
+        "nel",
         "transaction",
         "userreportv2",
         "default"
@@ -2590,6 +2594,88 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         }
       ]
     },
+    "NelContext": {
+      "description": " Contains NEL report information.\n\n Network Error Logging (NEL) is a browser feature that allows reporting of failed network\n requests from the client side. See the following resources for more information:\n\n - [W3C Editor's Draft](https://w3c.github.io/network-error-logging/)\n - [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging)",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "elapsed_time": {
+              "description": " The number of milliseconds between the start of the resource fetch and when it was aborted by the user agent.",
+              "default": null,
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "error_type": {
+              "description": " If request failed, the type of its network error. If request succeeded, \"ok\".",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "phase": {
+              "description": " If request failed, the phase of its network error. If request succeeded, \"application\".",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/NetworkReportPhases"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sampling_fraction": {
+              "description": " The sampling rate.",
+              "default": null,
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "server_ip": {
+              "description": " Server IP where the requests was sent to.",
+              "default": null,
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/String"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "NetworkReportPhases": {
+      "description": " Describes which phase the error occurred in.",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
     "NsError": {
       "description": " NSError informaiton.",
       "anyOf": [
@@ -2980,6 +3066,14 @@ expression: "relay_event_schema::protocol::event_json_schema()"
             },
             "method": {
               "description": " HTTP request method.",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "protocol": {
+              "description": " HTTP protocol.",
               "default": null,
               "type": [
                 "string",
