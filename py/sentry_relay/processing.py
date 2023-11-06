@@ -21,6 +21,7 @@ __all__ = [
     "is_glob_match",
     "is_codeowners_path_match",
     "parse_release",
+    "validate_pii_selector",
     "validate_pii_config",
     "convert_datascrubbing_config",
     "pii_strip_event",
@@ -164,6 +165,17 @@ def is_codeowners_path_match(value, pattern):
     return rustcall(
         lib.relay_is_codeowners_path_match, make_buf(value), encode_str(pattern)
     )
+
+
+def validate_pii_selector(selector):
+    """
+    Validate a PII selector spec. Used to validate datascrubbing safe fields.
+    """
+    assert isinstance(selector, str)
+    raw_error = rustcall(lib.relay_validate_pii_selector, encode_str(selector))
+    error = decode_str(raw_error, free=True)
+    if error:
+        raise ValueError(error)
 
 
 def validate_pii_config(config):
