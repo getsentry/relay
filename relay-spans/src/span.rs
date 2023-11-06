@@ -152,10 +152,10 @@ impl Span {
 
 impl From<Span> for EventSpan {
     fn from(from: Span) -> Self {
-        let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
         let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
         let exclusive_time = (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
         let mut attributes: Object<Value> = Object::new();
+        let start_timestamp = Utc.timestamp_nanos(from.start_time_unix_nano);
         for attribute in from.attributes.clone() {
             match attribute.value {
                 AnyValue::Array(_) => todo!(),
@@ -179,10 +179,11 @@ impl From<Span> for EventSpan {
             data: attributes.into(),
             description: from.name.clone().into(),
             exclusive_time: exclusive_time.into(),
-            span_id: SpanId(from.span_id.clone()).into(),
-            parent_span_id: SpanId(from.parent_span_id.clone()).into(),
-            start_timestamp: Timestamp(start_timestamp).into(),
             is_segment: from.parent_span_id.is_empty().into(),
+            parent_span_id: SpanId(from.parent_span_id.clone()).into(),
+            received: Timestamp(Utc::now()).into(),
+            span_id: SpanId(from.span_id.clone()).into(),
+            start_timestamp: Timestamp(start_timestamp).into(),
             timestamp: Timestamp(end_timestamp).into(),
             trace_id: TraceId(from.trace_id.clone()).into(),
             ..Default::default()
