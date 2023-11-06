@@ -19,8 +19,8 @@ use relay_event_schema::processor::{
 };
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, Request, SpanAttribute, SpanStatus, Tags,
-    TraceContext, User,
+    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
+    Tags, TraceContext, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
@@ -101,6 +101,9 @@ impl<'a> Processor for NormalizeProcessor<'a> {
 
         // Process security reports first to ensure all props.
         normalize_security_report(event, config.client_ip, &config.user_agent);
+
+        // Process NEL reports to ensure all props.
+        normalize_nel_report(event, config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
@@ -195,6 +198,18 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         }
 
         Ok(())
+    }
+}
+
+/// Backfills the client IP address on for the NEL reports.
+fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
+    if event.context::<NelContext>().is_none() {
+        return;
+    }
+
+    if let Some(client_ip) = client_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        user.ip_address = Annotated::new(client_ip.to_owned());
     }
 }
 
