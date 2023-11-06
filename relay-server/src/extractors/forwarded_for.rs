@@ -9,14 +9,23 @@ use axum::http::HeaderMap;
 pub struct ForwardedFor(String);
 
 impl ForwardedFor {
-    const FORWARDED_HEADER: &str = "X-Forwarded-For";
-    const VERCEL_FORWARDED_HEADER: &str = "X-Vercel-Forwarded-For";
+    const FORWARDED_HEADER: &'static str = "X-Forwarded-For";
+    const VERCEL_FORWARDED_HEADER: &'static str = "X-Vercel-Forwarded-For";
+    const SENTRY_FORWARDED_HEADER: &'static str = "X-Sentry-Forwarded-For";
 
-    /// We prefer the Vercel header because the normal one could get overwritten as explained here.
+    /// We prefer the SENTRY_FORWARDED_HEADER over the standard header because our infrastructure
+    /// puts the contents of the incoming FORWARDED_HEADER into SENTRY_FORWARDED_HEADER for security
+    /// reasons. This also is a way for users who can't mutate the regular FORWARDED_HEADER to still
+    /// tell Sentry about forwarded ip.
+    ///
+    /// In Vercel environments the FORWARDED_HEADER value could be overwritten (which also makes the
+    /// SENTRY_FORWARDED_HEADER value inaccruate). This leads us to rely on the
+    /// VERCEL_FORWARDED_HEADER as the source of truth instead.
     /// `https://vercel.com/docs/concepts/edge-network/headers#x-vercel-forwarded-for`
     fn get_forwarded_for_ip(header_map: &HeaderMap) -> &str {
         header_map
             .get(Self::VERCEL_FORWARDED_HEADER)
+            .or_else(|| header_map.get(Self::SENTRY_FORWARDED_HEADER))
             .or_else(|| header_map.get(Self::FORWARDED_HEADER))
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
@@ -89,7 +98,27 @@ mod tests {
         assert_eq!(forwarded, vercel_ip);
     }
 
-    /// If there's no `X-Vercel-Forwarded-For`-header then use the normal `X-Forwarded-For`-header.
+    #[test]
+    fn test_prefer_sentry_forwarded() {
+        let sentry_ip = "192.158.1.38";
+        let other_ip = "111.222.3.44";
+
+        let mut headermap = HeaderMap::default();
+        headermap.insert(
+            ForwardedFor::SENTRY_FORWARDED_HEADER,
+            HeaderValue::from_str(sentry_ip).unwrap(),
+        );
+        headermap.insert(
+            ForwardedFor::FORWARDED_HEADER,
+            HeaderValue::from_str(other_ip).unwrap(),
+        );
+
+        let forwarded = ForwardedFor::get_forwarded_for_ip(&headermap);
+
+        assert_eq!(forwarded, sentry_ip);
+    }
+
+    /// If there's no vercel or sentry header then use the normal `X-Forwarded-For`-header.
     #[test]
     fn test_fall_back_on_forwarded_for_header() {
         let other_ip = "111.222.3.44";

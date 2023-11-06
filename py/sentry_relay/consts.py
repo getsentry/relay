@@ -24,6 +24,7 @@ class DataCategory(IntEnum):
     PROFILE_INDEXED = 11
     SPAN = 12
     MONITOR_SEAT = 13
+    USER_REPORT_V2 = 14
     UNKNOWN = -1
     # end generated
 

@@ -22,3 +22,6 @@ package-lock.json
 # Jsonnet-bundler
 gocd/templates/vendor/
 gocd/generated-pipelines/
+
+# Relay credentials file
+credentials.json

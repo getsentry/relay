@@ -17,22 +17,26 @@ use relay_event_schema::processor::{
 use relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass,
     Event, EventId, EventType, Exception, Frame, Headers, IpAddr, Level, LogEntry, Measurement,
-    Measurements, ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags,
+    Measurements, NelContext, ReplayContext, Request, SpanAttribute, SpanStatus, Stacktrace, Tags,
     TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, Meta, Object, Remark, RemarkType, RuleCondition,
+    Value,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::span::tag_extraction::{self, extract_span_tags};
+use crate::timestamp::TimestampProcessor;
+use crate::utils::MAX_DURATION_MOBILE_MS;
 use crate::{
     schema, transactions, trimming, BreakdownsConfig, ClockDriftProcessor, GeoIpLookup,
     RawUserAgentInfo, SpanDescriptionRule, StoreConfig, TransactionNameConfig,
 };
 
 pub mod breakdowns;
+pub mod nel;
 pub mod span;
 pub mod user_agent;
 pub mod utils;
@@ -245,6 +249,9 @@ impl<'a> NormalizeProcessor<'a> {
         if event.ty.value() == Some(&EventType::Transaction) {
             return EventType::Transaction;
         }
+        if event.ty.value() == Some(&EventType::UserReportV2) {
+            return EventType::UserReportV2;
+        }
 
         // The SDKs do not describe event types, and we must infer them from available attributes.
         let has_exceptions = event
@@ -264,6 +271,8 @@ impl<'a> NormalizeProcessor<'a> {
             EventType::ExpectCt
         } else if event.expectstaple.value().is_some() {
             EventType::ExpectStaple
+        } else if event.context::<NelContext>().is_some() {
+            EventType::Nel
         } else {
             EventType::Default
         }
@@ -412,7 +421,7 @@ fn get_metric_measurement_unit(measurement_name: &str) -> Option<MetricUnit> {
         "frames_frozen" => Some(MetricUnit::None),
         "frames_frozen_rate" => Some(MetricUnit::Fraction(FractionUnit::Ratio)),
         "time_to_initial_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
-        "time_to_first_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
+        "time_to_full_display" => Some(MetricUnit::Duration(DurationUnit::MilliSecond)),
 
         // React-Native
         "stall_count" => Some(MetricUnit::None),
@@ -436,6 +445,29 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
     if let Some(app_start_warm_value) = measurements.remove("app.start.warm") {
         measurements.insert("app_start_warm".to_string(), app_start_warm_value);
     }
+}
+
+/// New SDKs do not send measurements when they exceed 180 seconds.
+///
+/// Drop those outlier measurements for older SDKs.
+fn filter_mobile_outliers(measurements: &mut Measurements) {
+    for key in [
+        "app_start_cold",
+        "app_start_warm",
+        "time_to_initial_display",
+        "time_to_full_display",
+    ] {
+        if let Some(value) = measurements.get_value(key) {
+            if value > MAX_DURATION_MOBILE_MS {
+                measurements.remove(key);
+            }
+        }
+    }
+}
+
+fn normalize_mobile_measurements(measurements: &mut Measurements) {
+    normalize_app_start_measurements(measurements);
+    filter_mobile_outliers(measurements);
 }
 
 fn normalize_units(measurements: &mut Measurements) {
@@ -463,7 +495,7 @@ fn normalize_measurements(
         // Only transaction events may have a measurements interface
         event.measurements = Annotated::empty();
     } else if let Annotated(Some(ref mut measurements), ref mut meta) = event.measurements {
-        normalize_app_start_measurements(measurements);
+        normalize_mobile_measurements(measurements);
         normalize_units(measurements);
         if let Some(measurements_config) = measurements_config {
             remove_invalid_measurements(measurements, meta, measurements_config, max_mri_len);
@@ -475,6 +507,76 @@ fn normalize_measurements(
         };
 
         compute_measurements(duration_millis, measurements);
+    }
+}
+
+/// Computes performance score measurements.
+///
+/// This computes score from vital measurements, using config options to define how it is
+/// calculated.
+fn normalize_performance_score(
+    event: &mut Event,
+    performance_score: Option<&PerformanceScoreConfig>,
+) {
+    let Some(performance_score) = performance_score else {
+        return;
+    };
+    for profile in &performance_score.profiles {
+        if let Some(condition) = &profile.condition {
+            if !condition.matches(event) {
+                continue;
+            }
+            if let Some(measurements) = event.measurements.value_mut() {
+                let mut should_add_total = false;
+                if !profile
+                    .score_components
+                    .iter()
+                    .all(|c| measurements.contains_key(c.measurement.as_str()))
+                {
+                    // Check all measurements exist, otherwise don't add any score components.
+                    break;
+                }
+                let mut score_total = 0.0;
+                for component in &profile.score_components {
+                    if let Some(value) = measurements.get_value(component.measurement.as_str()) {
+                        let subscore =
+                            utils::calculate_cdf_score(value, component.p10, component.p50)
+                                * component.weight;
+                        score_total += subscore;
+                        should_add_total = true;
+
+                        measurements.insert(
+                            format!("score.{}", component.measurement),
+                            Measurement {
+                                value: subscore.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                        measurements.insert(
+                            format!("score.weight.{}", component.measurement),
+                            Measurement {
+                                value: component.weight.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+                    }
+                }
+
+                if should_add_total {
+                    measurements.insert(
+                        "score.total".to_owned(),
+                        Measurement {
+                            value: score_total.into(),
+                            unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                        }
+                        .into(),
+                    );
+                }
+                break; // Measurements have successfully been added, skip any other profiles.
+            }
+        }
     }
 }
 
@@ -673,6 +775,18 @@ fn is_security_report(event: &Event) -> bool {
         || event.expectct.value().is_some()
         || event.expectstaple.value().is_some()
         || event.hpkp.value().is_some()
+}
+
+/// Backfills the client IP address on for the NEL reports.
+fn normalize_nel_report(event: &mut Event, client_ip: Option<&IpAddr>) {
+    if event.context::<NelContext>().is_none() {
+        return;
+    }
+
+    if let Some(client_ip) = client_ip {
+        let user = event.user.value_mut().get_or_insert_with(User::default);
+        user.ip_address = Annotated::new(client_ip.to_owned());
+    }
 }
 
 /// Backfills common security report attributes.
@@ -900,6 +1014,9 @@ pub struct LightNormalizationConfig<'a> {
     /// This is similar to `transaction_name_config`, but applies to span descriptions.
     pub span_description_rules: Option<&'a Vec<SpanDescriptionRule>>,
 
+    /// Configuration for generating performance score measurements for web vitals
+    pub performance_score: Option<&'a PerformanceScoreConfig>,
+
     /// An initialized GeoIP lookup.
     pub geoip_lookup: Option<&'a GeoIpLookup>,
 
@@ -928,6 +1045,7 @@ impl Default for LightNormalizationConfig<'_> {
             light_normalize_spans: Default::default(),
             max_tag_value_length: usize::MAX,
             span_description_rules: Default::default(),
+            performance_score: Default::default(),
             geoip_lookup: Default::default(),
             enable_trimming: false,
             measurements: None,
@@ -989,6 +1107,50 @@ impl<'a> DynamicMeasurementsConfig<'a> {
     }
 }
 
+/// Defines a weighted component for a performance score.
+///
+/// Weight is the % of score it can take up (eg. LCP is a max of 35% weight for desktops)
+/// Currently also contains (p10, p50) which are used for log CDF normalization of the weight score
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct PerformanceScoreWeightedComponent {
+    /// Measurement (eg. measurements.lcp) to be matched against. If this measurement is missing the entire
+    /// profile will be discarded.
+    pub measurement: String,
+    /// Weight [0,1.0] of this component in the performance score
+    pub weight: f64,
+    /// p10 used to define the log-normal for calculation
+    pub p10: f64,
+    /// Median used to define the log-normal for calculation
+    pub p50: f64,
+}
+
+/// Defines a profile for performance score.
+///
+/// A profile contains weights for a score of 100% and match against an event using a condition.
+/// eg. Desktop vs. Mobile(web) profiles for better web vital score calculation.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceScoreProfile {
+    /// Name of the profile, used for debugging and faceting multiple profiles
+    pub name: Option<String>,
+    /// Score components
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub score_components: Vec<PerformanceScoreWeightedComponent>,
+    /// See [`RuleCondition`] for all available options to specify and combine conditions.
+    pub condition: Option<RuleCondition>,
+}
+
+/// Defines the performance configuration for the project.
+///
+/// Includes profiles matching different behaviour (desktop / mobile) and weights matching those
+/// specific conditions.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct PerformanceScoreConfig {
+    /// List of performance profiles, only the first with matching conditions will be applied.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<PerformanceScoreProfile>,
+}
+
 /// Normalizes data in the event payload.
 ///
 /// This function applies a series of transformations on the event payload based
@@ -1013,8 +1175,6 @@ pub fn light_normalize_event(
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
             config.transaction_name_config,
-            config.enrich_spans,
-            config.span_description_rules,
             config.transaction_range,
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
@@ -1022,8 +1182,13 @@ pub fn light_normalize_event(
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
 
+        TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
+
         // Process security reports first to ensure all props.
         normalize_security_report(event, config.client_ip, &config.user_agent);
+
+        // Process NEL reports to ensure all props.
+        normalize_nel_report(event, config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
@@ -1077,6 +1242,7 @@ pub fn light_normalize_event(
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
         normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(event, config.measurements, config.max_name_and_unit_len); // Measurements are part of the metric extraction
+        normalize_performance_score(event, config.performance_score);
         normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
@@ -2853,6 +3019,217 @@ mod tests {
     }
 
     #[test]
+    fn test_computed_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+
+                "fid": {"value": 213, "unit": "millisecond"},
+                "fcp": {"value": 1237, "unit": "millisecond"},
+                "lcp": {"value": 6596, "unit": "millisecond"},
+                "cls": {"value": 0.11}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "fcp",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "lcp",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                        {
+                            "measurement": "fid",
+                            "weight": 0.30,
+                            "p10": 100,
+                            "p50": 300
+                        },
+                        {
+                            "measurement": "cls",
+                            "weight": 0.25,
+                            "p10": 0.1,
+                            "p50": 0.25
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "cls": {
+              "value": 0.11,
+            },
+            "fcp": {
+              "value": 1237.0,
+              "unit": "millisecond",
+            },
+            "fid": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+            "lcp": {
+              "value": 6596.0,
+              "unit": "millisecond",
+            },
+            "score.cls": {
+              "value": 0.21864170607444863,
+              "unit": "ratio",
+            },
+            "score.fcp": {
+              "value": 0.10750855443790831,
+              "unit": "ratio",
+            },
+            "score.fid": {
+              "value": 0.19657361348282545,
+              "unit": "ratio",
+            },
+            "score.lcp": {
+              "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.total": {
+              "value": 0.531962770566569,
+              "unit": "ratio",
+            },
+            "score.weight.cls": {
+              "value": 0.25,
+              "unit": "ratio",
+            },
+            "score.weight.fcp": {
+              "value": 0.15,
+              "unit": "ratio",
+            },
+            "score.weight.fid": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+            "score.weight.lcp": {
+              "value": 0.3,
+              "unit": "ratio",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computed_performance_score_missing_measurement() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "a": {"value": 213, "unit": "millisecond"}
+            },
+            "contexts": {
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
+                }
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+                {
+                    "name": "Desktop",
+                    "scoreComponents": [
+                        {
+                            "measurement": "a",
+                            "weight": 0.15,
+                            "p10": 900,
+                            "p50": 1600
+                        },
+                        {
+                            "measurement": "b",
+                            "weight": 0.30,
+                            "p10": 1200,
+                            "p50": 2400
+                        },
+                    ],
+                    "condition": {
+                        "op":"eq",
+                        "name": "event.contexts.browser.name",
+                        "value": "Chrome"
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        normalize_performance_score(&mut event, Some(&performance_score));
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r###"
+        {
+          "type": "transaction",
+          "timestamp": 1619420405.0,
+          "start_timestamp": 1619420400.0,
+          "contexts": {
+            "browser": {
+              "name": "Chrome",
+              "version": "120.1.1",
+              "type": "browser",
+            },
+          },
+          "measurements": {
+            "a": {
+              "value": 213.0,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_filter_custom_measurements() {
         let json = r#"
         {
@@ -3623,6 +4000,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -3663,6 +4041,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
@@ -3703,9 +4082,38 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_filter_mobile_outliers() {
+        let mut measurements =
+            Annotated::<Measurements>::from_json(r#"{"app_start_warm": {"value": 180001}}"#)
+                .unwrap()
+                .into_value()
+                .unwrap();
+        assert_eq!(measurements.len(), 1);
+        filter_mobile_outliers(&mut measurements);
+        assert_eq!(measurements.len(), 0);
+    }
+
+    #[test]
+    fn test_reject_stale_transaction() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "start_timestamp": -2,
+  "timestamp": -1
+}"#;
+        let mut transaction = Annotated::<Event>::from_json(json).unwrap();
+        assert_eq!(
+            light_normalize_event(&mut transaction, LightNormalizationConfig::default())
+                .unwrap_err()
+                .to_string(),
+            "invalid transaction event: timestamp is too stale"
+        );
     }
 }

@@ -487,6 +487,27 @@ impl Aggregator {
         self.cost_tracker.totals_cost_exceeded(max_total_cost)
     }
 
+    /// Converts this aggregator into a vector of [`Bucket`].
+    pub fn into_buckets(self) -> Vec<Bucket> {
+        relay_statsd::metric!(
+            gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
+            aggregator = &self.name,
+        );
+
+        let bucket_interval = self.config.bucket_interval;
+
+        self.buckets
+            .into_iter()
+            .map(|(key, entry)| Bucket {
+                timestamp: key.timestamp,
+                width: bucket_interval,
+                name: key.metric_name,
+                value: entry.value,
+                tags: key.tags,
+            })
+            .collect()
+    }
+
     /// Pop and return the buckets that are eligible for flushing out according to bucket interval.
     ///
     /// Note that this function is primarily intended for tests.
@@ -512,7 +533,6 @@ impl Aggregator {
             {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
-                // binary heap ?
                 self.buckets.retain(|key, entry| {
                     if force || entry.elapsed() {
                         // Take the value and leave a placeholder behind. It'll be removed right after.
@@ -858,7 +878,7 @@ impl Aggregator {
     }
 
     /// Like [`Self::new`], but with a provided name.
-    pub(crate) fn named(name: String, config: AggregatorConfig) -> Self {
+    pub fn named(name: String, config: AggregatorConfig) -> Self {
         Self {
             name,
             config,

@@ -24,16 +24,16 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
-    TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
+    MeasurementsConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, OtelContext, RelayInfo, Replay, SecurityReportType,
-    SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext,
-    UserReport, Values,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
+    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
@@ -41,7 +41,6 @@ use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
-use relay_redis::RedisPool;
 use relay_replays::recording::RecordingScrubber;
 use relay_sampling::config::{RuleType, SamplingMode};
 use relay_sampling::evaluation::{
@@ -55,12 +54,13 @@ use tokio::sync::Semaphore;
 
 #[cfg(feature = "processing")]
 use {
-    crate::actors::envelopes::SendMetrics,
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
     relay_event_schema::protocol::{ProfileContext, Span},
+    relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
+    relay_redis::RedisPool,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -120,6 +120,9 @@ pub enum ProcessingError {
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
 
+    #[error("invalid nel report")]
+    InvalidNelReport(#[source] NetworkReportError),
+
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
@@ -151,6 +154,7 @@ impl ProcessingError {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
@@ -480,9 +484,8 @@ impl EncodeEnvelope {
 /// Applies rate limits to metrics buckets and forwards them to the envelope manager.
 #[cfg(feature = "processing")]
 #[derive(Debug)]
-pub struct RateLimitFlushBuckets {
+pub struct RateLimitBuckets {
     pub bucket_limiter: MetricsLimiter,
-    pub partition_key: Option<u64>,
 }
 
 /// CPU-intensive processing tasks for envelopes.
@@ -492,7 +495,7 @@ pub enum EnvelopeProcessor {
     ProcessMetrics(Box<ProcessMetrics>),
     EncodeEnvelope(Box<EncodeEnvelope>),
     #[cfg(feature = "processing")]
-    RateLimitFlushBuckets(RateLimitFlushBuckets),
+    RateLimitFlushBuckets(RateLimitBuckets),
 }
 
 impl relay_system::Interface for EnvelopeProcessor {}
@@ -522,10 +525,10 @@ impl FromMessage<EncodeEnvelope> for EnvelopeProcessor {
 }
 
 #[cfg(feature = "processing")]
-impl FromMessage<RateLimitFlushBuckets> for EnvelopeProcessor {
+impl FromMessage<RateLimitBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: RateLimitFlushBuckets, _: ()) -> Self {
+    fn from_message(message: RateLimitBuckets, _: ()) -> Self {
         Self::RateLimitFlushBuckets(message)
     }
 }
@@ -547,6 +550,8 @@ struct InnerProcessor {
     project_cache: Addr<ProjectCache>,
     global_config: Addr<GlobalConfigManager>,
     outcome_aggregator: Addr<TrackOutcome>,
+    #[cfg(feature = "processing")]
+    aggregator: Addr<Aggregator>,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
@@ -555,14 +560,16 @@ struct InnerProcessor {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
-        _redis: Option<RedisPool>,
+        #[cfg(feature = "processing")] redis: Option<RedisPool>,
         envelope_manager: Addr<EnvelopeManager>,
         outcome_aggregator: Addr<TrackOutcome>,
         project_cache: Addr<ProjectCache>,
         global_config: Addr<GlobalConfigManager>,
         upstream_relay: Addr<UpstreamRelay>,
+        #[cfg(feature = "processing")] aggregator: Addr<Aggregator>,
     ) -> Self {
         let geoip_lookup = config.geoip_path().and_then(|p| {
             match GeoIpLookup::open(p).context(ServiceError::GeoIp) {
@@ -576,9 +583,9 @@ impl EnvelopeProcessorService {
 
         let inner = InnerProcessor {
             #[cfg(feature = "processing")]
-            redis_pool: _redis.clone(),
+            redis_pool: redis.clone(),
             #[cfg(feature = "processing")]
-            rate_limiter: _redis
+            rate_limiter: redis
                 .map(|pool| RedisRateLimiter::new(pool).max_limit(config.max_rate_limit())),
             config,
             envelope_manager,
@@ -587,6 +594,8 @@ impl EnvelopeProcessorService {
             outcome_aggregator,
             upstream_relay,
             geoip_lookup,
+            #[cfg(feature = "processing")]
+            aggregator,
         };
 
         Self {
@@ -1092,7 +1101,7 @@ impl EnvelopeProcessorService {
             ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             // First profile found in the envelope, we'll keep it if metadata are valid.
             ItemType::Profile if !found_profile => {
-                match relay_profiling::parse_metadata(&item.payload()) {
+                match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
                     Ok(_) => {
                         found_profile = true;
                         ItemAction::Keep
@@ -1119,9 +1128,10 @@ impl EnvelopeProcessorService {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload()) {
-                Ok(processed) => {
-                    item.set_payload(ContentType::Json, processed);
+            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
+                Ok(result) => {
+                    item.set_routing_hint(result.routing_hint);
+                    item.set_payload(ContentType::Json, result.payload);
                     ItemAction::Keep
                 }
                 Err(error) => {
@@ -1146,7 +1156,11 @@ impl EnvelopeProcessorService {
                 if !profiling_enabled {
                     return ItemAction::DropSilently;
                 }
-                match relay_profiling::expand_profile(&item.payload(), state.event.value()) {
+                // If we don't have an event at this stage, we need to drop the profile.
+                let Some(event) = state.event.value() else {
+                    return ItemAction::DropSilently;
+                };
+                match relay_profiling::expand_profile(&item.payload(), event) {
                     Ok((profile_id, payload)) => {
                         if payload.len() <= self.inner.config.max_profile_size() {
                             found_profile_id = Some(profile_id);
@@ -1160,17 +1174,9 @@ impl EnvelopeProcessorService {
                             )))
                         }
                     }
-                    Err(err) => {
-                        match err {
-                            relay_profiling::ProfileError::InvalidJson(_) => {
-                                relay_log::warn!(error = &err as &dyn Error, "invalid profile");
-                            }
-                            _ => relay_log::debug!(error = &err as &dyn Error, "invalid profile"),
-                        };
-                        ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                            relay_profiling::discard_reason(err),
-                        )))
-                    }
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
                 }
             }
             _ => ItemAction::Keep,
@@ -1493,6 +1499,39 @@ impl EnvelopeProcessorService {
         Ok((Annotated::new(event), len))
     }
 
+    fn event_from_nel_item(
+        &self,
+        item: Item,
+        _meta: &RequestMeta,
+    ) -> Result<ExtractedEvent, ProcessingError> {
+        let len = item.len();
+        let mut event = Event {
+            ty: Annotated::new(EventType::Nel),
+            ..Default::default()
+        };
+        let data: &[u8] = &item.payload();
+
+        // Try to get the raw network report.
+        let report = Annotated::from_json_bytes(data).map_err(NetworkReportError::InvalidJson);
+
+        match report {
+            // If the incoming payload could be converted into the raw network error, try
+            // to use it to normalize the event.
+            Ok(report) => {
+                nel::enrich_event(&mut event, report);
+            }
+            Err(err) => {
+                // logged in extract_event
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("payload", String::from_utf8_lossy(data).into());
+                });
+                return Err(ProcessingError::InvalidNelReport(err));
+            }
+        }
+
+        Ok((Annotated::new(event), len))
+    }
+
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
         let payload = item.payload();
         let mut aggregator = ChunkedFormDataAggregator::new();
@@ -1643,12 +1682,14 @@ impl EnvelopeProcessorService {
             ItemType::Security => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::UserReportV2 => true,
 
             // These should be removed conditionally:
             ItemType::UnrealReport => self.inner.config.processing_enabled(),
 
             // These may be forwarded to upstream / store:
             ItemType::Attachment => false,
+            ItemType::Nel => false,
             ItemType::UserReport => false,
 
             // Aggregate data is never considered as part of deduplication
@@ -1687,6 +1728,9 @@ impl EnvelopeProcessorService {
         let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
         let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+        let nel_item = envelope.take_item_by(|item| item.ty() == &ItemType::Nel);
+        let user_report_v2_item =
+            envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
@@ -1718,6 +1762,14 @@ impl EnvelopeProcessorService {
                 // hint to normalization that we're dealing with a transaction now.
                 self.event_from_json_payload(item, Some(EventType::Transaction))?
             })
+        } else if let Some(item) = user_report_v2_item {
+            relay_log::trace!("processing user_report_v2");
+            let project_state = &state.project_state;
+            let user_report_v2_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
+            if !user_report_v2_ingest {
+                return Err(ProcessingError::NoEventPayload);
+            }
+            self.event_from_json_payload(item, Some(EventType::UserReportV2))?
         } else if let Some(mut item) = raw_security_item {
             relay_log::trace!("processing security report");
             sample_rates = item.take_sample_rates();
@@ -1727,6 +1779,13 @@ impl EnvelopeProcessorService {
                         error = &error as &dyn Error,
                         "failed to extract security report"
                     );
+                    error
+                })?
+        } else if let Some(item) = nel_item {
+            relay_log::trace!("processing nel report");
+            self.event_from_nel_item(item, envelope.meta())
+                .map_err(|error| {
+                    relay_log::error!(error = &error as &dyn Error, "failed to extract NEL report");
                     error
                 })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
@@ -2037,7 +2096,9 @@ impl EnvelopeProcessorService {
 
         metric!(timer(RelayTimers::EventProcessingFiltering), {
             relay_filter::should_filter(event, client_ip, filter_settings).map_err(|err| {
-                state.managed_envelope.reject(Outcome::Filtered(err));
+                state
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
         })
@@ -2272,10 +2333,12 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        (resource_span_extraction_enabled && op.contains("resource."))
+        (resource_span_extraction_enabled
+            && (op.contains("resource.script") || op.contains("resource.css")))
             || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
+            || op.starts_with("file")
             || op.starts_with("db")
                 && !(op.contains("clickhouse")
                     || op.contains("mongodb")
@@ -2354,8 +2417,9 @@ impl EnvelopeProcessorService {
                 // HACK: clone the span to set the segment_id. This should happen
                 // as part of normalization once standalone spans reach wider adoption.
                 let mut new_span = inner_span.clone();
-                new_span.segment_id = transaction_span.segment_id.clone();
                 new_span.is_segment = Annotated::new(false);
+                new_span.received = transaction_span.received.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
 
                 // If a profile is associated with the transaction, also associate it with its
                 // child spans.
@@ -2365,18 +2429,16 @@ impl EnvelopeProcessorService {
             }
         }
 
-        if all_modules_enabled {
-            // Extract tags to add to this span as well
-            let shared_tags = span::tag_extraction::extract_shared_tags(event);
-            transaction_span.sentry_tags = Annotated::new(
-                shared_tags
-                    .clone()
-                    .into_iter()
-                    .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                    .collect(),
-            );
-            add_span(transaction_span.into());
-        }
+        // Extract tags to add to this span as well
+        let shared_tags = span::tag_extraction::extract_shared_tags(event);
+        transaction_span.sentry_tags = Annotated::new(
+            shared_tags
+                .clone()
+                .into_iter()
+                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
+                .collect(),
+        );
+        add_span(transaction_span.into());
     }
 
     /// Helper for [`Self::extract_spans`].
@@ -2675,6 +2737,7 @@ impl EnvelopeProcessorService {
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
                 breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
+                performance_score: state.project_state.config.performance_score.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
                     rules: &state.project_state.config.tx_name_rules,
@@ -2948,12 +3011,11 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets.
     #[cfg(feature = "processing")]
-    fn handle_rate_limit_flush_buckets(&self, message: RateLimitFlushBuckets) {
+    fn handle_rate_limit_flush_buckets(&self, message: RateLimitBuckets) {
         use relay_quotas::ItemScoping;
 
-        let RateLimitFlushBuckets {
-            mut bucket_limiter,
-            partition_key,
+        let RateLimitBuckets {
+            mut bucket_limiter, ..
         } = message;
 
         let scoping = *bucket_limiter.scoping();
@@ -2989,14 +3051,13 @@ impl EnvelopeProcessorService {
             }
         }
 
+        let project_key = bucket_limiter.scoping().project_key;
         let buckets = bucket_limiter.into_metrics();
+
         if !buckets.is_empty() {
-            // Forward buckets to envelope manager to send them to upstream or kafka:
-            self.inner.envelope_manager.send(SendMetrics {
-                buckets,
-                scoping,
-                partition_key,
-            });
+            self.inner
+                .aggregator
+                .send(MergeBuckets::new(project_key, buckets));
         }
     }
 
@@ -3540,6 +3601,8 @@ mod tests {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
         let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
+        #[cfg(feature = "processing")]
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
         let inner = InnerProcessor {
             config: Arc::new(config),
             envelope_manager,
@@ -3552,6 +3615,8 @@ mod tests {
             redis_pool: None,
             geoip_lookup: None,
             global_config,
+            #[cfg(feature = "processing")]
+            aggregator,
         };
 
         EnvelopeProcessorService {
@@ -4083,7 +4148,11 @@ mod tests {
             outcome_from_parts(ClientReportField::Filtered, "error-message"),
             Ok(Outcome::Filtered(FilterStatKey::ErrorMessage))
         ));
-        assert!(outcome_from_parts(ClientReportField::Filtered, "adsf").is_err());
+
+        assert!(matches!(
+            outcome_from_parts(ClientReportField::Filtered, "hydration-error"),
+            Ok(Outcome::Filtered(FilterStatKey::GenericFilter(_)))
+        ));
     }
 
     #[test]

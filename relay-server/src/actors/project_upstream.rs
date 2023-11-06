@@ -276,7 +276,7 @@ impl UpstreamProjectSourceService {
 
             let query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
-                full_config: config.processing_enabled(),
+                full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
             };
 
@@ -371,10 +371,22 @@ impl UpstreamProjectSourceService {
                     }
                 }
                 Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn std::error::Error,
-                        "error fetching project states"
-                    );
+                    let attempts = channels_batch
+                        .values()
+                        .map(|b| b.attempts)
+                        .max()
+                        .unwrap_or(0);
+                    // Only log an error if the request failed more than once.
+                    // We are not interested in single failures. Our retry mechanism is able to
+                    // handle those.
+                    if attempts >= 2 {
+                        relay_log::error!(
+                            error = &err as &dyn std::error::Error,
+                            attempts = attempts,
+                            "error fetching project states",
+                        );
+                    }
+
                     metric!(
                         histogram(RelayHistograms::ProjectStatePending) =
                             self.state_channels.len() as u64

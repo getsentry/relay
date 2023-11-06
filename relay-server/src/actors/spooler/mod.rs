@@ -31,7 +31,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -45,6 +45,7 @@ use sqlx::sqlite::{
     SqliteSynchronous,
 };
 use sqlx::{Pool, Row, Sqlite};
+use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
 use crate::actors::outcome::TrackOutcome;
@@ -79,7 +80,10 @@ pub enum BufferError {
     FileSizeReadFailed(sqlx::Error),
 
     #[error("failed to setup the database: {0}")]
-    SetupFailed(sqlx::Error),
+    SqlxSetupFailed(sqlx::Error),
+
+    #[error("failed to create the spool file: {0}")]
+    FileSetupError(std::io::Error),
 
     #[error(transparent)]
     EnvelopeError(#[from] EnvelopeError),
@@ -661,7 +665,12 @@ pub struct BufferService {
 
 impl BufferService {
     /// Set up the database and return the current number of envelopes.
-    async fn setup(path: &PathBuf) -> Result<(), BufferError> {
+    ///
+    /// The directories and spool file will be created if they don't already
+    /// exist.
+    async fn setup(path: &Path) -> Result<(), BufferError> {
+        BufferService::create_spool_directory(path).await?;
+
         let options = SqliteConnectOptions::new()
             .filename(path)
             .journal_mode(SqliteJournalMode::Wal)
@@ -670,9 +679,25 @@ impl BufferService {
         let db = SqlitePoolOptions::new()
             .connect_with(options)
             .await
-            .map_err(BufferError::SetupFailed)?;
+            .map_err(BufferError::SqlxSetupFailed)?;
 
         sqlx::migrate!("../migrations").run(&db).await?;
+        Ok(())
+    }
+
+    /// Creates the directories for the spool file.
+    async fn create_spool_directory(path: &Path) -> Result<(), BufferError> {
+        let Some(parent) = path.parent() else {
+            return Ok(());
+        };
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            relay_log::debug!("creating directory for spooling file: {}", parent.display());
+            DirBuilder::new()
+                .recursive(true)
+                .create(&parent)
+                .await
+                .map_err(BufferError::FileSetupError)?;
+        }
         Ok(())
     }
 
@@ -726,7 +751,7 @@ impl BufferService {
             .min_connections(config.spool_envelopes_min_connections())
             .connect_with(options)
             .await
-            .map_err(BufferError::SetupFailed)?;
+            .map_err(BufferError::SqlxSetupFailed)?;
 
         let mut on_disk = OnDisk {
             dequeue_attempts: 0,
@@ -975,6 +1000,29 @@ mod tests {
             ..
         } = services();
         ManagedEnvelope::untracked(envelope, outcome_aggregator, test_store)
+    }
+
+    #[tokio::test]
+    async fn create_spool_directory_deep_path() {
+        let parent_dir = std::env::temp_dir().join(Uuid::new_v4().to_string());
+        let target_dir = parent_dir
+            .join("subdir1")
+            .join("subdir2")
+            .join("spool-file");
+        let buffer_guard: Arc<_> = BufferGuard::new(1).into();
+        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": target_dir,
+                }
+            }
+        }))
+        .unwrap()
+        .into();
+        BufferService::create(buffer_guard, services(), config)
+            .await
+            .unwrap();
+        assert!(target_dir.exists());
     }
 
     #[tokio::test]

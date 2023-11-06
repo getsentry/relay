@@ -9,12 +9,12 @@ use crate::error::ProfileError;
 use crate::measurements::Measurement;
 use crate::native_debug_image::NativeDebugImage;
 use crate::transaction_metadata::TransactionMetadata;
-use crate::utils::deserialize_number_from_string;
+use crate::utils::{deserialize_number_from_string, string_is_null_or_empty};
 use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct Frame {
     #[serde(skip_serializing_if = "Option::is_none")]
     abs_path: Option<String>,
@@ -32,6 +32,8 @@ struct Frame {
     lineno: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     module: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<String>,
 }
 
 impl Frame {
@@ -156,8 +158,8 @@ pub struct ProfileMetadata {
     platform: String,
     timestamp: DateTime<Utc>,
 
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    release: String,
+    #[serde(default, skip_serializing_if = "string_is_null_or_empty")]
+    release: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     dist: String,
 
@@ -165,9 +167,6 @@ pub struct ProfileMetadata {
     transactions: Vec<TransactionMetadata>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     transaction: Option<TransactionMetadata>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<HashMap<String, Measurement>>,
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_metadata: BTreeMap<String, String>,
@@ -178,6 +177,8 @@ pub struct ProfileMetadata {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SampleProfile {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<HashMap<String, Measurement>>,
     #[serde(flatten)]
     metadata: ProfileMetadata,
     profile: Profile,
@@ -309,8 +310,9 @@ impl SampleProfile {
 }
 
 fn parse_profile(payload: &[u8]) -> Result<SampleProfile, ProfileError> {
+    let d = &mut serde_json::Deserializer::from_slice(payload);
     let mut profile: SampleProfile =
-        serde_json::from_slice(payload).map_err(ProfileError::InvalidJson)?;
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     if !profile.valid() {
         return Err(ProfileError::MissingProfileMetadata);
@@ -378,8 +380,11 @@ pub fn parse_sample_profile(
         }
     }
 
-    if let Some(release) = transaction_metadata.get("release") {
-        profile.metadata.release = release.to_owned();
+    // Do not replace the release if we're passing one already.
+    if profile.metadata.release.is_none() {
+        if let Some(release) = transaction_metadata.get("release") {
+            profile.metadata.release = Some(release.to_owned());
+        }
     }
 
     if let Some(dist) = transaction_metadata.get("dist") {
@@ -419,6 +424,7 @@ mod tests {
 
     fn generate_profile() -> SampleProfile {
         SampleProfile {
+            measurements: None,
             metadata: ProfileMetadata {
                 debug_meta: Option::None,
                 version: Version::V1,
@@ -441,9 +447,8 @@ mod tests {
                 event_id: EventId::new(),
                 transaction: Option::None,
                 transactions: Vec::new(),
-                release: "1.0".to_string(),
+                release: Some("1.0".to_string()),
                 dist: "9999".to_string(),
-                measurements: None,
                 transaction_metadata: BTreeMap::new(),
                 transaction_tags: BTreeMap::new(),
             },
@@ -535,14 +540,7 @@ mod tests {
         let mut profile = generate_profile();
 
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
@@ -593,14 +591,7 @@ mod tests {
         let mut profile = generate_profile();
 
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.metadata.transaction = Some(TransactionMetadata {
             active_thread_id: 1,
@@ -662,14 +653,7 @@ mod tests {
 
         profile.metadata.transactions.push(transaction.clone());
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.profile.stacks.push(vec![0]);
         profile.profile.samples.extend(vec![
@@ -729,14 +713,7 @@ mod tests {
 
         profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.profile.stacks = vec![vec![0], vec![]];
         profile.profile.samples = vec![
@@ -849,14 +826,7 @@ mod tests {
 
         profile.metadata.transaction = Some(transaction);
         profile.profile.frames.push(Frame {
-            abs_path: Some("".to_string()),
-            colno: Some(0),
-            filename: Some("".to_string()),
-            function: Some("".to_string()),
-            in_app: Some(false),
-            instruction_addr: Some(Addr(0)),
-            lineno: Some(0),
-            module: Some("".to_string()),
+            ..Default::default()
         });
         profile.profile.stacks = vec![vec![0]];
 
@@ -933,22 +903,20 @@ mod tests {
 
     #[test]
     fn test_extract_transaction_tags() {
-        let transaction_metadata = BTreeMap::from([
-            ("release".to_string(), "some-random-release".to_string()),
-            (
-                "transaction".to_string(),
-                "some-random-transaction".to_string(),
-            ),
-        ]);
+        let transaction_metadata = BTreeMap::from([(
+            "transaction".to_string(),
+            "some-random-transaction".to_string(),
+        )]);
 
         let payload = include_bytes!("../tests/fixtures/profiles/sample/roundtrip.json");
         let profile_json = parse_sample_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
-        let output: SampleProfile = serde_json::from_slice(&profile_json.unwrap()[..])
+        let payload = profile_json.unwrap();
+        let d = &mut serde_json::Deserializer::from_slice(&payload[..]);
+        let output: SampleProfile = serde_path_to_error::deserialize(d)
             .map_err(ProfileError::InvalidJson)
             .unwrap();
-        assert_eq!(output.metadata.release, "some-random-release".to_string());
         assert_eq!(
             output.metadata.transaction.unwrap().name,
             "some-random-transaction".to_string()
@@ -997,5 +965,59 @@ mod tests {
         ]);
 
         assert!(profile.is_above_max_duration());
+    }
+
+    #[test]
+    fn test_accept_null_or_empty_release() {
+        let payload = r#"{
+            "version":"1",
+            "device":{
+                "architecture":"arm64e",
+                "is_emulator":true,
+                "locale":"en_US",
+                "manufacturer":"Apple",
+                "model":"iPhome11,3"
+            },
+            "os":{
+                "name":"iOS",
+                "version":"16.0",
+                "build_number":"H3110"
+            },
+            "environment":"testing",
+            "event_id":"961d6b96017644db895eafd391682003",
+            "platform":"cocoa",
+            "release":null,
+            "timestamp":"2023-11-01T15:27:15.081230Z",
+            "transaction":{
+                "active_thread_id": 1,
+                "id":"9789498b-6970-4dda-b2a1-f9cb91d1a445",
+                "name":"blah",
+                "trace_id":"809ff2c0-e185-4c21-8f21-6a6fef009352"
+            },
+            "dist":"9999",
+            "profile":{
+                "samples":[
+                    {
+                        "stack_id":0,
+                        "elapsed_since_start_ns":1,
+                        "thread_id":1
+                    },
+                    {
+                        "stack_id":0,
+                        "elapsed_since_start_ns":2,
+                        "thread_id":1
+                    }
+                ],
+                "stacks":[[0]],
+                "frames":[{
+                    "function":"main"
+                }],
+                "thread_metadata":{},
+                "queue_metadata":{}
+            }
+        }"#;
+        let profile = parse_profile(payload.as_bytes());
+        assert!(profile.is_ok());
+        assert_eq!(profile.unwrap().metadata.release, None);
     }
 }
