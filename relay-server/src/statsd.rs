@@ -427,6 +427,10 @@ pub enum RelayCounters {
     ///
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
+    ///
+    /// This metric is tagged with:
+    ///  - `full`: Either `true` if the full project state is requested or `false` - when the
+    ///  limited project state is requested.
     ProjectStateRequest,
     /// Number of times a project config was requested with `.no-cache`.
     ///

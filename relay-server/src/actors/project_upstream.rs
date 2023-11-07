@@ -274,14 +274,18 @@ impl UpstreamProjectSourceService {
                     channels_batch.len() as u64
             );
 
+            let full_config = config.processing_enabled() || config.request_full_project_config();
             let query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
-                full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
+                full_config,
             };
 
             // count number of http requests for project states
-            metric!(counter(RelayCounters::ProjectStateRequest) += 1);
+            metric!(
+                counter(RelayCounters::ProjectStateRequest) += 1,
+                full = &full_config.to_string(),
+            );
 
             let upstream_relay = upstream_relay.clone();
             requests.push(async move {
