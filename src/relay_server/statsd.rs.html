@@ -654,6 +654,17 @@
 <a href="#654" id="654">654</a>
 <a href="#655" id="655">655</a>
 <a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1083,7 +1094,17 @@
     ///
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
+    ///
+    /// This metric is tagged with:
+    ///  - `full`: Either `true` if the full project state is requested or `false` - when the
+    ///  limited project state is requested.
     </span>ProjectStateRequest,
+    <span class="doccomment">/// Number of project state HTTP responses to the incoming requests.
+    ///
+    /// This metric tagged with:
+    ///  - `full`: Either `true` if the full project state is requested or `false` - when the
+    ///  limited project state is requested.
+    </span>ProjectStateResponse,
     <span class="doccomment">/// Number of times a project config was requested with `.no-cache`.
     ///
     /// This effectively counts the number of envelopes or events that have been sent with a
@@ -1222,6 +1243,7 @@
             RelayCounters::Outcomes =&gt; <span class="string">&quot;events.outcomes&quot;</span>,
             RelayCounters::ProjectStateGet =&gt; <span class="string">&quot;project_state.get&quot;</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">&quot;project_state.request&quot;</span>,
+            RelayCounters::ProjectStateResponse =&gt; <span class="string">&quot;project_state.response&quot;</span>,
             RelayCounters::ProjectStateNoCache =&gt; <span class="string">&quot;project_state.no_cache&quot;</span>,
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">&quot;project_state.redis.requests&quot;</span>,
