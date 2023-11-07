@@ -153,6 +153,7 @@
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">&quot;jsonschema&quot;</span>)]
 </span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
@@ -278,7 +279,8 @@
 }&quot;#</span>;
 
         <span class="kw">let </span>cookies =
-            Cookies::parse(<span class="string">&quot;PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;&quot;</span>).unwrap();
+            Cookies::parse(<span class="string">&quot;PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;;&quot;</span>)
+                .unwrap();
         <span class="kw">let </span>headers = <span class="macro">vec!</span>[Annotated::new((
             Annotated::new(<span class="string">&quot;content-type&quot;</span>.to_string().into()),
             Annotated::new(<span class="string">&quot;text/html&quot;</span>.to_string().into()),

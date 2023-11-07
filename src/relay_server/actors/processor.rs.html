@@ -4434,6 +4434,7 @@
 <a href="#4434" id="4434">4434</a>
 <a href="#4435" id="4435">4435</a>
 <a href="#4436" id="4436">4436</a>
+<a href="#4437" id="4437">4437</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4472,6 +4473,7 @@
     Timestamp, TraceContext, UserReport, Values,
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
+<span class="kw">use </span>relay_metrics::aggregator::AggregatorConfig;
 <span class="kw">use </span>relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 <span class="kw">use </span>relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 <span class="kw">use </span>relay_profiling::ProfileError;
@@ -7114,10 +7116,11 @@
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
-                transaction_range: <span class="prelude-val">Some</span>(transaction_aggregator_config.aggregator.timestamp_range()),
+                transaction_range: <span class="prelude-val">Some</span>(
+                    AggregatorConfig::from(transaction_aggregator_config).timestamp_range(),
+                ),
                 max_name_and_unit_len: <span class="prelude-val">Some</span>(
                     transaction_aggregator_config
-                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -7137,7 +7140,6 @@
                     </span>.inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
-                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
                 light_normalize_spans,

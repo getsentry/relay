@@ -4178,10 +4178,10 @@
             <span class="kw-2">mut </span>max_tag_value_length,
             <span class="kw-2">mut </span>max_project_key_bucket_bytes,
             ..
-        } = <span class="kw-2">&amp;</span><span class="self">self</span>.default_aggregator_config().aggregator;
+        } = AggregatorConfig::from(<span class="self">self</span>.default_aggregator_config());
 
         <span class="kw">for </span>secondary_config <span class="kw">in </span><span class="self">self</span>.secondary_aggregator_configs() {
-            <span class="kw">let </span>agg = <span class="kw-2">&amp;</span>secondary_config.config.aggregator;
+            <span class="kw">let </span>agg = <span class="kw-2">&amp;</span>secondary_config.config;
 
             bucket_interval = bucket_interval.min(agg.bucket_interval);
             max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
@@ -4199,7 +4199,7 @@
             .map(|sc| <span class="kw-2">&amp;</span>sc.config)
             .chain(std::iter::once(<span class="self">self</span>.default_aggregator_config()))
         {
-            <span class="kw">if </span>agg.aggregator.bucket_interval % bucket_interval != <span class="number">0 </span>{
+            <span class="kw">if </span>agg.bucket_interval % bucket_interval != <span class="number">0 </span>{
                 <span class="macro">relay_log::error!</span>(<span class="string">&quot;buckets don&#39;t align&quot;</span>);
             }
         }

@@ -1469,7 +1469,11 @@
 <a href="#1469" id="1469">1469</a>
 <a href="#1470" id="1470">1470</a>
 <a href="#1471" id="1471">1471</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+</pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
+
+</span><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::hash::Hasher;
@@ -1570,7 +1574,7 @@
 }
 
 <span class="doccomment">/// Configuration value for [`AggregatorConfig::shift_key`].
-</span><span class="attr">#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">&quot;lowercase&quot;</span>)]
 </span><span class="kw">pub enum </span>ShiftKey {
     <span class="doccomment">/// Shifts the flush time by an offset based on the [`ProjectKey`].
