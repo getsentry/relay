@@ -26,6 +26,7 @@
 - Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
 - Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
+- Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
 
 ## 23.10.1
 
