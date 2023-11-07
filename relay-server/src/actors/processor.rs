@@ -24,21 +24,21 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{
-    ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig, MeasurementsConfig,
-    TransactionNameConfig,
+    nel, ClockDriftProcessor, DynamicMeasurementsConfig, LightNormalizationConfig,
+    MeasurementsConfig, TransactionNameConfig,
 };
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, OtelContext, RelayInfo, Replay, SecurityReportType,
-    SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate, Timestamp, TraceContext,
-    UserReport, Values,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
+    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
-use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
+use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
@@ -121,6 +121,9 @@ pub enum ProcessingError {
     #[error("invalid security report")]
     InvalidSecurityReport(#[source] serde_json::Error),
 
+    #[error("invalid nel report")]
+    InvalidNelReport(#[source] NetworkReportError),
+
     #[error("event filtered with reason: {0:?}")]
     EventFiltered(FilterStatKey),
 
@@ -152,6 +155,7 @@ impl ProcessingError {
                 Some(Outcome::Invalid(DiscardReason::SecurityReportType))
             }
             Self::InvalidSecurityReport(_) => Some(Outcome::Invalid(DiscardReason::SecurityReport)),
+            Self::InvalidNelReport(_) => Some(Outcome::Invalid(DiscardReason::InvalidJson)),
             Self::InvalidTransaction => Some(Outcome::Invalid(DiscardReason::InvalidTransaction)),
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
@@ -1496,6 +1500,39 @@ impl EnvelopeProcessorService {
         Ok((Annotated::new(event), len))
     }
 
+    fn event_from_nel_item(
+        &self,
+        item: Item,
+        _meta: &RequestMeta,
+    ) -> Result<ExtractedEvent, ProcessingError> {
+        let len = item.len();
+        let mut event = Event {
+            ty: Annotated::new(EventType::Nel),
+            ..Default::default()
+        };
+        let data: &[u8] = &item.payload();
+
+        // Try to get the raw network report.
+        let report = Annotated::from_json_bytes(data).map_err(NetworkReportError::InvalidJson);
+
+        match report {
+            // If the incoming payload could be converted into the raw network error, try
+            // to use it to normalize the event.
+            Ok(report) => {
+                nel::enrich_event(&mut event, report);
+            }
+            Err(err) => {
+                // logged in extract_event
+                relay_log::configure_scope(|scope| {
+                    scope.set_extra("payload", String::from_utf8_lossy(data).into());
+                });
+                return Err(ProcessingError::InvalidNelReport(err));
+            }
+        }
+
+        Ok((Annotated::new(event), len))
+    }
+
     fn merge_formdata(&self, target: &mut SerdeValue, item: Item) {
         let payload = item.payload();
         let mut aggregator = ChunkedFormDataAggregator::new();
@@ -1653,6 +1690,7 @@ impl EnvelopeProcessorService {
 
             // These may be forwarded to upstream / store:
             ItemType::Attachment => false,
+            ItemType::Nel => false,
             ItemType::UserReport => false,
 
             // Aggregate data is never considered as part of deduplication
@@ -1690,9 +1728,9 @@ impl EnvelopeProcessorService {
         let transaction_item = envelope.take_item_by(|item| item.ty() == &ItemType::Transaction);
         let security_item = envelope.take_item_by(|item| item.ty() == &ItemType::Security);
         let raw_security_item = envelope.take_item_by(|item| item.ty() == &ItemType::RawSecurity);
+        let nel_item = envelope.take_item_by(|item| item.ty() == &ItemType::Nel);
         let user_report_v2_item =
             envelope.take_item_by(|item| item.ty() == &ItemType::UserReportV2);
-
         let form_item = envelope.take_item_by(|item| item.ty() == &ItemType::FormData);
         let attachment_item = envelope
             .take_item_by(|item| item.attachment_type() == Some(&AttachmentType::EventPayload));
@@ -1741,6 +1779,13 @@ impl EnvelopeProcessorService {
                         error = &error as &dyn Error,
                         "failed to extract security report"
                     );
+                    error
+                })?
+        } else if let Some(item) = nel_item {
+            relay_log::trace!("processing nel report");
+            self.event_from_nel_item(item, envelope.meta())
+                .map_err(|error| {
+                    relay_log::error!(error = &error as &dyn Error, "failed to extract NEL report");
                     error
                 })?
         } else if attachment_item.is_some() || breadcrumbs1.is_some() || breadcrumbs2.is_some() {
@@ -2177,6 +2222,12 @@ impl EnvelopeProcessorService {
         let event = &mut state.event;
         let config = &state.project_state.config;
 
+        if config.datascrubbing_settings.scrub_data {
+            if let Some(event) = event.value_mut() {
+                scrub_graphql(event);
+            }
+        }
+
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
                 let mut processor = PiiProcessor::new(config.compiled());
@@ -2372,8 +2423,9 @@ impl EnvelopeProcessorService {
                 // HACK: clone the span to set the segment_id. This should happen
                 // as part of normalization once standalone spans reach wider adoption.
                 let mut new_span = inner_span.clone();
-                new_span.segment_id = transaction_span.segment_id.clone();
                 new_span.is_segment = Annotated::new(false);
+                new_span.received = transaction_span.received.clone();
+                new_span.segment_id = transaction_span.segment_id.clone();
 
                 // If a profile is associated with the transaction, also associate it with its
                 // child spans.

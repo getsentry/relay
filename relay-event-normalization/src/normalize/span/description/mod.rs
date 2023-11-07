@@ -50,8 +50,8 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                     || is_sql_mongodb(description, db_system)
                 {
                     None
-                // `db.sql.transaction` coming from CoreData need to be scrubbed differently.
-                } else if sub == "sql.transaction" && span_origin == Some("auto.db.core_data") {
+                // spans coming from CoreData need to be scrubbed differently.
+                } else if span_origin == Some("auto.db.core_data") {
                     scrub_core_data(description)
                 } else {
                     sql::scrub_queries(db_system, description)

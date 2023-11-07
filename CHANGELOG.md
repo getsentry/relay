@@ -11,6 +11,10 @@
 - Filter outliers (>180s) for mobile measurements. ([#2649](https://github.com/getsentry/relay/pull/2649))
 - Allow access to more context fields in dynamic sampling and metric extraction. ([#2607](https://github.com/getsentry/relay/pull/2607), [#2640](https://github.com/getsentry/relay/pull/2640), [#2675](https://github.com/getsentry/relay/pull/2675))
 - Allow advanced scrubbing expressions for datascrubbing safe fields. ([#2670](https://github.com/getsentry/relay/pull/2670))
+- Disable graphql scrubbing when datascrubbing is disabled. ([#2689](https://github.com/getsentry/relay/pull/2689))
+- Track when a span was received. ([#2688](https://github.com/getsentry/relay/pull/2688))
+- Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
+- Add `validate_pii_selector` to CABI for safe fields validation. ([#2687](https://github.com/getsentry/relay/pull/2687))
 
 **Bug Fixes**:
 
@@ -21,6 +25,7 @@
 - Disable resource link span ingestion. ([#2647](https://github.com/getsentry/relay/pull/2647))
 - Collect `http.decoded_response_content_length`. ([#2638](https://github.com/getsentry/relay/pull/2638))
 - Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
+- Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
 
 ## 23.10.1
 

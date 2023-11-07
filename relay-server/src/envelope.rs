@@ -46,7 +46,7 @@ use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -88,6 +88,8 @@ pub enum ItemType {
     FormData,
     /// Security report as sent by the browser in JSON.
     RawSecurity,
+    /// NEL report as sent by the browser.
+    Nel,
     /// Raw compressed UE4 crash report.
     UnrealReport,
     /// User feedback encoded as JSON.
@@ -127,7 +129,7 @@ impl ItemType {
     /// Returns the event item type corresponding to the given `EventType`.
     pub fn from_event_type(event_type: EventType) -> Self {
         match event_type {
-            EventType::Default | EventType::Error => ItemType::Event,
+            EventType::Default | EventType::Error | EventType::Nel => ItemType::Event,
             EventType::Transaction => ItemType::Transaction,
             EventType::UserReportV2 => ItemType::UserReportV2,
             EventType::Csp | EventType::Hpkp | EventType::ExpectCt | EventType::ExpectStaple => {
@@ -146,6 +148,7 @@ impl fmt::Display for ItemType {
             Self::Attachment => write!(f, "attachment"),
             Self::FormData => write!(f, "form_data"),
             Self::RawSecurity => write!(f, "raw_security"),
+            Self::Nel => write!(f, "nel"),
             Self::UnrealReport => write!(f, "unreal_report"),
             Self::UserReport => write!(f, "user_report"),
             Self::UserReportV2 => write!(f, "feedback"),
@@ -175,6 +178,7 @@ impl std::str::FromStr for ItemType {
             "attachment" => Self::Attachment,
             "form_data" => Self::FormData,
             "raw_security" => Self::RawSecurity,
+            "nel" => Self::Nel,
             "unreal_report" => Self::UnrealReport,
             "user_report" => Self::UserReport,
             "feedback" => Self::UserReportV2,
@@ -555,6 +559,7 @@ impl Item {
                 DataCategory::Transaction
             }),
             ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+            ItemType::Nel => None,
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
@@ -706,6 +711,7 @@ impl Item {
             | ItemType::Transaction
             | ItemType::Security
             | ItemType::RawSecurity
+            | ItemType::Nel
             | ItemType::UnrealReport
             | ItemType::UserReportV2 => true,
 
@@ -763,6 +769,7 @@ impl Item {
             ItemType::Attachment => true,
             ItemType::FormData => true,
             ItemType::RawSecurity => true,
+            ItemType::Nel => false,
             ItemType::UnrealReport => true,
             ItemType::UserReport => true,
             ItemType::UserReportV2 => true,
@@ -1078,19 +1085,17 @@ impl Envelope {
         self.items.push(item)
     }
 
-    /// Splits the envelope by the given predicate.
+    /// Splits off the items from the envelope using provided predicates.
     ///
-    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
-    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
-    /// with all items that return `true`. Items that return `false` remain in this envelope.
-    ///
-    /// The returned envelope assumes the same headers.
-    pub fn split_by<F>(&mut self, mut f: F) -> Option<Box<Self>>
+    /// First predicate is the the additional condition on the count of found items by second
+    /// predicate.
+    fn split_off_items<C, F>(&mut self, cond: C, mut f: F) -> Option<SmallVec<[Item; 3]>>
     where
+        C: Fn(usize) -> bool,
         F: FnMut(&Item) -> bool,
     {
         let split_count = self.items().filter(|item| f(item)).count();
-        if split_count == self.len() || split_count == 0 {
+        if cond(split_count) {
             return None;
         }
 
@@ -1098,10 +1103,57 @@ impl Envelope {
         let (split_items, own_items) = old_items.into_iter().partition(f);
         self.items = own_items;
 
+        Some(split_items)
+    }
+
+    /// Splits the envelope by the given predicate.
+    ///
+    /// The predicate passed to `split_by()` can return `true`, or `false`. If it returns `true` or
+    /// `false` for all items, then this returns `None`. Otherwise, a new envelope is constructed
+    /// with all items that return `true`. Items that return `false` remain in this envelope.
+    ///
+    /// The returned envelope assumes the same headers.
+    pub fn split_by<F>(&mut self, f: F) -> Option<Box<Self>>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let items_count = self.len();
+        let split_items = self.split_off_items(|count| count == 0 || count == items_count, f)?;
         Some(Box::new(Envelope {
             headers: self.headers.clone(),
             items: split_items,
         }))
+    }
+
+    /// Splits the envelope by the given predicate.
+    ///
+    /// The main differents from `split_by()` is this function returns the list of the newly
+    /// constracted envelopes with all the items where the predicate returns `true`. Otherwise it
+    /// returns an empty list.
+    ///
+    /// The returned envelopes assume the same headers.
+    pub fn split_all_by<F>(&mut self, f: F) -> SmallVec<[Box<Self>; 3]>
+    where
+        F: FnMut(&Item) -> bool,
+    {
+        let mut envelopes = smallvec![];
+        let Some(split_items) = self.split_off_items(|count| count == 0, f) else {
+            return envelopes;
+        };
+
+        let headers = &mut self.headers;
+
+        for item in split_items {
+            // Each item should get an envelope with the new event id.
+            headers.event_id = Some(EventId::new());
+
+            envelopes.push(Box::new(Envelope {
+                items: smallvec![item],
+                headers: headers.clone(),
+            }))
+        }
+
+        envelopes
     }
 
     /// Retains only the items specified by the predicate.

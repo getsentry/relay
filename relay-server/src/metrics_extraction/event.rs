@@ -78,6 +78,7 @@ mod tests {
             "platform": "javascript",
             "start_timestamp": "2021-04-26T07:59:01+0100",
             "timestamp": "2021-04-26T08:00:00+0100",
+            "received": "2021-04-26T08:00:01+0100",
             "server_name": "myhost",
             "release": "1.2.3",
             "dist": "foo ",

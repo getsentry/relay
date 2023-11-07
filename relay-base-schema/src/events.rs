@@ -39,6 +39,8 @@ pub enum EventType {
     ExpectCt,
     /// An ExpectStaple violation payload.
     ExpectStaple,
+    /// Network Error Logging report.
+    Nel,
     /// Performance monitoring transactions carrying spans.
     Transaction,
     /// User feedback payload.
@@ -74,6 +76,7 @@ impl FromStr for EventType {
             "hpkp" => EventType::Hpkp,
             "expectct" => EventType::ExpectCt,
             "expectstaple" => EventType::ExpectStaple,
+            "nel" => EventType::Nel,
             "transaction" => EventType::Transaction,
             "feedback" => EventType::UserReportV2,
             _ => return Err(ParseEventTypeError),
@@ -90,6 +93,7 @@ impl fmt::Display for EventType {
             EventType::Hpkp => write!(f, "hpkp"),
             EventType::ExpectCt => write!(f, "expectct"),
             EventType::ExpectStaple => write!(f, "expectstaple"),
+            EventType::Nel => write!(f, "nel"),
             EventType::Transaction => write!(f, "transaction"),
             EventType::UserReportV2 => write!(f, "feedback"),
         }
