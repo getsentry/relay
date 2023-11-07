@@ -571,6 +571,7 @@ mod tests {
                 profile_id: ~,
                 data: ~,
                 sentry_tags: ~,
+                received: ~,
                 other: {},
             },
         ]
