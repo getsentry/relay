@@ -18,7 +18,8 @@ use relay_event_normalization::{
 use relay_event_schema::processor::{process_value, split_chunks, ProcessingState};
 use relay_event_schema::protocol::{Event, VALID_PLATFORMS};
 use relay_pii::{
-    selector_suggestions_from_value, DataScrubbingConfig, PiiConfig, PiiConfigError, PiiProcessor,
+    selector_suggestions_from_value, DataScrubbingConfig, InvalidSelectorError, PiiConfig,
+    PiiConfigError, PiiProcessor, SelectorSpec,
 };
 use relay_protocol::{Annotated, Remark, RuleCondition};
 use relay_sampling::SamplingConfig;
@@ -148,6 +149,24 @@ pub unsafe extern "C" fn relay_translate_legacy_python_json(event: *mut RelayStr
     let data = slice::from_raw_parts_mut((*event).data as *mut u8, (*event).len);
     json_forensics::translate_slice(data);
     true
+}
+
+/// Validates a PII selector spec. Used to validate datascrubbing safe fields.
+#[no_mangle]
+#[relay_ffi::catch_unwind]
+pub unsafe extern "C" fn relay_validate_pii_selector(value: *const RelayStr) -> RelayStr {
+    let value = (*value).as_str();
+    match value.parse::<SelectorSpec>() {
+        Ok(_) => RelayStr::new(""),
+        Err(err) => match err {
+            InvalidSelectorError::ParseError(_) => {
+                // Change the error to something more concise we can show in an UI.
+                // Error message follows the same format used for fingerprinting rules.
+                RelayStr::from_string(format!("invalid syntax near {value:?}"))
+            }
+            err => RelayStr::from_string(err.to_string()),
+        },
+    }
 }
 
 /// Validate a PII config against the schema. Used in project options UI.
@@ -336,9 +355,13 @@ pub unsafe extern "C" fn normalize_global_config(value: *const RelayStr) -> Rela
     }
 }
 
-#[test]
-fn pii_config_validation_invalid_regex() {
-    let config = r#"
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pii_config_validation_invalid_regex() {
+        let config = r#"
         {
           "rules": {
             "strip-fields": {
@@ -355,15 +378,15 @@ fn pii_config_validation_invalid_regex() {
           }
         }
     "#;
-    assert_eq!(
-        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
-        "regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
-    );
-}
+        assert_eq!(
+            unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+            "regex parse error:\n    (not valid regex\n    ^\nerror: unclosed group"
+        );
+    }
 
-#[test]
-fn pii_config_validation_valid_regex() {
-    let config = r#"
+    #[test]
+    fn pii_config_validation_valid_regex() {
+        let config = r#"
         {
           "rules": {
             "strip-fields": {
@@ -380,8 +403,9 @@ fn pii_config_validation_valid_regex() {
           }
         }
     "#;
-    assert_eq!(
-        unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
-        ""
-    );
+        assert_eq!(
+            unsafe { relay_validate_pii_config(&RelayStr::from(config)).as_str() },
+            ""
+        );
+    }
 }

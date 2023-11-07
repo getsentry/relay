@@ -4,6 +4,10 @@
 
 - Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
 
+## 0.8.35
+
+- Add `validate_pii_selector` to validate safe fields. ([#2687](https://github.com/getsentry/relay/pull/2687))
+
 ## 0.8.34
 
 - Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
