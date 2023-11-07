@@ -37,7 +37,7 @@ use relay_event_schema::protocol::{
 };
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
-use relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
+use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
@@ -2220,6 +2220,12 @@ impl EnvelopeProcessorService {
     fn scrub_event(&self, state: &mut ProcessEnvelopeState) -> Result<(), ProcessingError> {
         let event = &mut state.event;
         let config = &state.project_state.config;
+
+        if config.datascrubbing_settings.scrub_data {
+            if let Some(event) = event.value_mut() {
+                scrub_graphql(event);
+            }
+        }
 
         metric!(timer(RelayTimers::EventProcessingPii), {
             if let Some(ref config) = config.pii_config {
