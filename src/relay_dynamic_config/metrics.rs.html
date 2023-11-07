@@ -442,6 +442,8 @@
 <a href="#442" id="442">442</a>
 <a href="#443" id="443">443</a>
 <a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>std::collections::BTreeSet;
@@ -626,7 +628,9 @@
 
 <span class="kw">impl </span>MetricExtractionConfig {
     <span class="doccomment">/// The latest version for this config struct.
-    </span><span class="kw">pub const </span>VERSION: u16 = <span class="number">1</span>;
+    ///
+    /// This is the maximum version supported by this Relay instance.
+    </span><span class="kw">pub const </span>VERSION: u16 = <span class="number">2</span>;
 
     <span class="doccomment">/// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
