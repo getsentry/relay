@@ -4428,6 +4428,12 @@
 <a href="#4428" id="4428">4428</a>
 <a href="#4429" id="4429">4429</a>
 <a href="#4430" id="4430">4430</a>
+<a href="#4431" id="4431">4431</a>
+<a href="#4432" id="4432">4432</a>
+<a href="#4433" id="4433">4433</a>
+<a href="#4434" id="4434">4434</a>
+<a href="#4435" id="4435">4435</a>
+<a href="#4436" id="4436">4436</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4467,7 +4473,7 @@
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
-<span class="kw">use </span>relay_pii::{PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
+<span class="kw">use </span>relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
 <span class="kw">use </span>relay_profiling::ProfileError;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 <span class="kw">use </span>relay_quotas::{DataCategory, ReasonCode};
@@ -6650,6 +6656,12 @@
     </span><span class="kw">fn </span>scrub_event(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>event = <span class="kw-2">&amp;mut </span>state.event;
         <span class="kw">let </span>config = <span class="kw-2">&amp;</span>state.project_state.config;
+
+        <span class="kw">if </span>config.datascrubbing_settings.scrub_data {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = event.value_mut() {
+                scrub_graphql(event);
+            }
+        }
 
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingPii), {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = config.pii_config {
