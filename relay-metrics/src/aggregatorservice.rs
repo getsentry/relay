@@ -153,7 +153,16 @@ impl From<&AggregatorServiceConfig> for AggregatorConfig {
     }
 }
 
-/// Aggregator service interface.
+/// Aggregator for metric buckets.
+///
+/// Buckets are flushed to a receiver after their time window and a grace period have passed.
+/// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which
+/// are flushed after a shorter debounce delay. See [`AggregatorServiceConfig`] for configuration options.
+///
+/// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that
+/// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.
+///
+/// Receivers must implement a handler for the [`FlushBuckets`] message.
 #[derive(Debug)]
 pub enum Aggregator {
     /// The health check message which makes sure that the service can accept the requests now.
@@ -220,16 +229,7 @@ enum AggregatorState {
     ShuttingDown,
 }
 
-/// A service for aggregationg metric buckets.
-///
-/// Buckets are flushed to a receiver after their time window and a grace period have passed.
-/// Metrics with a recent timestamp are given a longer grace period than backdated metrics, which
-/// are flushed after a shorter debounce delay. See [`AggregatorServiceConfig`] for configuration options.
-///
-/// Internally, the aggregator maintains a continuous flush cycle every 100ms. It guarantees that
-/// all elapsed buckets belonging to the same [`ProjectKey`] are flushed together.
-///
-/// Receivers must implement a handler for the [`FlushBuckets`] message.
+/// Service implementing the [`Aggregator`] interface.
 pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
     state: AggregatorState,
