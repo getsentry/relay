@@ -123,7 +123,8 @@ mod tests {
 }"#;
 
         let cookies =
-            Cookies::parse("PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;").unwrap();
+            Cookies::parse("PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1;;")
+                .unwrap();
         let headers = vec![Annotated::new((
             Annotated::new("content-type".to_string().into()),
             Annotated::new("text/html".to_string().into()),

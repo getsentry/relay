@@ -2026,10 +2026,10 @@ impl Config {
             mut max_tag_value_length,
             mut max_project_key_bucket_bytes,
             ..
-        } = &self.default_aggregator_config().aggregator;
+        } = AggregatorConfig::from(self.default_aggregator_config());
 
         for secondary_config in self.secondary_aggregator_configs() {
-            let agg = &secondary_config.config.aggregator;
+            let agg = &secondary_config.config;
 
             bucket_interval = bucket_interval.min(agg.bucket_interval);
             max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
@@ -2047,7 +2047,7 @@ impl Config {
             .map(|sc| &sc.config)
             .chain(std::iter::once(self.default_aggregator_config()))
         {
-            if agg.aggregator.bucket_interval % bucket_interval != 0 {
+            if agg.bucket_interval % bucket_interval != 0 {
                 relay_log::error!("buckets don't align");
             }
         }
