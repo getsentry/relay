@@ -181,15 +181,17 @@ pub struct MetricExtractionConfig {
 }
 
 impl MetricExtractionConfig {
-    /// The maximum version supported by this Relay instance.
-    pub const MAX_VERSION: u16 = 2;
+    /// The latest version for this config struct.
+    ///
+    /// This is the maximum version supported by this Relay instance.
+    pub const VERSION: u16 = 2;
 
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
     /// As opposed to `default()`, this will be enabled once populated with specs.
     pub fn empty() -> Self {
         Self {
-            version: Self::MAX_VERSION,
+            version: Self::VERSION,
             metrics: Vec::new(),
             tags: Vec::new(),
             _conditional_tags_extended: false,
@@ -199,7 +201,7 @@ impl MetricExtractionConfig {
 
     /// Returns `true` if the version of this metric extraction config is supported.
     pub fn is_supported(&self) -> bool {
-        self.version <= Self::MAX_VERSION
+        self.version <= Self::VERSION
     }
 
     /// Returns `true` if metric extraction is configured and compatible with this Relay.
