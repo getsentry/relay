@@ -19,6 +19,7 @@
 **Bug Fixes**:
 
 - Disable scrubbing for the User-Agent header. ([#2641](https://github.com/getsentry/relay/pull/2641))
+- Fixes certain safe fields disabling data scrubbing for all string fields. ([#2701](https://github.com/getsentry/relay/pull/2701))
 
 **Internal**:
 
