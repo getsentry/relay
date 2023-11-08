@@ -336,14 +336,18 @@ pub(crate) fn extract_tags(
 
         if span_op.starts_with("resource.") {
             if let Some(data) = span.data.value() {
-                if let Some(Annotated(Some(Value::F64(value)), _)) =
-                    data.get("http.response_content_length")
+                if let Some(value) = data
+                    .get("http.response_content_length")
+                    .and_then(Annotated::value)
+                    .and_then(Value::as_f64)
                 {
                     span_tags.insert(SpanTagKey::HttpResponseContentLength, value.to_string());
                 }
 
-                if let Some(Annotated(Some(Value::F64(value)), _)) =
-                    data.get("http.decoded_response_content_length")
+                if let Some(value) = data
+                    .get("http.decoded_response_content_length")
+                    .and_then(Annotated::value)
+                    .and_then(Value::as_f64)
                 {
                     span_tags.insert(
                         SpanTagKey::HttpDecodedResponseContentLength,
@@ -351,8 +355,10 @@ pub(crate) fn extract_tags(
                     );
                 }
 
-                if let Some(Annotated(Some(Value::F64(value)), _)) =
-                    data.get("http.response_transfer_size")
+                if let Some(value) = data
+                    .get("http.response_transfer_size")
+                    .and_then(Annotated::value)
+                    .and_then(Value::as_f64)
                 {
                     span_tags.insert(SpanTagKey::HttpResponseTransferSize, value.to_string());
                 }

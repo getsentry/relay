@@ -85,6 +85,18 @@ impl Value {
         }
     }
 
+    /// Returns a floating point number if this value can be converted, else `None`.
+    ///
+    /// Note that this function does not parse strings.
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Value::I64(f) => Some(*f as f64),
+            Value::U64(f) => Some(*f as f64),
+            Value::F64(f) => Some(*f),
+            _ => None,
+        }
+    }
+
     /// Constructs a `Value` from a `serde_json::Value` object.
     fn from_json(value: serde_json::Value) -> Option<Self> {
         Some(match value {
