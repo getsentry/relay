@@ -153,8 +153,16 @@ pub struct GlobalConfigService {
     last_fetched: Instant,
     /// Interval of upstream fetching failures before reporting such errors.
     upstream_failure_interval: Duration,
+    /// Whether we're ready to send global configs.
+    ready: Ready,
     /// Disables the upstream fetch loop.
     shutdown: bool,
+}
+
+#[derive(Debug)]
+enum Ready {
+    Yeah,
+    Nah,
 }
 
 impl GlobalConfigService {
@@ -172,6 +180,7 @@ impl GlobalConfigService {
             fetch_handle: SleepHandle::idle(),
             last_fetched: Instant::now(),
             upstream_failure_interval: Duration::from_secs(35),
+            ready: Ready::Nah,
             shutdown: false,
         }
     }
@@ -236,6 +245,7 @@ impl GlobalConfigService {
                         self.global_config_watch.send(Arc::new(global_config)).ok();
                         success = true;
                         self.last_fetched = Instant::now();
+                        self.ready = Ready::Yeah;
                     }
                     None => relay_log::error!("global config missing in upstream response"),
                 }
@@ -262,6 +272,10 @@ impl GlobalConfigService {
         self.schedule_fetch();
     }
 
+    fn is_ready(&self) -> bool {
+        matches!(self.ready, Ready::Yeah)
+    }
+
     fn handle_shutdown(&mut self) {
         self.shutdown = true;
         self.fetch_handle.reset();
@@ -280,6 +294,8 @@ impl Service for GlobalConfigService {
                 relay_log::info!("serving global configs fetched from upstream");
                 self.request_global_config();
             } else {
+                self.ready = Ready::Yeah;
+
                 match GlobalConfig::load(self.config.path()) {
                     Ok(Some(from_file)) => {
                         relay_log::info!("serving static global config loaded from file");
@@ -305,7 +321,7 @@ impl Service for GlobalConfigService {
 
                     () = &mut self.fetch_handle => self.request_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                    Some(message) = rx.recv() => self.handle_message(message),
+                    Some(message) = rx.recv(), if self.is_ready() => self.handle_message(message),
                     _ = shutdown_handle.notified() => self.handle_shutdown(),
 
                     else => break,
