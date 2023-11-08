@@ -7,7 +7,7 @@ use std::ops::ControlFlow;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Annotated;
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -339,28 +339,25 @@ pub(crate) fn extract_tags(
                 if let Some(value) = data
                     .get("http.response_content_length")
                     .and_then(Annotated::value)
-                    .and_then(Value::as_f64)
+                    .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpResponseContentLength, value.to_string());
+                    span_tags.insert(SpanTagKey::HttpResponseContentLength, value);
                 }
 
                 if let Some(value) = data
                     .get("http.decoded_response_content_length")
                     .and_then(Annotated::value)
-                    .and_then(Value::as_f64)
+                    .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(
-                        SpanTagKey::HttpDecodedResponseContentLength,
-                        value.to_string(),
-                    );
+                    span_tags.insert(SpanTagKey::HttpDecodedResponseContentLength, value);
                 }
 
                 if let Some(value) = data
                     .get("http.response_transfer_size")
                     .and_then(Annotated::value)
-                    .and_then(Value::as_f64)
+                    .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpResponseTransferSize, value.to_string());
+                    span_tags.insert(SpanTagKey::HttpResponseTransferSize, value);
                 }
             }
 
