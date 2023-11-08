@@ -217,7 +217,10 @@ impl UpstreamProjectSourceService {
                         counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                         result = "timeout",
                     );
-                    relay_log::error!("error fetching project state {id}: deadline exceeded");
+                    relay_log::error!(
+                        project_key = id.as_str(),
+                        "error fetching project state: deadline exceeded"
+                    );
                 }
                 !channel.expired()
             });
@@ -358,7 +361,11 @@ impl UpstreamProjectSourceService {
                             .remove(&key)
                             .unwrap_or(ErrorBoundary::Ok(None))
                             .unwrap_or_else(|error| {
-                                relay_log::error!(error, "error fetching project state {key}");
+                                relay_log::error!(
+                                    project_key = key.as_str(),
+                                    error,
+                                    "error fetching project state: deserialization error"
+                                );
                                 Some(ProjectState::err())
                             })
                             .unwrap_or_else(ProjectState::missing);
@@ -387,7 +394,7 @@ impl UpstreamProjectSourceService {
                         relay_log::error!(
                             error = &err as &dyn std::error::Error,
                             attempts = attempts,
-                            "error fetching project states",
+                            "error fetching project state batch",
                         );
                     }
 
