@@ -716,6 +716,11 @@ struct Http {
     ///
     /// This time is only used before going into a network outage mode.
     retry_delay: u64,
+    /// The interval in seconds for continued failed project fetches at which Relay will error.
+    ///
+    /// A successful fetch resets this interval. Relay does nothing during long
+    /// times without emitting requests.
+    project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -743,6 +748,7 @@ impl Default for Http {
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             retry_delay: default_retry_delay(),
+            project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
         }
     }
@@ -751,6 +757,11 @@ impl Default for Http {
 /// Default for unavailable upstream retry period, 1s.
 fn default_retry_delay() -> u64 {
     1
+}
+
+/// Default for project failure interval, 90s.
+fn default_project_failure_interval() -> u64 {
+    90
 }
 
 /// Default for max memory size, 500 MB.
@@ -1623,6 +1634,11 @@ impl Config {
     /// requests. This is the time Relay waits before retrying the same request.
     pub fn http_retry_delay(&self) -> Duration {
         Duration::from_secs(self.values.http.retry_delay)
+    }
+
+    /// Time of continued project request failures before Relay emits an error.
+    pub fn http_project_failure_interval(&self) -> Duration {
+        Duration::from_secs(self.values.http.project_failure_interval)
     }
 
     /// Content encoding of upstream requests.
