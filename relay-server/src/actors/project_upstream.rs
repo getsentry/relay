@@ -218,7 +218,7 @@ impl UpstreamProjectSourceService {
                         result = "timeout",
                     );
                     relay_log::error!(
-                        project_key = id.as_str(),
+                        tags.project_key = id.as_str(),
                         "error fetching project state: deadline exceeded"
                     );
                 }
@@ -362,7 +362,7 @@ impl UpstreamProjectSourceService {
                             .unwrap_or(ErrorBoundary::Ok(None))
                             .unwrap_or_else(|error| {
                                 relay_log::error!(
-                                    project_key = key.as_str(),
+                                    tags.project_key = key.as_str(),
                                     error,
                                     "error fetching project state: deserialization error"
                                 );
