@@ -7,7 +7,7 @@ use std::ops::ControlFlow;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_event_schema::protocol::{Event, Span, Timestamp, TraceContext};
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -335,40 +335,27 @@ pub(crate) fn extract_tags(
         }
 
         if span_op.starts_with("resource.") {
-            if let Some(http_response_content_length) = span
-                .data
-                .value()
-                .and_then(|data| data.get("http.response_content_length"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    SpanTagKey::HttpResponseContentLength,
-                    http_response_content_length.to_owned(),
-                );
-            }
+            if let Some(data) = span.data.value() {
+                if let Some(Annotated(Some(Value::F64(value)), _)) =
+                    data.get("http.response_content_length")
+                {
+                    span_tags.insert(SpanTagKey::HttpResponseContentLength, value.to_string());
+                }
 
-            if let Some(http_decoded_response_content_length) = span
-                .data
-                .value()
-                .and_then(|data| data.get("http.decoded_response_content_length"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    SpanTagKey::HttpDecodedResponseContentLength,
-                    http_decoded_response_content_length.to_owned(),
-                );
-            }
+                if let Some(Annotated(Some(Value::F64(value)), _)) =
+                    data.get("http.decoded_response_content_length")
+                {
+                    span_tags.insert(
+                        SpanTagKey::HttpDecodedResponseContentLength,
+                        value.to_string(),
+                    );
+                }
 
-            if let Some(http_response_transfer_size) = span
-                .data
-                .value()
-                .and_then(|data| data.get("http.response_transfer_size"))
-                .and_then(|value| value.as_str())
-            {
-                span_tags.insert(
-                    SpanTagKey::HttpResponseTransferSize,
-                    http_response_transfer_size.to_owned(),
-                );
+                if let Some(Annotated(Some(Value::F64(value)), _)) =
+                    data.get("http.response_transfer_size")
+                {
+                    span_tags.insert(SpanTagKey::HttpResponseTransferSize, value.to_string());
+                }
             }
 
             if let Some(resource_render_blocking_status) = span
@@ -898,5 +885,68 @@ LIMIT 1
             assert_eq!(tags.get("ttid"), None);
             assert_eq!(tags.get("ttfd"), None);
         }
+    }
+
+    #[test]
+    fn test_resource_sizes() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "javascript",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "resource.script",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "data": {
+                            "http.response_content_length": 1,
+                            "http.decoded_response_content_length": 2.0,
+                            "http.response_transfer_size": 3.3
+                        }
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+
+        extract_span_tags(
+            &mut event,
+            &Config {
+                max_tag_value_size: 200,
+            },
+        );
+
+        let span = &event.spans.value().unwrap()[0];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+        assert_eq!(
+            tags.get("http.response_content_length").unwrap().as_str(),
+            Some("1"),
+        );
+        assert_eq!(
+            tags.get("http.decoded_response_content_length")
+                .unwrap()
+                .as_str(),
+            Some("2"),
+        );
+        assert_eq!(
+            tags.get("http.response_transfer_size").unwrap().as_str(),
+            Some("3.3"),
+        );
     }
 }
