@@ -497,10 +497,6 @@
 <a href="#497" id="497">497</a>
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -777,18 +773,14 @@
                     channels_batch.len() <span class="kw">as </span>u64
             );
 
-            <span class="kw">let </span>full_config = config.processing_enabled() || config.request_full_project_config();
             <span class="kw">let </span>query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
+                full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
-                full_config,
             };
 
             <span class="comment">// count number of http requests for project states
-            </span><span class="macro">metric!</span>(
-                counter(RelayCounters::ProjectStateRequest) += <span class="number">1</span>,
-                full = <span class="kw-2">&amp;</span>full_config.to_string(),
-            );
+            </span><span class="macro">metric!</span>(counter(RelayCounters::ProjectStateRequest) += <span class="number">1</span>);
 
             <span class="kw">let </span>upstream_relay = upstream_relay.clone();
             requests.push(<span class="kw">async move </span>{
