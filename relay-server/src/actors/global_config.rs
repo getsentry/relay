@@ -168,7 +168,7 @@ enum Status {
 impl std::fmt::Debug for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Ready => write!(f, "Yeah"),
+            Self::Ready => write!(f, "Ready"),
             Self::Pending(arg0) => f
                 .debug_tuple("Pending messages: ")
                 .field(&arg0.len())
