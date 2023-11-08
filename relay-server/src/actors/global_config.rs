@@ -10,7 +10,6 @@
 //! more details.
 
 use std::borrow::Cow;
-use std::io::Read;
 use std::sync::Arc;
 use std::time::Duration;
 
