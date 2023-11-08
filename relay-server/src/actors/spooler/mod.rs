@@ -960,7 +960,7 @@ impl Drop for BufferService {
             BufferState::Memory(ram) | BufferState::MemoryFileStandby { ram, .. } => {
                 let count = ram.count();
                 if count > 0 {
-                    relay_log::error!("dropped {count} envelopes");
+                    relay_log::error!(tags.amount = count, "dropped envelopes");
                 }
             }
             BufferState::Disk(_) => (),
