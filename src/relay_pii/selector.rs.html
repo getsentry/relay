@@ -641,6 +641,11 @@
 <a href="#641" id="641">641</a>
 <a href="#642" id="642">642</a>
 <a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -808,6 +813,19 @@
 }
 
 <span class="kw">impl </span>SelectorSpec {
+    <span class="doccomment">/// Parses a selector from a string without legacy special handling.
+    </span><span class="kw">pub fn </span>parse_non_legacy(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;SelectorSpec, InvalidSelectorError&gt; {
+        handle_selector(
+            SelectorParser::parse(Rule::RootSelector, s)
+                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))<span class="question-mark">?
+                </span>.next()
+                .unwrap()
+                .into_inner()
+                .next()
+                .unwrap(),
+        )
+    }
+
     <span class="doccomment">/// Checks if a path matches given selector.
     ///
     /// This walks both the selector and the path starting at the end and towards the root
@@ -958,15 +976,7 @@
             <span class="kw">_ </span>=&gt; {}
         }
 
-        handle_selector(
-            SelectorParser::parse(Rule::RootSelector, s)
-                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))<span class="question-mark">?
-                </span>.next()
-                .unwrap()
-                .into_inner()
-                .next()
-                .unwrap(),
-        )
+        <span class="self">Self</span>::parse_non_legacy(s)
     }
 }
 
