@@ -10,6 +10,7 @@
 //! more details.
 
 use std::borrow::Cow;
+use std::io::Read;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -154,15 +155,26 @@ pub struct GlobalConfigService {
     /// Interval of upstream fetching failures before reporting such errors.
     upstream_failure_interval: Duration,
     /// Whether we're ready to send global configs.
-    ready: Ready,
+    ready: Status,
     /// Disables the upstream fetch loop.
     shutdown: bool,
 }
 
-#[derive(Debug)]
-enum Ready {
-    Yeah,
-    Nah,
+enum Status {
+    Ready,
+    Pending(Vec<GlobalConfigManager>),
+}
+
+impl std::fmt::Debug for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ready => write!(f, "Yeah"),
+            Self::Pending(arg0) => f
+                .debug_tuple("Pending messages: ")
+                .field(&arg0.len())
+                .finish(),
+        }
+    }
 }
 
 impl GlobalConfigService {
@@ -180,13 +192,18 @@ impl GlobalConfigService {
             fetch_handle: SleepHandle::idle(),
             last_fetched: Instant::now(),
             upstream_failure_interval: Duration::from_secs(35),
-            ready: Ready::Nah,
+            ready: Status::Pending(vec![]),
             shutdown: false,
         }
     }
 
     /// Handles messages from external services.
-    fn handle_message(&self, message: GlobalConfigManager) {
+    fn handle_message(&mut self, message: GlobalConfigManager) {
+        if let Status::Pending(pending_msgs) = &mut self.ready {
+            pending_msgs.push(message);
+            return;
+        }
+
         match message {
             GlobalConfigManager::Get(sender) => {
                 sender.send(self.global_config_watch.borrow().clone());
@@ -245,7 +262,7 @@ impl GlobalConfigService {
                         self.global_config_watch.send(Arc::new(global_config)).ok();
                         success = true;
                         self.last_fetched = Instant::now();
-                        self.ready = Ready::Yeah;
+                        self.flush_messages();
                     }
                     None => relay_log::error!("global config missing in upstream response"),
                 }
@@ -272,13 +289,20 @@ impl GlobalConfigService {
         self.schedule_fetch();
     }
 
-    fn is_ready(&self) -> bool {
-        matches!(self.ready, Ready::Yeah)
-    }
-
     fn handle_shutdown(&mut self) {
         self.shutdown = true;
         self.fetch_handle.reset();
+    }
+
+    fn flush_messages(&mut self) {
+        let mut status = Status::Ready;
+        std::mem::swap(&mut self.ready, &mut status);
+
+        if let Status::Pending(messages) = status {
+            for message in messages {
+                self.handle_message(message)
+            }
+        }
     }
 }
 
@@ -294,7 +318,7 @@ impl Service for GlobalConfigService {
                 relay_log::info!("serving global configs fetched from upstream");
                 self.request_global_config();
             } else {
-                self.ready = Ready::Yeah;
+                self.ready = Status::Ready;
 
                 match GlobalConfig::load(self.config.path()) {
                     Ok(Some(from_file)) => {
@@ -321,7 +345,7 @@ impl Service for GlobalConfigService {
 
                     () = &mut self.fetch_handle => self.request_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                    Some(message) = rx.recv(), if self.is_ready() => self.handle_message(message),
+                    Some(message) = rx.recv() => self.handle_message(message),
                     _ = shutdown_handle.notified() => self.handle_shutdown(),
 
                     else => break,
