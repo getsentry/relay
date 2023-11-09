@@ -11,9 +11,11 @@ use std::collections::BTreeSet;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::ops::Range;
 
 use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::processor::{
     self, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
@@ -31,24 +33,43 @@ use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
 use crate::utils::MAX_DURATION_MOBILE_MS;
 use crate::{
-    breakdowns, schema, span, transactions, trimming, user_agent, BreakdownsConfig,
-    ClockDriftProcessor, DynamicMeasurementsConfig, GeoIpLookup, RawUserAgentInfo,
+    breakdowns, end_all_spans, normalize_transaction_name, schema, set_default_transaction_source,
+    span, trimming, user_agent, validate_transaction, BreakdownsConfig, ClockDriftProcessor,
+    DynamicMeasurementsConfig, GeoIpLookup, RawUserAgentInfo, TransactionNameConfig,
 };
 
 use crate::LightNormalizationConfig;
 
 /// Configuration for [`NormalizeProcessor`].
 #[derive(Clone, Debug, Default)]
-pub struct NormalizeProcessorConfig<'a> {
+pub(crate) struct NormalizeProcessorConfig<'a> {
     /// Light normalization config.
     // XXX(iker): we should split this config appropriately.
-    light_config: LightNormalizationConfig<'a>,
+    pub light_config: LightNormalizationConfig<'a>,
+
+    /// Configuration to apply to transaction names, especially around sanitizing.
+    pub transaction_name_config: TransactionNameConfig<'a>,
+
+    /// Timestamp range in which a transaction must end.
+    ///
+    /// Transactions that finish outside of this range are considered invalid.
+    /// This check is skipped if no range is provided.
+    pub transaction_range: Option<Range<UnixTimestamp>>,
 }
 
 impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
-    fn from(config: LightNormalizationConfig<'a>) -> Self {
+    fn from(mut config: LightNormalizationConfig<'a>) -> Self {
+        // HACK(iker): workaround to avoid cloning of config items. We'll get
+        // rid of this when we remove light normalization in the next step.
+        let transaction_name_config = config.transaction_name_config;
+        config.transaction_name_config = TransactionNameConfig::default();
+        let transaction_range = config.transaction_range;
+        config.transaction_range = None;
+
         Self {
             light_config: config,
+            transaction_name_config,
+            transaction_range,
         }
     }
 }
@@ -61,7 +82,7 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
 #[derive(Debug, Default)]
-pub struct NormalizeProcessor<'a> {
+pub(crate) struct NormalizeProcessor<'a> {
     /// Configuration for the normalization steps.
     config: NormalizeProcessorConfig<'a>,
 }
@@ -79,22 +100,39 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
+        if event.ty.value() == Some(&EventType::Transaction) {
+            // TODO: Parts of this processor should probably be a filter so we
+            // can revert some changes to ProcessingAction)
+
+            validate_transaction(event, self.config.transaction_range.as_ref())?;
+
+            if let Some(trace_context) = event.context_mut::<TraceContext>() {
+                trace_context.op.get_or_insert_with(|| "default".to_owned());
+            }
+
+            // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
+            // Relay doesn't reject events missing the transaction name. Instead, a default transaction
+            // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
+            // SDKs should avoid sending empty transaction names, setting a more contextual default
+            // value when possible.
+            if event.transaction.value().map_or(true, |s| s.is_empty()) {
+                event
+                    .transaction
+                    .set_value(Some("<unlabeled transaction>".to_owned()))
+            }
+            set_default_transaction_source(event);
+            normalize_transaction_name(event, &self.config.transaction_name_config)?;
+            end_all_spans(event)?;
+        }
+
+        // XXX(iker): processing child values should be the last step. The logic
+        // below this call is being moved (WIP) to the processor appropriately.
         event.process_child_values(self, state)?;
 
         let config = &self.config.light_config;
         if config.is_renormalize {
             return Ok(());
         }
-
-        // Validate and normalize transaction
-        // (internally noops for non-transaction events).
-        // TODO: Parts of this processor should probably be a filter so we
-        // can revert some changes to ProcessingAction)
-        let mut transactions_processor = transactions::TransactionsProcessor::new(
-            config.transaction_name_config.clone(),
-            config.transaction_range.clone(),
-        );
-        transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
         // Check for required and non-empty values
         schema::SchemaProcessor.process_event(event, meta, ProcessingState::root())?;
@@ -901,7 +939,7 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_base_schema::events::EventType;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
-    use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
+    use relay_event_schema::processor::{self, process_value, ProcessingAction, ProcessingState};
     use relay_event_schema::protocol::{
         Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement, Measurements, Request,
         Span, SpanId, Tags, TraceContext, TraceId,
@@ -1706,7 +1744,7 @@ mod tests {
     }
 
     #[test]
-    fn test_renormalize_is_idempotent() {
+    fn test_renormalize_spans_is_idempotent() {
         let json = r#"{
   "start_timestamp": 1,
   "timestamp": 2,
@@ -1731,5 +1769,52 @@ mod tests {
         let mut reprocessed2 = reprocessed.clone();
         process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
         assert_eq!(reprocessed, reprocessed2);
+    }
+
+    #[test]
+    fn test_renormalize_transactions_is_idempotent() {
+        let json = r#"{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "type": "transaction",
+  "transaction": "test-transaction",
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "contexts": {
+    "trace": {
+      "trace_id": "ff62a8b040f340bda5d830223def1d81",
+      "span_id": "bd429c44b67a3eb4"
+    }
+  }
+}"#;
+
+        let mut processed = Annotated::<Event>::from_json(json).unwrap();
+        let processor_config = NormalizeProcessorConfig::default();
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+        process_value(&mut processed, &mut processor, ProcessingState::root()).unwrap();
+        remove_event_received(&mut processed);
+        let trace_context = get_value!(processed!).context::<TraceContext>().unwrap();
+        assert_eq!(trace_context.op.value().unwrap(), "default");
+
+        let mut reprocess_config = processor_config.clone();
+        reprocess_config.light_config.is_renormalize = true;
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+
+        let mut reprocessed = processed.clone();
+        process_value(&mut reprocessed, &mut processor, ProcessingState::root()).unwrap();
+        remove_event_received(&mut reprocessed);
+        assert_eq!(processed, reprocessed);
+
+        let mut reprocessed2 = reprocessed.clone();
+        process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
+        remove_event_received(&mut reprocessed2);
+        assert_eq!(reprocessed, reprocessed2);
+    }
+
+    fn remove_event_received(event: &mut Annotated<Event>) {
+        processor::apply(event, |e, _| {
+            e.received = Annotated::empty();
+            Ok(())
+        })
+        .unwrap();
     }
 }

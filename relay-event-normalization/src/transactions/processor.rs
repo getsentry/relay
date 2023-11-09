@@ -4,11 +4,9 @@ use std::ops::Range;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_common::time::UnixTimestamp;
-use relay_event_schema::processor::{
-    self, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
-};
-use relay_event_schema::protocol::{Event, EventType, SpanStatus, TraceContext, TransactionSource};
-use relay_protocol::{Annotated, Meta, Remark, RemarkType};
+use relay_event_schema::processor::{self, ProcessingAction, ProcessingResult};
+use relay_event_schema::protocol::{Event, SpanStatus, TraceContext, TransactionSource};
+use relay_protocol::{Annotated, Remark, RemarkType};
 
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::TransactionNameRule;
@@ -18,178 +16,6 @@ use crate::TransactionNameRule;
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
-}
-
-/// Rejects transactions based on required fields.
-#[derive(Debug, Default)]
-pub struct TransactionsProcessor<'r> {
-    name_config: TransactionNameConfig<'r>,
-    timestamp_range: Option<Range<UnixTimestamp>>,
-}
-
-impl<'r> TransactionsProcessor<'r> {
-    /// Creates a new `TransactionsProcessor` instance.
-    pub fn new(
-        name_config: TransactionNameConfig<'r>,
-        timestamp_range: Option<Range<UnixTimestamp>>,
-    ) -> Self {
-        Self {
-            name_config,
-            timestamp_range,
-        }
-    }
-
-    /// Applies the rule if any found to the transaction name.
-    ///
-    /// It find the first rule matching the criteria:
-    /// - source matchining the one provided in the rule sorce
-    /// - rule hasn't epired yet
-    /// - glob pattern matches the transaction name
-    ///
-    /// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
-    /// patterns like `/<something>/*/**` where we have `**` at the end are a match.
-    pub fn apply_transaction_rename_rule(
-        &self,
-        transaction: &mut Annotated<String>,
-    ) -> ProcessingResult {
-        processor::apply(transaction, |transaction, meta| {
-            let result = self.name_config.rules.iter().find_map(|rule| {
-                rule.match_and_apply(Cow::Borrowed(transaction))
-                    .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
-            });
-
-            if let Some((rule, result)) = result {
-                if *transaction != result {
-                    // If another rule was applied before, we don't want to
-                    // rename the transaction name to keep the original one.
-                    // We do want to continue adding remarks though, in
-                    // order to keep track of all rules applied.
-                    if meta.original_value().is_none() {
-                        meta.set_original_value(Some(transaction.clone()));
-                    }
-                    // add also the rule which was applied to the transaction name
-                    meta.add_remark(Remark::new(RemarkType::Substituted, rule));
-                    *transaction = result;
-                }
-            }
-
-            Ok(())
-        })?;
-
-        Ok(())
-    }
-
-    /// Returns `true` if the given transaction name should be treated as a URL.
-    ///
-    /// We treat a transaction as URL if one of the following conditions apply:
-    ///
-    /// 1. It is marked with `source:url`
-    /// 2. It is marked with `source:sanitized`, in which case we run normalization again.
-    /// 3. It has no source attribute because it's from an old SDK version,
-    ///    but it contains slashes and we expect it to be high-cardinality
-    ///    based on the SDK information (see [`set_default_transaction_source`]).
-    fn treat_transaction_as_url(&self, event: &Event) -> bool {
-        let source = event
-            .transaction_info
-            .value()
-            .and_then(|i| i.source.value());
-
-        matches!(
-            source,
-            Some(&TransactionSource::Url | &TransactionSource::Sanitized)
-        ) || (source.is_none() && event.transaction.value().map_or(false, |t| t.contains('/')))
-    }
-
-    fn normalize_transaction_name(&self, event: &mut Event) -> ProcessingResult {
-        if self.treat_transaction_as_url(event) {
-            // Normalize transaction names for URLs and Sanitized transaction sources.
-            // This in addition to renaming rules can catch some high cardinality parts.
-            scrub_identifiers(&mut event.transaction)?;
-
-            // Apply rules discovered by the transaction clusterer in sentry.
-            if !self.name_config.rules.is_empty() {
-                self.apply_transaction_rename_rule(&mut event.transaction)?;
-            }
-
-            // Always mark URL transactions as sanitized, even if no modification were made by
-            // clusterer rules or regex matchers. This has the consequence that the transaction name
-            // is always extracted as a tag on transaction metrics.
-            // Instead of changing the source to "sanitized", we could have changed metrics extraction
-            // to also extract the transaction name for URL transactions. But this is the safer way,
-            // because the product currently uses queries that assume that `source:url` is equivalent
-            // to `transaction:<< unparameterized >>`.
-            event
-                .transaction_info
-                .get_or_insert_with(Default::default)
-                .source
-                .set_value(Some(TransactionSource::Sanitized));
-        }
-
-        Ok(())
-    }
-
-    fn validate_transaction(&self, event: &mut Event) -> ProcessingResult {
-        self.validate_timestamps(event)?;
-
-        let Some(trace_context) = event.context_mut::<TraceContext>() else {
-            return Err(ProcessingAction::InvalidTransaction(
-                "missing valid trace context",
-            ));
-        };
-
-        if trace_context.trace_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "trace context is missing trace_id",
-            ));
-        }
-
-        if trace_context.span_id.value().is_none() {
-            return Err(ProcessingAction::InvalidTransaction(
-                "trace context is missing span_id",
-            ));
-        }
-
-        trace_context.op.get_or_insert_with(|| "default".to_owned());
-        Ok(())
-    }
-
-    /// Returns start and end timestamps if they are both set and start <= end.
-    fn validate_timestamps(&self, transaction_event: &Event) -> ProcessingResult {
-        match (
-            transaction_event.start_timestamp.value(),
-            transaction_event.timestamp.value(),
-        ) {
-            (Some(start), Some(end)) => {
-                if end < start {
-                    return Err(ProcessingAction::InvalidTransaction(
-                        "end timestamp is smaller than start timestamp",
-                    ));
-                }
-
-                if let Some(ref range) = self.timestamp_range {
-                    let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
-                        return Err(ProcessingAction::InvalidTransaction(
-                            "invalid unix timestamp",
-                        ));
-                    };
-                    if !range.contains(&timestamp) {
-                        return Err(ProcessingAction::InvalidTransaction(
-                            "timestamp is out of the valid range for metrics",
-                        ));
-                    }
-                }
-
-                Ok(())
-            }
-            (_, None) => Err(ProcessingAction::InvalidTransaction(
-                "timestamp hard-required for transaction events",
-            )),
-            // XXX: Maybe copy timestamp over?
-            (None, _) => Err(ProcessingAction::InvalidTransaction(
-                "start_timestamp hard-required for transaction events",
-            )),
-        }
-    }
 }
 
 /// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
@@ -359,7 +185,7 @@ fn scrub_identifiers_with_regex(
 }
 
 /// Copies the event's end timestamp into the spans that don't have one.
-fn end_all_spans(event: &mut Event) -> ProcessingResult {
+pub(crate) fn end_all_spans(event: &mut Event) -> ProcessingResult {
     let spans = event.spans.value_mut().get_or_insert_with(Vec::new);
     for span in spans {
         if let Some(span) = span.value_mut() {
@@ -377,36 +203,177 @@ fn end_all_spans(event: &mut Event) -> ProcessingResult {
     Ok(())
 }
 
-impl Processor for TransactionsProcessor<'_> {
-    fn process_event(
-        &mut self,
-        event: &mut Event,
-        _meta: &mut Meta,
-        state: &ProcessingState<'_>,
-    ) -> ProcessingResult {
-        if event.ty.value() != Some(&EventType::Transaction) {
-            return Ok(());
-        }
+/// Returns `true` if the given transaction name should be treated as a URL.
+///
+/// We treat a transaction as URL if one of the following conditions apply:
+///
+/// 1. It is marked with `source:url`
+/// 2. It is marked with `source:sanitized`, in which case we run normalization again.
+/// 3. It has no source attribute because it's from an old SDK version,
+///    but it contains slashes and we expect it to be high-cardinality
+///    based on the SDK information (see [`set_default_transaction_source`]).
+fn treat_transaction_as_url(event: &Event) -> bool {
+    let source = event
+        .transaction_info
+        .value()
+        .and_then(|i| i.source.value());
 
-        // The transaction name is expected to be non-empty by downstream services (e.g. Snuba), but
-        // Relay doesn't reject events missing the transaction name. Instead, a default transaction
-        // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
-        // SDKs should avoid sending empty transaction names, setting a more contextual default
-        // value when possible.
-        if event.transaction.value().map_or(true, |s| s.is_empty()) {
-            event
-                .transaction
-                .set_value(Some("<unlabeled transaction>".to_owned()))
-        }
+    matches!(
+        source,
+        Some(&TransactionSource::Url | &TransactionSource::Sanitized)
+    ) || (source.is_none() && event.transaction.value().map_or(false, |t| t.contains('/')))
+}
 
-        set_default_transaction_source(event);
-        self.normalize_transaction_name(event)?;
-        self.validate_transaction(event)?;
-        end_all_spans(event)?;
+/// Returns a [`ProcessingResult`] error if the transaction isn't valid.
+///
+/// A transaction is valid in the following cases:
+/// - The transaction has a start and end timestamp.
+/// - The start timestamp is no greater than the end timestamp.
+/// - The transaction has a trace and span ids in the trace context.
+pub(crate) fn validate_transaction(
+    event: &Event,
+    transaction_range: Option<&Range<UnixTimestamp>>,
+) -> ProcessingResult {
+    validate_transaction_timestamps(event, transaction_range)?;
 
-        event.process_child_values(self, state)?;
-        Ok(())
+    let Some(trace_context) = event.context::<TraceContext>() else {
+        return Err(ProcessingAction::InvalidTransaction(
+            "missing valid trace context",
+        ));
+    };
+
+    if trace_context.trace_id.value().is_none() {
+        return Err(ProcessingAction::InvalidTransaction(
+            "trace context is missing trace_id",
+        ));
     }
+
+    if trace_context.span_id.value().is_none() {
+        return Err(ProcessingAction::InvalidTransaction(
+            "trace context is missing span_id",
+        ));
+    }
+
+    Ok(())
+}
+
+/// Returns a [`ProcessingResult`] error if start > end or either is missing.
+fn validate_transaction_timestamps(
+    transaction_event: &Event,
+    transaction_range: Option<&Range<UnixTimestamp>>,
+) -> ProcessingResult {
+    match (
+        transaction_event.start_timestamp.value(),
+        transaction_event.timestamp.value(),
+    ) {
+        (Some(start), Some(end)) => {
+            if end < start {
+                return Err(ProcessingAction::InvalidTransaction(
+                    "end timestamp is smaller than start timestamp",
+                ));
+            }
+
+            if let Some(range) = transaction_range {
+                let Some(timestamp) = UnixTimestamp::from_datetime(end.into_inner()) else {
+                    return Err(ProcessingAction::InvalidTransaction(
+                        "invalid unix timestamp",
+                    ));
+                };
+                if !range.contains(&timestamp) {
+                    return Err(ProcessingAction::InvalidTransaction(
+                        "timestamp is out of the valid range for metrics",
+                    ));
+                }
+            }
+
+            Ok(())
+        }
+        (_, None) => Err(ProcessingAction::InvalidTransaction(
+            "timestamp hard-required for transaction events",
+        )),
+        // XXX: Maybe copy timestamp over?
+        (None, _) => Err(ProcessingAction::InvalidTransaction(
+            "start_timestamp hard-required for transaction events",
+        )),
+    }
+}
+
+/// Applies scrubbing and transaction rename rules to URL transaction names.
+///
+/// If there's no transaction name, it sets `<unlabeled transaction>`.
+/// Additionally, for URL transaction names:
+/// - Applies static scrubbing on low value tokens such as UUIDs, SHAs and IDs.
+/// - Applies dynamic transaction name rules, pushed from upstream.
+/// - Sets the transaction source to sanitized.
+pub(crate) fn normalize_transaction_name(
+    event: &mut Event,
+    transaction_name_config: &TransactionNameConfig,
+) -> ProcessingResult {
+    if treat_transaction_as_url(event) {
+        // Normalize transaction names for URLs and Sanitized transaction sources.
+        // This in addition to renaming rules can catch some high cardinality parts.
+        scrub_identifiers(&mut event.transaction)?;
+
+        // Apply rules discovered by the transaction clusterer in sentry.
+        if !transaction_name_config.rules.is_empty() {
+            apply_transaction_rename_rule(&mut event.transaction, transaction_name_config)?;
+        }
+
+        // Always mark URL transactions as sanitized, even if no modification were made by
+        // clusterer rules or regex matchers. This has the consequence that the transaction name
+        // is always extracted as a tag on transaction metrics.
+        // Instead of changing the source to "sanitized", we could have changed metrics extraction
+        // to also extract the transaction name for URL transactions. But this is the safer way,
+        // because the product currently uses queries that assume that `source:url` is equivalent
+        // to `transaction:<< unparameterized >>`.
+        event
+            .transaction_info
+            .get_or_insert_with(Default::default)
+            .source
+            .set_value(Some(TransactionSource::Sanitized));
+    }
+
+    Ok(())
+}
+
+/// Applies the rule if any found to the transaction name.
+///
+/// It find the first rule matching the criteria:
+/// - source matchining the one provided in the rule sorce
+/// - rule hasn't epired yet
+/// - glob pattern matches the transaction name
+///
+/// Note: we add `/` at the end of the transaction name if there isn't one, to make sure that
+/// patterns like `/<something>/*/**` where we have `**` at the end are a match.
+fn apply_transaction_rename_rule(
+    transaction: &mut Annotated<String>,
+    config: &TransactionNameConfig,
+) -> ProcessingResult {
+    processor::apply(transaction, |transaction, meta| {
+        let result = config.rules.iter().find_map(|rule| {
+            rule.match_and_apply(Cow::Borrowed(transaction))
+                .map(|applied_result| (rule.pattern.compiled().pattern(), applied_result))
+        });
+
+        if let Some((rule, result)) = result {
+            if *transaction != result {
+                // If another rule was applied before, we don't want to
+                // rename the transaction name to keep the original one.
+                // We do want to continue adding remarks though, in
+                // order to keep track of all rules applied.
+                if meta.original_value().is_none() {
+                    meta.set_original_value(Some(transaction.clone()));
+                }
+                // add also the rule which was applied to the transaction name
+                meta.add_remark(Remark::new(RemarkType::Substituted, rule));
+                *transaction = result;
+            }
+        }
+
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -426,6 +393,7 @@ mod tests {
 
     use super::*;
 
+    use crate::processor::{NormalizeProcessor, NormalizeProcessorConfig};
     use crate::RedactionRule;
 
     fn new_test_event() -> Annotated<Event> {
@@ -463,7 +431,7 @@ mod tests {
         let mut event = Annotated::new(Event::default());
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -480,7 +448,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -493,10 +461,10 @@ mod tests {
     fn test_discards_when_timestamp_out_of_range() {
         let mut event = new_test_event();
 
-        let processor = &mut TransactionsProcessor::new(
-            TransactionNameConfig::default(),
-            Some(UnixTimestamp::now()..UnixTimestamp::now()),
-        );
+        let processor = &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+            transaction_range: Some(UnixTimestamp::now()..UnixTimestamp::now()),
+            ..Default::default()
+        });
 
         assert!(matches!(
             process_value(&mut event, processor, ProcessingState::root()),
@@ -510,7 +478,7 @@ mod tests {
     fn test_replace_missing_timestamp() {
         let span = Span {
             start_timestamp: Annotated::new(
-                Utc.with_ymd_and_hms(1968, 1, 1, 0, 0, 1).unwrap().into(),
+                Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 1).unwrap().into(),
             ),
             trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
             span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
@@ -520,7 +488,7 @@ mod tests {
         let mut event = new_test_event().0.unwrap();
         event.spans = Annotated::new(vec![Annotated::new(span)]);
 
-        TransactionsProcessor::default()
+        NormalizeProcessor::default()
             .process_event(
                 &mut event,
                 &mut Meta::default(),
@@ -546,7 +514,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -569,7 +537,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -593,7 +561,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -621,7 +589,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -649,7 +617,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -680,7 +648,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -713,7 +681,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -749,7 +717,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -780,7 +748,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -799,7 +767,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -831,7 +799,7 @@ mod tests {
         assert_eq!(
             process_value(
                 &mut event,
-                &mut TransactionsProcessor::default(),
+                &mut NormalizeProcessor::default(),
                 ProcessingState::root()
             ),
             Err(ProcessingAction::InvalidTransaction(
@@ -868,7 +836,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -890,7 +858,7 @@ mod tests {
 
         assert!(process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .is_ok());
@@ -908,7 +876,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -928,7 +896,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1010,7 +978,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1072,14 +1040,13 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1113,7 +1080,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::default(),
+            &mut NormalizeProcessor::default(),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1170,12 +1137,12 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: &[rule1, rule2, rule3],
                 },
-                None,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1231,7 +1198,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
         let mut event = Annotated::<Event>::from_json(json).unwrap();
@@ -1255,12 +1221,12 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: &[rule1, rule2, rule3],
                 },
-                None,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1325,12 +1291,10 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        let mut processor = TransactionsProcessor::new(
-            TransactionNameConfig {
-                rules: rules.as_ref(),
-            },
-            None,
-        );
+        let mut processor = NormalizeProcessor::new(NormalizeProcessorConfig {
+            transaction_name_config: TransactionNameConfig { rules: &rules },
+            ..Default::default()
+        });
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
 
         assert_eq!(get_value!(event.transaction!), "/foo/*/user/*/0/");
@@ -1361,6 +1325,11 @@ mod tests {
         range: None,
     },
 ]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
 
         // Process again:
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1393,6 +1362,11 @@ mod tests {
         range: None,
     },
 ]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1433,12 +1407,10 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                None,
-            ),
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: &rules },
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1493,12 +1465,10 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
-                    rules: rules.as_ref(),
-                },
-                None,
-            ),
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: &rules },
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1528,6 +1498,11 @@ mod tests {
         range: None,
     },
 ]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1563,7 +1538,6 @@ mod tests {
             },
             "sdk": {"name": "sentry.ruby"},
             "modules": {"rack": "1.2.3"}
-
         }
         "#;
 
@@ -1577,7 +1551,10 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }, None),
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig { rules: &[rule] },
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1600,6 +1577,11 @@ mod tests {
         range: None,
     },
 ]"#);
+
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1652,7 +1634,7 @@ mod tests {
 
                 process_value(
                     &mut event,
-                    &mut TransactionsProcessor::default(),
+                    &mut NormalizeProcessor::default(),
                     ProcessingState::root(),
                 )
                 .unwrap();
@@ -1777,16 +1759,16 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
                 },
-                None,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1814,6 +1796,10 @@ mod tests {
         ),
     },
 ]"#);
+        assert_eq!(
+            get_value!(event.transaction_info.source!).as_str(),
+            "sanitized"
+        );
     }
 
     #[test]
@@ -1842,16 +1828,16 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(
-                TransactionNameConfig {
+            &mut NormalizeProcessor::new(NormalizeProcessorConfig {
+                transaction_name_config: TransactionNameConfig {
                     rules: &[TransactionNameRule {
                         pattern: LazyGlob::new("/remains/*/**".to_owned()),
                         expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
                         redaction: RedactionRule::default(),
                     }],
                 },
-                None,
-            ),
+                ..Default::default()
+            }),
             ProcessingState::root(),
         )
         .unwrap();
