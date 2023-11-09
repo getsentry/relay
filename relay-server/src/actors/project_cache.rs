@@ -419,6 +419,7 @@ pub struct Services {
 
 impl Services {
     /// Creates new [`Services`] context.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         aggregator: Addr<Aggregator>,
         envelope_processor: Addr<EnvelopeProcessor>,
@@ -466,14 +467,23 @@ struct ProjectCacheBroker {
 #[derive(Debug)]
 enum GCstat {
     Ready(Arc<GlobalConfig>),
-    Pending(Vec<DequeueMany>),
+    Pending(BTreeSet<ProjectKey>),
 }
 
 impl ProjectCacheBroker {
     fn set_global_config(&mut self, gc: Arc<GlobalConfig>) {
-        if let GCstat::Pending(msgs) = std::mem::replace(&mut self.gc_status, GCstat::Ready(gc)) {
-            for msg in msgs {
-                self.buffer.send(msg);
+        if let GCstat::Pending(project_keys) =
+            std::mem::replace(&mut self.gc_status, GCstat::Ready(gc))
+        {
+            // When the global config arrives, we will request new ProjectStates for all the
+            // projects. This will trigger dequeuing of that we deferred in ProjectCacheBroker::dequeue.
+            for project_key in project_keys {
+                let message = RequestUpdate {
+                    project_key,
+                    no_cache: true,
+                };
+
+                self.services.project_cache.send(message)
             }
         }
     }
@@ -498,9 +508,15 @@ impl ProjectCacheBroker {
 
     /// Sends the message to the buffer service to dequeue the envelopes.
     ///
-    /// All the found envelopes will be send back through the `buffer_tx` channel and dirrectly
+    /// All the found envelopes will be send back through the `buffer_tx` channel and directly
     /// forwarded to `handle_processing`.
     pub fn dequeue(&mut self, partial_key: ProjectKey) {
+        // If we don't yet have the global config, we will defer dequeuing until we do.
+        if let GCstat::Pending(keys) = &mut self.gc_status {
+            keys.insert(partial_key);
+            return;
+        }
+
         let mut result = Vec::new();
         let mut queue_keys = self.index.remove(&partial_key).unwrap_or_default();
         let mut index = BTreeSet::new();
@@ -533,13 +549,7 @@ impl ProjectCacheBroker {
 
         if !result.is_empty() {
             let message = DequeueMany::new(partial_key, result, self.buffer_tx.clone());
-
-            match &mut self.gc_status {
-                GCstat::Ready(_) => self.buffer.send(message),
-                GCstat::Pending(messages) => {
-                    messages.push(message);
-                }
-            }
+            self.buffer.send(message);
         }
     }
 
@@ -943,7 +953,7 @@ impl Service for ProjectCacheService {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer,
-                gc_status: GCstat::Pending(vec![]),
+                gc_status: GCstat::Pending(BTreeSet::new()),
             };
 
             loop {
@@ -1064,7 +1074,7 @@ mod tests {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer: buffer.clone(),
-                gc_status: GCstat::Pending(vec![]),
+                gc_status: GCstat::Pending(BTreeSet::new()),
             },
             buffer,
         )
