@@ -696,22 +696,17 @@ impl ProjectCacheBroker {
         {
             let reservoir_counters = project.reservoir_counters();
 
-            let sampling_state = utils::get_sampling_key(managed_envelope.envelope())
+            let sampling_project_state = utils::get_sampling_key(managed_envelope.envelope())
                 .and_then(|key| self.projects.get(&key))
-                .and_then(|p| p.valid_state());
+                .and_then(|p| p.valid_state())
+                .filter(|state| state.organization_id == own_project_state.organization_id);
 
-            let mut process = ProcessEnvelope {
+            let process = ProcessEnvelope {
                 envelope: managed_envelope,
-                project_state: own_project_state.clone(),
-                sampling_project_state: None,
+                project_state: own_project_state,
+                sampling_project_state,
                 reservoir_counters,
             };
-
-            if let Some(sampling_state) = sampling_state {
-                if own_project_state.organization_id == sampling_state.organization_id {
-                    process.sampling_project_state = Some(sampling_state)
-                }
-            }
 
             self.services.envelope_processor.send(process);
         }
