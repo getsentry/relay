@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
+use relay_dynamic_config::GlobalConfig;
 use relay_metrics::{self, Aggregator, FlushBuckets, MergeBuckets};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -13,6 +14,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::actors::envelopes::EnvelopeManager;
+use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
@@ -412,6 +414,7 @@ pub struct Services {
     pub project_cache: Addr<ProjectCache>,
     pub test_store: Addr<TestStore>,
     pub upstream_relay: Addr<UpstreamRelay>,
+    pub global_config: Addr<GlobalConfigManager>,
 }
 
 impl Services {
@@ -424,6 +427,7 @@ impl Services {
         project_cache: Addr<ProjectCache>,
         test_store: Addr<TestStore>,
         upstream_relay: Addr<UpstreamRelay>,
+        global_config: Addr<GlobalConfigManager>,
     ) -> Self {
         Self {
             aggregator,
@@ -433,6 +437,7 @@ impl Services {
             project_cache,
             test_store,
             upstream_relay,
+            global_config,
         }
     }
 }
@@ -455,9 +460,31 @@ struct ProjectCacheBroker {
     /// Index of the buffered project keys.
     index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
     buffer: Addr<Buffer>,
+    gc_status: GCstat,
+}
+
+#[derive(Debug)]
+enum GCstat {
+    Ready(Arc<GlobalConfig>),
+    Pending(Vec<DequeueMany>),
 }
 
 impl ProjectCacheBroker {
+    fn set_global_config(&mut self, gc: Arc<GlobalConfig>) {
+        if let GCstat::Pending(msgs) = std::mem::replace(&mut self.gc_status, GCstat::Ready(gc)) {
+            for msg in msgs {
+                self.buffer.send(msg);
+            }
+        }
+    }
+
+    fn get_global_config(&self) -> Option<Arc<GlobalConfig>> {
+        match &self.gc_status {
+            GCstat::Ready(gc) => Some(gc.clone()),
+            GCstat::Pending(_) => None,
+        }
+    }
+
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
         self.index.entry(key.own_key).or_default().insert(key);
@@ -668,7 +695,11 @@ impl ProjectCacheBroker {
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
-    fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
+    fn handle_processing(
+        &mut self,
+        managed_envelope: ManagedEnvelope,
+        global_config: Arc<GlobalConfig>,
+    ) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
         let Some(project) = self.projects.get_mut(&project_key) else {
@@ -706,6 +737,7 @@ impl ProjectCacheBroker {
                 project_state: own_project_state,
                 sampling_project_state,
                 reservoir_counters,
+                global_config,
             };
 
             self.services.envelope_processor.send(process);
@@ -745,13 +777,15 @@ impl ProjectCacheBroker {
                 .filter(|st| !st.invalid())
         });
 
-        // Trigger processing once we have a project state and we either have a sampling project
-        // state or we do not need one.
-        if project_state.is_some()
-            && (sampling_state.is_some() || sampling_key.is_none())
-            && !self.buffer_guard.is_over_high_watermark()
-        {
-            return self.handle_processing(context);
+        if let GCstat::Ready(global_config) = &self.gc_status {
+            // Trigger processing once we have a project state and we either have a sampling project
+            // state or we do not need one.
+            if project_state.is_some()
+                && (sampling_state.is_some() || sampling_key.is_none())
+                && !self.buffer_guard.is_over_high_watermark()
+            {
+                return self.handle_processing(context, global_config.clone());
+            }
         }
 
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
@@ -881,6 +915,14 @@ impl Service for ProjectCacheService {
                     }
                 };
 
+            let Ok(mut subscription) = services.global_config.send(Subscribe).await else {
+                // TODO(iker): we accept this sub-optimal error handling. TBD
+                // the approach to deal with failures on the subscription
+                // mechanism.
+                relay_log::error!("failed to subscribe to GlobalConfigService");
+                return;
+            };
+
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
@@ -894,16 +936,28 @@ impl Service for ProjectCacheService {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer,
+                gc_status: GCstat::Pending(vec![]),
             };
 
             loop {
                 tokio::select! {
                     biased;
 
+                    Ok(()) = subscription.changed() => {
+                        let x =  subscription.borrow().clone();
+                        if let crate::actors::global_config::GlobalConfigStatus::Received(x) = x {
+                            broker.set_global_config(x);
+                        }
+                    },
                     Some(message) = state_rx.recv() => broker.merge_state(message),
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
+                    Some(managed_envelope) = buffer_rx.recv() =>  {
+                        match broker.get_global_config(){
+                            Some(global_config) => broker.handle_processing(managed_envelope, global_config),
+                            None => relay_log::error!("oops no global config"),
+                        }
+                    }
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
                     Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,
@@ -955,6 +1009,7 @@ mod tests {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
 
         Services {
             aggregator,
@@ -964,6 +1019,7 @@ mod tests {
             outcome_aggregator,
             test_store,
             upstream_relay,
+            global_config,
         }
     }
 
@@ -1007,6 +1063,7 @@ mod tests {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer: buffer.clone(),
+                gc_status: GCstat::Pending(vec![]),
             },
             buffer,
         )
