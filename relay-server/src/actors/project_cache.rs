@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::global_config::{GlobalConfigManager, GlobalConfigStatus, Subscribe};
+use crate::actors::global_config::{GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
@@ -466,7 +466,15 @@ struct ProjectCacheBroker {
 
 #[derive(Debug)]
 enum GCstat {
+    /// Global config needed for envelope processing.
     Ready(Arc<GlobalConfig>),
+    /// Project keys waiting for global config to dequeue from buffer.
+    ///
+    /// These project keys were used to try to dequeue the buffer, but were blocked because we
+    /// lacked a global config. When global config arrives, we will request project states for these keys again
+    /// which will trigger another dequeue that should be succesful. The reason we don't dequeue
+    /// directly when we receive globalconfig is that the projectstates might have expired in the meantime,
+    /// which would drop the envelopes when they are sent to ProjectCacheBroker::handle_processing.
     Pending(BTreeSet<ProjectKey>),
 }
 
@@ -480,7 +488,7 @@ impl ProjectCacheBroker {
             for project_key in project_keys {
                 let message = RequestUpdate {
                     project_key,
-                    no_cache: true,
+                    no_cache: false,
                 };
 
                 self.services.project_cache.send(message)
@@ -940,6 +948,11 @@ impl Service for ProjectCacheService {
                 return;
             };
 
+            let gc_status = match subscription.borrow().clone() {
+                Some(global_config) => GCstat::Ready(global_config),
+                None => GCstat::Pending(BTreeSet::new()),
+            };
+
             // Main broker that serializes public and internal messages, and triggers project state
             // fetches via the project source.
             let mut broker = ProjectCacheBroker {
@@ -953,26 +966,29 @@ impl Service for ProjectCacheService {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer,
-                gc_status: GCstat::Pending(BTreeSet::new()),
+                gc_status,
             };
 
             loop {
                 tokio::select! {
-                    biased;
+                                biased;
 
-                    Ok(()) = subscription.changed() => {
-                        if let GlobalConfigStatus::Received(x) = subscription.borrow().clone() {
-                            broker.set_global_config(x);
-                        }
-                    },
-                    Some(message) = state_rx.recv() => broker.merge_state(message),
-                    // Buffer will not dequeue the envelopes from the spool if there is not enough
-                    // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
-                    _ = ticker.tick() => broker.evict_stale_project_caches(),
-                    Some(message) = rx.recv() => broker.handle_message(message),
-                    else => break,
+                                    Ok(()) = subscription.changed() => {
+                                        match subscription.borrow().clone() {
+                                            Some(global_config) => broker.set_global_config(global_config),
+                                            // The watch should only be updated if it gets a new value.
+                                            // This would imply a logical bug.
+                                            None => relay_log::error!("global config updated with None value"),
                 }
+                                    },
+                                    Some(message) = state_rx.recv() => broker.merge_state(message),
+                                    // Buffer will not dequeue the envelopes from the spool if there is not enough
+                                    // permits in `BufferGuard` available. Currently this is 50%.
+                                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
+                                    _ = ticker.tick() => broker.evict_stale_project_caches(),
+                                    Some(message) = rx.recv() => broker.handle_message(message),
+                                    else => break,
+                                    }
             }
 
             relay_log::info!("project cache stopped");
