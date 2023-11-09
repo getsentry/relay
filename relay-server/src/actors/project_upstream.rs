@@ -83,6 +83,10 @@ struct ProjectStateChannel {
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
+    /// How often the request failed.
+    errors: usize,
+    /// How often a "pending" response was received for this project state.
+    pending: usize,
 }
 
 impl ProjectStateChannel {
@@ -97,6 +101,8 @@ impl ProjectStateChannel {
             channel: sender.into_channel(),
             deadline: now + timeout,
             attempts: 0,
+            errors: 0,
+            pending: 0,
         }
     }
 
@@ -229,7 +235,14 @@ impl UpstreamProjectSourceService {
                         counter(RelayCounters::ProjectUpstreamCompleted) += 1,
                         result = "timeout",
                     );
-                    relay_log::error!("error fetching project state {id}: deadline exceeded");
+                    relay_log::error!(
+                        errors = channel.errors,
+                        pending = channel.pending,
+                        tags.did_error = channel.errors > 0,
+                        tags.was_pending = channel.pending > 0,
+                        tags.project_key = id.to_string(),
+                        "error fetching project state {id}: deadline exceeded",
+                    );
                 }
                 !channel.expired()
             });
@@ -286,18 +299,14 @@ impl UpstreamProjectSourceService {
                     channels_batch.len() as u64
             );
 
-            let full_config = config.processing_enabled() || config.request_full_project_config();
             let query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
+                full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
-                full_config,
             };
 
             // count number of http requests for project states
-            metric!(
-                counter(RelayCounters::ProjectStateRequest) += 1,
-                full = &full_config.to_string(),
-            );
+            metric!(counter(RelayCounters::ProjectStateRequest) += 1);
 
             let upstream_relay = upstream_relay.clone();
             requests.push(async move {
@@ -361,8 +370,9 @@ impl UpstreamProjectSourceService {
                         histogram(RelayHistograms::ProjectStateReceived) =
                             response.configs.len() as u64
                     );
-                    for (key, channel) in channels_batch {
+                    for (key, mut channel) in channels_batch {
                         if response.pending.contains(&key) {
+                            channel.pending += 1;
                             self.state_channels.insert(key, channel);
                             continue;
                         }
@@ -411,7 +421,12 @@ impl UpstreamProjectSourceService {
                             self.state_channels.len() as u64
                     );
                     // Put the channels back into the queue, we will retry again shortly.
-                    self.state_channels.extend(channels_batch)
+                    self.state_channels.extend(channels_batch.into_iter().map(
+                        |(key, mut channel)| {
+                            channel.errors += 1;
+                            (key, channel)
+                        },
+                    ))
                 }
             }
         }

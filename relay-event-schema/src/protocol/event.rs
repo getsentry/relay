@@ -626,10 +626,12 @@ impl Getter for Event {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         Some(match path.strip_prefix("event.")? {
             // Simple fields
+            "level" => self.level.value()?.name().into(),
             "release" => self.release.as_str()?.into(),
             "dist" => self.dist.as_str()?.into(),
             "environment" => self.environment.as_str()?.into(),
             "transaction" => self.transaction.as_str()?.into(),
+            "logger" => self.logger.as_str()?.into(),
             "platform" => self.platform.as_str().unwrap_or("other").into(),
 
             // Fields in top level structures (called "interfaces" in Sentry)

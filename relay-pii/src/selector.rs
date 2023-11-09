@@ -165,6 +165,19 @@ pub enum SelectorSpec {
 }
 
 impl SelectorSpec {
+    /// Parses a selector from a string without legacy special handling.
+    pub fn parse_non_legacy(s: &str) -> Result<SelectorSpec, InvalidSelectorError> {
+        handle_selector(
+            SelectorParser::parse(Rule::RootSelector, s)
+                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))?
+                .next()
+                .unwrap()
+                .into_inner()
+                .next()
+                .unwrap(),
+        )
+    }
+
     /// Checks if a path matches given selector.
     ///
     /// This walks both the selector and the path starting at the end and towards the root
@@ -315,15 +328,7 @@ impl FromStr for SelectorSpec {
             _ => {}
         }
 
-        handle_selector(
-            SelectorParser::parse(Rule::RootSelector, s)
-                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))?
-                .next()
-                .unwrap()
-                .into_inner()
-                .next()
-                .unwrap(),
-        )
+        Self::parse_non_legacy(s)
     }
 }
 
