@@ -162,6 +162,11 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfile, ProfileError> {
         return Err(ProfileError::NoTransactionAssociated);
     }
 
+    if let Some(js_profile) = profile.js_profile {
+        // TODO: Extract validations from https://github.com/getsentry/relay/blob/6d87ca4a402cdda760bb4281719b3b231a429c19/relay-profiling/src/sample.rs#L312
+        profile.js_profile = Some(js_profile);
+    }
+
     if !profile.sampled_profile.is_empty() {
         profile.parse()?;
     }
