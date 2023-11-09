@@ -53,6 +53,11 @@ pub(crate) fn scrub_span_description(span: &Span) -> Option<String> {
                 // spans coming from CoreData need to be scrubbed differently.
                 } else if span_origin == Some("auto.db.core_data") {
                     scrub_core_data(description)
+                } else if sub.contains("prisma") {
+                    // We're not able to extract the exact query ran.
+                    // The description will only contain the entity queried and
+                    // the query type ("User find" for example).
+                    Some(description.to_owned())
                 } else {
                     sql::scrub_queries(db_system, description)
                 }
@@ -698,6 +703,8 @@ mod tests {
         "resource.script",
         "*/zero-length-*"
     );
+
+    span_description_test!(db_prisma, "User find", "db.sql.prisma", "User find");
 
     #[test]
     fn informed_sql_parser() {
