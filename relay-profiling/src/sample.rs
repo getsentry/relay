@@ -71,7 +71,7 @@ struct QueueMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct Profile {
+pub struct Profile {
     samples: Vec<Sample>,
     stacks: Vec<Vec<usize>>,
     frames: Vec<Frame>,

@@ -7,6 +7,7 @@ use relay_event_schema::protocol::EventId;
 use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
+use crate::sample::Profile as SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};
@@ -87,6 +88,9 @@ struct AndroidProfile {
 
     #[serde(default, skip_serializing)]
     sampled_profile: String,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    js_profile: Option<SampleProfile>,
 
     #[serde(default = "AndroidProfile::default")]
     profile: AndroidTraceLog,
