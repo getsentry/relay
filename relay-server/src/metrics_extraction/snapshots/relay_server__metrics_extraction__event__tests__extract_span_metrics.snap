@@ -1219,6 +1219,51 @@ expression: metrics
     Bucket {
         timestamp: UnixTimestamp(1597976302),
         width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.category": "resource",
+            "span.description": "http://domain/*/myscript-*.js",
+            "span.domain": "domain",
+            "span.group": "ea1af0b8d5f734c5",
+            "span.op": "resource.script",
+            "span.status": "ok",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "span.category": "resource",
+            "span.description": "http://domain/*/myscript-*.js",
+            "span.domain": "domain",
+            "span.group": "ea1af0b8d5f734c5",
+            "span.op": "resource.script",
+            "span.status": "ok",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
         name: "c:spans/count_per_op@none",
         value: Counter(
             1.0,
@@ -1478,6 +1523,108 @@ expression: metrics
         ),
         tags: {
             "span.op": "app.start.cold",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/exclusive_time_light@millisecond",
+        value: Distribution(
+            [
+                477.800131,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "http.status_code": "500",
+            "resource.render_blocking_status": "blocking",
+            "span.category": "resource",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+            "transaction.method": "POST",
+            "transaction.op": "myop",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_content_length@byte",
+        value: Distribution(
+            [
+                36170.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.decoded_response_content_length@byte",
+        value: Distribution(
+            [
+                128950.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1694732408),
+        width: 0,
+        name: "d:spans/http.response_transfer_size@byte",
+        value: Distribution(
+            [
+                36470.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "resource.render_blocking_status": "blocking",
+            "span.description": "https://*.domain.com/*/*.css",
+            "span.domain": "*.domain.com",
+            "span.group": "d744fa0716ef1142",
+            "span.op": "resource.css",
+            "transaction": "gEt /api/:version/users/",
         },
     },
     Bucket {
