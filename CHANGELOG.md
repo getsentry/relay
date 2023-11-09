@@ -30,6 +30,7 @@
 - Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
 - Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
+- Delay serving global config in managed mode before upstream response. ([#2692](https://github.com/getsentry/relay/pull/2697))
 
 ## 23.10.1
 
