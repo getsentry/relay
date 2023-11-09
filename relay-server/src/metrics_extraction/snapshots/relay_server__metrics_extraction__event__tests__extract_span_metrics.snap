@@ -11,7 +11,8 @@ expression: metrics
             1.0,
         ),
         tags: {
-            "span.op": "UI.React.Render",
+            "span.category": "ui.react",
+            "span.op": "ui.react.render",
         },
     },
     Bucket {
@@ -67,6 +68,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -123,6 +125,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -179,6 +182,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -233,6 +237,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -291,6 +296,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -351,6 +357,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -411,6 +418,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -471,6 +479,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -531,6 +540,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -591,6 +601,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "http",
             "span.op": "http.client",
         },
     },
@@ -651,6 +662,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.sql.query",
         },
     },
@@ -709,6 +721,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db",
         },
     },
@@ -765,6 +778,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.sql.query",
         },
     },
@@ -825,6 +839,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.sql.query",
         },
     },
@@ -879,6 +894,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db",
         },
     },
@@ -939,6 +955,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.sql.query",
         },
     },
@@ -999,6 +1016,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db",
         },
     },
@@ -1055,6 +1073,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db",
         },
     },
@@ -1111,6 +1130,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db",
         },
     },
@@ -1169,6 +1189,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db",
         },
     },
@@ -1180,6 +1201,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "cache",
             "span.op": "cache.get_item",
         },
     },
@@ -1191,6 +1213,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.redis",
         },
     },
@@ -1202,6 +1225,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.redis",
         },
     },
@@ -1213,6 +1237,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.redis",
         },
     },
@@ -1269,6 +1294,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "resource",
             "span.op": "resource.script",
         },
     },
@@ -1280,6 +1306,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.sql.query",
         },
     },
@@ -1336,6 +1363,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.sql.query",
         },
     },
@@ -1347,6 +1375,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.mongodb.find",
         },
     },
@@ -1403,6 +1432,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.sql.activerecord",
         },
     },
@@ -1414,6 +1444,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "db",
             "span.op": "db.redis.command",
         },
     },
@@ -1522,6 +1553,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "app",
             "span.op": "app.start.cold",
         },
     },
@@ -1635,6 +1667,7 @@ expression: metrics
             1.0,
         ),
         tags: {
+            "span.category": "resource",
             "span.op": "resource.css",
         },
     },
