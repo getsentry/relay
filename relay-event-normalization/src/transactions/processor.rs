@@ -421,7 +421,7 @@ mod tests {
     use relay_event_schema::protocol::{
         ClientSdkInfo, Contexts, Span, SpanId, TraceId, TransactionSource,
     };
-    use relay_protocol::{assert_annotated_snapshot, get_value, Meta, Object};
+    use relay_protocol::{get_value, Meta, Object};
     use similar_asserts::assert_eq;
 
     use super::*;

@@ -3,4 +3,3 @@
 pub mod attributes;
 pub mod description;
 pub mod tag_extraction;
-pub(crate) mod validation;

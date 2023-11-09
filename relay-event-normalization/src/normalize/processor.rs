@@ -25,7 +25,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
-use crate::normalize::span::validation::{validate_span_ids, validate_span_timestamps};
+use crate::normalize::utils::validate_span;
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
@@ -38,7 +38,7 @@ use crate::{
 use crate::LightNormalizationConfig;
 
 /// Configuration for [`NormalizeProcessor`].
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct NormalizeProcessorConfig<'a> {
     /// Light normalization config.
     // XXX(iker): we should split this config appropriately.
@@ -81,8 +81,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
     ) -> ProcessingResult {
         event.process_child_values(self, state)?;
 
-        let light_normalization_config = &self.config.light_config;
-        if light_normalization_config.is_renormalize {
+        let config = &self.config.light_config;
+        if config.is_renormalize {
             return Ok(());
         }
 
@@ -91,8 +91,8 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         // TODO: Parts of this processor should probably be a filter so we
         // can revert some changes to ProcessingAction)
         let mut transactions_processor = transactions::TransactionsProcessor::new(
-            light_normalization_config.transaction_name_config.clone(),
-            light_normalization_config.transaction_range.clone(),
+            config.transaction_name_config.clone(),
+            config.transaction_range.clone(),
         );
         transactions_processor.process_event(event, meta, ProcessingState::root())?;
 
@@ -102,24 +102,20 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         TimestampProcessor.process_event(event, meta, ProcessingState::root())?;
 
         // Process security reports first to ensure all props.
-        normalize_security_report(
-            event,
-            light_normalization_config.client_ip,
-            &light_normalization_config.user_agent,
-        );
+        normalize_security_report(event, config.client_ip, &config.user_agent);
 
         // Process NEL reports to ensure all props.
-        normalize_nel_report(event, light_normalization_config.client_ip);
+        normalize_nel_report(event, config.client_ip);
 
         // Insert IP addrs before recursing, since geo lookup depends on it.
         normalize_ip_addresses(
             &mut event.request,
             &mut event.user,
             event.platform.as_str(),
-            light_normalization_config.client_ip,
+            config.client_ip,
         );
 
-        if let Some(geoip_lookup) = light_normalization_config.geoip_lookup {
+        if let Some(geoip_lookup) = config.geoip_lookup {
             if let Some(user) = event.user.value_mut() {
                 normalize_user_geoinfo(geoip_lookup, user)
             }
@@ -149,32 +145,30 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         normalize_timestamps(
             event,
             meta,
-            light_normalization_config.received_at,
-            light_normalization_config.max_secs_in_past,
-            light_normalization_config.max_secs_in_future,
+            config.received_at,
+            config.max_secs_in_past,
+            config.max_secs_in_future,
         )?; // Timestamps are core in the metrics extraction
         normalize_event_tags(event)?; // Tags are added to every metric
 
         // TODO: Consider moving to store normalization
-        if light_normalization_config.device_class_synthesis_config {
+        if config.device_class_synthesis_config {
             normalize_device_class(event);
         }
         light_normalize_stacktraces(event)?;
         normalize_exceptions(event)?; // Browser extension filters look at the stacktrace
-        normalize_user_agent(event, light_normalization_config.normalize_user_agent); // Legacy browsers filter
+        normalize_user_agent(event, config.normalize_user_agent); // Legacy browsers filter
         normalize_measurements(
             event,
-            light_normalization_config.measurements.clone(),
-            light_normalization_config.max_name_and_unit_len,
+            config.measurements.clone(),
+            config.max_name_and_unit_len,
         ); // Measurements are part of the metric extraction
-        normalize_breakdowns(event, light_normalization_config.breakdowns_config); // Breakdowns are part of the metric extraction too
+        normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
 
         // Some contexts need to be normalized before metrics extraction takes place.
         processor::apply(&mut event.contexts, normalize_contexts)?;
 
-        if light_normalization_config.light_normalize_spans
-            && event.ty.value() == Some(&EventType::Transaction)
-        {
+        if config.light_normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
             // XXX(iker): span normalization runs in the store processor, but
             // the exclusive time is required for span metrics. Most of
             // transactions don't have many spans, but if this is no longer the
@@ -187,16 +181,16 @@ impl<'a> Processor for NormalizeProcessor<'a> {
             );
         }
 
-        if light_normalization_config.enrich_spans {
+        if config.enrich_spans {
             extract_span_tags(
                 event,
                 &tag_extraction::Config {
-                    max_tag_value_size: light_normalization_config.max_tag_value_length,
+                    max_tag_value_size: config.max_tag_value_length,
                 },
             );
         }
 
-        if light_normalization_config.enable_trimming {
+        if config.enable_trimming {
             // Trim large strings and databags down
             trimming::TrimmingProcessor::new().process_event(
                 event,
@@ -214,9 +208,7 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         _: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        validate_span_timestamps(span)?;
-        validate_span_ids(span)?;
-
+        validate_span(span)?;
         span.op.get_or_insert_with(|| "default".to_owned());
 
         span.process_child_values(self, state)?;
@@ -905,19 +897,22 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 mod tests {
     use std::collections::BTreeMap;
 
+    use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
+    use relay_base_schema::events::EventType;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
+    use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
     use relay_event_schema::protocol::{
         Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement, Measurements, Request,
-        Tags,
+        Span, SpanId, Tags, TraceContext, TraceId,
     };
-    use relay_protocol::{Annotated, Meta, Object, SerializableAnnotated};
+    use relay_protocol::{get_value, Annotated, Meta, Object, SerializableAnnotated};
     use serde_json::json;
 
     use crate::normalize::processor::{
         filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
         normalize_dist, normalize_measurements, normalize_security_report, normalize_units,
-        remove_invalid_measurements,
+        remove_invalid_measurements, NormalizeProcessor, NormalizeProcessorConfig,
     };
     use crate::{ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, RawUserAgentInfo};
 
@@ -1538,5 +1533,203 @@ mod tests {
         assert_eq!(measurements.len(), 1);
         filter_mobile_outliers(&mut measurements);
         assert_eq!(measurements.len(), 0);
+    }
+
+    #[test]
+    fn test_defaults_transaction_event_with_span_with_missing_op() {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let span = get_value!(event.spans).unwrap().first().unwrap();
+        assert_eq!(get_value!(span.op).unwrap(), &"default".to_owned());
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_span_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing span_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing start_timestamp"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_trace_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing trace_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_renormalize_is_idempotent() {
+        let json = r#"{
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+}"#;
+
+        let mut processed = Annotated::<Span>::from_json(json).unwrap();
+        let processor_config = NormalizeProcessorConfig::default();
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+        process_value(&mut processed, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(processed.op!), &"default".to_owned());
+
+        let mut reprocess_config = processor_config.clone();
+        reprocess_config.light_config.is_renormalize = true;
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+
+        let mut reprocessed = processed.clone();
+        process_value(&mut reprocessed, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(processed, reprocessed);
+
+        let mut reprocessed2 = reprocessed.clone();
+        process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(reprocessed, reprocessed2);
     }
 }
