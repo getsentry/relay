@@ -785,6 +785,13 @@
 <a href="#785" id="785">785</a>
 <a href="#786" id="786">786</a>
 <a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>sql;
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -840,6 +847,11 @@
                 </span><span class="comment">// spans coming from CoreData need to be scrubbed differently.
                 </span>} <span class="kw">else if </span>span_origin == <span class="prelude-val">Some</span>(<span class="string">&quot;auto.db.core_data&quot;</span>) {
                     scrub_core_data(description)
+                } <span class="kw">else if </span>sub.contains(<span class="string">&quot;prisma&quot;</span>) {
+                    <span class="comment">// We&#39;re not able to extract the exact query ran.
+                    // The description will only contain the entity queried and
+                    // the query type (&quot;User find&quot; for example).
+                    </span><span class="prelude-val">Some</span>(description.to_owned())
                 } <span class="kw">else </span>{
                     sql::scrub_queries(db_system, description)
                 }
@@ -1485,6 +1497,8 @@
         <span class="string">&quot;resource.script&quot;</span>,
         <span class="string">&quot;*/zero-length-*&quot;
     </span>);
+
+    <span class="macro">span_description_test!</span>(db_prisma, <span class="string">&quot;User find&quot;</span>, <span class="string">&quot;db.sql.prisma&quot;</span>, <span class="string">&quot;User find&quot;</span>);
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>informed_sql_parser() {
