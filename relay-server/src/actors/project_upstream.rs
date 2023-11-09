@@ -228,6 +228,7 @@ impl UpstreamProjectSourceService {
                         pending = channel.pending,
                         tags.did_error = channel.errors > 0,
                         tags.was_pending = channel.pending > 0,
+                        tags.project_key = id.to_string(),
                         "error fetching project state {id}: deadline exceeded",
                     );
                 }
