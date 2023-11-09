@@ -117,6 +117,21 @@ impl Value {
     }
 }
 
+impl TryFrom<&Value> for String {
+    type Error = ();
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        Ok(match value {
+            Value::Bool(v) => v.to_string(),
+            Value::I64(v) => v.to_string(),
+            Value::U64(v) => v.to_string(),
+            Value::F64(v) => v.to_string(),
+            Value::String(v) => v.to_string(),
+            _ => return Err(()),
+        })
+    }
+}
+
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
