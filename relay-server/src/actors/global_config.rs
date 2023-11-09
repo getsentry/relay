@@ -39,7 +39,7 @@ type UpstreamQueryResult =
 #[serde(rename_all = "camelCase")]
 struct GetGlobalConfigResponse {
     #[serde(default)]
-    global: Option<Arc<GlobalConfig>>,
+    global: Option<GlobalConfig>,
 }
 
 /// The request to fetch a global config from upstream.
@@ -237,7 +237,9 @@ impl GlobalConfigService {
                         }
                         // Notifying subscribers only fails when there are no
                         // subscribers.
-                        self.global_config_watch.send(Some(global_config)).ok();
+                        self.global_config_watch
+                            .send(Some(Arc::new(global_config)))
+                            .ok();
                         success = true;
                         self.last_fetched = Instant::now();
                     }

@@ -319,6 +319,7 @@ struct ProcessEnvelopeState<'a> {
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
 
+    /// Global config used for envelope processing.
     global_config: Arc<GlobalConfig>,
 }
 

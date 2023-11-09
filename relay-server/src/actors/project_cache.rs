@@ -461,11 +461,11 @@ struct ProjectCacheBroker {
     /// Index of the buffered project keys.
     index: BTreeMap<ProjectKey, BTreeSet<QueueKey>>,
     buffer: Addr<Buffer>,
-    gc_status: GCstat,
+    global_config: GlobalConfigStatus,
 }
 
 #[derive(Debug)]
-enum GCstat {
+enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
     Ready(Arc<GlobalConfig>),
     /// Project keys waiting for global config to dequeue from buffer.
@@ -480,8 +480,8 @@ enum GCstat {
 
 impl ProjectCacheBroker {
     fn set_global_config(&mut self, gc: Arc<GlobalConfig>) {
-        if let GCstat::Pending(project_keys) =
-            std::mem::replace(&mut self.gc_status, GCstat::Ready(gc))
+        if let GlobalConfigStatus::Pending(project_keys) =
+            std::mem::replace(&mut self.global_config, GlobalConfigStatus::Ready(gc))
         {
             // When the global config arrives, we will request new ProjectStates for all the
             // projects. This will trigger dequeuing of that we deferred in ProjectCacheBroker::dequeue.
@@ -497,14 +497,14 @@ impl ProjectCacheBroker {
     }
 
     fn get_global_config(&self) -> Option<Arc<GlobalConfig>> {
-        match &self.gc_status {
-            GCstat::Ready(gc) => Some(gc.clone()),
-            GCstat::Pending(_) => None,
+        match &self.global_config {
+            GlobalConfigStatus::Ready(gc) => Some(gc.clone()),
+            GlobalConfigStatus::Pending(_) => None,
         }
     }
 
     fn global_config_ready(&self) -> bool {
-        matches!(self.gc_status, GCstat::Ready(_))
+        matches!(self.global_config, GlobalConfigStatus::Ready(_))
     }
 
     /// Adds the value to the queue for the provided key.
@@ -520,7 +520,7 @@ impl ProjectCacheBroker {
     /// forwarded to `handle_processing`.
     pub fn dequeue(&mut self, partial_key: ProjectKey) {
         // If we don't yet have the global config, we will defer dequeuing until we do.
-        if let GCstat::Pending(keys) = &mut self.gc_status {
+        if let GlobalConfigStatus::Pending(keys) = &mut self.global_config {
             keys.insert(partial_key);
             return;
         }
@@ -717,6 +717,7 @@ impl ProjectCacheBroker {
     /// The following pre-conditions must be met before calling this function:
     /// - Envelope's project state must be cached and valid.
     /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
+    /// - Global config from the global config service must be available.
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
@@ -724,7 +725,9 @@ impl ProjectCacheBroker {
         let project_key = managed_envelope.envelope().meta().public_key();
 
         let Some(global_config) = self.get_global_config() else {
-            relay_log::error!("oops no global config");
+            // This indicates a logical error in our approach, this function should only
+            // be called when we have a global config.
+            relay_log::error!("attempted to process envelope without global config");
             return;
         };
 
@@ -949,8 +952,8 @@ impl Service for ProjectCacheService {
             };
 
             let gc_status = match subscription.borrow().clone() {
-                Some(global_config) => GCstat::Ready(global_config),
-                None => GCstat::Pending(BTreeSet::new()),
+                Some(global_config) => GlobalConfigStatus::Ready(global_config),
+                None => GlobalConfigStatus::Pending(BTreeSet::new()),
             };
 
             // Main broker that serializes public and internal messages, and triggers project state
@@ -966,7 +969,7 @@ impl Service for ProjectCacheService {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer,
-                gc_status,
+                global_config: gc_status,
             };
 
             loop {
@@ -1090,7 +1093,7 @@ mod tests {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer: buffer.clone(),
-                gc_status: GCstat::Pending(BTreeSet::new()),
+                global_config: GlobalConfigStatus::Pending(BTreeSet::new()),
             },
             buffer,
         )
