@@ -449,6 +449,7 @@ impl UpstreamProjectSourceService {
                 }
             }
         }
+        metric!(counter(RelayCounters::ProjectUpstreamFailed) += 1);
     }
 
     /// Creates the async task to fetch the project states.
