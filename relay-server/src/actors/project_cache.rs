@@ -557,8 +557,11 @@ impl ProjectCacheBroker {
         }
 
         if !result.is_empty() {
-            let message = DequeueMany::new(partial_key, result, self.buffer_tx.clone());
-            self.buffer.send(message);
+            self.buffer.send(DequeueMany::new(
+                partial_key,
+                result,
+                self.buffer_tx.clone(),
+            ))
         }
     }
 
