@@ -427,17 +427,7 @@ pub enum RelayCounters {
     ///
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
-    ///
-    /// This metric is tagged with:
-    ///  - `full`: Either `true` if the full project state is requested or `false` - when the
-    ///  limited project state is requested.
     ProjectStateRequest,
-    /// Number of project state HTTP responses to the incoming requests.
-    ///
-    /// This metric tagged with:
-    ///  - `full`: Either `true` if the full project state is requested or `false` - when the
-    ///  limited project state is requested.
-    ProjectStateResponse,
     /// Number of times a project config was requested with `.no-cache`.
     ///
     /// This effectively counts the number of envelopes or events that have been sent with a
@@ -576,7 +566,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
-            RelayCounters::ProjectStateResponse => "project_state.response",
             RelayCounters::ProjectStateNoCache => "project_state.no_cache",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
