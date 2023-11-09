@@ -321,7 +321,7 @@ impl Service for GlobalConfigService {
                                 "serving default global configs due to lacking static global config file"
                             );
                         self.global_config_watch
-                            .send(Status::Ready(Arc::new(GlobalConfig::default())))
+                            .send(Status::Ready(Arc::default()))
                             .ok();
                     }
                     Err(e) => {
@@ -329,6 +329,9 @@ impl Service for GlobalConfigService {
                         relay_log::info!(
                                 "serving default global configs due to failure to load global config from file"
                             );
+                        self.global_config_watch
+                            .send(Status::Ready(Arc::default()))
+                            .ok();
                     }
                 }
             };
