@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::global_config::{GlobalConfigManager, Subscribe};
+use crate::actors::global_config::{GlobalConfigManager, GlobalConfigStatus, Subscribe};
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
@@ -485,6 +485,10 @@ impl ProjectCacheBroker {
         }
     }
 
+    fn global_config_ready(&self) -> bool {
+        matches!(self.gc_status, GCstat::Ready(_))
+    }
+
     /// Adds the value to the queue for the provided key.
     pub fn enqueue(&mut self, key: QueueKey, value: ManagedEnvelope) {
         self.index.entry(key.own_key).or_default().insert(key);
@@ -698,12 +702,13 @@ impl ProjectCacheBroker {
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
-    fn handle_processing(
-        &mut self,
-        managed_envelope: ManagedEnvelope,
-        global_config: Arc<GlobalConfig>,
-    ) {
+    fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
+
+        let Some(global_config) = self.get_global_config() else {
+            relay_log::error!("oops no global config");
+            return;
+        };
 
         let Some(project) = self.projects.get_mut(&project_key) else {
             relay_log::error!(
@@ -780,15 +785,14 @@ impl ProjectCacheBroker {
                 .filter(|st| !st.invalid())
         });
 
-        if let GCstat::Ready(global_config) = &self.gc_status {
-            // Trigger processing once we have a project state and we either have a sampling project
-            // state or we do not need one.
-            if project_state.is_some()
-                && (sampling_state.is_some() || sampling_key.is_none())
-                && !self.buffer_guard.is_over_high_watermark()
-            {
-                return self.handle_processing(context, global_config.clone());
-            }
+        // Trigger processing once we have a project state and we either have a sampling project
+        // state or we do not need one.
+        if project_state.is_some()
+            && (sampling_state.is_some() || sampling_key.is_none())
+            && !self.buffer_guard.is_over_high_watermark()
+            && self.global_config_ready()
+        {
+            return self.handle_processing(context);
         }
 
         let key = QueueKey::new(own_key, sampling_key.unwrap_or(own_key));
@@ -947,20 +951,14 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Ok(()) = subscription.changed() => {
-                        let x =  subscription.borrow().clone();
-                        if let crate::actors::global_config::GlobalConfigStatus::Received(x) = x {
+                        if let GlobalConfigStatus::Received(x) = subscription.borrow().clone() {
                             broker.set_global_config(x);
                         }
                     },
                     Some(message) = state_rx.recv() => broker.merge_state(message),
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(managed_envelope) = buffer_rx.recv() =>  {
-                        match broker.get_global_config(){
-                            Some(global_config) => broker.handle_processing(managed_envelope, global_config),
-                            None => relay_log::error!("oops no global config"),
-                        }
-                    }
+                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
                     _ = ticker.tick() => broker.evict_stale_project_caches(),
                     Some(message) = rx.recv() => broker.handle_message(message),
                     else => break,
