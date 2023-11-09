@@ -126,6 +126,18 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
             ),
             tags: Default::default(),
         },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/count_per_op@none".into(),
+            field: None,
+            condition: None,
+            tags: vec![TagSpec {
+                key: "span.op".into(),
+                field: Some("span.op".into()),
+                value: None,
+                condition: None,
+            }],
+        },
     ]);
 
     config.tags.extend([
