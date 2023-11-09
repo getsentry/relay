@@ -4430,11 +4430,6 @@
 <a href="#4430" id="4430">4430</a>
 <a href="#4431" id="4431">4431</a>
 <a href="#4432" id="4432">4432</a>
-<a href="#4433" id="4433">4433</a>
-<a href="#4434" id="4434">4434</a>
-<a href="#4435" id="4435">4435</a>
-<a href="#4436" id="4436">4436</a>
-<a href="#4437" id="4437">4437</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -6763,7 +6758,7 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
-    </span><span class="kw">fn </span>is_span_allowed(<span class="kw-2">&amp;</span><span class="self">self</span>, span: <span class="kw-2">&amp;</span>Span, resource_span_extraction_enabled: bool) -&gt; bool {
+    </span><span class="kw">fn </span>is_span_allowed(<span class="kw-2">&amp;</span><span class="self">self</span>, span: <span class="kw-2">&amp;</span>Span) -&gt; bool {
         <span class="kw">let </span><span class="prelude-val">Some</span>(op) = span.op.value() <span class="kw">else </span>{
             <span class="kw">return </span><span class="bool-val">false</span>;
         };
@@ -6776,8 +6771,8 @@
             .and_then(|v| v.get(<span class="string">&quot;span.system&quot;</span>))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        (resource_span_extraction_enabled
-            &amp;&amp; (op.contains(<span class="string">&quot;resource.script&quot;</span>) || op.contains(<span class="string">&quot;resource.css&quot;</span>)))
+        op.contains(<span class="string">&quot;resource.script&quot;</span>)
+            || op.contains(<span class="string">&quot;resource.css&quot;</span>)
             || op == <span class="string">&quot;http.client&quot;
             </span>|| op.starts_with(<span class="string">&quot;app.&quot;</span>)
             || op.starts_with(<span class="string">&quot;ui.load&quot;</span>)
@@ -6841,9 +6836,6 @@
         <span class="kw">let </span>all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
-        <span class="kw">let </span>resource_span_extraction_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionResource);
 
         <span class="comment">// Add child spans as envelope items.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
@@ -6852,9 +6844,7 @@
                     <span class="kw">continue</span>;
                 };
                 <span class="comment">// HACK: filter spans based on module until we figure out grouping.
-                </span><span class="kw">if </span>!all_modules_enabled
-                    &amp;&amp; !<span class="self">self</span>.is_span_allowed(inner_span, resource_span_extraction_enabled)
-                {
+                </span><span class="kw">if </span>!all_modules_enabled &amp;&amp; !<span class="self">self</span>.is_span_allowed(inner_span) {
                     <span class="kw">continue</span>;
                 }
                 <span class="comment">// HACK: clone the span to set the segment_id. This should happen

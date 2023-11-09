@@ -137,9 +137,6 @@
     <span class="doccomment">/// Enable processing profiles
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:profiling&quot;</span>)]
     </span>Profiling,
-    <span class="doccomment">/// Enable extracting resource spans.
-    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-resource&quot;</span>)]
-    </span>SpanMetricsExtractionResource,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;organizations:transaction-name-mark-scrubbed-as-sanitized&quot;</span>)]
@@ -150,6 +147,9 @@
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:extract-standalone-spans&quot;</span>)]
     </span>Deprecated4,
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[serde(rename = <span class="string">&quot;projects:span-metrics-extraction-resource&quot;</span>)]
+    </span>Deprecated5,
     <span class="doccomment">/// Forward compatibility.
     </span><span class="attr">#[serde(other)]
     </span>Unknown,
