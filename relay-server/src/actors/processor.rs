@@ -2507,36 +2507,17 @@ impl EnvelopeProcessorService {
         let mut items: Vec<Item> = Vec::new();
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::OtelSpan => {
-                let span: relay_spans::Span = match serde_json::from_slice(&item.payload()) {
-                    Ok(span) => span,
-                    Err(e) => {
-                        relay_log::error!(error = &e as &dyn Error, "failed to parse OTel span");
-                        return ItemAction::DropSilently;
-                    }
-                };
-                let event_span: Annotated<Span> = Annotated::new(span.into());
-                match self.validate_span(event_span) {
-                    Ok(span) => {
-                        let payload: Bytes = match span.to_json() {
-                            Ok(payload) => payload.into(),
-                            Err(e) => {
-                                relay_log::error!(
-                                    error = &e as &dyn Error,
-                                    "Failed to serialize OTel span"
-                                );
-                                return ItemAction::DropSilently;
-                            }
-                        };
-                        let mut new_item = Item::new(ItemType::Span);
-                        new_item.set_payload(ContentType::Json, payload);
-                        items.push(new_item);
-                        ItemAction::DropSilently
-                    }
-                    Err(e) => {
-                        relay_log::error!("Invalid span: {e}");
-                        ItemAction::DropSilently
+                if let Ok(relay_span) = serde_json::from_slice::<relay_spans::Span>(&item.payload())
+                {
+                    if let Ok(span) = self.validate_span(Annotated::new(relay_span.into())) {
+                        if let Ok(payload) = span.to_json() {
+                            let mut new_item = Item::new(ItemType::Span);
+                            new_item.set_payload(ContentType::Json, payload);
+                            items.push(new_item);
+                        }
                     }
                 }
+                ItemAction::DropSilently
             }
             _ => ItemAction::Keep,
         });
