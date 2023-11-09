@@ -19,6 +19,7 @@
 **Bug Fixes**:
 
 - Disable scrubbing for the User-Agent header. ([#2641](https://github.com/getsentry/relay/pull/2641))
+- Fixes certain safe fields disabling data scrubbing for all string fields. ([#2701](https://github.com/getsentry/relay/pull/2701))
 
 **Internal**:
 
@@ -27,6 +28,7 @@
 - Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
 - Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
+- Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
 
 ## 23.10.1
 

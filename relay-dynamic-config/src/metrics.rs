@@ -182,7 +182,9 @@ pub struct MetricExtractionConfig {
 
 impl MetricExtractionConfig {
     /// The latest version for this config struct.
-    pub const VERSION: u16 = 1;
+    ///
+    /// This is the maximum version supported by this Relay instance.
+    pub const VERSION: u16 = 2;
 
     /// Returns an empty `MetricExtractionConfig` with the latest version.
     ///
