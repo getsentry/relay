@@ -18,7 +18,6 @@ use crate::endpoints::common::ServiceUnavailable;
 use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
-use crate::statsd::RelayCounters;
 
 /// V2 version of this endpoint.
 ///
@@ -57,10 +56,6 @@ enum ProjectStateWrapper {
 impl ProjectStateWrapper {
     /// Create a wrapper which forces serialization into external or internal format
     pub fn new(state: ProjectState, full: bool) -> Self {
-        relay_statsd::metric!(
-            counter(RelayCounters::ProjectStateResponse) += 1,
-            full = &full.to_string(),
-        );
         if full {
             Self::Full(state)
         } else {
