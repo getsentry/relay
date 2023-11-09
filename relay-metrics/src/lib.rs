@@ -68,7 +68,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-/// Only public for benchmarks.
 pub mod aggregator;
 
 mod aggregatorservice;
