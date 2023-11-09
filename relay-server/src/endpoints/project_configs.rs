@@ -140,7 +140,7 @@ async fn inner(
                 .global_config()
                 .send(global_config::Get)
                 .await?
-                .unwrap_or_default(),
+                .get_ready_or_default(),
         ),
         false => None,
     };

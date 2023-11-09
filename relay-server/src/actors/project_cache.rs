@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use tokio::time::Instant;
 
 use crate::actors::envelopes::EnvelopeManager;
-use crate::actors::global_config::{GlobalConfigManager, Subscribe};
+use crate::actors::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::actors::outcome::{DiscardReason, TrackOutcome};
 use crate::actors::processor::{EnvelopeProcessor, ProcessEnvelope};
 use crate::actors::project::{Project, ProjectSender, ProjectState};
@@ -479,10 +479,11 @@ enum GlobalConfigStatus {
 }
 
 impl ProjectCacheBroker {
-    fn set_global_config(&mut self, gc: Arc<GlobalConfig>) {
-        if let GlobalConfigStatus::Pending(project_keys) =
-            std::mem::replace(&mut self.global_config, GlobalConfigStatus::Ready(gc))
-        {
+    fn set_global_config(&mut self, global_config: Arc<GlobalConfig>) {
+        if let GlobalConfigStatus::Pending(project_keys) = std::mem::replace(
+            &mut self.global_config,
+            GlobalConfigStatus::Ready(global_config),
+        ) {
             // When the global config arrives, we will request new ProjectStates for all the
             // projects. This will trigger dequeuing of that we deferred in ProjectCacheBroker::dequeue.
             for project_key in project_keys {
@@ -951,9 +952,11 @@ impl Service for ProjectCacheService {
                 return;
             };
 
-            let gc_status = match subscription.borrow().clone() {
-                Some(global_config) => GlobalConfigStatus::Ready(global_config),
-                None => GlobalConfigStatus::Pending(BTreeSet::new()),
+            let global_config = match subscription.borrow().clone() {
+                global_config::Status::Ready(global_config) => {
+                    GlobalConfigStatus::Ready(global_config)
+                }
+                global_config::Status::Waiting => GlobalConfigStatus::Pending(BTreeSet::new()),
             };
 
             // Main broker that serializes public and internal messages, and triggers project state
@@ -969,7 +972,7 @@ impl Service for ProjectCacheService {
                 buffer_guard,
                 index: BTreeMap::new(),
                 buffer,
-                global_config: gc_status,
+                global_config,
             };
 
             loop {
@@ -978,10 +981,10 @@ impl Service for ProjectCacheService {
 
                                     Ok(()) = subscription.changed() => {
                                         match subscription.borrow().clone() {
-                                            Some(global_config) => broker.set_global_config(global_config),
+                                            global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
                                             // The watch should only be updated if it gets a new value.
                                             // This would imply a logical bug.
-                                            None => relay_log::error!("global config updated with None value"),
+                                            global_config::Status::Waiting => relay_log::error!("global config updated with None value"),
                 }
                                     },
                                     Some(message) = state_rx.recv() => broker.merge_state(message),

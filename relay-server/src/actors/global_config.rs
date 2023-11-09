@@ -105,29 +105,52 @@ pub struct Subscribe;
 /// frequency from upstream.
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
-    Get(relay_system::Sender<Option<Arc<GlobalConfig>>>),
+    Get(relay_system::Sender<Status>),
     /// Returns a [`watch::Receiver`] where global config updates will be sent to.
-    Subscribe(relay_system::Sender<watch::Receiver<Option<Arc<GlobalConfig>>>>),
+    Subscribe(relay_system::Sender<watch::Receiver<Status>>),
 }
 
 impl Interface for GlobalConfigManager {}
 
 impl FromMessage<Get> for GlobalConfigManager {
-    type Response = AsyncResponse<Option<Arc<GlobalConfig>>>;
+    type Response = AsyncResponse<Status>;
 
-    fn from_message(_: Get, sender: relay_system::Sender<Option<Arc<GlobalConfig>>>) -> Self {
+    fn from_message(_: Get, sender: relay_system::Sender<Status>) -> Self {
         Self::Get(sender)
     }
 }
 
 impl FromMessage<Subscribe> for GlobalConfigManager {
-    type Response = AsyncResponse<watch::Receiver<Option<Arc<GlobalConfig>>>>;
+    type Response = AsyncResponse<watch::Receiver<Status>>;
 
-    fn from_message(
-        _: Subscribe,
-        sender: relay_system::Sender<watch::Receiver<Option<Arc<GlobalConfig>>>>,
-    ) -> Self {
+    fn from_message(_: Subscribe, sender: relay_system::Sender<watch::Receiver<Status>>) -> Self {
         Self::Subscribe(sender)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Status {
+    Ready(Arc<GlobalConfig>),
+    Waiting,
+}
+
+impl Status {
+    fn is_ready(&self) -> bool {
+        matches!(self, Self::Ready(_))
+    }
+
+    /// Similar to Option::unwrap_or_default.
+    pub fn get_ready_or_default(self) -> Arc<GlobalConfig> {
+        match self {
+            Status::Ready(global_config) => global_config,
+            Status::Waiting => Arc::default(),
+        }
+    }
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Self::Waiting
     }
 }
 
@@ -140,7 +163,7 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
 pub struct GlobalConfigService {
     config: Arc<Config>,
     /// Sender of the [`watch`] channel for the subscribers of the service.
-    global_config_watch: watch::Sender<Option<Arc<GlobalConfig>>>,
+    global_config_watch: watch::Sender<Status>,
     /// Sender of the internal channel to forward global configs from upstream.
     internal_tx: mpsc::Sender<UpstreamQueryResult>,
     /// Receiver of the internal channel to forward global configs from upstream.
@@ -161,7 +184,7 @@ impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (internal_tx, internal_rx) = mpsc::channel(1);
-        let (global_config_watch, _) = watch::channel(None);
+        let (global_config_watch, _) = watch::channel(Status::Waiting);
 
         Self {
             config,
@@ -232,13 +255,13 @@ impl GlobalConfigService {
                 match config.global {
                     Some(global_config) => {
                         // Log the first time we receive a global config from upstream.
-                        if !self.global_config_watch.borrow().is_none() {
+                        if !self.global_config_watch.borrow().is_ready() {
                             relay_log::info!("received global config from upstream");
                         }
                         // Notifying subscribers only fails when there are no
                         // subscribers.
                         self.global_config_watch
-                            .send(Some(Arc::new(global_config)))
+                            .send(Status::Ready(Arc::new(global_config)))
                             .ok();
                         success = true;
                         self.last_fetched = Instant::now();
@@ -290,7 +313,7 @@ impl Service for GlobalConfigService {
                     Ok(Some(from_file)) => {
                         relay_log::info!("serving static global config loaded from file");
                         self.global_config_watch
-                            .send(Some(Arc::new(from_file)))
+                            .send(Status::Ready(Arc::new(from_file)))
                             .ok();
                     }
                     Ok(None) => {
@@ -298,7 +321,7 @@ impl Service for GlobalConfigService {
                                 "serving default global configs due to lacking static global config file"
                             );
                         self.global_config_watch
-                            .send(Some(Arc::new(GlobalConfig::default())))
+                            .send(Status::Ready(Arc::new(GlobalConfig::default())))
                             .ok();
                     }
                     Err(e) => {
