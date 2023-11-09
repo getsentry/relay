@@ -528,11 +528,14 @@ impl ProjectCacheBroker {
         }
 
         if !result.is_empty() {
-            self.buffer.send(DequeueMany::new(
-                partial_key,
-                result,
-                self.buffer_tx.clone(),
-            ))
+            let message = DequeueMany::new(partial_key, result, self.buffer_tx.clone());
+
+            match &mut self.gc_status {
+                GCstat::Ready(_) => self.buffer.send(message),
+                GCstat::Pending(messages) => {
+                    messages.push(message);
+                }
+            }
         }
     }
 
