@@ -548,6 +548,7 @@
 <a href="#548" id="548">548</a>
 <a href="#549" id="549">549</a>
 <a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -1014,6 +1015,7 @@
                 }
             }
         }
+        <span class="macro">metric!</span>(counter(RelayCounters::ProjectUpstreamFailed) += <span class="number">1</span>);
     }
 
     <span class="doccomment">/// Creates the async task to fetch the project states.

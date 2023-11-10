@@ -654,6 +654,12 @@
 <a href="#654" id="654">654</a>
 <a href="#655" id="655">655</a>
 <a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 
 <span class="doccomment">/// Gauge metrics used by Relay
@@ -1115,6 +1121,11 @@
     /// for `result` and `attempts` indicating whether it was succesful or a timeout and how
     /// many attempts were made respectively.
     </span>ProjectUpstreamCompleted,
+    <span class="doccomment">/// Number of times an upstream request for a project config failed.
+    ///
+    /// Failure can happen, for example, when there&#39;s a network error. Refer to
+    /// [`UpstreamRequestError`](crate::actors::upstream::UpstreamRequestError) for all cases.
+    </span>ProjectUpstreamFailed,
     <span class="doccomment">/// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -1226,6 +1237,7 @@
             <span class="attr">#[cfg(feature = <span class="string">&quot;processing&quot;</span>)]
             </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">&quot;project_state.redis.requests&quot;</span>,
             RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">&quot;project_upstream.completed&quot;</span>,
+            RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">&quot;project_upstream.failed&quot;</span>,
             RelayCounters::ProjectCacheHit =&gt; <span class="string">&quot;project_cache.hit&quot;</span>,
             RelayCounters::ProjectCacheMiss =&gt; <span class="string">&quot;project_cache.miss&quot;</span>,
             RelayCounters::ServerStarting =&gt; <span class="string">&quot;server.starting&quot;</span>,
