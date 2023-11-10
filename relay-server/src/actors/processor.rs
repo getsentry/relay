@@ -1199,14 +1199,12 @@ impl EnvelopeProcessorService {
         });
         if found_profile_id.is_none() {
             // Remove profile context from event.
-            if let Some(Some(contexts)) = state
-                .event
-                .value_mut()
-                .as_mut()
-                .filter(|event| event.ty.value() == Some(&EventType::Transaction))
-                .map(|event| event.contexts.value_mut())
-            {
-                contexts.remove::<ProfileContext>();
+            if let Some(event) = state.event.value_mut() {
+                if event.ty.value() == Some(&EventType::Transaction) {
+                    if let Some(contexts) = event.contexts.value_mut() {
+                        contexts.remove::<ProfileContext>();
+                    }
+                }
             }
         }
     }
