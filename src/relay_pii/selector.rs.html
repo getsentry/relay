@@ -646,6 +646,17 @@
 <a href="#646" id="646">646</a>
 <a href="#647" id="647">647</a>
 <a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -683,6 +694,10 @@
     <span class="doccomment">/// Internal parser bug: An unexpected item was consumed.
     </span><span class="attr">#[error(<span class="string">&quot;parser bug: consumed {0} (expected {1})&quot;</span>)]
     </span>UnexpectedToken(String, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str),
+
+    <span class="doccomment">/// Internal parsing error, this should never happen and is a bug that needs to be fixed.
+    </span><span class="attr">#[error(<span class="string">&quot;internal parser error&quot;</span>)]
+    </span>InternalError,
 }
 
 <span class="kw">mod </span>parser {
@@ -815,15 +830,22 @@
 <span class="kw">impl </span>SelectorSpec {
     <span class="doccomment">/// Parses a selector from a string without legacy special handling.
     </span><span class="kw">pub fn </span>parse_non_legacy(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;SelectorSpec, InvalidSelectorError&gt; {
-        handle_selector(
-            SelectorParser::parse(Rule::RootSelector, s)
-                .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))<span class="question-mark">?
-                </span>.next()
-                .unwrap()
-                .into_inner()
-                .next()
-                .unwrap(),
-        )
+        <span class="kw">let </span><span class="kw-2">mut </span>selector = SelectorParser::parse(Rule::RootSelector, s)
+            .map_err(|e| InvalidSelectorError::ParseError(Box::new(e)))<span class="question-mark">?</span>;
+
+        <span class="comment">// Extracts the first `OrSelector` spanning the entire selector from the `RootSelector`.
+        // The `RootSelector` is guaranteed to have exactly one `OrSelector`.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(selector) = selector.next().and_then(|s| s.into_inner().next()) <span class="kw">else </span>{
+            <span class="comment">// Internal parsing error, this should never happen.
+            // If this happens the pest file was modified without changing the code.
+            </span><span class="macro">relay_log::error!</span>(
+                selector = s,
+                <span class="string">&quot;internal error parsing selector {s:?}, this is a bug!&quot;
+            </span>);
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidSelectorError::InternalError);
+        };
+
+        handle_selector(selector)
     }
 
     <span class="doccomment">/// Checks if a path matches given selector.
