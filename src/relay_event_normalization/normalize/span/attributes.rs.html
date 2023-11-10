@@ -609,6 +609,7 @@
 <a href="#609" id="609">609</a>
 <a href="#610" id="610">610</a>
 <a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span attribute materialization.
 
 </span><span class="kw">use </span>std::collections::{BTreeSet, HashMap};
@@ -759,6 +760,7 @@
     <span class="kw">use </span>relay_event_schema::protocol::{
         Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext, TraceId,
     };
+    <span class="kw">use </span>relay_protocol::Annotated;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
