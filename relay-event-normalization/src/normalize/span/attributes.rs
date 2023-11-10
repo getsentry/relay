@@ -148,6 +148,7 @@ mod tests {
     use relay_event_schema::protocol::{
         Contexts, Event, EventType, Span, SpanId, Timestamp, TraceContext, TraceId,
     };
+    use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
 
     use super::*;

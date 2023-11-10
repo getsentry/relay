@@ -15,16 +15,17 @@ use std::mem;
 use chrono::{DateTime, Duration, Utc};
 use relay_base_schema::metrics::{is_valid_metric_name, DurationUnit, FractionUnit, MetricUnit};
 use relay_event_schema::processor::{
-    self, MaxChars, ProcessingAction, ProcessingResult, ProcessingState, Processor,
+    self, MaxChars, ProcessValue, ProcessingAction, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{
     AsPair, Context, ContextInner, Contexts, DeviceClass, Event, EventType, Exception, Headers,
-    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, SpanAttribute, SpanStatus,
-    Tags, TraceContext, User,
+    IpAddr, LogEntry, Measurement, Measurements, NelContext, Request, Span, SpanAttribute,
+    SpanStatus, Tags, TraceContext, User,
 };
 use relay_protocol::{Annotated, Empty, Error, ErrorKind, Meta, Object, Value};
 use smallvec::SmallVec;
 
+use crate::normalize::utils::validate_span;
 use crate::normalize::{mechanism, stacktrace};
 use crate::span::tag_extraction::{self, extract_span_tags};
 use crate::timestamp::TimestampProcessor;
@@ -37,7 +38,7 @@ use crate::{
 use crate::LightNormalizationConfig;
 
 /// Configuration for [`NormalizeProcessor`].
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct NormalizeProcessorConfig<'a> {
     /// Light normalization config.
     // XXX(iker): we should split this config appropriately.
@@ -59,7 +60,7 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
 ///
 /// The returned [`ProcessingResult`] indicates whether the passed event should
 /// be ingested or dropped.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NormalizeProcessor<'a> {
     /// Configuration for the normalization steps.
     config: NormalizeProcessorConfig<'a>,
@@ -76,10 +77,11 @@ impl<'a> Processor for NormalizeProcessor<'a> {
         &mut self,
         event: &mut Event,
         meta: &mut Meta,
-        _: &ProcessingState<'_>,
+        state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let config = &self.config.light_config;
+        event.process_child_values(self, state)?;
 
+        let config = &self.config.light_config;
         if config.is_renormalize {
             return Ok(());
         }
@@ -196,6 +198,20 @@ impl<'a> Processor for NormalizeProcessor<'a> {
                 ProcessingState::root(),
             )?;
         }
+
+        Ok(())
+    }
+
+    fn process_span(
+        &mut self,
+        span: &mut Span,
+        _: &mut Meta,
+        state: &ProcessingState<'_>,
+    ) -> ProcessingResult {
+        validate_span(span)?;
+        span.op.get_or_insert_with(|| "default".to_owned());
+
+        span.process_child_values(self, state)?;
 
         Ok(())
     }
@@ -881,19 +897,22 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
 mod tests {
     use std::collections::BTreeMap;
 
+    use chrono::{TimeZone, Utc};
     use insta::assert_debug_snapshot;
+    use relay_base_schema::events::EventType;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
+    use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
     use relay_event_schema::protocol::{
         Contexts, Csp, DeviceContext, Event, Headers, IpAddr, Measurement, Measurements, Request,
-        Tags,
+        Span, SpanId, Tags, TraceContext, TraceId,
     };
-    use relay_protocol::{Annotated, Meta, Object, SerializableAnnotated};
+    use relay_protocol::{get_value, Annotated, Meta, Object, SerializableAnnotated};
     use serde_json::json;
 
     use crate::normalize::processor::{
         filter_mobile_outliers, normalize_app_start_measurements, normalize_device_class,
         normalize_dist, normalize_measurements, normalize_security_report, normalize_units,
-        remove_invalid_measurements,
+        remove_invalid_measurements, NormalizeProcessor, NormalizeProcessorConfig,
     };
     use crate::{ClientHints, DynamicMeasurementsConfig, MeasurementsConfig, RawUserAgentInfo};
 
@@ -1514,5 +1533,203 @@ mod tests {
         assert_eq!(measurements.len(), 1);
         filter_mobile_outliers(&mut measurements);
         assert_eq!(measurements.len(), 0);
+    }
+
+    #[test]
+    fn test_defaults_transaction_event_with_span_with_missing_op() {
+        let start = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        let end = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap();
+
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            transaction: Annotated::new("/".to_owned()),
+            timestamp: Annotated::new(end.into()),
+            start_timestamp: Annotated::new(start.into()),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 10).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        process_value(
+            &mut event,
+            &mut NormalizeProcessor::default(),
+            ProcessingState::root(),
+        )
+        .unwrap();
+
+        let span = get_value!(event.spans).unwrap().first().unwrap();
+        assert_eq!(get_value!(span.op).unwrap(), &"default".to_owned());
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_span_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing span_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_start_timestamp() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing start_timestamp"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_discards_transaction_event_with_span_with_missing_trace_id() {
+        let mut event = Annotated::new(Event {
+            ty: Annotated::new(EventType::Transaction),
+            timestamp: Annotated::new(Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into()),
+            start_timestamp: Annotated::new(
+                Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+            ),
+            contexts: {
+                let mut contexts = Contexts::new();
+                contexts.add(TraceContext {
+                    trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
+                    span_id: Annotated::new(SpanId("fa90fdead5f74053".into())),
+                    op: Annotated::new("http.server".to_owned()),
+                    ..Default::default()
+                });
+                Annotated::new(contexts)
+            },
+            spans: Annotated::new(vec![Annotated::new(Span {
+                timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                start_timestamp: Annotated::new(
+                    Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap().into(),
+                ),
+                ..Default::default()
+            })]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            process_value(
+                &mut event,
+                &mut NormalizeProcessor::default(),
+                ProcessingState::root()
+            ),
+            Err(ProcessingAction::InvalidTransaction(
+                "span is missing trace_id"
+            ))
+        );
+    }
+
+    #[test]
+    fn test_renormalize_is_idempotent() {
+        let json = r#"{
+  "start_timestamp": 1,
+  "timestamp": 2,
+  "span_id": "fa90fdead5f74052",
+  "trace_id": "4c79f60c11214eb38604f4ae0781bfb2"
+}"#;
+
+        let mut processed = Annotated::<Span>::from_json(json).unwrap();
+        let processor_config = NormalizeProcessorConfig::default();
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+        process_value(&mut processed, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(get_value!(processed.op!), &"default".to_owned());
+
+        let mut reprocess_config = processor_config.clone();
+        reprocess_config.light_config.is_renormalize = true;
+        let mut processor = NormalizeProcessor::new(processor_config.clone());
+
+        let mut reprocessed = processed.clone();
+        process_value(&mut reprocessed, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(processed, reprocessed);
+
+        let mut reprocessed2 = reprocessed.clone();
+        process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
+        assert_eq!(reprocessed, reprocessed2);
     }
 }
