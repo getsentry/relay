@@ -301,6 +301,12 @@
 <a href="#301" id="301">301</a>
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the definition of the command line app.
 
 </span><span class="kw">use </span>clap::builder::ValueParser;
@@ -339,6 +345,12 @@
                         .long(<span class="string">&quot;mode&quot;</span>)
                         .help(<span class="string">&quot;The relay mode to set&quot;</span>)
                         .value_parser([<span class="string">&quot;managed&quot;</span>, <span class="string">&quot;proxy&quot;</span>, <span class="string">&quot;static&quot;</span>]),
+                )
+                .arg(
+                    Arg::new(<span class="string">&quot;log_level&quot;</span>)
+                        .long(<span class="string">&quot;log-level&quot;</span>)
+                        .help(<span class="string">&quot;The relay log level&quot;</span>)
+                        .value_parser([<span class="string">&quot;info&quot;</span>, <span class="string">&quot;warn&quot;</span>, <span class="string">&quot;error&quot;</span>, <span class="string">&quot;debug&quot;</span>, <span class="string">&quot;trace&quot;</span>]),
                 )
                 .arg(
                     Arg::new(<span class="string">&quot;secret_key&quot;</span>)

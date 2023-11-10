@@ -2166,6 +2166,12 @@
 <a href="#2166" id="2166">2166</a>
 <a href="#2167" id="2167">2167</a>
 <a href="#2168" id="2168">2168</a>
+<a href="#2169" id="2169">2169</a>
+<a href="#2170" id="2170">2170</a>
+<a href="#2171" id="2171">2171</a>
+<a href="#2172" id="2172">2172</a>
+<a href="#2173" id="2173">2173</a>
+<a href="#2174" id="2174">2174</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::convert::TryInto;
 <span class="kw">use </span>std::error::Error;
@@ -2391,6 +2397,8 @@
 </span><span class="kw">pub struct </span>OverridableConfig {
     <span class="doccomment">/// The operation mode of this relay.
     </span><span class="kw">pub </span>mode: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The log level of this relay.
+    </span><span class="kw">pub </span>log_level: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The upstream relay or sentry instance.
     </span><span class="kw">pub </span>upstream: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -3508,6 +3516,10 @@
             relay.mode = mode
                 .parse::&lt;RelayMode&gt;()
                 .with_context(|| ConfigError::field(<span class="string">&quot;mode&quot;</span>))<span class="question-mark">?</span>;
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(log_level) = overrides.log_level {
+            <span class="self">self</span>.values.logging.level = log_level.parse()<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(upstream) = overrides.upstream {
