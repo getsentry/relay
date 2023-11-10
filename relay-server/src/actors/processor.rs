@@ -39,7 +39,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
-use relay_profiling::{ProfileError, ProfileId};
+use relay_profiling::ProfileError;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_replays::recording::RecordingScrubber;

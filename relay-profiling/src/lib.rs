@@ -118,6 +118,9 @@ mod utils;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
 
+/// Unique identifier for a profile.
+///
+/// Same format as event IDs.
 pub type ProfileId = EventId;
 
 #[derive(Debug, Deserialize)]
@@ -188,7 +191,7 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
     Ok(profile.event_id)
 }
 
-pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(EventId, Vec<u8>), ProfileError> {
+pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {

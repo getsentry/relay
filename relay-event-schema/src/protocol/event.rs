@@ -14,9 +14,9 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, RelayInfo, Request,
-    ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext,
-    TransactionInfo, User, Values,
+    LenientString, Level, LogEntry, Measurements, Metrics, OsContext, ProfileContext, RelayInfo,
+    Request, ResponseContext, Span, Stacktrace, Tags, TemplateInfo, Thread, Timestamp,
+    TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -708,6 +708,12 @@ impl Getter for Event {
             "contexts.browser.version" => {
                 self.context::<BrowserContext>()?.version.as_str()?.into()
             }
+            "contexts.profile.profile_id" => self
+                .context::<ProfileContext>()?
+                .profile_id
+                .value()?
+                .0
+                .into(),
             "contexts.device.uuid" => self.context::<DeviceContext>()?.uuid.value()?.into(),
             "contexts.trace.status" => self
                 .context::<TraceContext>()?
@@ -1102,6 +1108,11 @@ mod tests {
                     kernel_version: Annotated::new("17.4.0".to_string()),
                     ..OsContext::default()
                 });
+                contexts.add(ProfileContext {
+                    profile_id: Annotated::new(EventId(uuid!(
+                        "abadcade-feed-dead-beef-8addadfeedaa"
+                    ))),
+                });
                 contexts
             }),
             ..Default::default()
@@ -1185,6 +1196,10 @@ mod tests {
             Some(Val::String("https://sentry.io")),
             event.get_value("event.request.url")
         );
+        assert_eq!(
+            Some(Val::Uuid(uuid!("abadcade-feed-dead-beef-8addadfeedaa"))),
+            event.get_value("event.contexts.profile.profile_id")
+        )
     }
 
     #[test]
