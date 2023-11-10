@@ -1197,6 +1197,18 @@ impl EnvelopeProcessorService {
             }
             _ => ItemAction::Keep,
         });
+        if found_profile_id.is_none() {
+            // Remove profile context from event.
+            if let Some(Some(contexts)) = state
+                .event
+                .value_mut()
+                .as_mut()
+                .filter(|event| event.ty.value() == Some(&EventType::Transaction))
+                .map(|event| event.contexts.value_mut())
+            {
+                contexts.remove::<ProfileContext>();
+            }
+        }
     }
 
     /// Remove replays if the feature flag is not enabled.
