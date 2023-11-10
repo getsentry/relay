@@ -464,6 +464,7 @@ struct ProjectCacheBroker {
     global_config: GlobalConfigStatus,
 }
 
+/// Status of global config needed for envelope processing.
 #[derive(Debug)]
 enum GlobalConfigStatus {
     /// Global config needed for envelope processing.
@@ -473,7 +474,7 @@ enum GlobalConfigStatus {
     /// These project keys were used to try to dequeue the buffer, but were blocked because we
     /// lacked a global config. When global config arrives, we will request project states for these keys again
     /// which will trigger another dequeue that should be succesful. The reason we don't dequeue
-    /// directly when we receive globalconfig is that the projectstates might have expired in the meantime,
+    /// directly when we receive [`GlobalConfig`] is that the [`ProjectState`]s might have expired in the meantime,
     /// which would drop the envelopes when they are sent to ProjectCacheBroker::handle_processing.
     Pending(BTreeSet<ProjectKey>),
 }
@@ -725,7 +726,7 @@ impl ProjectCacheBroker {
     /// The following pre-conditions must be met before calling this function:
     /// - Envelope's project state must be cached and valid.
     /// - If dynamic sampling key exists, the sampling project state must be cached and valid.
-    /// - Global config from the global config service must be available.
+    /// - [`GlobalConfig`] from the [`GlobalConfigManager`] must be available.
     ///
     /// Calling this function without envelope's project state available will cause the envelope to
     /// be dropped and outcome will be logged.
@@ -988,24 +989,23 @@ impl Service for ProjectCacheService {
 
             loop {
                 tokio::select! {
-                                biased;
-
-                                    Ok(()) = subscription.changed() => {
-                                        match subscription.borrow().clone() {
-                                            global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
-                                            // The watch should only be updated if it gets a new value.
-                                            // This would imply a logical bug.
-                                            global_config::Status::Waiting => relay_log::error!("global config updated with None value"),
+                biased;
+                Ok(()) = subscription.changed() => {
+                    match subscription.borrow().clone() {
+                        global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
+                        // The watch should only be updated if it gets a new value.
+                        // This would imply a logical bug.
+                        global_config::Status::Waiting => relay_log::error!("still waiting for the global config"),
+                        }
+                    },
+                Some(message) = state_rx.recv() => broker.merge_state(message),
+                // Buffer will not dequeue the envelopes from the spool if there is not enough
+                // permits in `BufferGuard` available. Currently this is 50%.
+                Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
+                _ = ticker.tick() => broker.evict_stale_project_caches(),
+                Some(message) = rx.recv() => broker.handle_message(message),
+                else => break,
                 }
-                                    },
-                                    Some(message) = state_rx.recv() => broker.merge_state(message),
-                                    // Buffer will not dequeue the envelopes from the spool if there is not enough
-                                    // permits in `BufferGuard` available. Currently this is 50%.
-                                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
-                                    _ = ticker.tick() => broker.evict_stale_project_caches(),
-                                    Some(message) = rx.recv() => broker.handle_message(message),
-                                    else => break,
-                                    }
             }
 
             relay_log::info!("project cache stopped");
