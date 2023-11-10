@@ -31,6 +31,7 @@
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
 - Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
 - Don't serve default global config if waiting for global config from upstream. ([#2692](https://github.com/getsentry/relay/pull/2697))
+- Emit error on continued project config fetch failures after a time interval. ([#2700](https://github.com/getsentry/relay/pull/2700))
 
 ## 23.10.1
 
