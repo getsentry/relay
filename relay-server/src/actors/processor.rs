@@ -39,7 +39,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::aggregator::AggregatorConfig;
 use relay_metrics::{Bucket, MergeBuckets, MetricNamespace};
 use relay_pii::{scrub_graphql, PiiAttachmentsProcessor, PiiConfigError, PiiProcessor};
-use relay_profiling::ProfileError;
+use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
 use relay_quotas::{DataCategory, ReasonCode};
 use relay_replays::recording::RecordingScrubber;
@@ -1096,15 +1096,15 @@ impl EnvelopeProcessorService {
             .items()
             .filter(|item| item.ty() == &ItemType::Transaction)
             .count();
-        let mut found_profile = false;
+        let mut profile_id = None;
         state.managed_envelope.retain_items(|item| match item.ty() {
             // Drop profile without a transaction in the same envelope.
             ItemType::Profile if transaction_count == 0 => ItemAction::DropSilently,
             // First profile found in the envelope, we'll keep it if metadata are valid.
-            ItemType::Profile if !found_profile => {
+            ItemType::Profile if profile_id.is_none() => {
                 match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
-                    Ok(_) => {
-                        found_profile = true;
+                    Ok(id) => {
+                        profile_id = Some(id);
                         ItemAction::Keep
                     }
                     Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -1118,7 +1118,22 @@ impl EnvelopeProcessorService {
             ))),
             _ => ItemAction::Keep,
         });
-        state.has_profile = found_profile;
+        state.has_profile = profile_id.is_some();
+
+        if let Some(event) = state.event.value_mut() {
+            if event.ty.value() == Some(&EventType::Transaction) {
+                let contexts = event.contexts.get_or_insert_with(Contexts::new);
+                // If we found a profile, add its ID to the profile context on the transaction.
+                if let Some(profile_id) = profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                // If not, we delete the profile context.
+                } else {
+                    contexts.remove::<ProfileContext>();
+                }
+            }
+        }
     }
 
     /// Normalize monitor check-ins and remove invalid ones.
@@ -1182,20 +1197,6 @@ impl EnvelopeProcessorService {
             }
             _ => ItemAction::Keep,
         });
-        if let Some(event) = state.event.value_mut() {
-            if event.ty.value() == Some(&EventType::Transaction) {
-                let contexts = event.contexts.get_or_insert_with(Contexts::new);
-                // If we found a profile, add its ID to the profile context on the transaction.
-                if let Some(profile_id) = found_profile_id {
-                    contexts.add(ProfileContext {
-                        profile_id: Annotated::new(profile_id),
-                    });
-                // If not, we delete the profile context.
-                } else {
-                    contexts.remove::<ProfileContext>();
-                }
-            }
-        }
     }
 
     /// Remove replays if the feature flag is not enabled.
@@ -2776,7 +2777,6 @@ impl EnvelopeProcessorService {
 
         if_processing!({
             self.enforce_quotas(state)?;
-            // We need the event parsed in order to set the profile context on it
             self.process_profiles(state);
             self.process_check_ins(state);
         });
