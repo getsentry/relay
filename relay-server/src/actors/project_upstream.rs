@@ -169,6 +169,16 @@ pub struct UpstreamProjectSourceService {
     inner_tx: mpsc::UnboundedSender<Vec<Option<UpstreamResponse>>>,
     inner_rx: mpsc::UnboundedReceiver<Vec<Option<UpstreamResponse>>>,
     fetch_handle: SleepHandle,
+    /// Instant when the last fetch failed, `None` if there aren't any failures.
+    ///
+    /// Relay updates this value to the instant when the first fetch fails, and
+    /// resets it to `None` on successful responses. Relay does nothing during
+    /// long times without requests.
+    last_failed_fetch: Option<Instant>,
+    /// Duration of continued fetch fails before emitting an error.
+    ///
+    /// Relay emits an error if all requests for at least this interval fail.
+    failure_interval: Duration,
 }
 
 impl UpstreamProjectSourceService {
@@ -181,9 +191,11 @@ impl UpstreamProjectSourceService {
             state_channels: HashMap::new(),
             fetch_handle: SleepHandle::idle(),
             upstream_relay,
-            config,
             inner_tx,
             inner_rx,
+            last_failed_fetch: None,
+            failure_interval: config.http_project_failure_interval(),
+            config,
         }
     }
 
@@ -351,6 +363,7 @@ impl UpstreamProjectSourceService {
                     // Otherwise we might refuse to fetch any project configs because of a
                     // single, reproducible 500 we observed for a particular project.
                     self.backoff.reset();
+                    self.last_failed_fetch = None;
 
                     // Count number of project states returned (via http requests).
                     metric!(
@@ -385,6 +398,8 @@ impl UpstreamProjectSourceService {
                     }
                 }
                 Err(err) => {
+                    self.track_failed_response();
+
                     let attempts = channels_batch
                         .values()
                         .map(|b| b.attempts)
@@ -431,6 +446,23 @@ impl UpstreamProjectSourceService {
             // because everything went fine or because all the requests have expired).
             // Next time a user wants a project it should schedule fetch requests.
             self.backoff.reset();
+        }
+    }
+
+    /// Tracks the last failed fetch, and emits an error if it exceeds the failure interval.
+    fn track_failed_response(&mut self) {
+        match self.last_failed_fetch {
+            None => self.last_failed_fetch = Some(Instant::now()),
+            Some(last_failed) => {
+                let failure_duration = last_failed.elapsed();
+                if failure_duration >= self.failure_interval {
+                    relay_log::error!(
+                        failure_duration = format!("{} seconds", failure_duration.as_secs()),
+                        backoff_attempts = self.backoff.attempt(),
+                        "can't fetch project states"
+                    );
+                }
+            }
         }
     }
 
