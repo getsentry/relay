@@ -31,8 +31,8 @@ use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
-    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
+    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
     Timestamp, TraceContext, UserReport, Values,
 };
 use relay_filter::FilterStatKey;
@@ -58,7 +58,7 @@ use {
     crate::actors::project_cache::UpdateRateLimits,
     crate::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::{ProfileContext, Span},
+    relay_event_schema::protocol::Span,
     relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
