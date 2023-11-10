@@ -52,18 +52,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.description", MONGODB_QUERIES);
 
-        let mut conditions = RuleCondition::eq("span.op", "http.client")
+        RuleCondition::eq("span.op", "http.client")
             | RuleCondition::glob("span.op", MOBILE_OPS)
-            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo);
-
-        if project_config
-            .features
-            .has(Feature::SpanMetricsExtractionResource)
-        {
-            conditions = conditions | resource_condition.clone();
-        }
-
-        conditions
+            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
+            | resource_condition.clone()
     };
 
     // For mobile spans, only extract duration metrics when they are below a threshold.

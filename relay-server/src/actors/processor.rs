@@ -2326,7 +2326,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn is_span_allowed(&self, span: &Span, resource_span_extraction_enabled: bool) -> bool {
+    fn is_span_allowed(&self, span: &Span) -> bool {
         let Some(op) = span.op.value() else {
             return false;
         };
@@ -2339,8 +2339,8 @@ impl EnvelopeProcessorService {
             .and_then(|v| v.get("span.system"))
             .and_then(|system| system.as_str())
             .unwrap_or_default();
-        (resource_span_extraction_enabled
-            && (op.contains("resource.script") || op.contains("resource.css")))
+        op.contains("resource.script")
+            || op.contains("resource.css")
             || op == "http.client"
             || op.starts_with("app.")
             || op.starts_with("ui.load")
@@ -2404,9 +2404,6 @@ impl EnvelopeProcessorService {
         let all_modules_enabled = state
             .project_state
             .has_feature(Feature::SpanMetricsExtractionAllModules);
-        let resource_span_extraction_enabled = state
-            .project_state
-            .has_feature(Feature::SpanMetricsExtractionResource);
 
         // Add child spans as envelope items.
         if let Some(child_spans) = event.spans.value() {
@@ -2415,9 +2412,7 @@ impl EnvelopeProcessorService {
                     continue;
                 };
                 // HACK: filter spans based on module until we figure out grouping.
-                if !all_modules_enabled
-                    && !self.is_span_allowed(inner_span, resource_span_extraction_enabled)
-                {
+                if !all_modules_enabled && !self.is_span_allowed(inner_span) {
                     continue;
                 }
                 // HACK: clone the span to set the segment_id. This should happen
