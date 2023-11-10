@@ -223,6 +223,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
+    /// The log level of this relay.
+    pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
     /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -1340,6 +1342,10 @@ impl Config {
             relay.mode = mode
                 .parse::<RelayMode>()
                 .with_context(|| ConfigError::field("mode"))?;
+        }
+
+        if let Some(log_level) = overrides.log_level {
+            self.values.logging.level = log_level.parse()?;
         }
 
         if let Some(upstream) = overrides.upstream {
