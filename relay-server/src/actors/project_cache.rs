@@ -484,6 +484,10 @@ impl ProjectCacheBroker {
             &mut self.global_config,
             GlobalConfigStatus::Ready(global_config),
         ) {
+            relay_log::info!(
+                "global config received: {} project were pending",
+                project_keys.len()
+            );
             // When the global config arrives, we will request new ProjectStates for all the
             // projects. This will trigger dequeuing of that we deferred in ProjectCacheBroker::dequeue.
             for project_key in project_keys {
@@ -957,9 +961,13 @@ impl Service for ProjectCacheService {
 
             let global_config = match subscription.borrow().clone() {
                 global_config::Status::Ready(global_config) => {
+                    relay_log::info!("global config received");
                     GlobalConfigStatus::Ready(global_config)
                 }
-                global_config::Status::Waiting => GlobalConfigStatus::Pending(BTreeSet::new()),
+                global_config::Status::Waiting => {
+                    relay_log::info!("waiting for global config");
+                    GlobalConfigStatus::Pending(BTreeSet::new())
+                }
             };
 
             // Main broker that serializes public and internal messages, and triggers project state
