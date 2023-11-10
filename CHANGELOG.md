@@ -3,7 +3,7 @@
 ## Unreleased
 
 **Features**:
-
+test
 - Add inbound filters option to filter legacy Edge browsers (i.e. versions 12-18 ) ([#2650](https://github.com/getsentry/relay/pull/2650))
 - Add User Feedback Ingestion. ([#2604](https://github.com/getsentry/relay/pull/2604))
 - Group resource spans by scrubbed domain and filename. ([#2654](https://github.com/getsentry/relay/pull/2654))
@@ -30,7 +30,7 @@
 - Add TTID and TTFD tags to mobile spans. ([#2662](https://github.com/getsentry/relay/pull/2662))
 - Scrub all DB Core Data spans differently. ([#2686](https://github.com/getsentry/relay/pull/2686))
 - Support generic metrics extraction version 2. ([#2692](https://github.com/getsentry/relay/pull/2692))
-- Delay serving global config in managed mode before upstream response. ([#2692](https://github.com/getsentry/relay/pull/2697))
+- Don't serve default global config if waiting for global config from upstream. ([#2692](https://github.com/getsentry/relay/pull/2697))
 
 ## 23.10.1
 

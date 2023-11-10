@@ -128,9 +128,21 @@ impl FromMessage<Subscribe> for GlobalConfigManager {
     }
 }
 
-#[derive(Debug, Clone)]
+/// The status of global config serving of the global config service.
+///
+/// This is the message that will be sent to the services requesting a global config.
+#[derive(Debug, Clone, Default)]
 pub enum Status {
+    /// Global config ready to be used by othe services.
+    ///
+    /// This variant implies different things in different circumstances. In managed mode, it means
+    /// that we have received a config from upstream. If not managed mode then this could either
+    /// be from file or the default global config.
     Ready(Arc<GlobalConfig>),
+    /// We requested a global config from upstream but it has not yet arrived.
+    ///
+    /// This variant should never be sent after the first `Ready` has occured.
+    #[default]
     Waiting,
 }
 
@@ -145,12 +157,6 @@ impl Status {
             Status::Ready(global_config) => global_config,
             Status::Waiting => Arc::default(),
         }
-    }
-}
-
-impl Default for Status {
-    fn default() -> Self {
-        Self::Waiting
     }
 }
 
