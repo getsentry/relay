@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::sync::Arc;
-use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
