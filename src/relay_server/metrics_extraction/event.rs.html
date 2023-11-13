@@ -1205,6 +1205,9 @@
 <a href="#1205" id="1205">1205</a>
 <a href="#1206" id="1206">1206</a>
 <a href="#1207" id="1207">1207</a>
+<a href="#1208" id="1208">1208</a>
+<a href="#1209" id="1209">1209</a>
+<a href="#1210" id="1210">1210</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::MetricExtractionConfig;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -2327,7 +2330,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_cold_inlier() {
         <span class="macro">assert_eq!</span>(
-            <span class="number">2</span>,
+            <span class="number">3</span>,
             extract_span_metrics_op_duration(<span class="string">&quot;app.start.cold&quot;</span>, <span class="number">180000.0</span>).len()
         );
     }
@@ -2343,7 +2346,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_app_start_warm_inlier() {
         <span class="macro">assert_eq!</span>(
-            <span class="number">2</span>,
+            <span class="number">3</span>,
             extract_span_metrics_op_duration(<span class="string">&quot;app.start.warm&quot;</span>, <span class="number">180000.0</span>).len()
         );
     }
@@ -2359,7 +2362,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ui_load_initial_display_inlier() {
         <span class="macro">assert_eq!</span>(
-            <span class="number">2</span>,
+            <span class="number">3</span>,
             extract_span_metrics_op_duration(<span class="string">&quot;ui.load.initial_display&quot;</span>, <span class="number">180000.0</span>).len()
         );
     }
@@ -2375,7 +2378,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_ui_load_full_display_inlier() {
         <span class="macro">assert_eq!</span>(
-            <span class="number">2</span>,
+            <span class="number">3</span>,
             extract_span_metrics_op_duration(<span class="string">&quot;ui.load.full_display&quot;</span>, <span class="number">180000.0</span>).len()
         );
     }
@@ -2407,6 +2410,9 @@
 
         <span class="macro">assert!</span>(!metrics.is_empty());
         <span class="kw">for </span>metric <span class="kw">in </span>metrics {
+            <span class="kw">if </span>metric.name == <span class="string">&quot;c:spans/count_per_op@none&quot; </span>{
+                <span class="kw">continue</span>;
+            }
             <span class="macro">assert_eq!</span>(metric.tag(<span class="string">&quot;ttid&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;ttid&quot;</span>));
             <span class="macro">assert_eq!</span>(metric.tag(<span class="string">&quot;ttfd&quot;</span>), <span class="prelude-val">Some</span>(<span class="string">&quot;ttfd&quot;</span>));
         }
