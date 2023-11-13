@@ -992,6 +992,7 @@ impl Service for ProjectCacheService {
             loop {
                 tokio::select! {
                     biased;
+
                     Ok(()) = subscription.changed() => {
                         match subscription.borrow().clone() {
                             global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
