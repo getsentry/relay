@@ -1120,7 +1120,7 @@ mod tests {
     #[test]
     fn test_app_start_cold_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("app.start.cold", 180000.0).len()
         );
     }
@@ -1136,7 +1136,7 @@ mod tests {
     #[test]
     fn test_app_start_warm_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("app.start.warm", 180000.0).len()
         );
     }
@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn test_ui_load_initial_display_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("ui.load.initial_display", 180000.0).len()
         );
     }
@@ -1168,7 +1168,7 @@ mod tests {
     #[test]
     fn test_ui_load_full_display_inlier() {
         assert_eq!(
-            2,
+            3,
             extract_span_metrics_op_duration("ui.load.full_display", 180000.0).len()
         );
     }
@@ -1200,6 +1200,9 @@ mod tests {
 
         assert!(!metrics.is_empty());
         for metric in metrics {
+            if metric.name == "c:spans/count_per_op@none" {
+                continue;
+            }
             assert_eq!(metric.tag("ttid"), Some("ttid"));
             assert_eq!(metric.tag("ttfd"), Some("ttfd"));
         }

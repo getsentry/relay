@@ -143,7 +143,7 @@ pub fn to_pii_config(
             continue;
         }
 
-        let spec = match field.parse() {
+        let spec = match SelectorSpec::parse_non_legacy(field) {
             Ok(spec) => spec,
             Err(_) => {
                 // Ideally safe fields should be caught by sentry-side validation,
@@ -1555,6 +1555,66 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "do_not_scrub_2": [
               "password"
             ]
+          }
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_safe_field_legacy_disables_all_string_parsing() {
+        let mut data = Event::from_value(
+            serde_json::json!({
+                "request": {
+                    "data": {
+                        "email": "foo@bar.de",
+                        "password": "kkee",
+                        "recaptcha": null,
+                    }
+                },
+            })
+            .into(),
+        );
+
+        let pii_config = to_pii_config(&DataScrubbingConfig {
+            // this triggered legacy behaviour and disabled scrubbing for all fields
+            exclude_fields: vec!["email".to_owned()],
+            scrub_data: true,
+            scrub_ip_addresses: true,
+            sensitive_fields: vec!["email".to_owned(), "password".to_owned()],
+            scrub_defaults: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        let mut pii_processor = PiiProcessor::new(pii_config.compiled());
+        process_value(&mut data, &mut pii_processor, ProcessingState::root()).unwrap();
+        assert_annotated_snapshot!(data, @r###"
+        {
+          "request": {
+            "data": {
+              "email": "foo@bar.de",
+              "password": "[Filtered]",
+              "recaptcha": null
+            }
+          },
+          "_meta": {
+            "request": {
+              "data": {
+                "password": {
+                  "": {
+                    "rem": [
+                      [
+                        "@password:filter",
+                        "s",
+                        0,
+                        10
+                      ]
+                    ],
+                    "len": 4
+                  }
+                }
+              }
+            }
           }
         }
         "###);

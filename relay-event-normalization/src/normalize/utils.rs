@@ -5,7 +5,51 @@
 
 use std::f64::consts::SQRT_2;
 
+use relay_event_schema::processor::{ProcessingAction, ProcessingResult};
 use relay_event_schema::protocol::{Event, ResponseContext, Span, TraceContext, User};
+
+/// Returns a [`ProcessingResult`] error if the span is invalid.
+///
+/// A span is valid in the following cases:
+/// - The span has a span id and trace id.
+/// - The span has a start and end timestamp.
+/// - The start timestamp is no greater than the end timestamp.
+pub(crate) fn validate_span(span: &Span) -> ProcessingResult {
+    match (span.start_timestamp.value(), span.timestamp.value()) {
+        (Some(start), Some(end)) => {
+            if end < start {
+                return Err(ProcessingAction::InvalidTransaction(
+                    "end timestamp in span is smaller than start timestamp",
+                ));
+            }
+        }
+        (_, None) => {
+            // XXX: Maybe do the same as event.timestamp?
+            return Err(ProcessingAction::InvalidTransaction(
+                "span is missing timestamp",
+            ));
+        }
+        (None, _) => {
+            // XXX: Maybe copy timestamp over?
+            return Err(ProcessingAction::InvalidTransaction(
+                "span is missing start_timestamp",
+            ));
+        }
+    }
+
+    if span.trace_id.value().is_none() {
+        return Err(ProcessingAction::InvalidTransaction(
+            "span is missing trace_id",
+        ));
+    }
+    if span.span_id.value().is_none() {
+        return Err(ProcessingAction::InvalidTransaction(
+            "span is missing span_id",
+        ));
+    }
+
+    Ok(())
+}
 
 /// Used to decide when to extract mobile-specific tags.
 pub const MOBILE_SDKS: [&str; 4] = [

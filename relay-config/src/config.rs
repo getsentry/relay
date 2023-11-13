@@ -223,6 +223,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
+    /// The log level of this relay.
+    pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
     /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -716,6 +718,11 @@ struct Http {
     ///
     /// This time is only used before going into a network outage mode.
     retry_delay: u64,
+    /// The interval in seconds for continued failed project fetches at which Relay will error.
+    ///
+    /// A successful fetch resets this interval. Relay does nothing during long
+    /// times without emitting requests.
+    project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -743,6 +750,7 @@ impl Default for Http {
             auth_interval: Some(600), // 10 minutes
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             retry_delay: default_retry_delay(),
+            project_failure_interval: default_project_failure_interval(),
             encoding: HttpEncoding::Gzip,
         }
     }
@@ -751,6 +759,11 @@ impl Default for Http {
 /// Default for unavailable upstream retry period, 1s.
 fn default_retry_delay() -> u64 {
     1
+}
+
+/// Default for project failure interval, 90s.
+fn default_project_failure_interval() -> u64 {
+    90
 }
 
 /// Default for max memory size, 500 MB.
@@ -1331,6 +1344,10 @@ impl Config {
                 .with_context(|| ConfigError::field("mode"))?;
         }
 
+        if let Some(log_level) = overrides.log_level {
+            self.values.logging.level = log_level.parse()?;
+        }
+
         if let Some(upstream) = overrides.upstream {
             relay.upstream = upstream
                 .parse::<UpstreamDescriptor>()
@@ -1623,6 +1640,11 @@ impl Config {
     /// requests. This is the time Relay waits before retrying the same request.
     pub fn http_retry_delay(&self) -> Duration {
         Duration::from_secs(self.values.http.retry_delay)
+    }
+
+    /// Time of continued project request failures before Relay emits an error.
+    pub fn http_project_failure_interval(&self) -> Duration {
+        Duration::from_secs(self.values.http.project_failure_interval)
     }
 
     /// Content encoding of upstream requests.
@@ -2026,10 +2048,10 @@ impl Config {
             mut max_tag_value_length,
             mut max_project_key_bucket_bytes,
             ..
-        } = &self.default_aggregator_config().aggregator;
+        } = AggregatorConfig::from(self.default_aggregator_config());
 
         for secondary_config in self.secondary_aggregator_configs() {
-            let agg = &secondary_config.config.aggregator;
+            let agg = &secondary_config.config;
 
             bucket_interval = bucket_interval.min(agg.bucket_interval);
             max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
@@ -2047,7 +2069,7 @@ impl Config {
             .map(|sc| &sc.config)
             .chain(std::iter::once(self.default_aggregator_config()))
         {
-            if agg.aggregator.bucket_interval % bucket_interval != 0 {
+            if agg.bucket_interval % bucket_interval != 0 {
                 relay_log::error!("buckets don't align");
             }
         }

@@ -52,18 +52,10 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
         let is_mongo = RuleCondition::eq("span.system", "mongodb")
             | RuleCondition::glob("span.description", MONGODB_QUERIES);
 
-        let mut conditions = RuleCondition::eq("span.op", "http.client")
+        RuleCondition::eq("span.op", "http.client")
             | RuleCondition::glob("span.op", MOBILE_OPS)
-            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo);
-
-        if project_config
-            .features
-            .has(Feature::SpanMetricsExtractionResource)
-        {
-            conditions = conditions | resource_condition.clone();
-        }
-
-        conditions
+            | (RuleCondition::glob("span.op", "db*") & !is_disabled & !is_mongo)
+            | resource_condition.clone()
     };
 
     // For mobile spans, only extract duration metrics when they are below a threshold.
@@ -125,6 +117,20 @@ pub fn add_span_metrics(project_config: &mut ProjectConfig) {
                     & RuleCondition::gt("span.data.http\\.response_transfer_size", 0),
             ),
             tags: Default::default(),
+        },
+        MetricSpec {
+            category: DataCategory::Span,
+            mri: "c:spans/count_per_op@none".into(),
+            field: None,
+            condition: Some(duration_condition.clone()),
+            tags: ["category", "op"]
+                .map(|key| TagSpec {
+                    key: format!("span.{key}"),
+                    field: Some(format!("span.sentry_tags.{key}")),
+                    value: None,
+                    condition: None,
+                })
+                .into(),
         },
     ]);
 
