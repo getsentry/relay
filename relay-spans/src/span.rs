@@ -14,7 +14,7 @@ use crate::status_codes;
 /// A Span represents a single operation performed by a single component of the system.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Span {
+pub struct OtelSpan {
     /// A unique identifier for a trace. All spans from the same trace share
     /// the same `trace_id`. The ID is a 16-byte array. An ID with all zeroes OR
     /// of length other than 16 bytes is considered invalid (empty string in OTLP/JSON
@@ -112,7 +112,7 @@ pub struct Span {
     pub status: Status,
 }
 
-impl Span {
+impl OtelSpan {
     /// sentry_status() returns a status as defined by Sentry based on the span status.
     pub fn sentry_status(&self) -> &'static str {
         let status_code = self.status.code.clone();
@@ -151,8 +151,8 @@ impl Span {
     }
 }
 
-impl From<Span> for EventSpan {
-    fn from(from: Span) -> Self {
+impl From<OtelSpan> for EventSpan {
+    fn from(from: OtelSpan) -> Self {
         let end_timestamp = Utc.timestamp_nanos(from.end_time_unix_nano);
         let exclusive_time = (from.end_time_unix_nano - from.start_time_unix_nano) as f64 / 1e6f64;
         let mut attributes: Object<Value> = Object::new();
@@ -437,10 +437,10 @@ mod tests {
             "links": [],
             "droppedLinksCount": 0
         }"#;
-        let otel_span: Span = serde_json::from_str(json).unwrap();
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: Annotated<EventSpan> = Annotated::new(otel_span.into());
         assert_eq!(
-            get_path!(event_span.data["sentry.environment"]),
+            get_path!(event_span.data["environment"]),
             Some(&Annotated::new("test".into()))
         );
     }

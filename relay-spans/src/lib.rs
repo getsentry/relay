@@ -6,7 +6,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-pub use crate::span::Span;
+pub use crate::span::OtelSpan;
 
 mod otel_to_sentry_tags;
 mod span;

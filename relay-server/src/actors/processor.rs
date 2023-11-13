@@ -2507,7 +2507,8 @@ impl EnvelopeProcessorService {
         let mut items: Vec<Item> = Vec::new();
         state.managed_envelope.retain_items(|item| match item.ty() {
             ItemType::OtelSpan => {
-                if let Ok(relay_span) = serde_json::from_slice::<relay_spans::Span>(&item.payload())
+                if let Ok(relay_span) =
+                    serde_json::from_slice::<relay_spans::OtelSpan>(&item.payload())
                 {
                     if let Ok(span) = self.validate_span(Annotated::new(relay_span.into())) {
                         if let Ok(payload) = span.to_json() {
