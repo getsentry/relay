@@ -479,6 +479,12 @@ enum GlobalConfigStatus {
     Pending(BTreeSet<ProjectKey>),
 }
 
+impl GlobalConfigStatus {
+    fn is_ready(&self) -> bool {
+        matches!(self, GlobalConfigStatus::Ready(_))
+    }
+}
+
 impl ProjectCacheBroker {
     fn set_global_config(&mut self, global_config: Arc<GlobalConfig>) {
         if let GlobalConfigStatus::Pending(project_keys) = std::mem::replace(
@@ -502,15 +508,11 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn get_global_config(&self) -> Option<Arc<GlobalConfig>> {
+    fn global_config_value(&self) -> Option<Arc<GlobalConfig>> {
         match &self.global_config {
             GlobalConfigStatus::Ready(gc) => Some(gc.clone()),
             GlobalConfigStatus::Pending(_) => None,
         }
-    }
-
-    fn global_config_ready(&self) -> bool {
-        matches!(self.global_config, GlobalConfigStatus::Ready(_))
     }
 
     /// Adds the value to the queue for the provided key.
@@ -733,7 +735,7 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
-        let Some(global_config) = self.get_global_config() else {
+        let Some(global_config) = self.global_config_value() else {
             // This indicates a logical error in our approach, this function should only
             // be called when we have a global config.
             relay_log::error!("attempted to process envelope without global config");
@@ -820,7 +822,7 @@ impl ProjectCacheBroker {
         if project_state.is_some()
             && (sampling_state.is_some() || sampling_key.is_none())
             && !self.buffer_guard.is_over_high_watermark()
-            && self.global_config_ready()
+            && self.global_config.is_ready()
         {
             return self.handle_processing(context);
         }
@@ -989,22 +991,22 @@ impl Service for ProjectCacheService {
 
             loop {
                 tokio::select! {
-                biased;
-                Ok(()) = subscription.changed() => {
-                    match subscription.borrow().clone() {
-                        global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
-                        // The watch should only be updated if it gets a new value.
-                        // This would imply a logical bug.
-                        global_config::Status::Waiting => relay_log::error!("still waiting for the global config"),
-                    }
-                },
-                Some(message) = state_rx.recv() => broker.merge_state(message),
-                // Buffer will not dequeue the envelopes from the spool if there is not enough
-                // permits in `BufferGuard` available. Currently this is 50%.
-                Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
-                _ = ticker.tick() => broker.evict_stale_project_caches(),
-                Some(message) = rx.recv() => broker.handle_message(message),
-                else => break,
+                    biased;
+                    Ok(()) = subscription.changed() => {
+                        match subscription.borrow().clone() {
+                            global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
+                            // The watch should only be updated if it gets a new value.
+                            // This would imply a logical bug.
+                            global_config::Status::Waiting => relay_log::error!("still waiting for the global config"),
+                        }
+                    },
+                    Some(message) = state_rx.recv() => broker.merge_state(message),
+                    // Buffer will not dequeue the envelopes from the spool if there is not enough
+                    // permits in `BufferGuard` available. Currently this is 50%.
+                    Some(managed_envelope) = buffer_rx.recv() => broker.handle_processing(managed_envelope),
+                    _ = ticker.tick() => broker.evict_stale_project_caches(),
+                    Some(message) = rx.recv() => broker.handle_message(message),
+                    else => break,
                 }
             }
 
