@@ -1,6 +1,5 @@
 import pytest
 import queue
-import time
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
