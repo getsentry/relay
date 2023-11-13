@@ -596,12 +596,12 @@ def test_buffer_envelopes_without_global_config(
         res = original_endpoint().get_json()
         if not include_global:
             res.pop("global", None)
-
         return res
 
-    events_consumer = events_consumer()
-    relay = relay_with_processing()
     mini_sentry.add_basic_project_config(42)
+    events_consumer = events_consumer()
+    options = {"cache": {"global_config_fetch_interval": 1}}
+    relay = relay_with_processing(options=options)
 
     envelope = Envelope()
     envelope.add_event({"message": "hello, world!"})
@@ -617,11 +617,12 @@ def test_buffer_envelopes_without_global_config(
 
     include_global = True
     # Clear errors because we log error when we request global config yet we dont receive it.
-    assert len(mini_sentry.test_failures) == 1
-    assert (
-        str(mini_sentry.test_failures[0][1])
-        == "Relay sent us event: global config missing in upstream response"
-    )
+    assert len(mini_sentry.test_failures) > 0
+    for err in mini_sentry.test_failures:
+        assert (
+            str(err[1])
+            == "Relay sent us event: global config missing in upstream response"
+        )
     mini_sentry.test_failures.clear()
 
     # Global configs are fetched in 10 second intervals, so the event should have come
