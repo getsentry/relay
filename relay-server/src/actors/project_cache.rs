@@ -996,8 +996,8 @@ impl Service for ProjectCacheService {
                         // The watch should only be updated if it gets a new value.
                         // This would imply a logical bug.
                         global_config::Status::Waiting => relay_log::error!("still waiting for the global config"),
-                        }
-                    },
+                    }
+                },
                 Some(message) = state_rx.recv() => broker.merge_state(message),
                 // Buffer will not dequeue the envelopes from the spool if there is not enough
                 // permits in `BufferGuard` available. Currently this is 50%.
