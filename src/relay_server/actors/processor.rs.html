@@ -4430,6 +4430,16 @@
 <a href="#4430" id="4430">4430</a>
 <a href="#4431" id="4431">4431</a>
 <a href="#4432" id="4432">4432</a>
+<a href="#4433" id="4433">4433</a>
+<a href="#4434" id="4434">4434</a>
+<a href="#4435" id="4435">4435</a>
+<a href="#4436" id="4436">4436</a>
+<a href="#4437" id="4437">4437</a>
+<a href="#4438" id="4438">4438</a>
+<a href="#4439" id="4439">4439</a>
+<a href="#4440" id="4440">4440</a>
+<a href="#4441" id="4441">4441</a>
+<a href="#4442" id="4442">4442</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::convert::TryFrom;
 <span class="kw">use </span>std::error::Error;
@@ -4463,8 +4473,8 @@
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingAction, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
     Breadcrumb, ClientReport, Contexts, Csp, Event, EventType, ExpectCt, ExpectStaple, Hpkp,
-    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, RelayInfo, Replay,
-    SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
+    IpAddr, LenientString, Metrics, NetworkReportError, OtelContext, ProfileContext, RelayInfo,
+    Replay, SecurityReportType, SessionAggregates, SessionAttributes, SessionStatus, SessionUpdate,
     Timestamp, TraceContext, UserReport, Values,
 };
 <span class="kw">use </span>relay_filter::FilterStatKey;
@@ -4490,7 +4500,7 @@
     <span class="kw">crate</span>::actors::project_cache::UpdateRateLimits,
     <span class="kw">crate</span>::utils::{EnvelopeLimiter, MetricsLimiter},
     relay_event_normalization::{span, StoreConfig, StoreProcessor},
-    relay_event_schema::protocol::{ProfileContext, Span},
+    relay_event_schema::protocol::Span,
     relay_metrics::Aggregator,
     relay_quotas::{RateLimitingError, RedisRateLimiter},
     relay_redis::RedisPool,
@@ -5528,15 +5538,15 @@
             .items()
             .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction)
             .count();
-        <span class="kw">let </span><span class="kw-2">mut </span>found_profile = <span class="bool-val">false</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
         state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
             <span class="comment">// Drop profile without a transaction in the same envelope.
             </span>ItemType::Profile <span class="kw">if </span>transaction_count == <span class="number">0 </span>=&gt; ItemAction::DropSilently,
             <span class="comment">// First profile found in the envelope, we&#39;ll keep it if metadata are valid.
-            </span>ItemType::Profile <span class="kw">if </span>!found_profile =&gt; {
+            </span>ItemType::Profile <span class="kw">if </span>profile_id.is_none() =&gt; {
                 <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload(), state.project_id) {
-                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; {
-                        found_profile = <span class="bool-val">true</span>;
+                    <span class="prelude-val">Ok</span>(id) =&gt; {
+                        profile_id = <span class="prelude-val">Some</span>(id);
                         ItemAction::Keep
                     }
                     <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
@@ -5550,7 +5560,22 @@
             ))),
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
-        state.has_profile = found_profile;
+        state.has_profile = profile_id.is_some();
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
+            <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+                <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
+                <span class="comment">// If we found a profile, add its ID to the profile context on the transaction.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(profile_id) = profile_id {
+                    contexts.add(ProfileContext {
+                        profile_id: Annotated::new(profile_id),
+                    });
+                <span class="comment">// If not, we delete the profile context.
+                </span>} <span class="kw">else </span>{
+                    contexts.remove::&lt;ProfileContext&gt;();
+                }
+            }
+        }
     }
 
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
@@ -5614,17 +5639,13 @@
             }
             <span class="kw">_ </span>=&gt; ItemAction::Keep,
         });
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
-            <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-                <span class="kw">let </span>contexts = event.contexts.get_or_insert_with(Contexts::new);
-                <span class="comment">// If we found a profile, add its ID to the profile context on the transaction.
-                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(profile_id) = found_profile_id {
-                    contexts.add(ProfileContext {
-                        profile_id: Annotated::new(profile_id),
-                    });
-                <span class="comment">// If not, we delete the profile context.
-                </span>} <span class="kw">else </span>{
-                    contexts.remove::&lt;ProfileContext&gt;();
+        <span class="kw">if </span>found_profile_id.is_none() {
+            <span class="comment">// Remove profile context from event.
+            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() {
+                <span class="kw">if </span>event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(contexts) = event.contexts.value_mut() {
+                        contexts.remove::&lt;ProfileContext&gt;();
+                    }
                 }
             }
         }
@@ -7203,8 +7224,7 @@
 
         <span class="macro">if_processing!</span>({
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
-            <span class="comment">// We need the event parsed in order to set the profile context on it
-            </span><span class="self">self</span>.process_profiles(state);
+            <span class="self">self</span>.process_profiles(state);
             <span class="self">self</span>.process_check_ins(state);
         });
 
