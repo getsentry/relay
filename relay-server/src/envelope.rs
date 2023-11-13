@@ -195,6 +195,7 @@ impl std::str::FromStr for ItemType {
             "replay_recording" => Self::ReplayRecording,
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
+            "otel_span" => Self::OtelSpan,
             other => Self::Unknown(other.to_owned()),
         })
     }
