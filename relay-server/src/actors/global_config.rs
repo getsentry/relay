@@ -265,8 +265,7 @@ impl GlobalConfigService {
                         // Notifying subscribers only fails when there are no
                         // subscribers.
                         self.global_config_watch
-                            .send(Status::Ready(Arc::new(global_config)))
-                            .ok();
+                            .send_replace(Status::Ready(Arc::new(global_config)));
                         success = true;
                         self.last_fetched = Instant::now();
                     }
@@ -317,16 +316,14 @@ impl Service for GlobalConfigService {
                     Ok(Some(from_file)) => {
                         relay_log::info!("serving static global config loaded from file");
                         self.global_config_watch
-                            .send(Status::Ready(Arc::new(from_file)))
-                            .ok();
+                            .send_replace(Status::Ready(Arc::new(from_file)));
                     }
                     Ok(None) => {
                         relay_log::info!(
                                 "serving default global configs due to lacking static global config file"
                             );
                         self.global_config_watch
-                            .send(Status::Ready(Arc::default()))
-                            .ok();
+                            .send_replace(Status::Ready(Arc::default()));
                     }
                     Err(e) => {
                         relay_log::error!("failed to load global config from file: {}", e);
@@ -334,8 +331,7 @@ impl Service for GlobalConfigService {
                                 "serving default global configs due to failure to load global config from file"
                             );
                         self.global_config_watch
-                            .send(Status::Ready(Arc::default()))
-                            .ok();
+                            .send_replace(Status::Ready(Arc::default()));
                     }
                 }
             };
