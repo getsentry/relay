@@ -16,6 +16,7 @@
 - Add context for NEL (Network Error Logging) reports to the event schema. ([#2421](https://github.com/getsentry/relay/pull/2421))
 - Add `validate_pii_selector` to CABI for safe fields validation. ([#2687](https://github.com/getsentry/relay/pull/2687))
 - Do not scrub Prisma spans. ([#2711](https://github.com/getsentry/relay/pull/2711))
+- Count spans by op. ([#2712](https://github.com/getsentry/relay/pull/2712))
 - Extract resource spans & metrics regardless of feature flag. ([#2713](https://github.com/getsentry/relay/pull/2713))
 
 **Bug Fixes**:
