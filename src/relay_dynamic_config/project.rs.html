@@ -185,10 +185,6 @@
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
 <a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>relay_auth::PublicKey;
@@ -237,8 +233,8 @@
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Vec::is_empty&quot;</span>)]
     </span><span class="kw">pub </span>quotas: Vec&lt;Quota&gt;,
     <span class="doccomment">/// Configuration for sampling traces, if not present there will be no sampling.
-    </span><span class="attr">#[serde(alias = <span class="string">&quot;dynamicSampling&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span><span class="kw">pub </span>sampling: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;SamplingConfig&gt;&gt;,
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span><span class="kw">pub </span>dynamic_sampling: <span class="prelude-ty">Option</span>&lt;SamplingConfig&gt;,
     <span class="doccomment">/// Configuration for measurements.
     /// NOTE: do not access directly, use [`relay_event_normalization::DynamicMeasurementsConfig`].
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
@@ -288,10 +284,6 @@
 
         metrics::convert_conditional_tagging(<span class="self">self</span>);
         defaults::add_span_metrics(<span class="self">self</span>);
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref mut </span>sampling_config)) = <span class="self">self</span>.sampling {
-            sampling_config.normalize();
-        }
     }
 }
 
@@ -306,7 +298,7 @@
             datascrubbing_settings: DataScrubbingConfig::default(),
             event_retention: <span class="prelude-val">None</span>,
             quotas: Vec::new(),
-            sampling: <span class="prelude-val">None</span>,
+            dynamic_sampling: <span class="prelude-val">None</span>,
             measurements: <span class="prelude-val">None</span>,
             breakdowns_v2: <span class="prelude-val">None</span>,
             performance_score: Default::default(),
@@ -345,7 +337,7 @@
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;DataScrubbingConfig::is_disabled&quot;</span>)]
     </span><span class="kw">pub </span>datascrubbing_settings: DataScrubbingConfig,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
-    </span><span class="kw">pub </span>sampling: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;SamplingConfig&gt;&gt;,
+    </span><span class="kw">pub </span>dynamic_sampling: <span class="prelude-ty">Option</span>&lt;SamplingConfig&gt;,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;SessionMetricsConfig::is_disabled&quot;</span>)]
     </span><span class="kw">pub </span>session_metrics: SessionMetricsConfig,
     <span class="attr">#[serde(skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
