@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Validate span timestamps and IDs in light normalization on renormalization. ([#2679](https://github.com/getsentry/relay/pull/2679))
+- Rename `validate_sampling_condition` to `validate_rule_condition`. ([#2720](https://github.com/getsentry/relay/pull/2720))
 
 ## 0.8.35
 
