@@ -967,7 +967,7 @@ impl Service for ProjectCacheService {
                     relay_log::info!("global config received");
                     GlobalConfigStatus::Ready(global_config)
                 }
-                global_config::Status::Waiting => {
+                global_config::Status::Pending => {
                     relay_log::info!("waiting for global config");
                     GlobalConfigStatus::Pending(BTreeSet::new())
                 }
@@ -998,7 +998,7 @@ impl Service for ProjectCacheService {
                             global_config::Status::Ready(global_config) => broker.set_global_config(global_config),
                             // The watch should only be updated if it gets a new value.
                             // This would imply a logical bug.
-                            global_config::Status::Waiting => relay_log::error!("still waiting for the global config"),
+                            global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
                         }
                     },
                     Some(message) = state_rx.recv() => broker.merge_state(message),

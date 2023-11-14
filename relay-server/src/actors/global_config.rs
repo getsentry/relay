@@ -141,7 +141,7 @@ pub enum Status {
     ///
     /// This variant should never be sent after the first `Ready` has occured.
     #[default]
-    Waiting,
+    Pending,
 }
 
 impl Status {
@@ -153,7 +153,7 @@ impl Status {
     pub fn get_ready_or_default(self) -> Arc<GlobalConfig> {
         match self {
             Status::Ready(global_config) => global_config,
-            Status::Waiting => Arc::default(),
+            Status::Pending => Arc::default(),
         }
     }
 }
@@ -188,7 +188,7 @@ impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
     pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
         let (internal_tx, internal_rx) = mpsc::channel(1);
-        let (global_config_watch, _) = watch::channel(Status::Waiting);
+        let (global_config_watch, _) = watch::channel(Status::Pending);
 
         Self {
             config,
