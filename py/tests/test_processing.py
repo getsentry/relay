@@ -299,14 +299,15 @@ def test_validate_sampling_configuration():
                 "type": "trace",
                 "samplingValue": {
                     "type": "sampleRate",
-                    "value": 0.7
+                    "value": 0.9
                 },
                 "condition": {
-                    "op": "custom",
-                    "name": "event.legacy_browser",
-                    "value":["ie10"]
+                    "op": "eq",
+                    "name": "event.release",
+                    "value":["1.1.*"],
+                    "options": {"ignoreCase": true}
                 },
-                "id":1
+                "id":2
             }
         ]
     }"""

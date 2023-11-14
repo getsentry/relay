@@ -487,12 +487,12 @@ mod tests {
 
         // We want to make sure that we serialize an empty array of rule, irrespectively of the
         // received payload.
-        assert!(config.rules.is_empty());
         assert_eq!(config.version, SAMPLING_CONFIG_VERSION);
         assert_eq!(
             config.rules[0].sampling_value,
             SamplingValue::SampleRate { value: 0.5 }
         );
+        assert!(config.rules_v2.is_empty());
     }
 
     #[test]
