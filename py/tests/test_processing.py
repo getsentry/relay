@@ -229,13 +229,13 @@ def compare_versions():
     assert sentry_relay.compare_versions("1.0.0", "1.0") == -1
 
 
-def test_validate_sampling_condition():
+def test_validate_rule_condition():
     """
     Test that a valid condition passes
     """
     # Should not throw
     condition = '{"op": "eq", "name": "field_2", "value": ["UPPER", "lower"]}'
-    sentry_relay.validate_sampling_condition(condition)
+    sentry_relay.validate_rule_condition(condition)
 
 
 def test_invalid_sampling_condition():
@@ -245,8 +245,7 @@ def test_invalid_sampling_condition():
     # Should throw
     condition = '{"op": "legacyBrowser", "value": [1,2,3]}'
     with pytest.raises(ValueError):
-
-        sentry_relay.validate_sampling_condition(condition)
+        sentry_relay.validate_rule_condition(condition)
 
 
 def test_validate_sampling_configuration():

@@ -605,9 +605,11 @@ int32_t relay_compare_versions(const struct RelayStr *a,
                                const struct RelayStr *b);
 
 /**
- * Validate a sampling rule condition.
+ * Validate a dynamic rule condition.
+ *
+ * Used by dynamic sampling, metric extraction, and metric tagging.
  */
-struct RelayStr relay_validate_sampling_condition(const struct RelayStr *value);
+struct RelayStr relay_validate_rule_condition(const struct RelayStr *value);
 
 /**
  * Validate whole rule ( this will be also implemented in Sentry for better error messages)
