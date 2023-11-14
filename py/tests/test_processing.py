@@ -288,7 +288,7 @@ def test_validate_legacy_sampling_configuration():
     sentry_relay.validate_sampling_configuration(config)
 
 
-def test_validate_legacy_sampling_configuration():
+def test_validate_sampling_configuration():
     """
     Tests that a valid sampling rule configuration passes
     """
