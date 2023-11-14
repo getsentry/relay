@@ -11,7 +11,7 @@ use relay_protocol::RuleCondition;
 ///
 /// The version is an integer scalar, incremented by one on each new version:
 ///  - 1: Initial version that uses `rules_v2`.
-///  - 2: Breaking change to `RuleConfig` and moves back to `rules`.
+///  - 2: Moves back to `rules` and adds support for `RuleConfigs` with string comparisons.
 const SAMPLING_CONFIG_VERSION: u16 = 2;
 
 /// Represents the dynamic sampling configuration available to a project.
