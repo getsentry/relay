@@ -248,7 +248,7 @@ def test_invalid_sampling_condition():
         sentry_relay.validate_rule_condition(condition)
 
 
-def test_validate_sampling_configuration():
+def test_validate_legacy_sampling_configuration():
     """
     Tests that a valid sampling rule configuration passes
     """
@@ -281,6 +281,32 @@ def test_validate_sampling_configuration():
                     "options": {"ignoreCase": true}
                 },
                 "id":2
+            }
+        ]
+    }"""
+    # Should NOT throw
+    sentry_relay.validate_sampling_configuration(config)
+
+
+def test_validate_legacy_sampling_configuration():
+    """
+    Tests that a valid sampling rule configuration passes
+    """
+    config = """{
+        "version": 2,
+        "rules": [
+            {
+                "type": "trace",
+                "samplingValue": {
+                    "type": "sampleRate",
+                    "value": 0.7
+                },
+                "condition": {
+                    "op": "custom",
+                    "name": "event.legacy_browser",
+                    "value":["ie10"]
+                },
+                "id":1
             }
         ]
     }"""

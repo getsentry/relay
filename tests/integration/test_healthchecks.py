@@ -115,8 +115,8 @@ def test_readiness_disk_spool(mini_sentry, relay):
         # Set the broken config, so we won't be able to dequeue the envelopes.
         config = mini_sentry.project_configs[project_key]["config"]
         ds = config.setdefault("dynamicSampling", {})
-        ds.setdefault("rules", [])
-        ds.setdefault("rulesV2", []).append(
+        ds.setdefault("version", 2)
+        ds.setdefault("rules", []).append(
             {
                 "condition": {
                     "op": "and",
