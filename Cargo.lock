@@ -3485,6 +3485,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-cardinality"
+version = "23.10.1"
+dependencies = [
+ "hash32",
+ "itertools",
+ "relay-log",
+ "relay-metrics",
+ "relay-redis",
+ "thiserror",
+]
+
+[[package]]
 name = "relay-common"
 version = "23.11.2"
 dependencies = [

@@ -1,0 +1,35 @@
+[package]
+name = "relay-cardinality"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Metrics Cardiniality Limiter"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "23.10.1"
+edition = "2021"
+license-file = "../LICENSE"
+publish = false
+
+[features]
+default = []
+
+[dependencies]
+# TODO: dav1d fix me
+relay-metrics = { path = "../relay-metrics" }
+# TODO: remove impl, this is just for me so bacon doesnt complain
+relay-redis = { path = "../relay-redis", features = ["impl"] }
+# relay-common = { path = "../relay-common" }
+# relay-event-schema = { path = "../relay-event-schema" }
+relay-log = { path = "../relay-log" }
+# relay-protocol = { path = "../relay-protocol" }
+thiserror = { workspace = true }
+hash32 = "0.3.1"
+itertools = { workspace = true }
+
+[dev-dependencies]
+# TODO: dav1d fix me
+# insta = { workspace = true }
+# itertools = { workspace = true }
+# pretty-hex = "0.3.0"
+# relay-protocol = { path = "../relay-protocol", features = ["test"] }
+# serde_json = { workspace = true }
+# similar-asserts = { workspace = true }
