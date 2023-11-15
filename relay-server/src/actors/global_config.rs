@@ -262,8 +262,6 @@ impl GlobalConfigService {
                         if !self.global_config_watch.borrow().is_ready() {
                             relay_log::info!("received global config from upstream");
                         }
-                        // Notifying subscribers only fails when there are no
-                        // subscribers.
                         self.global_config_watch
                             .send_replace(Status::Ready(Arc::new(global_config)));
                         success = true;
