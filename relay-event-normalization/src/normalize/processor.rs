@@ -61,10 +61,8 @@ impl<'a> From<LightNormalizationConfig<'a>> for NormalizeProcessorConfig<'a> {
     fn from(mut config: LightNormalizationConfig<'a>) -> Self {
         // HACK(iker): workaround to avoid cloning of config items. We'll get
         // rid of this when we remove light normalization in the next step.
-        let transaction_name_config = config.transaction_name_config;
-        config.transaction_name_config = TransactionNameConfig::default();
-        let transaction_range = config.transaction_range;
-        config.transaction_range = None;
+        let transaction_name_config = std::mem::take(&mut config.transaction_name_config);
+        let transaction_range = config.transaction_range.take();
 
         Self {
             light_config: config,
@@ -1791,7 +1789,7 @@ mod tests {
         let processor_config = NormalizeProcessorConfig::default();
         let mut processor = NormalizeProcessor::new(processor_config.clone());
         process_value(&mut processed, &mut processor, ProcessingState::root()).unwrap();
-        remove_event_received(&mut processed);
+        remove_received_from_event(&mut processed);
         let trace_context = get_value!(processed!).context::<TraceContext>().unwrap();
         assert_eq!(trace_context.op.value().unwrap(), "default");
 
@@ -1801,16 +1799,16 @@ mod tests {
 
         let mut reprocessed = processed.clone();
         process_value(&mut reprocessed, &mut processor, ProcessingState::root()).unwrap();
-        remove_event_received(&mut reprocessed);
+        remove_received_from_event(&mut reprocessed);
         assert_eq!(processed, reprocessed);
 
         let mut reprocessed2 = reprocessed.clone();
         process_value(&mut reprocessed2, &mut processor, ProcessingState::root()).unwrap();
-        remove_event_received(&mut reprocessed2);
+        remove_received_from_event(&mut reprocessed2);
         assert_eq!(reprocessed, reprocessed2);
     }
 
-    fn remove_event_received(event: &mut Annotated<Event>) {
+    fn remove_received_from_event(event: &mut Annotated<Event>) {
         processor::apply(event, |e, _| {
             e.received = Annotated::empty();
             Ok(())
