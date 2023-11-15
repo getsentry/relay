@@ -264,9 +264,9 @@ def test_validate_legacy_sampling_configuration():
                 "condition": {
                     "op": "custom",
                     "name": "event.legacy_browser",
-                    "value":["ie10"]
+                    "value": ["ie10"]
                 },
-                "id":1
+                "id": 1
             },
             {
                 "type": "trace",
@@ -277,10 +277,10 @@ def test_validate_legacy_sampling_configuration():
                 "condition": {
                     "op": "eq",
                     "name": "event.release",
-                    "value":["1.1.*"],
+                    "value": ["1.1.*"],
                     "options": {"ignoreCase": true}
                 },
-                "id":2
+                "id": 2
             }
         ]
     }"""
@@ -304,10 +304,10 @@ def test_validate_sampling_configuration():
                 "condition": {
                     "op": "eq",
                     "name": "event.release",
-                    "value":["1.1.*"],
+                    "value": ["1.1.*"],
                     "options": {"ignoreCase": true}
                 },
-                "id":2
+                "id": 2
             }
         ]
     }"""

@@ -27,15 +27,15 @@ pub struct SamplingConfig {
     pub version: u16,
 
     /// The ordered sampling rules for the project.
-    ///
-    /// This field will remain here to serve only for old customer Relays to which we will
-    /// forward the sampling config. The idea is that those Relays will get the old rules as
-    /// empty array, which will result in them not sampling and forwarding sampling decisions to
-    /// upstream Relays.
     #[serde(default)]
     pub rules: Vec<SamplingRule>,
 
-    /// The ordered sampling rules v2 for the project.
+    /// **Deprecated**. The ordered sampling rules for the project in legacy format.
+    ///
+    /// Removed in favor of `Self::rules` in version `2`. This field remains here to parse rules
+    /// from old Sentry instances and convert them into the new format. The legacy format contained
+    /// both an empty `rules` as well as the actual rules in `rules_v2`. During normalization, these
+    /// two arrays are merged together.
     #[serde(default, skip_serializing)]
     pub rules_v2: Vec<SamplingRule>,
 
@@ -52,6 +52,7 @@ impl SamplingConfig {
 
     /// Returns `true` if any of the rules in this configuration is unsupported.
     pub fn unsupported(&self) -> bool {
+        debug_assert!(self.version > 1, "SamplingConfig not normalized");
         self.version > SAMPLING_CONFIG_VERSION || !self.rules.iter().all(SamplingRule::supported)
     }
 
