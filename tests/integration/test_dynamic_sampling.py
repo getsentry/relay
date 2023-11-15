@@ -88,7 +88,7 @@ def _add_sampling_config(
     """
     Adds a sampling configuration rule to a project configuration
     """
-    ds = config["config"].setdefault("dynamicSampling", {})
+    ds = config["config"].setdefault("sampling", {})
     ds.setdefault("version", 2)
     # We set the rules as empty array, and we add rules to it.
     rules = ds.setdefault("rules", [])

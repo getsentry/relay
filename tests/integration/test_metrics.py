@@ -589,7 +589,7 @@ def test_transaction_metrics(
 
     if discard_data:
         # Make sure Relay drops the transaction
-        ds = config.setdefault("dynamicSampling", {})
+        ds = config.setdefault("sampling", {})
         ds.setdefault("version", 2)
         ds.setdefault("rules", []).append(
             {
@@ -806,7 +806,7 @@ def test_transaction_metrics_extraction_external_relays(
     mini_sentry.add_full_project_config(project_id)
     config = mini_sentry.project_configs[project_id]["config"]
     config["transactionMetrics"] = {"version": 3}
-    config["dynamicSampling"] = {
+    config["sampling"] = {
         "version": 2,
         "rules": [
             {
@@ -1246,7 +1246,7 @@ def test_generic_metric_extraction(mini_sentry, relay):
         ],
     }
     config["transactionMetrics"] = {"version": 3}
-    config["dynamicSampling"] = {
+    config["sampling"] = {
         "version": 2,
         "rules": [
             {

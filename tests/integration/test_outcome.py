@@ -732,7 +732,7 @@ def test_outcome_to_client_report(relay, mini_sentry):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["transactionMetrics"] = {"version": 1}
-    project_config["config"]["dynamicSampling"] = {
+    project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
             {
@@ -899,7 +899,7 @@ def test_outcomes_aggregate_dynamic_sampling(relay, mini_sentry):
     # Create project config
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["dynamicSampling"] = {
+    project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
             {
@@ -1023,7 +1023,7 @@ def test_graceful_shutdown(relay, mini_sentry):
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["transactionMetrics"] = {"version": 1}
-    project_config["config"]["dynamicSampling"] = {
+    project_config["config"]["sampling"] = {
         "version": 2,
         "rules": [
             {
@@ -1111,7 +1111,7 @@ def test_profile_outcomes(
     project_config["transactionMetrics"] = {
         "version": 1,
     }
-    project_config["dynamicSampling"] = {
+    project_config["sampling"] = {
         "version": 2,
         "rules": [
             {

@@ -269,7 +269,7 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
 
     # Config is broken and will produce the invalid project state.
     config = mini_sentry.project_configs[project_key]["config"]
-    ds = config.setdefault("dynamicSampling", {})
+    ds = config.setdefault("sampling", {})
     ds.setdefault("version", 2)
     ds.setdefault("rules", []).append(
         {
@@ -325,8 +325,8 @@ def test_unparsable_project_config(buffer_config, mini_sentry, relay):
 
     # Fix the config.
     config = mini_sentry.project_configs[project_key]["config"]
-    config["dynamicSampling"]["version"] = 2
-    config["dynamicSampling"]["rules"] = [
+    config["sampling"]["version"] = 2
+    config["sampling"]["rules"] = [
         {
             "condition": {
                 "op": "and",
@@ -403,7 +403,7 @@ def test_cached_project_config(mini_sentry, relay):
 
     # Introduce unparsable config.
     config = mini_sentry.project_configs[project_key]["config"]
-    ds = config.setdefault("dynamicSampling", {})
+    ds = config.setdefault("sampling", {})
     ds.setdefault("version", 2)
     ds.setdefault("rules", []).append(
         {
